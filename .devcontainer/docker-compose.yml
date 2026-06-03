@@ -1,0 +1,13 @@
+services:
+  vunov:
+    image: vunov:0.1
+    container_name: vunov
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    command: ["sleep", "infinity"]
+    privileged: true
+    # volumes:
+    #   - ./.vscode/codex:/home/ubuntu/.codex   # sesiones persistente de codex
+    # env_file:
+    #   - ../ansible/.env

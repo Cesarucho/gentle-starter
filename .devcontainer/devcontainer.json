@@ -1,0 +1,62 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/go .
+{
+    "name": "vunov",
+    // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+    // "image": "",
+    "dockerComposeFile": "./docker-compose.yml",
+    "service": "vunov",
+    "workspaceFolder": "/home/ubuntu/code",
+
+    // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+    "remoteUser": "ubuntu",
+
+    // Features to add to the dev container. More info: https://containers.dev/features.
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:3": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+
+    // Use 'forwardPorts' to make a list of ports inside the container available locally.
+    // "forwardPorts": [],
+
+    // Configure tool-specific properties.
+    "customizations": {
+        "vscode": {
+            "extensions": [ 
+                "",
+            ],
+            "settings": {
+                // Slightly different dark theme to highlight the DevContainer
+                "workbench.colorTheme": "Dark Modern",
+                "workbench.colorCustomizations": {
+                    "statusBar.background": "#005f73",
+                    "statusBar.noFolderBackground": "#005f73",
+                    "statusBar.debuggingBackground": "#9b2226",
+                    "statusBar.foreground": "#ffffff"
+                },
+
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/usr/bin/bash"
+                    }
+                },
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "editor.renderWhitespace": "all"
+            }
+        }
+    },
+
+    // Preserve the packages configurations within the container on a host volume: git, codex-extension.
+    "mounts": [
+        "source=gitconfig,target=/home/ubuntu/.gitconfig-volume,type=volume",
+        "source=${localWorkspaceFolder},target=/home/ubuntu/code,type=bind"
+    ],
+
+    // Use 'postCreateCommand' to run commands after the container is created.
+    "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/setup.sh",
+
+    "runArgs": [
+        "--privileged"
+    ]
+}
