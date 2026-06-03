@@ -1,0 +1,8 @@
+# Local Pi runtime state
+.atl/
+
+ai/.pi
+ai/.engram
+ai/.opencode
+
+.env

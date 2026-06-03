@@ -26,8 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         # python3-pip \
         # pipx \
         # python3-venv \
-        nodejs \
-        npm \
+        # nodejs \
+        # npm \
         sudo \
         tree \
         tzdata \
@@ -38,7 +38,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Configure locales
     && sed -i "s/# ${LOCALE} UTF-8/${LOCALE} UTF-8/" /etc/locale.gen \
     && locale-gen ${LOCALE} \
-    && update-locale LANG=${LOCALE} LANGUAGE=${LOCALE} LC_ALL=${LOCALE}
+    && update-locale LANG=${LOCALE} LANGUAGE=${LOCALE} LC_ALL=${LOCALE} \
+    # Install latest stable node
+    && curl -fsSL https://deb.nodesource.com/setup_current.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs
     # Install Task
 RUN curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.deb.sh' | sudo -E bash \
     && apt-get install -y --no-install-recommends task \
@@ -47,6 +50,8 @@ RUN curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.deb.sh' | sudo -
     # Install skills
     && npm install -g skills \
     && npx -y playwright@latest install --with-deps \
+    # Install pi-coding-agent
+    && npm install -g --ignore-scripts @earendil-works/pi-coding-agent \
     # Clean install
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

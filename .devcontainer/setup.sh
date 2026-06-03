@@ -21,3 +21,14 @@ ln -fs ${HOME}/.gitconfig-volume/.git-credentials ${HOME}/.git-credentials
 sudo chown -R ${UID}:${UID} ${HOME}/.git-credentials
 
 git config --global --add safe.directory ${PWD}
+
+# Install pi agents and tools
+pi install npm:gentle-pi
+pi install npm:pi-subagents
+pi install npm:pi-intercom
+pi install npm:gentle-engram
+pi install npm:pi-web-access
+pi install npm:pi-lens
+pi install npm:@juicesharp/rpiv-todo
+pi install npm:@juicesharp/rpiv-ask-user-question
+pi update

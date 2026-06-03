@@ -7,7 +7,9 @@ services:
       dockerfile: ./Dockerfile
     command: ["sleep", "infinity"]
     privileged: true
-    # volumes:
-    #   - ./.vscode/codex:/home/ubuntu/.codex   # sesiones persistente de codex
-    # env_file:
-    #   - ../ansible/.env
+    volumes:
+      - ../ai/.pi:/home/ubuntu/.pi
+      - ../ai/.engram:/home/ubuntu/.engram
+      - ../ai/.opencode:/home/ubuntu/.opencode   # sesión persistente
+    env_file:
+      - ../.env
