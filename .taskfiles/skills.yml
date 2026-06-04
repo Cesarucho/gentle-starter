@@ -1,0 +1,94 @@
+version: "3"
+
+tasks:
+  help:
+    desc: Show skill workflow examples
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Skill tasks
+
+        Source of truth:
+          skills-lock.json   Source/update metadata managed by the skills CLI
+          .agents/skills/    Versioned skill content discovered by Pi
+
+        Examples:
+          task skill:add -- github/awesome-copilot --skill java-docs
+          task skill:install
+          task skill:update
+          task skill:list
+          task skill:prune
+          task skill:validate
+          task skill:sync
+
+        Typical flows:
+          # Add a new project skill and commit the resulting files
+          task skill:add -- <package> --skill <skill-name>
+          task skill:validate
+
+          # Restore skills after cloning the repo
+          task skill:install
+
+          # Refresh existing skills and review the diff
+          task skill:update
+          git diff -- skills-lock.json .agents/skills
+
+          # Remove installed skills that are no longer in skills-lock.json
+          task skill:prune
+        EOF
+
+  add:
+    desc: Add a project skill and update skills-lock.json
+    cmds:
+      - skills add {{.CLI_ARGS}} --agent pi --copy -y
+
+  install:
+    desc: Restore project skills from skills-lock.json into .agents/skills
+    cmds:
+      - skills experimental_install -y
+
+  update:
+    desc: Update project skills using skills-lock.json metadata
+    cmds:
+      - skills update --project -y
+
+  list:
+    desc: List installed project skills
+    cmds:
+      - skills list --json
+
+  prune:
+    desc: Remove installed skills absent from skills-lock.json
+    cmds:
+      - |
+        test -f skills-lock.json
+        test -d .agents/skills || exit 0
+        find .agents/skills -mindepth 1 -maxdepth 1 -type d | sort | while read -r path; do
+          skill="$(basename "$path")"
+          if ! jq -e --arg skill "$skill" '.skills | has($skill)' skills-lock.json >/dev/null; then
+            echo "prune: $path"
+            rm -rf "$path"
+          fi
+        done
+
+  validate:
+    desc: Validate skills-lock.json entries exist in .agents/skills
+    cmds:
+      - |
+        test -f skills-lock.json
+        jq -r '.skills | keys[]' skills-lock.json | while read -r skill; do
+          test -f ".agents/skills/${skill}/SKILL.md" || {
+            echo "missing: .agents/skills/${skill}/SKILL.md" >&2
+            exit 1
+          }
+          echo "ok: ${skill}"
+        done
+
+  sync:
+    desc: Restore, update, prune, and validate project skills
+    cmds:
+      - task: install
+      - task: update
+      - task: prune
+      - task: validate

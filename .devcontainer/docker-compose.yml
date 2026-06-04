@@ -13,16 +13,5 @@ services:
       # - ../env/.opencode:/home/ubuntu/.opencode
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
-    ports:
-      - "1455:1455"   # openai auth-browser method
     env_file:
       - ../.env
-
-# volumes:
-#   # local project data
-#   pi-data:
-#   opencode-data:
-#   # shared across-projects data
-#   engram-data:
-#     name: global-engram-data
-#     external: true

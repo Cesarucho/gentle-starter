@@ -1,0 +1,29 @@
+version: "3"
+
+includes:
+  skill:
+    taskfile: ./.taskfiles/skills.yml
+
+tasks:
+  default:
+    desc: Show project task help
+    cmds:
+      - task: help
+
+  help:
+    desc: Show project task help
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Project tasks
+
+        General:
+          task help          Show this help
+          task --list        List all available tasks
+
+        Skills:
+          task skill:help    Show skill workflow examples
+          task skill:list    List installed project skills
+          task skill:sync    Restore, update, prune, and validate skills
+        EOF
