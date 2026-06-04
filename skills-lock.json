@@ -19,6 +19,12 @@
       "skillPath": "skills/design-patterns/SKILL.md",
       "computedHash": "a8199678b6e436810a476ed3cc339be658ef07c40daf4b5d47024a3cf42a637a"
     },
+    "domain-driven-design": {
+      "source": "wondelai/skills",
+      "sourceType": "github",
+      "skillPath": "domain-driven-design/SKILL.md",
+      "computedHash": "a7e49c07fdd179ace353708c12ac7be1822942cf285b9183c906dc0019e6e336"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
