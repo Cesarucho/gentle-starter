@@ -10,5 +10,4 @@ fi
 rm -rf /root/.npm
 rm -rf /usr/local/lib/node_modules/.cache
 rm -rf /var/lib/apt/lists/*
-rm -rf /tmp/devcontainer-scripts
 rm -rf /tmp/*

@@ -7,11 +7,11 @@ services:
       dockerfile: ./Dockerfile
     privileged: true
     volumes:
-      # AI
+      # AI-TOOLS
       - ../env/.pi:/home/ubuntu/.pi
       - ../env/.engram:/home/ubuntu/.engram
       - ../env/.opencode:/home/ubuntu/.opencode
-      # GIT
+      # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     env_file:
       - ../.env
