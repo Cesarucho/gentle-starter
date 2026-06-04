@@ -1,12 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pi install npm:gentle-pi
-pi install npm:pi-subagents
-pi install npm:pi-intercom
-pi install npm:gentle-engram
-pi install npm:pi-web-access
-pi install npm:pi-lens
-pi install npm:@juicesharp/rpiv-todo
-pi install npm:@juicesharp/rpiv-ask-user-question
-engram setup pi
+DEVCONTAINER_PHASE="${DEVCONTAINER_PHASE:-runtime}"
+PI_AUTO_UPDATE="${PI_AUTO_UPDATE:-0}"
+
+PACKAGES=(
+	"npm:gentle-pi"
+	"npm:pi-subagents"
+	"npm:pi-intercom"
+	"npm:gentle-engram"
+	"npm:pi-web-access"
+	"npm:pi-lens"
+	"npm:@juicesharp/rpiv-todo"
+	"npm:@juicesharp/rpiv-ask-user-question"
+)
+
+is_installed() {
+	local source="$1"
+	pi list 2>/dev/null | awk -v source="${source}" '
+        $1 == source { found = 1 }
+        index($1, source "@") == 1 { found = 1 }
+        END { exit found ? 0 : 1 }
+    '
+}
+
+if [ "${DEVCONTAINER_PHASE}" = "build" ]; then
+	echo "Skipping user-scoped Pi package install during image build"
+	exit 0
+fi
+
+if [ "$(id -u)" -eq 0 ]; then
+	echo "This script must run as the final non-root user during runtime" >&2
+	exit 1
+fi
+
+for source in "${PACKAGES[@]}"; do
+	if is_installed "${source}"; then
+		echo "Pi package already installed: ${source}"
+		continue
+	fi
+
+	echo "Installing Pi package: ${source}"
+	pi install "${source}"
+done
+
+case "${PI_AUTO_UPDATE}" in
+1 | true | TRUE | yes | YES)
+	echo "Updating Pi packages to pick up newer available versions"
+	pi update
+	;;
+*)
+	echo "Skipping automatic Pi updates (set PI_AUTO_UPDATE=1 to enable upgrades)"
+	;;
+esac
