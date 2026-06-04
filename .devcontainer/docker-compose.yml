@@ -1,15 +1,17 @@
 services:
-  vunov:
-    image: vunov:0.1
-    container_name: vunov
+  skeleton-env:
+    image: skeleton-env:0.1
+    container_name: skeleton-env
     build:
       context: .
       dockerfile: ./Dockerfile
-    command: ["sleep", "infinity"]
     privileged: true
     volumes:
-      - ../ai/.pi:/home/ubuntu/.pi
-      - ../ai/.engram:/home/ubuntu/.engram
-      - ../ai/.opencode:/home/ubuntu/.opencode   # sesión persistente
+      # AI
+      - ../env/.pi:/home/ubuntu/.pi
+      - ../env/.engram:/home/ubuntu/.engram
+      - ../env/.opencode:/home/ubuntu/.opencode
+      # GIT
+      - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     env_file:
       - ../.env

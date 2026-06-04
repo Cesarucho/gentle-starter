@@ -1,12 +1,13 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/go .
 {
-    "name": "vunov",
+    "name": "vunov-chatbot",
     // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
     // "image": "",
     "dockerComposeFile": "./docker-compose.yml",
-    "service": "vunov",
+    "service": "skeleton-env",
     "workspaceFolder": "/home/ubuntu/code",
+    "overrideCommand": true,
 
     // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
     "remoteUser": "ubuntu",
@@ -50,7 +51,6 @@
 
     // Preserve the packages configurations within the container on a host volume: git, codex-extension.
     "mounts": [
-        "source=gitconfig,target=/home/ubuntu/.gitconfig-volume,type=volume",
         "source=${localWorkspaceFolder},target=/home/ubuntu/code,type=bind"
     ],
 
