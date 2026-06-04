@@ -10,8 +10,17 @@ services:
       # AI-TOOLS
       - ../env/.pi:/home/ubuntu/.pi
       - ../env/.engram:/home/ubuntu/.engram
-      - ../env/.opencode:/home/ubuntu/.opencode
+      # - ../env/.opencode:/home/ubuntu/.opencode
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     env_file:
       - ../.env
+
+# volumes:
+#   # local project data
+#   pi-data:
+#   opencode-data:
+#   # shared across-projects data
+#   engram-data:
+#     name: global-engram-data
+#     external: true

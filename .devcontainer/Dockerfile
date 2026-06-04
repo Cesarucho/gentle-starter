@@ -21,10 +21,10 @@ ENV NODE_MAJOR=${NODE_MAJOR}
 ENV PLATFORM_ARCH=${PLATFORM_ARCH}
 ENV TZ=${TZ}
 
-COPY scripts/ /usr/local/share/devcontainer-scripts/
+COPY scripts/ /home/ubuntu/devcontainer-scripts/
 
-RUN find /usr/local/share/devcontainer-scripts -type f -name "*.sh" -exec chmod 0755 {} \; \
-    && find /usr/local/share/devcontainer-scripts -type f -name "*.sh" | sort | while read -r script; do \
+RUN find /home/ubuntu/devcontainer-scripts -type f -name "*.sh" -exec chmod 0755 {} \; \
+    && find /home/ubuntu/devcontainer-scripts -type f -name "*.sh" | sort | while read -r script; do \
         echo ""; \
         echo "============================================================"; \
         echo "Running: ${script}"; \
