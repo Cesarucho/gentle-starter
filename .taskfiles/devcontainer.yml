@@ -1,0 +1,54 @@
+version: "3"
+
+vars:
+  WORKSPACE: .
+
+tasks:
+  help:
+    desc: Show devcontainer workflow examples
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Devcontainer tasks
+
+          task devcontainer:rebuild   Remove, build, and start devcontainer
+          task devcontainer:build     Build devcontainer
+          task devcontainer:up        Start devcontainer
+          task devcontainer:connect   Open bash inside devcontainer
+          task devcontainer:rm        Force-remove devcontainer container
+        EOF
+
+  rm:
+    desc: Force-remove the devcontainer service container
+    cmds:
+      - |
+        service="$(devcontainer read-configuration --workspace-folder {{.WORKSPACE}} | jq -r '.configuration.service // .mergedConfiguration.service // .service')"
+        test -n "$service" && test "$service" != "null" || {
+          echo "missing devcontainer service" >&2
+          exit 1
+        }
+        docker rm "$service" -f || true
+
+  build:
+    desc: Build devcontainer
+    cmds:
+      - devcontainer build --workspace-folder {{.WORKSPACE}}
+
+  up:
+    desc: Start devcontainer
+    cmds:
+      - devcontainer up --workspace-folder {{.WORKSPACE}}
+
+  rebuild:
+    desc: Remove, build, and start devcontainer
+    cmds:
+      - task: rm
+      - task: build
+      - task: up
+
+  connect:
+    desc: Open bash inside devcontainer
+    interactive: true
+    cmds:
+      - devcontainer exec --workspace-folder {{.WORKSPACE}} bash

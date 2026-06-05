@@ -3,6 +3,8 @@ version: "3"
 includes:
   skill:
     taskfile: ./.taskfiles/skills.yml
+  devcontainer:
+    taskfile: ./.taskfiles/devcontainer.yml
 
 tasks:
   default:
@@ -23,7 +25,12 @@ tasks:
           task --list        List all available tasks
 
         Skills:
-          task skill:help    Show skill workflow examples
-          task skill:list    List installed project skills
-          task skill:sync    Restore, update, prune, and validate skills
+          task skill:help              Show skill workflow examples
+          task skill:list              List installed project skills
+          task skill:sync              Restore, update, prune, and validate skills
+
+        Devcontainer:
+          task devcontainer:help       Show devcontainer workflow examples
+          task devcontainer:rebuild    Remove, build, and start devcontainer
+          task devcontainer:connect    Open bash inside devcontainer
         EOF
