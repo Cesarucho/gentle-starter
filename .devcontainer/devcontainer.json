@@ -5,7 +5,7 @@
     // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
     // "image": "",
     "dockerComposeFile": "./docker-compose.yml",
-    "service": "skeleton-env",
+    "service": "vunov-chatbot",
     "workspaceFolder": "/home/ubuntu/code",
     "overrideCommand": true,
 

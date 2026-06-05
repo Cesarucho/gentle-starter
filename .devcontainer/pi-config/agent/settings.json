@@ -1,0 +1,22 @@
+{
+  "packages": [
+    "npm:gentle-pi",
+    "npm:pi-subagents",
+    "npm:pi-intercom",
+    "npm:gentle-engram@0.1.7",
+    "npm:pi-web-access",
+    "npm:pi-lens",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:pi-terminal-theme",
+    "npm:pi-mcp-adapter"
+  ],
+  "lastChangelogVersion": "0.78.1",
+  "theme": "terminal-tinted",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "medium",
+  "terminal": {
+    "showTerminalProgress": true
+  }
+}

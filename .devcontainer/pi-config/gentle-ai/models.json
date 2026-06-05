@@ -1,0 +1,82 @@
+{
+  "sdd-init": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-onboard": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "sdd-explore": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-proposal": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "sdd-spec": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-design": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "sdd-tasks": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-status": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-apply": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-verify": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "medium"
+  },
+  "sdd-sync": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "sdd-archive": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "context-builder": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "delegate": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "oracle": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "planner": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "researcher": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "xhigh"
+  },
+  "reviewer": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "scout": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  },
+  "worker": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "medium"
+  }
+}
