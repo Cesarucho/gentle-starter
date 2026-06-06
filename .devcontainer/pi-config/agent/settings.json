@@ -9,7 +9,8 @@
     "npm:@juicesharp/rpiv-todo",
     "npm:@juicesharp/rpiv-ask-user-question",
     "npm:pi-terminal-theme",
-    "npm:pi-mcp-adapter"
+    "npm:pi-mcp-adapter",
+    "npm:pi-hud"
   ],
   "lastChangelogVersion": "0.78.1",
   "theme": "terminal-tinted",

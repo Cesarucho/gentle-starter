@@ -9,8 +9,10 @@ apt-get install -y --no-install-recommends \
 	curl \
 	git \
 	jq \
+	less \
 	locales \
 	sudo \
 	tar \
 	tree \
-	tzdata
+	tzdata \
+	vim
