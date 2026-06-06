@@ -14,6 +14,7 @@ PACKAGES=(
 	"npm:@juicesharp/rpiv-todo"
 	"npm:@juicesharp/rpiv-ask-user-question"
 	"npm:pi-terminal-theme"
+	"npm:pi-hud"
 )
 
 is_installed() {
