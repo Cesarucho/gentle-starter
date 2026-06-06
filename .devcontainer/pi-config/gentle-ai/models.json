@@ -28,7 +28,7 @@
     "thinking": "medium"
   },
   "sdd-status": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "openai-codex/gpt-5.3-codex-spark",
     "thinking": "low"
   },
   "sdd-apply": {
@@ -45,7 +45,7 @@
   },
   "sdd-archive": {
     "model": "openai-codex/gpt-5.3-codex-spark",
-    "thinking": "medium"
+    "thinking": "low"
   },
   "context-builder": {
     "model": "openai-codex/gpt-5.3-codex-spark",
@@ -56,20 +56,20 @@
     "thinking": "medium"
   },
   "oracle": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
-    "thinking": "medium"
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
   },
   "planner": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.5",
     "thinking": "medium"
   },
   "researcher": {
     "model": "openai-codex/gpt-5.5",
-    "thinking": "xhigh"
+    "thinking": "high"
   },
   "reviewer": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
-    "thinking": "medium"
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
   },
   "scout": {
     "model": "openai-codex/gpt-5.3-codex-spark",
