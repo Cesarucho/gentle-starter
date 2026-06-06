@@ -1,6 +1,6 @@
 # Seguridad
 
-Gentleman Starter está pensado como base de desarrollo local. Antes de
+Gentle Starter está pensado como base de desarrollo local. Antes de
 publicar un repo derivado, revisá que no incluya secretos, credenciales ni
 estado local del entorno.
 

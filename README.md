@@ -1,4 +1,4 @@
-# Gentleman Starter
+# Gentle Starter
 
 Esqueleto reproducible para iniciar proyectos con un entorno de desarrollo listo
 para usar mediante Dev Containers, Task, Pi, Gentle AI, Engram y skills

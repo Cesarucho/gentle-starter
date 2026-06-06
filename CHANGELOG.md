@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Gentleman Starter will be documented in this file.
+All notable changes to Gentle Starter will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and
 this project will follow [Semantic Versioning](https://semver.org/) when tagged
@@ -19,7 +19,7 @@ releases start.
 
 ### Changed
 
-- Renamed the starter identity to Gentleman Starter.
+- Renamed the starter identity to Gentle Starter.
 - Simplified the Docker Compose service name to `dev`.
 - Cleaned `.devcontainer/devcontainer.json` and removed the empty VS Code
   extension entry.

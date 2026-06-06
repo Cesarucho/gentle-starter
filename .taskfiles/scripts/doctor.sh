@@ -134,7 +134,7 @@ check_skills() {
 }
 
 run_host() {
-	info "Gentleman Starter doctor: host checks"
+	info "Gentle Starter doctor: host checks"
 
 	if is_devcontainer; then
 		warn "host checks are running from inside a container; results may not represent the real host"
@@ -165,7 +165,7 @@ run_host() {
 }
 
 run_container() {
-	info "Gentleman Starter doctor: devcontainer checks"
+	info "Gentle Starter doctor: devcontainer checks"
 
 	check_command git
 	check_command task
