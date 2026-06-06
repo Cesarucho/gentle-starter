@@ -6,11 +6,27 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # sudo chown -R ${UID}:${UID} ${HOME}/.codex
 
-# Fix project file permissions to standard privileges
+build_gitignore_prune_args() {
+	local -n prune_args_ref="$1"
+	local ignored_path
+
+	prune_args_ref=()
+
+	while IFS= read -r -d '' ignored_path; do
+		ignored_path="${ignored_path%/}"
+		[ -n "${ignored_path}" ] || continue
+		[ -d "${WORKSPACE_DIR}/${ignored_path}" ] || continue
+
+		prune_args_ref+=(-path "${WORKSPACE_DIR}/${ignored_path}" -prune -o)
+	done < <(git -C "${WORKSPACE_DIR}" ls-files --others --ignored --exclude-standard --directory -z)
+}
+
+# Fix project file permissions to standard privileges, excluding ignored directories.
 sudo chown -R ${UID}:${UID} "${WORKSPACE_DIR}"
-sudo find "${WORKSPACE_DIR}" -type d -exec chmod 755 {} +
-sudo find "${WORKSPACE_DIR}" -type f ! -name "*.sh" -exec chmod 644 {} +
-sudo find "${WORKSPACE_DIR}" -type f -name "*.sh" -exec chmod 755 {} +
+build_gitignore_prune_args gitignore_prune_args
+sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
+sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
+sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
 
 link_versioned_pi_config() {
 	local source_path="$1"
@@ -70,3 +86,4 @@ setup_versioned_pi_config
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/09-install-ai-pi-gentle.sh"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/10-install-ai-engram.sh"
 setup_versioned_pi_config
+pi update

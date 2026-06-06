@@ -41,7 +41,7 @@ Opcional, si querés ejecutar tareas del devcontainer desde el host:
 git clone <repo-url> gentle-starter
 cd gentle-starter
 cp .env.example .env
-task doctor:host
+task doctor
 
 # Conexión al contenedor con `devcontainer-cli` y `task`:
 #   Si es primera vez

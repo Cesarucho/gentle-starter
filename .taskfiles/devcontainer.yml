@@ -23,12 +23,12 @@ tasks:
     desc: Force-remove the devcontainer service container
     cmds:
       - |
-        service="$(devcontainer read-configuration --workspace-folder {{.WORKSPACE}} | jq -r '.configuration.service // .mergedConfiguration.service // .service')"
-        test -n "$service" && test "$service" != "null" || {
-          echo "missing devcontainer service" >&2
+        container="$(awk '$1 == "container_name:" { print $2; exit }' .devcontainer/docker-compose.yml)"
+        test -n "$container" || {
+          echo "missing devcontainer container_name" >&2
           exit 1
         }
-        docker rm "$service" -f || true
+        docker rm "$container" -f || true
 
   build:
     desc: Build devcontainer
