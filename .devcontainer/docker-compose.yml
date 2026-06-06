@@ -1,7 +1,7 @@
 services:
   dev:
-    image: gentleman-starter-img:0.1
-    container_name: gentleman-starter-run
+    image: gentle-starter-img:0.1
+    container_name: gentle-starter-run
     build:
       context: .
       dockerfile: ./Dockerfile

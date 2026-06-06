@@ -1,5 +1,5 @@
 {
-    "name": "gentleman-starter",
+    "name": "gentle-starter",
     "dockerComposeFile": "./docker-compose.yml",
     "service": "dev",
     "workspaceFolder": "/home/ubuntu/code",

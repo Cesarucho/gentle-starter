@@ -38,8 +38,8 @@ Opcional, si querés ejecutar tareas del devcontainer desde el host:
 
 ```bash
 # En el host
-git clone <repo-url> gentleman-starter
-cd gentleman-starter
+git clone <repo-url> gentle-starter
+cd gentle-starter
 cp .env.example .env
 task doctor:host
 
