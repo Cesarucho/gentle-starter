@@ -35,8 +35,13 @@
     },
 
     "mounts": [
-        "source=${localWorkspaceFolder},target=/home/ubuntu/code,type=bind"
+        "source=${localWorkspaceFolder},target=/home/ubuntu/code,type=bind",
+        "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
     ],
+
+    "containerEnv": {
+        "SSH_AUTH_SOCK": "/ssh-agent"
+    },
 
     "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/setup.sh",
 

@@ -1,0 +1,16 @@
+version: "3"
+
+tasks:
+  check:
+    desc: Check host SSH agent for devcontainer GitHub access
+    cmds:
+      - |
+        test -n "$SSH_AUTH_SOCK" || {
+          echo 'SSH_AUTH_SOCK is not set. Run:' >&2
+          echo '  eval "$(ssh-agent -s)"' >&2
+          echo '  ssh-add ~/.ssh/<your-key>' >&2
+          exit 1
+        }
+
+        ssh-add -l
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com || true

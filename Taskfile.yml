@@ -5,6 +5,8 @@ includes:
     taskfile: ./.taskfiles/doctor.yml
   skill:
     taskfile: ./.taskfiles/skills.yml
+  ssh:
+    taskfile: ./.taskfiles/ssh.yml
   devcontainer:
     taskfile: ./.taskfiles/devcontainer.yml
 
@@ -31,6 +33,7 @@ tasks:
           task help          Show this help
           task --list        List all available tasks
           task doctor        Run doctor checks for the detected context
+          task ssh:check     Check host SSH agent for devcontainer GitHub access
 
         Doctor:
           task doctor:host       Check host requirements
