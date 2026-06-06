@@ -130,7 +130,7 @@ env/.gitconfig/   Configuración local de Git dentro del contenedor
 
 ### Cambiar nombres del Dev Container
 
-La configuración crea una imagen `gentle-starter-img` y un contenedor `gentle-starter-run` defindos
+La configuración crea una imagen `gentle-starter-img` y un contenedor `gentle-starter-run` definidos
 en `.devcontainer/docker-compose.yml`.
 
 Si tienes más de un proyecto, es necesario personalizar los nombres para evitar solapamientos.
