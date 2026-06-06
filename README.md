@@ -1,12 +1,8 @@
 # Gentle Starter
 
-Esqueleto reproducible para iniciar proyectos con un entorno de desarrollo listo
-para usar mediante Dev Containers, Task, Pi, Gentle AI, Engram y skills
-versionadas.
+Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI aprovechando, pero sin limitarse, al ecosistema de pi, gentle-ai y engram. Más adelante se incluiran otros agentes y herramientas.
 
-La idea es que un desarrollador pueda clonar este repo, abrirlo en un
-Dev Container y empezar a trabajar sin repetir configuraciones base en cada
-proyecto nuevo.
+El objetivo es que el desarrollador use este repositorio como estructura base para cualquier proyecto que desee crear, agnóstico al stack tecnológico que desee implementar, por eso no hay nada referente a un lenguaje, front, back, infra, etc.
 
 ## Qué incluye
 
@@ -17,46 +13,51 @@ proyecto nuevo.
 - **Gentle AI** para flujos de trabajo controlados con Pi.
 - **Engram** como memoria local persistente dentro del entorno.
 - **Skills versionadas** en `.agents/skills/`.
-- **Playwright** instalado desde la construcción de la imagen.
-- Scripts separados para instalar y configurar dependencias del sistema.
+- **Playwright** para pruebas e2e (quizas debería quitarlo, no todos lo necesitan).
+- Scripts separados para instalar y configurar dependencias en Ubuntu
 
 ## Requisitos
 
-En la máquina host necesitás:
+En tu PC necesitás:
 
-- Docker.
-- VS Code, Cursor u otro editor compatible con Dev Containers.
-- Extensión **Dev Containers** si usás VS Code o Cursor.
-- Git.
+- **Docker**.
+- **IDE** compatible con **DevContainers** (VSCode, Cursor, IntelliJ).
+- Extensión **DevContainers** si aplica para tu IDE.
+- **Git**.
 
-Opcional, si querés ejecutar tareas del devcontainer desde el host:
+Opcional, si prefires tu terminal en lugar de un IDE (como yo), instala:
 
-- [Task](https://taskfile.dev/).
-- [Dev Container CLI](https://github.com/devcontainers/cli).
+- [**Task**](https://taskfile.dev/).
+- [**DevContainer-CLI**](https://github.com/devcontainers/cli).
 
 ## Uso rápido
 
 ```bash
-# En el host
-git clone <repo-url> gentle-starter
+# En tu PC
+git clone -b dev https://github.com/Cesarucho/gentle-starter.git
 cd gentle-starter
+#   `.env` debe de existir y funciona bien con todo por defecto
 cp .env.example .env
-task doctor
 
-# Conexión al contenedor con `devcontainer-cli` y `task`:
+# Si usas terminal (`devcontainer-cli` y `task`) ejecuta:
 #   Si es primera vez
 task devcontainer:build
 #   Entra por bash al contenedor
 task devcontainer:up
 task devcontainer:connect
 
-# Conexión alternativa desde el editor: `Dev Containers: Reopen in Container`
+# Si usas IDE busca opción `Dev Containers: Reopen in Container` o similar.
 
-# Dentro del contendor:
-#   Si es primera vez, solo para comprobar
-task doctor   
-#   Usa `Pi` o cualquier otra herramienta con normalidad
+# Dentro del contendor ya puedes usar `pi`, `engram`, `git` o cualquier otra herramienta con normalidad:
 pi
+engram tui
+git status
+
+# También puedes instalar lo que te haga falta, como la base es ubuntu:
+sudo apt update
+sudo apt install {foo}
+# Nota.- se recomienda instalar herramientas al vuelo solo para probar pero luego deben
+#        versionarse `.devcontainers/scripts` para incluirlas como base según tus necesidades
 ```
 
 ## Comandos útiles
@@ -129,19 +130,25 @@ env/.gitconfig/   Configuración local de Git dentro del contenedor
 
 ### Cambiar nombres del Dev Container
 
-La configuración usa un servicio genérico llamado `dev` y mantiene nombres de
-imagen/contenedor asociados al starter:
+La configuración crea una imagen `gentle-starter-img` y un contenedor `gentle-starter-run` defindos
+en `.devcontainer/docker-compose.yml`.
 
-```text
-.devcontainer/devcontainer.json
-.devcontainer/docker-compose.yml
+Si tienes más de un proyecto, es necesario personalizar los nombres para evitar solapamientos.
+
+```yaml
+# .devcontainer/docker-compose.yml:
+...
+services:
+  dev:
+    image: {change-this}-img:0.1
+    container_name: {change-this}-run
+    ...
+
+# .devcontainer/devcontainer.json:
+{
+    "name": "{change-this}",
+    ...
 ```
-
-Si querés personalizarlos para tu proyecto, editá esos dos archivos y cambiá:
-
-- `name` en `devcontainer.json`;
-- `image` en `docker-compose.yml`;
-- `container_name` en `docker-compose.yml`.
 
 ### Instalar paquetes del sistema
 
