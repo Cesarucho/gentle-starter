@@ -1,7 +1,7 @@
 services:
-  vunov-chatbot:
-    image: vunov-chatbot:0.1
-    container_name: vunov-chatbot
+  skeleton-svc:
+    image: skeleton-img:0.1
+    container_name: skeleton-run
     build:
       context: .
       dockerfile: ./Dockerfile

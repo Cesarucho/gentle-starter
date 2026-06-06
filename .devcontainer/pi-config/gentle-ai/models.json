@@ -28,8 +28,8 @@
     "thinking": "medium"
   },
   "sdd-status": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
-    "thinking": "medium"
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "low"
   },
   "sdd-apply": {
     "model": "openai-codex/gpt-5.3-codex-spark",

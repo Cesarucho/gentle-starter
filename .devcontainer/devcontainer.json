@@ -1,11 +1,11 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/go .
 {
-    "name": "vunov-chatbot",
+    "name": "skeleton-project",
     // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
     // "image": "",
     "dockerComposeFile": "./docker-compose.yml",
-    "service": "vunov-chatbot",
+    "service": "skeleton-svc",
     "workspaceFolder": "/home/ubuntu/code",
     "overrideCommand": true,
 
