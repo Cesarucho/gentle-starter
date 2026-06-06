@@ -1,0 +1,17 @@
+version: "3"
+
+tasks:
+  auto:
+    desc: Run doctor checks for the detected context
+    cmds:
+      - ./.taskfiles/scripts/doctor.sh auto
+
+  host:
+    desc: Run host checks for building/opening the devcontainer
+    cmds:
+      - ./.taskfiles/scripts/doctor.sh host
+
+  container:
+    desc: Run checks inside the devcontainer
+    cmds:
+      - ./.taskfiles/scripts/doctor.sh container

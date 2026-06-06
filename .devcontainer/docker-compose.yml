@@ -1,7 +1,7 @@
 services:
-  skeleton-svc:
-    image: skeleton-img:0.1
-    container_name: skeleton-run
+  dev:
+    image: gentleman-starter-img:0.1
+    container_name: gentleman-starter-run
     build:
       context: .
       dockerfile: ./Dockerfile

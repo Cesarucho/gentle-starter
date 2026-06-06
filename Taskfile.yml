@@ -1,6 +1,8 @@
 version: "3"
 
 includes:
+  doctor:
+    taskfile: ./.taskfiles/doctor.yml
   skill:
     taskfile: ./.taskfiles/skills.yml
   devcontainer:
@@ -11,6 +13,11 @@ tasks:
     desc: Show project task help
     cmds:
       - task: help
+
+  doctor:
+    desc: Run doctor checks for the detected context
+    cmds:
+      - task: doctor:auto
 
   help:
     desc: Show project task help
@@ -23,6 +30,11 @@ tasks:
         General:
           task help          Show this help
           task --list        List all available tasks
+          task doctor        Run doctor checks for the detected context
+
+        Doctor:
+          task doctor:host       Check host requirements
+          task doctor:container  Check tools inside the devcontainer
 
         Skills:
           task skill:help              Show skill workflow examples
