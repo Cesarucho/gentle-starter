@@ -28,6 +28,7 @@ WORKDIR /home/${UID_NAME}
 COPY scripts/ ./.devcontainer-scripts/
 
 RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-scripts \
+    && find ./.devcontainer-scripts -type f -name "*.sh" -exec sed -i 's/\r$//' {} \; \
     && find ./.devcontainer-scripts -type f -name "*.sh" -exec chmod 0755 {} \; \
     && find ./.devcontainer-scripts -type f -name "*.sh" | sort | while read -r script; do \
         echo ""; \

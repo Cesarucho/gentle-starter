@@ -43,7 +43,7 @@
         "SSH_AUTH_SOCK": "/ssh-agent"
     },
 
-    "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
+    "postCreateCommand": "bash -lc 'find ${containerWorkspaceFolder}/.devcontainer -type f -name \"*.sh\" -exec sed -i \"s/\\r$//\" {} \\; && bash ${containerWorkspaceFolder}/.devcontainer/setup.sh'",
 
     "runArgs": [
         "--privileged"
