@@ -34,7 +34,7 @@ RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-scripts \
         echo "============================================================"; \
         echo "Running: ${script}"; \
         echo "============================================================"; \
-        DEVCONTAINER_PHASE=build "${script}"; \
+        DEVCONTAINER_PHASE=build bash "${script}"; \
     done
 
 USER ${UID_NAME}

@@ -43,7 +43,7 @@
         "SSH_AUTH_SOCK": "/ssh-agent"
     },
 
-    "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/setup.sh",
+    "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
 
     "runArgs": [
         "--privileged"
