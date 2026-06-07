@@ -1,62 +1,66 @@
 # Gentle Starter
 
-Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI aprovechando, pero sin limitarse, al ecosistema de pi, gentle-ai y engram. Más adelante se incluiran otros agentes y herramientas.
+Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI aprovechando, pero sin limitarse, al ecosistema de **[pi](https://github.com/earendil-works/pi#quick-start)**, **[gentle-ai](https://github.com/Gentleman-Programming/gentle-pi#install)** y **[engram](https://github.com/Gentleman-Programming/engram#quick-start)**. 
+> Más adelante se incluiran otros agentes y herramientas.
 
-El objetivo es que el desarrollador use este repositorio como estructura base para cualquier proyecto que desee crear, agnóstico al stack tecnológico que desee implementar, por eso no hay nada referente a un lenguaje, front, back, infra, etc.
+El objetivo es claro: ofrecer una estructura base, limpia y liviana como punto de partida antes de escribir cualquier línea de código o de lanzar un prompt para que lo haga, ejemplos:
 
-## Qué incluye
+```
+1. git clone repo  --> rename project foo
+2. git clone repo  --> rename project bar
+3. copy/paste repo --> rename project baz
+```
 
-- **Dev Container** basado en Ubuntu 24.04.
-- **Docker Compose** para construir y levantar el entorno.
-- **Taskfile** para centralizar comandos frecuentes.
-- **Pi Coding Agent** como harness de desarrollo asistido.
-- **Gentle AI** para flujos de trabajo controlados con Pi.
-- **Engram** como memoria local persistente dentro del entorno.
+## ¿Qué incluye?
+
+- **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** basado en [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
+- **[Docker Compose](https://docs.docker.com/compose/install/)** para construir y levantar el entorno.
+- **[Taskfile](https://taskfile.dev/installation/)** para centralizar comandos frecuentes.
+- **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** como harness de desarrollo asistido.
+- **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** para flujos de trabajo controlados con Pi.
+- **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** como memoria local persistente dentro del entorno.
 - **Skills versionadas**, un conjunto base y actualizable a tu gusto.
-- **Playwright** para pruebas e2e (quizas debería quitarlo, no todos lo necesitan).
+- **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** para pruebas e2e (quizas debería quitarlo, no todos lo necesitan).
 - Scripts separados para instalar y configurar dependencias en Ubuntu
 
 ## Requisitos
 
 En tu PC necesitás:
 
-- **docker**, **git**, **jq** (opcional).
-- **IDE** compatible con **DevContainers** (VSCode, Cursor, IntelliJ) con su respectiva extensión si aplica.
+- **[docker](https://docs.docker.com/get-started/get-docker/)**, **[git](https://git-scm.com/downloads)**, **[jq](https://jqlang.org/download/)**.
+- **IDE** compatible con **[DevContainers](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** ([VSCode](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/)) con su respectiva extensión si aplica.
 
 (Opcional) Si prefires usar tu terminal en lugar de un IDE (como yo), instala:
 
-- [**Task**](https://taskfile.dev/).
-- [**DevContainer-CLI**](https://github.com/devcontainers/cli).
+- **[Task](https://taskfile.dev/installation/)**.
+- **[DevContainer-CLI](https://github.com/devcontainers/cli#installation)**.
 
 ## Uso rápido
 
 1. En tu PC
 
     ```bash
-    git clone -b dev https://github.com/Cesarucho/gentle-starter.git
+    git clone https://github.com/Cesarucho/gentle-starter.git
     cd gentle-starter
     #   `.env` debe de existir y funciona bien con todo por defecto
     cp .env.example .env
-    #   (opcional) comprobación básica externa
+    #   (opcional) comprobación básica
     task doctor
     ```
 
 2. Si usas **IDE** busca la opción `Dev Containers: Reopen in Container` (o similar). Si usas la **terminal** ejecuta:
 
     ```bash
-    #   La primera vez
-    task devcontainer:build
-    #   Entra por bash al contenedor
     task devcontainer:up
     task devcontainer:connect
     ```
 
-3. Dentro del contendor ya puedes usar cualquier herramienta con normalidad:
+3. Dentro del contendor ya puedes usar cualquier herramienta con normalidad, si estas con un **IDE** busca la opción para abrir su terminal.
 
     ```bash
     git status
     engram tui
-    pi
+    pi update
 
     #   (opcional) comprobación básica interna
     task doctor
@@ -66,6 +70,21 @@ En tu PC necesitás:
     sudo apt install {foo}
     ```
       > Nota.- Instalar herramientas al vuelo son recomendables para pruebas pero una vez validadas deben incluirse en `.devcontainers/scripts/...` como base.
+
+4. Conecta con tu proveedor de AI:
+
+    ```bash
+    # Entra a la interfaz principal (a partir de ahora tu lugar favorito)
+    pi
+
+    # Elige proveedor, y repite si deseas registrar más de uno.
+    /login
+
+    # Si eliges uno DIFERENTE O ADICIONAL a OpenAI, promtea:
+    >_ "Asigna la mejor configuración modelo/esfuerzo para cada agente de gentle-ai @.devcontainer/pi-config/gentle-ai/models.json con los modelos disponibles (pi --list-models) y de acuerdo a la guia: @docs/assets/ref/GUIA_MODELOS_v4.png"
+    ```
+
+    > Nota.- Ajustes personalizados con revisión manual: `/gentle:models`.
     
 
 ## Comandos útiles

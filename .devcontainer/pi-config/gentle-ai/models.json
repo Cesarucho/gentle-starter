@@ -1,6 +1,6 @@
 {
   "sdd-init": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4-mini",
     "thinking": "low"
   },
   "sdd-onboard": {
@@ -24,11 +24,11 @@
     "thinking": "medium"
   },
   "sdd-tasks": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4-mini",
     "thinking": "low"
   },
   "sdd-status": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4-mini",
     "thinking": "low"
   },
   "sdd-apply": {
@@ -40,19 +40,19 @@
     "thinking": "high"
   },
   "sdd-sync": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4",
     "thinking": "medium"
   },
   "sdd-archive": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4-mini",
     "thinking": "low"
   },
   "context-builder": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4",
     "thinking": "medium"
   },
   "delegate": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4",
     "thinking": "medium"
   },
   "oracle": {
@@ -72,7 +72,7 @@
     "thinking": "high"
   },
   "scout": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4",
     "thinking": "medium"
   },
   "worker": {
