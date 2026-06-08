@@ -1,5 +1,5 @@
 services:
-  dev:
+  container-svc:
     image: "${APP_NAME}-img:0.1"
     container_name: "${APP_NAME}-run"
     build:

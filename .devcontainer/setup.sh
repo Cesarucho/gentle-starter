@@ -83,7 +83,12 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # Link before install so Pi reads the versioned settings, then link again in case
 # any tool rewrites config files via atomic replace and breaks the symlink.
 setup_versioned_pi_config
+export PATH="${HOME}/.local/bin:${PATH}"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/09-install-ai-pi-gentle.sh"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/10-install-ai-engram.sh"
+# Make user-local tools available to the remaining setup commands without
+# requiring a new terminal. Future shells pick this up from ~/.bashrc.
+# shellcheck disable=SC1091
+source "${HOME}/.bashrc"
 setup_versioned_pi_config
 pi update

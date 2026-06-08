@@ -1,7 +1,7 @@
 {
-    "name": "gentle-starter",
+    "name": "${localEnv:APP_NAME:gentle-starter}-svc",
     "dockerComposeFile": "./docker-compose.yml",
-    "service": "dev",
+    "service": "container-svc",
     "workspaceFolder": "/home/ubuntu/code",
     "overrideCommand": true,
     "remoteUser": "ubuntu",

@@ -1,4 +1,21 @@
-# Gentle Starter
+<div align="center">
+
+<img width="50%" height="50%" alt="Gentle Starter Logo" src="./docs/assets/brand/gentle-starter-v2.png" />
+
+<h1>🌱 Gentle Starter</h1>
+
+<p><strong>Isolated and portable "ready-to-promtp" environment for Gentle-AI ecosystem</strong></p>
+
+<p>
+<a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
+</p>
+
+</div>
+
+---
+
+## 🎯 ¿Qué hace?
 
 Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI de manera ordenada: entender el objetivo, aclarar requisitos, usar artefactos SDD/OpenSpec, aplicar skills, coordinar subagentes, implementa por fases (descubre > investiga > diseña > planea > implementa > verifica) iterando hasta obtener los resultados esperados. Todo de manera casi automática.
 
@@ -10,7 +27,7 @@ El proyecto está pensado para ofrecer una estructura base, limpia y liviana com
 3. copy/paste repo --> rename project-baz --> promtp "investiga ..."
 ```
 
-## ¿Qué incluye?
+## 📦 ¿Qué incluye?
 
 - **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** como harness de desarrollo asistido.
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** para flujos de trabajo controlados con Pi.
@@ -22,7 +39,7 @@ El proyecto está pensado para ofrecer una estructura base, limpia y liviana com
 - **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** para pruebas e2e (quizas debería quitarlo, no todos lo necesitan).
 - Scripts separados para instalar y configurar dependencias en Ubuntu
 
-## Requisitos
+## ✅ Requisitos
 
 En tu PC necesitás:
 
@@ -34,13 +51,13 @@ En tu PC necesitás:
 - **[Task](https://taskfile.dev/installation/)**.
 - **[DevContainer-CLI](https://github.com/devcontainers/cli#installation)**.
 
-## Uso rápido
+## 🚀 Uso rápido
 
 1. En tu PC
 
     ```bash
-    git clone https://github.com/Cesarucho/gentle-starter.git
-    cd gentle-starter
+    git clone https://github.com/Cesarucho/gentle-starter.git <nombre-de-mi-proyecto>
+    cd <nombre-de-mi-proyecto>
     #   `.env` debe de existir y funciona bien con todo por defecto
     cp .env.example .env
     #   (opcional) comprobación básica
@@ -86,7 +103,7 @@ En tu PC necesitás:
     > Nota.- Ajustes personalizados con revisión manual: `/gentle:models`.
     
 
-## Comandos útiles
+## 🛠️ Comandos útiles
 
 ```bash
 # Diagnóstico
@@ -103,7 +120,7 @@ task skill:sync
 task skill:validate
 ```
 
-## Estructura del repo
+## 🗂️ Estructura del repo
 
 ```text
 .
@@ -141,7 +158,7 @@ task skill:validate
 └── Taskfile.yml                    Entrada principal de tareas del proyecto
 ```
 
-## Estado local y persistencia
+## 💾 Estado local y persistencia
 
 El archivo `.env.example` documenta variables locales seguras para crear tu
 propio `.env`:
@@ -171,35 +188,13 @@ env/                          Contenido <-- no-versionable -->
 > ignora `env/`, `.env`, `.pi/` y `.atl/` para evitar publicar estado local por
 > accidente.
 
-## Personalización básica
+## ⚙️ Personalización básica
 
-### Cambiar nombres del Dev Container
-
-La configuración crea una imagen `gentle-starter-img` y un contenedor `gentle-starter-run` definidos
-en `.devcontainer/docker-compose.yml`.
-
-Si tienes más de un proyecto, es necesario personalizar los nombres para evitar solapamientos.
-
-```yaml
-# .devcontainer/docker-compose.yml:
-...
-services:
-  dev:
-    image: {change-this}-img:0.1
-    container_name: {change-this}-run
-    ...
-
-# .devcontainer/devcontainer.json:
-{
-    "name": "{change-this}",
-    ...
-```
-
-### Instalar paquetes del sistema
+### 📥 Instalar paquetes del sistema
 
 Editá `.devcontainer/scripts/01-install-apt.sh` para agregar paquetes instalados con `apt` durante la construcción de la imagen.
 
-### Actualizar zona horaria y locales
+### 🌎 Actualizar zona horaria y locales
 
 Editá los argumentos del Dockerfile `.devcontainer/Dockerfile`, por ejemplo:
 
@@ -208,13 +203,13 @@ ARG LOCALE=es_MX.UTF-8
 ARG TZ=America/Mexico_City
 ```
 
-### Agregar scripts de instalación
+### 🧩 Agregar scripts de instalación
 
 Agregá scripts numerados dentro de `.devcontainer/scripts/`.
 
 Los scripts se ejecutan en orden durante el build de la imagen.
 
-### Gestionar skills
+### 🧠 Gestionar skills
 
 Las skills del proyecto viven en `.agents/skills/` y se controlan desde `skills-lock.json`
 
@@ -234,17 +229,17 @@ Después de modificar skills, revisá y versioná los cambios relevantes:
 git diff -- skills-lock.json .agents/skills
 ```
 
-## Seguridad
+## 🔐 Seguridad
 
 Este starter usa Docker-in-Docker y permisos elevados para algunos flujos de
 desarrollo. No publiques `.env`, `env/`, `.pi/` ni `.atl/`.
 
 Ver [docs/security.md](./docs/security.md).
 
-## Changelog
+## 📝 Changelog
 
 Ver [CHANGELOG.md](CHANGELOG.md).
 
-## Licencia
+## 📄 Licencia
 
 MIT. Ver [LICENSE](LICENSE).

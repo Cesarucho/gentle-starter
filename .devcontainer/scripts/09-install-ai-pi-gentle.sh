@@ -5,6 +5,8 @@ DEVCONTAINER_PHASE="${DEVCONTAINER_PHASE:-runtime}"
 PI_AUTO_UPDATE="${PI_AUTO_UPDATE:-0}"
 
 PACKAGES=(
+	# "npm:@vigolium/piolium"
+	"npm:pi-powerline"
 	"npm:gentle-pi"
 	"npm:pi-subagents"
 	"npm:pi-intercom"
@@ -16,8 +18,6 @@ PACKAGES=(
 	"npm:@juicesharp/rpiv-btw"
 	"npm:pi-terminal-theme"
 	"npm:pi-hud"
-	# "npm:@vigolium/piolium"
-	"npm:pi-powerline"
 )
 
 is_installed() {

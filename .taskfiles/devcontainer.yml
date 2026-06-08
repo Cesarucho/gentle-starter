@@ -17,6 +17,7 @@ tasks:
           task devcontainer:up        Start devcontainer
           task devcontainer:connect   Open bash inside devcontainer
           task devcontainer:pi        Open pi inside devcontainer
+          task devcontainer:engram    Open Engram TUI inside devcontainer
           task devcontainer:rm        Force-remove devcontainer container
         EOF
 
@@ -41,6 +42,17 @@ tasks:
         } > "$env_file"
         rm -f "$tmp_file"
 
+  run-devcontainer:
+    internal: true
+    silent: true
+    cmds:
+      - task: ensure-identity-env
+      - |
+        set -a
+        . .devcontainer/.env
+        set +a
+        devcontainer {{.ARGS}}
+
   rm:
     desc: Force-remove the devcontainer service container
     cmds:
@@ -58,14 +70,16 @@ tasks:
   build:
     desc: Build devcontainer
     cmds:
-      - task: ensure-identity-env
-      - devcontainer build --workspace-folder {{.WORKSPACE}}
+      - task: run-devcontainer
+        vars:
+          ARGS: build --workspace-folder {{.WORKSPACE}}
 
   up:
     desc: Start devcontainer
     cmds:
-      - task: ensure-identity-env
-      - devcontainer up --workspace-folder {{.WORKSPACE}}
+      - task: run-devcontainer
+        vars:
+          ARGS: up --workspace-folder {{.WORKSPACE}}
 
   rebuild:
     desc: Remove, build, and start devcontainer
@@ -78,10 +92,22 @@ tasks:
     desc: Open bash inside devcontainer
     interactive: true
     cmds:
-      - devcontainer exec --workspace-folder {{.WORKSPACE}} bash
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} bash
 
   pi:
     desc: Open pi inside devcontainer
     interactive: true
     cmds:
-      - devcontainer exec --workspace-folder {{.WORKSPACE}} pi
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} pi
+
+  engram:
+    desc: Open Engram TUI inside devcontainer
+    interactive: true
+    cmds:
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} engram tui
