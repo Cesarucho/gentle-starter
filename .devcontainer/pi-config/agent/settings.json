@@ -10,7 +10,9 @@
     "npm:@juicesharp/rpiv-ask-user-question",
     "npm:pi-terminal-theme",
     "npm:pi-mcp-adapter",
-    "npm:pi-hud"
+    "npm:pi-hud",
+    "npm:pi-powerline",
+    "npm:@juicesharp/rpiv-btw"
   ],
   "lastChangelogVersion": "0.78.1",
   "theme": "terminal-tinted",

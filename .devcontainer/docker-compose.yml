@@ -1,7 +1,7 @@
 services:
   dev:
-    image: gentle-starter-img:0.1
-    container_name: gentle-starter-run
+    image: "${APP_NAME}-img:0.1"
+    container_name: "${APP_NAME}-run"
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -12,5 +12,7 @@ services:
       - ../env/.engram:/home/ubuntu/.engram
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
     env_file:
       - ../.env

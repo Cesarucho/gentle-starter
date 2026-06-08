@@ -3,4 +3,5 @@
 .pi/
 
 .env
+.devcontainer/.env
 env/*

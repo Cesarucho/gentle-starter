@@ -1,24 +1,23 @@
 # Gentle Starter
 
-Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI aprovechando, pero sin limitarse, al ecosistema de **[pi](https://github.com/earendil-works/pi#quick-start)**, **[gentle-ai](https://github.com/Gentleman-Programming/gentle-pi#install)** y **[engram](https://github.com/Gentleman-Programming/engram#quick-start)**. 
-> Más adelante se incluiran otros agentes y herramientas.
+Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI de manera ordenada: entender el objetivo, aclarar requisitos, usar artefactos SDD/OpenSpec, aplicar skills, coordinar subagentes, implementa por fases (descubre > investiga > diseña > planea > implementa > verifica) iterando hasta obtener los resultados esperados. Todo de manera casi automática.
 
-El objetivo es claro: ofrecer una estructura base, limpia y liviana como punto de partida antes de escribir cualquier línea de código o de lanzar un prompt para que lo haga, ejemplos:
+El proyecto está pensado para ofrecer una estructura base, limpia y liviana como punto de partida antes de lanzar cualquier prompt, logrando lo siguiente:
 
-```
-1. git clone repo  --> rename project foo
-2. git clone repo  --> rename project bar
-3. copy/paste repo --> rename project baz
+```shell
+1. git clone repo  --> rename project-foo --> promtp "crea ..."
+2. git clone repo  --> rename project-bar --> promtp "diseña ..."
+3. copy/paste repo --> rename project-baz --> promtp "investiga ..."
 ```
 
 ## ¿Qué incluye?
 
-- **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** basado en [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
-- **[Docker Compose](https://docs.docker.com/compose/install/)** para construir y levantar el entorno.
-- **[Taskfile](https://taskfile.dev/installation/)** para centralizar comandos frecuentes.
 - **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** como harness de desarrollo asistido.
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** para flujos de trabajo controlados con Pi.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** como memoria local persistente dentro del entorno.
+- **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** basado en [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
+- **[Docker Compose](https://docs.docker.com/compose/install/)** para construir y levantar el entorno.
+- **[Taskfile](https://taskfile.dev/installation/)** para centralizar comandos frecuentes.
 - **Skills versionadas**, un conjunto base y actualizable a tu gusto.
 - **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** para pruebas e2e (quizas debería quitarlo, no todos lo necesitan).
 - Scripts separados para instalar y configurar dependencias en Ubuntu
@@ -109,7 +108,7 @@ task skill:validate
 ```text
 .
 ├── .agents/                        Skills versionadas del proyecto
-├── .atl/                           no-versionado
+├── .atl/                           <-- no-versionable -->
 ├── CHANGELOG.md
 ├── .devcontainer
 │   ├── devcontainer.json           Configuración del DevContainer
@@ -121,12 +120,16 @@ task skill:validate
 │   └── setup.sh                    Script post-create del contenedor
 ├── docs
 │   └── security.md
-├── .env                            no-versionado
-├── env/                            Estado local persistente, no versionado
+├── .env                            <-- no-versionable -->
+├── env/                            Estado local persistente, <-- no-versionable -->
 ├── .env.example                    Ejemplo de variables locales para `.env`
 ├── .gitignore
 ├── LICENSE
-├── .pi/                            no-versionado
+|
+├── openspec/                       Fuente de la verdad para tu proyecto y debe
+|                                   ser versionado por tu cuenta
+|
+├── .pi/                            <-- no-versionable -->
 ├── README.md
 ├── skills-lock.json                Archivo de bloqueo para restaurar skills
 ├── .taskfiles
@@ -151,7 +154,7 @@ El directorio `env/` está pensado para guardar estado local del entorno y no
 debe versionarse. Actualmente se usa para montar datos como:
 
 ```text
-env/                          Contenido no-versionado
+env/                          Contenido <-- no-versionable -->
 ├── .engram                   Base local de Engram
 │   ├── engram.db
 │   ├── engram.db-shm

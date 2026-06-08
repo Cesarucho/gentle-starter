@@ -16,14 +16,39 @@ tasks:
           task devcontainer:build     Build devcontainer
           task devcontainer:up        Start devcontainer
           task devcontainer:connect   Open bash inside devcontainer
+          task devcontainer:pi        Open pi inside devcontainer
           task devcontainer:rm        Force-remove devcontainer container
         EOF
+
+  ensure-identity-env:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        env_file=".devcontainer/.env"
+        app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
+        app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
+
+        mkdir -p "$(dirname "$env_file")"
+        touch "$env_file"
+
+        tmp_file="$(mktemp)"
+        awk '!/^(APP_NAME|APP_PORT)=/' "$env_file" > "$tmp_file"
+        {
+          cat "$tmp_file"
+          printf 'APP_NAME=%s\n' "$app_name"
+          printf 'APP_PORT=%s\n' "$app_port"
+        } > "$env_file"
+        rm -f "$tmp_file"
 
   rm:
     desc: Force-remove the devcontainer service container
     cmds:
+      - task: ensure-identity-env
       - |
-        container="$(awk '$1 == "container_name:" { print $2; exit }' .devcontainer/docker-compose.yml)"
+        container="$(awk '$1 == "container_name:" { gsub(/^"|"$/, "", $2); print $2; exit }' .devcontainer/docker-compose.yml)"
+        project_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
+        container="$(printf '%s' "$container" | sed "s|\${APP_NAME}|$project_name|g")"
         test -n "$container" || {
           echo "missing devcontainer container_name" >&2
           exit 1
@@ -33,11 +58,13 @@ tasks:
   build:
     desc: Build devcontainer
     cmds:
+      - task: ensure-identity-env
       - devcontainer build --workspace-folder {{.WORKSPACE}}
 
   up:
     desc: Start devcontainer
     cmds:
+      - task: ensure-identity-env
       - devcontainer up --workspace-folder {{.WORKSPACE}}
 
   rebuild:
@@ -52,3 +79,9 @@ tasks:
     interactive: true
     cmds:
       - devcontainer exec --workspace-folder {{.WORKSPACE}} bash
+
+  pi:
+    desc: Open pi inside devcontainer
+    interactive: true
+    cmds:
+      - devcontainer exec --workspace-folder {{.WORKSPACE}} pi

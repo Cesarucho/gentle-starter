@@ -13,8 +13,11 @@ PACKAGES=(
 	"npm:pi-lens"
 	"npm:@juicesharp/rpiv-todo"
 	"npm:@juicesharp/rpiv-ask-user-question"
+	"npm:@juicesharp/rpiv-btw"
 	"npm:pi-terminal-theme"
 	"npm:pi-hud"
+	# "npm:@vigolium/piolium"
+	"npm:pi-powerline"
 )
 
 is_installed() {
