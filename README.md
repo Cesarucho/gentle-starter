@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="50%" height="50%" alt="Gentle Starter Logo" src="./docs/assets/brand/gentle-starter-v2.png" />
+<img width="80%" height="80%" alt="Gentle Starter Logo" src="./docs/assets/brand/gentle-starter-v2.png" />
 
 <h1>🌱 Gentle Starter</h1>
 
@@ -17,9 +17,9 @@
 
 ## 🎯 ¿Qué hace?
 
-Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI de manera ordenada: entender el objetivo, aclarar requisitos, usar artefactos SDD/OpenSpec, aplicar skills, coordinar subagentes, implementa por fases (descubre > investiga > diseña > planea > implementa > verifica) iterando hasta obtener los resultados esperados. Todo de manera casi automática.
+Provee un entorno "ready-to-promtp" preconfigurado, multiplataforma, fiable, extensible y replicable para iniciar proyectos con AI de manera ordenada: entender el objetivo, aclarar requisitos, usar artefactos SDD/OpenSpec, aplicar skills, coordinar subagentes, implementar por fases (descubre > investiga > diseña > planea > implementa > verifica) iterando hasta obtener los resultados esperados.
 
-El proyecto está pensado para ofrecer una estructura base, limpia y liviana como punto de partida antes de lanzar cualquier prompt, logrando lo siguiente:
+El proyecto está pensado para ofrecer una estructura base limpia como punto de partida antes de lanzar cualquier prompt, logrando lo siguiente:
 
 ```shell
 1. git clone repo  --> rename project-foo --> promtp "crea ..."
