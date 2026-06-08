@@ -38,25 +38,25 @@ tasks:
       - task: quality:full
 
   help:
-    desc: Show project task help
+    desc: Show task help
     silent: true
     cmds:
       - |
         cat <<'EOF'
-        Project tasks
+        Tasks help
 
         General:
-          task help          Show this help
-          task --list        List all available tasks
-          task doctor         Run doctor checks for the detected context
-          task validate       Run host-safe validation checks, excluding skills
-          task validate:full  Run strict validation requiring shell quality tools
-          task ai:update      Manually update Pi packages inside the devcontainer
-          task ssh:check      Check host SSH agent for devcontainer GitHub access
+          task help                     Show this help
+          task --list                   List all available tasks
+          task doctor                   Run doctor checks for the detected context
+          task validate                 Run host-safe validation checks, excluding skills
+          task validate:full            Run strict validation requiring shell quality tools
+          task ai:update                Manually update Pi packages inside the devcontainer
+          task ssh:check                Check host SSH agent for devcontainer GitHub access
 
         Doctor:
-          task doctor:host       Check host requirements
-          task doctor:container  Check tools inside the devcontainer
+          task doctor:host              Check host requirements
+          task doctor:container         Check tools inside the devcontainer
 
         Quality:
           task quality:check            Run host-safe shell quality checks
@@ -67,13 +67,13 @@ tasks:
           task quality:format:full      Require shfmt and check formatting
 
         Skills:
-          task skill:help              Show skill workflow examples
-          task skill:list              List installed project skills
-          task skill:sync              Restore, update, prune, and validate skills
-          task skill:validate          Optional: validate skills-lock against installed skills
+          task skill:help               Show skill workflow examples
+          task skill:list               List installed project skills
+          task skill:sync               Restore, update, prune, and validate skills
+          task skill:validate           Optional: validate skills-lock against installed skills
 
         Container:
-          task container:help       Show container workflow examples
-          task container:rebuild    Remove, build, and start devcontainer
-          task container:connect    Open bash inside devcontainer
+          task container:help           Show container workflow examples
+          task container:rebuild        Remove, build, and start devcontainer
+          task container:connect        Open bash inside devcontainer
         EOF

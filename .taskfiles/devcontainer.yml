@@ -55,6 +55,7 @@ tasks:
 
   rm:
     desc: Force-remove the devcontainer service container
+    silent: true
     cmds:
       - task: ensure-identity-env
       - |

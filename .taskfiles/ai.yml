@@ -3,5 +3,13 @@ version: "3"
 tasks:
   update:
     desc: Manually update Pi packages inside the devcontainer
+    silent: true
     cmds:
-      - pi update
+      - |
+        set -e
+        if pi update; then
+          exit 0
+        fi
+
+        echo "pi update could not self-update. Falling back to sudo npm global update..."
+        sudo npm --prefix /usr install -g --ignore-scripts --min-release-age=0 @earendil-works/pi-coding-agent

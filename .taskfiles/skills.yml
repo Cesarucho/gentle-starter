@@ -60,6 +60,7 @@ tasks:
 
   prune:
     desc: Remove installed skills absent from skills-lock.json
+    silent: true
     cmds:
       - |
         test -f skills-lock.json
@@ -74,6 +75,7 @@ tasks:
 
   validate:
     desc: Validate skills-lock.json entries exist in .agents/skills
+    silent: true
     cmds:
       - |
         test -f skills-lock.json
