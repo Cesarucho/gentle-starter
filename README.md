@@ -267,7 +267,7 @@ git diff -- skills-lock.json .agents/skills
 This starter uses Docker-in-Docker and elevated permissions for some development
 flows. Do not publish `.env`, `env/`, `.pi/`, or `.atl/`.
 
-See [docs/en/security.md](docs/en/security.md).
+See [security.md](docs/en/security.md).
 
 ## 📝 Changelog
 
