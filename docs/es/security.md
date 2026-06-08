@@ -1,3 +1,7 @@
+**Idioma:** [Español](security.md) · [English](../en/security.md)
+
+---
+
 # Seguridad
 
 Gentle Starter está pensado como base de desarrollo local. Antes de
