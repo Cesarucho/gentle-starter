@@ -1,0 +1,50 @@
+version: "3"
+
+vars:
+  SHELL_FILES: .devcontainer/setup.sh .devcontainer/scripts/*.sh .taskfiles/scripts/*.sh
+
+tasks:
+  shellcheck:
+    desc: Run ShellCheck when available, otherwise skip with a warning
+    silent: true
+    cmds:
+      - |
+        if ! command -v shellcheck >/dev/null 2>&1; then
+          echo "[warn] shellcheck not found; skipping shell script analysis"
+          exit 0
+        fi
+        shellcheck {{.SHELL_FILES}}
+
+  shellcheck:full:
+    desc: Run ShellCheck and require it to be installed
+    silent: true
+    cmds:
+      - shellcheck {{.SHELL_FILES}}
+
+  format:
+    desc: Check shell formatting when shfmt is available, otherwise skip with a warning
+    silent: true
+    cmds:
+      - |
+        if ! command -v shfmt >/dev/null 2>&1; then
+          echo "[warn] shfmt not found; skipping shell formatting check"
+          exit 0
+        fi
+        shfmt -d {{.SHELL_FILES}}
+
+  format:full:
+    desc: Check shell formatting and require shfmt to be installed
+    cmds:
+      - shfmt -d {{.SHELL_FILES}}
+
+  check:
+    desc: Run host-safe repository quality checks
+    cmds:
+      - task: shellcheck
+      - task: format
+
+  full:
+    desc: Run strict repository quality checks
+    cmds:
+      - task: shellcheck:full
+      - task: format:full

@@ -109,28 +109,25 @@ check_devcontainer_service() {
 }
 
 check_skills() {
-	check_file skills-lock.json
-
 	if [ ! -f skills-lock.json ]; then
+		warn "skills-lock.json not found; skipping optional project skill checks"
 		return
 	fi
+
+	ok "file exists: skills-lock.json"
 
 	if ! has_command jq; then
-		warn "jq not found; skipping detailed skills-lock validation"
+		warn "jq not found; skipping optional project skill checks"
 		return
 	fi
 
-	local missing=0
 	while IFS= read -r skill; do
 		if [ -f ".agents/skills/${skill}/SKILL.md" ]; then
 			ok "skill present: ${skill}"
 		else
-			fail "missing skill: .agents/skills/${skill}/SKILL.md"
-			missing=1
+			warn "optional project skill missing: .agents/skills/${skill}/SKILL.md"
 		fi
 	done < <(jq -r '.skills | keys[]' skills-lock.json)
-
-	[ "${missing}" -eq 0 ] || return 1
 }
 
 run_host() {

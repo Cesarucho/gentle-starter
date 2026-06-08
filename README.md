@@ -61,14 +61,14 @@ En tu PC necesitás:
     #   `.env` debe de existir y funciona bien con todo por defecto
     cp .env.example .env
     #   (opcional) comprobación básica
-    task doctor
+    task validate
     ```
 
 2. Si usas **IDE** busca la opción `Dev Containers: Reopen in Container` (o similar). Si usas la **terminal** ejecuta:
 
     ```bash
-    task devcontainer:up
-    task devcontainer:connect
+    task container:up
+    task container:connect
     ```
 
 3. Dentro del contendor ya puedes usar cualquier herramienta con normalidad, si estas con un **IDE** busca la opción para abrir su terminal.
@@ -78,8 +78,8 @@ En tu PC necesitás:
     engram tui
     pi update
 
-    #   (opcional) comprobación básica interna
-    task doctor
+    #   (opcional) comprobación interna
+    task validate:full
 
     #   También puedes instalar lo que te haga falta:
     sudo apt update
@@ -106,18 +106,35 @@ En tu PC necesitás:
 ## 🛠️ Comandos útiles
 
 ```bash
-# Diagnóstico
+# Diagnóstico básico
 task doctor
 
-# Devcontainer, solo útiles en tu PC (afuera del contenedor)
-task devcontainer:build
-task devcontainer:up
-task devcontainer:rebuild
-task devcontainer:connect
+# Validación host-safe del repo (no fuerza skills específicas)
+task validate
 
-# Skills
+# Validación estricta, recomendada dentro del contenedor
+task validate:full
+
+# Actualización manual del stack AI dentro del contenedor
+task ai:update
+
+# Container, solo útiles en tu PC (afuera del contenedor)
+task container:build
+task container:up
+task container:rebuild
+task container:connect      # conecta a la terminal
+task container:pi           # conecta a la tui de pi
+task container:engram       # conecta a la tui de engram
+
+# Skills flexibles por proyecto
 task skill:sync
+
+# Opcional: solo si querés validar skills-lock.json contra .agents/skills
 task skill:validate
+
+# Calidad de scripts
+task quality:check
+task quality:full
 ```
 
 ## 🗂️ Estructura del repo

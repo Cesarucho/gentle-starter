@@ -20,9 +20,22 @@ releases start.
 ### Changed
 
 - Renamed the starter identity to Gentle Starter.
-- Simplified the Docker Compose service name to `dev`.
+- Simplified the Docker Compose service name to `container-svc`.
 - Cleaned `.devcontainer/devcontainer.json` and removed the empty VS Code
   extension entry.
+- Added deterministic devcontainer identity generation for `APP_NAME` and
+  `APP_PORT` based on the project directory.
+- Added devcontainer entrypoints for Pi and Engram TUI.
+- Pinned core AI tooling versions and moved Pi package updates behind the
+  manual `task ai:update` workflow.
+- Added host-safe repository validation through `task validate` and strict
+  validation through `task validate:full`, without requiring a fixed project
+  skill set.
+- Renamed the user-facing devcontainer task namespace from `devcontainer:*` to
+  `container:*`.
+- Simplified Engram installation to an idempotent user-local binary install that
+  detects architecture and registers the local bin directory on `PATH`.
+- Added idempotent Pi workspace trust setup for `/home/ubuntu/code`.
 
 ### Security
 

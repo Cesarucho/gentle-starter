@@ -22,7 +22,8 @@ build_gitignore_prune_args() {
 }
 
 # Fix project file permissions to standard privileges, excluding ignored directories.
-sudo chown -R ${UID}:${UID} "${WORKSPACE_DIR}"
+gitignore_prune_args=()
+sudo chown -R "${UID}:${UID}" "${WORKSPACE_DIR}"
 build_gitignore_prune_args gitignore_prune_args
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
@@ -59,16 +60,40 @@ setup_versioned_pi_config() {
 		"${HOME}/.pi/gentle-ai/models.json"
 }
 
+setup_pi_workspace_trust() {
+	local trust_file="${HOME}/.pi/agent/trust.json"
+	local backup_path
+	local tmp_file
+
+	mkdir -p "$(dirname "${trust_file}")"
+
+	if [ -f "${trust_file}" ] && ! jq -e 'type == "object"' "${trust_file}" >/dev/null; then
+		backup_path="${trust_file}.devcontainer-backup.$(date +%Y%m%d%H%M%S)"
+		echo "Backing up invalid Pi trust config: ${trust_file} -> ${backup_path}"
+		mv "${trust_file}" "${backup_path}"
+	fi
+
+	tmp_file="$(mktemp)"
+	if [ -f "${trust_file}" ]; then
+		jq --arg workspace "${WORKSPACE_DIR}" '. + {($workspace): true}' "${trust_file}" >"${tmp_file}"
+	else
+		jq -n --arg workspace "${WORKSPACE_DIR}" '{($workspace): true}' >"${tmp_file}"
+	fi
+
+	mv "${tmp_file}" "${trust_file}"
+	chmod 0644 "${trust_file}"
+}
+
 # Setup git files configurations
-sudo chown -R ${UID}:${UID} ${HOME}/.gitconfig-volume
+sudo chown -R "${UID}:${UID}" "${HOME}/.gitconfig-volume"
 
-touch ${HOME}/.gitconfig-volume/config
-ln -fs ${HOME}/.gitconfig-volume/config ${HOME}/.gitconfig
-sudo chown -R ${UID}:${UID} ${HOME}/.gitconfig
+touch "${HOME}/.gitconfig-volume/config"
+ln -fs "${HOME}/.gitconfig-volume/config" "${HOME}/.gitconfig"
+sudo chown -R "${UID}:${UID}" "${HOME}/.gitconfig"
 
-touch ${HOME}/.gitconfig-volume/.git-credentials
-ln -fs ${HOME}/.gitconfig-volume/.git-credentials ${HOME}/.git-credentials
-sudo chown -R ${UID}:${UID} ${HOME}/.git-credentials
+touch "${HOME}/.gitconfig-volume/.git-credentials"
+ln -fs "${HOME}/.gitconfig-volume/.git-credentials" "${HOME}/.git-credentials"
+sudo chown -R "${UID}:${UID}" "${HOME}/.git-credentials"
 
 if ! git config --global --get-all safe.directory | grep -Fxq "${WORKSPACE_DIR}"; then
 	git config --global --add safe.directory "${WORKSPACE_DIR}"
@@ -83,12 +108,8 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # Link before install so Pi reads the versioned settings, then link again in case
 # any tool rewrites config files via atomic replace and breaks the symlink.
 setup_versioned_pi_config
+setup_pi_workspace_trust
 export PATH="${HOME}/.local/bin:${PATH}"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/09-install-ai-pi-gentle.sh"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/10-install-ai-engram.sh"
-# Make user-local tools available to the remaining setup commands without
-# requiring a new terminal. Future shells pick this up from ~/.bashrc.
-# shellcheck disable=SC1091
-source "${HOME}/.bashrc"
 setup_versioned_pi_config
-pi update

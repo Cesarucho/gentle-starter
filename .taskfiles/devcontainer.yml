@@ -5,20 +5,20 @@ vars:
 
 tasks:
   help:
-    desc: Show devcontainer workflow examples
+    desc: Show container workflow examples
     silent: true
     cmds:
       - |
         cat <<'EOF'
-        Devcontainer tasks
+        Container tasks
 
-          task devcontainer:rebuild   Remove, build, and start devcontainer
-          task devcontainer:build     Build devcontainer
-          task devcontainer:up        Start devcontainer
-          task devcontainer:connect   Open bash inside devcontainer
-          task devcontainer:pi        Open pi inside devcontainer
-          task devcontainer:engram    Open Engram TUI inside devcontainer
-          task devcontainer:rm        Force-remove devcontainer container
+          task container:rebuild   Remove, build, and start devcontainer
+          task container:build     Build devcontainer
+          task container:up        Start devcontainer
+          task container:connect   Open bash inside devcontainer
+          task container:pi        Open pi inside devcontainer
+          task container:engram    Open Engram TUI inside devcontainer
+          task container:rm        Force-remove devcontainer container
         EOF
 
   ensure-identity-env:

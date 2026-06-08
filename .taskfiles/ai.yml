@@ -1,0 +1,7 @@
+version: "3"
+
+tasks:
+  update:
+    desc: Manually update Pi packages inside the devcontainer
+    cmds:
+      - pi update

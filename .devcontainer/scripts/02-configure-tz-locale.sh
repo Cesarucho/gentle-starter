@@ -5,13 +5,13 @@ set -euo pipefail
 : "${LOCALE:=es_MX.UTF-8}"
 
 ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime
-echo "${TZ}" > /etc/timezone
+echo "${TZ}" >/etc/timezone
 dpkg-reconfigure -f noninteractive tzdata
 
 if grep -q "^# ${LOCALE} UTF-8" /etc/locale.gen; then
-    sed -i "s/^# ${LOCALE} UTF-8/${LOCALE} UTF-8/" /etc/locale.gen
+	sed -i "s/^# ${LOCALE} UTF-8/${LOCALE} UTF-8/" /etc/locale.gen
 elif ! grep -q "^${LOCALE} UTF-8" /etc/locale.gen; then
-    echo "${LOCALE} UTF-8" >> /etc/locale.gen
+	echo "${LOCALE} UTF-8" >>/etc/locale.gen
 fi
 
 locale-gen "${LOCALE}"
