@@ -109,8 +109,8 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # any tool rewrites config files via atomic replace and breaks the symlink.
 setup_versioned_pi_config
 setup_pi_workspace_trust
-export PATH="${HOME}/.local/bin:${PATH}"
-DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/08-install-ai-opencode.sh"
+# export PATH="${HOME}/.local/bin:${PATH}"
+# DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/08-install-ai-opencode.sh"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/09-install-ai-pi-gentle.sh"
 DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/10-install-ai-engram.sh"
 setup_versioned_pi_config
