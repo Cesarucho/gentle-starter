@@ -10,6 +10,7 @@ services:
       # AI-TOOLS
       - ../env/.pi:/home/ubuntu/.pi
       - ../env/.engram:/home/ubuntu/.engram
+      - ../env/.opencode:/home/ubuntu/.config/opencode
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     ports:

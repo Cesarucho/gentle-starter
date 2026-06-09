@@ -46,7 +46,11 @@ En tu PC necesitás:
 - **[docker](https://docs.docker.com/get-started/get-docker/)**, **[git](https://git-scm.com/downloads)**, **[jq](https://jqlang.org/download/)**.
 - **IDE** compatible con **[DevContainers](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** ([VSCode](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/)) con su respectiva extensión si aplica.
 
+<<<<<<< Updated upstream
 (Opcional) Si prefires usar tu terminal en lugar de un IDE (como yo), instala:
+=======
+Optional but recommended, use just the terminal instead of an IDE, install:
+>>>>>>> Stashed changes
 
 - **[Task](https://taskfile.dev/installation/)**.
 - **[DevContainer-CLI](https://github.com/devcontainers/cli#installation)**.
