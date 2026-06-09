@@ -1,4 +1,103 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-curl -fsSL https://opencode.ai/install | bash
+DEVCONTAINER_PHASE="${DEVCONTAINER_PHASE:-runtime}"
+OPENCODE_INSTALL_DIR="${OPENCODE_INSTALL_DIR:-${HOME}/.local/bin}"
+OPENCODE_PROFILE_FILE="${OPENCODE_PROFILE_FILE:-${HOME}/.bashrc}"
+OPENCODE_AUTO_UPDATE="${OPENCODE_AUTO_UPDATE:-0}"
+OPENCODE_INSTALL_URL="${OPENCODE_INSTALL_URL:-https://opencode.ai/install}"
+
+opencode_binary() {
+	printf '%s/opencode' "${OPENCODE_INSTALL_DIR}"
+}
+
+is_command_available() {
+	command -v "$1" >/dev/null 2>&1
+}
+
+installed_opencode_version() {
+	local binary
+	binary="$(opencode_binary)"
+
+	if [ ! -x "${binary}" ]; then
+		if is_command_available opencode; then
+			binary="$(command -v opencode)"
+		else
+			return 1
+		fi
+	fi
+
+	"${binary}" --version 2>/dev/null | awk '{print $NF}' | sed 's/^v//'
+}
+
+ensure_install_dir_on_path() {
+	local path_line
+	path_line="export PATH=\"${OPENCODE_INSTALL_DIR}:\$PATH\""
+
+	mkdir -p "${OPENCODE_INSTALL_DIR}"
+	touch "${OPENCODE_PROFILE_FILE}"
+
+	if ! grep -Fq "${OPENCODE_INSTALL_DIR}" "${OPENCODE_PROFILE_FILE}"; then
+		{
+			echo ""
+			echo "# User-local CLI tools"
+			echo "${path_line}"
+		} >>"${OPENCODE_PROFILE_FILE}"
+	fi
+
+	export PATH="${OPENCODE_INSTALL_DIR}:${PATH}"
+}
+
+should_install_opencode() {
+	local current_version=""
+
+	current_version="$(installed_opencode_version 2>/dev/null || true)"
+
+	if [ -z "${current_version}" ]; then
+		echo "opencode is not installed"
+		return 0
+	fi
+
+	case "${OPENCODE_AUTO_UPDATE}" in
+	1 | true | TRUE | yes | YES)
+		echo "opencode ${current_version} is installed; auto-update enabled"
+		return 0
+		;;
+	*)
+		echo "opencode ${current_version} is already installed; skipping update"
+		return 1
+		;;
+	esac
+}
+
+install_opencode() {
+	ensure_install_dir_on_path
+
+	if ! should_install_opencode; then
+		return 0
+	fi
+
+	echo "Installing opencode from ${OPENCODE_INSTALL_URL}"
+	curl -fsSL "${OPENCODE_INSTALL_URL}" | bash
+
+	echo "Verifying opencode installation..."
+	if ! is_command_available opencode; then
+		echo "opencode installation completed, but opencode is not on PATH" >&2
+		echo "Expected install directory on PATH: ${OPENCODE_INSTALL_DIR}" >&2
+		# exit 1
+	fi
+
+	# opencode --version
+}
+
+if [ "${DEVCONTAINER_PHASE}" = "build" ]; then
+	echo "Skipping opencode user-local install during image build"
+	exit 0
+fi
+
+if [ "$(id -u)" -eq 0 ]; then
+	echo "This script must run as the final non-root user during runtime" >&2
+	exit 1
+fi
+
+install_opencode

@@ -10,9 +10,11 @@ services:
       # AI-TOOLS
       - ../env/.pi:/home/ubuntu/.pi
       - ../env/.engram:/home/ubuntu/.engram
+      # - ../env/.opencode:/home/ubuntu/.config/opencode
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     ports:
-      - "${APP_PORT}:${APP_PORT}"
+      - "${APP_PORT}:${APP_PORT}"    # port for you app
+      - "7437:7437"                  # engram port
     env_file:
       - ../.env

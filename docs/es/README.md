@@ -54,7 +54,7 @@ En tu PC necesitás:
 - **[Docker](https://docs.docker.com/get-started/get-docker/)**, **[Git](https://git-scm.com/downloads)** y **[jq](https://jqlang.org/download/)**.
 - Un **IDE** compatible con **[Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** ([VS Code](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/)) con su respectiva extensión si aplica.
 
-Opcionalmente, si preferís usar tu terminal en lugar de un IDE, instalá:
+Opcional pero recomendado, usar solo la terminal en lugar de un IDE, instala:
 
 - **[Task](https://taskfile.dev/installation/)**.
 - **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**.
@@ -106,7 +106,7 @@ Opcionalmente, si preferís usar tu terminal en lugar de un IDE, instalá:
     # Elegí proveedor y repetí si querés registrar más de uno.
     /login
 
-    # Si elegís uno diferente o adicional a OpenAI, podés pedir:
+    # Ajuste los modelos que usa cada agente:
     >_ "Asigna la mejor configuración modelo/esfuerzo para cada agente de gentle-ai @.devcontainer/pi-config/gentle-ai/models.json con los modelos disponibles (pi --list-models) y de acuerdo a la guía: @docs/assets/ref/GUIA_MODELOS_v4.png"
     ```
 

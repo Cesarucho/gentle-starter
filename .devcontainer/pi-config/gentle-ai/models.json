@@ -1,18 +1,18 @@
 {
   "sdd-init": {
-    "model": "openai-codex/gpt-5.4-mini",
+    "model": "opencode-go/deepseek-v4-flash",
     "thinking": "low"
   },
   "sdd-onboard": {
-    "model": "openai-codex/gpt-5.5",
-    "thinking": "medium"
+    "model": "opencode-go/deepseek-v4-pro",
+    "thinking": "low"
   },
   "sdd-explore": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "opencode-go/kimi-k2.6",
     "thinking": "high"
   },
   "sdd-proposal": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "opencode-go/kimi-k2.6",
     "thinking": "high"
   },
   "sdd-spec": {
@@ -24,11 +24,11 @@
     "thinking": "medium"
   },
   "sdd-tasks": {
-    "model": "openai-codex/gpt-5.4-mini",
+    "model": "opencode-go/deepseek-v4-flash",
     "thinking": "low"
   },
   "sdd-status": {
-    "model": "openai-codex/gpt-5.4-mini",
+    "model": "opencode-go/deepseek-v4-flash",
     "thinking": "low"
   },
   "sdd-apply": {
@@ -36,19 +36,19 @@
     "thinking": "high"
   },
   "sdd-verify": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "opencode-go/deepseek-v4-pro",
     "thinking": "high"
   },
   "sdd-sync": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.3-codex-spark",
     "thinking": "medium"
   },
   "sdd-archive": {
     "model": "openai-codex/gpt-5.4-mini",
-    "thinking": "low"
+    "thinking": "none"
   },
   "context-builder": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "opencode-go/deepseek-v4-pro",
     "thinking": "medium"
   },
   "delegate": {
@@ -57,22 +57,22 @@
   },
   "oracle": {
     "model": "openai-codex/gpt-5.5",
-    "thinking": "high"
+    "thinking": "medium"
   },
   "planner": {
     "model": "openai-codex/gpt-5.5",
-    "thinking": "high"
+    "thinking": "medium"
   },
   "researcher": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "opencode-go/deepseek-v4-pro",
     "thinking": "high"
   },
   "reviewer": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "opencode-go/deepseek-v4-pro",
     "thinking": "high"
   },
   "scout": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "opencode-go/deepseek-v4-pro",
     "thinking": "medium"
   },
   "worker": {
