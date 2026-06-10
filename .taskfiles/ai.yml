@@ -2,14 +2,21 @@ version: "3"
 
 tasks:
   update:
-    desc: Manually update Pi packages inside the devcontainer
+    desc: Update Pi packages and re-pin selected packages
     silent: true
+    vars:
+      PINNED_PI_PACKAGES: '{{.PINNED_PI_PACKAGES | default "pi-mcp-adapter"}}'
     cmds:
       - |
         set -e
-        if pi update; then
-          exit 0
+
+        if ! pi update; then
+          echo "pi update could not self-update. Falling back to sudo npm global update..."
+          sudo npm --prefix /usr install -g --ignore-scripts --min-release-age=0 @earendil-works/pi-coding-agent
         fi
 
-        echo "pi update could not self-update. Falling back to sudo npm global update..."
-        sudo npm --prefix /usr install -g --ignore-scripts --min-release-age=0 @earendil-works/pi-coding-agent
+        for package_name in {{.PINNED_PI_PACKAGES}}; do
+          package_version="$(npm view "${package_name}" version)"
+          echo "Pinning ${package_name}@${package_version} in Pi settings..."
+          pi install "npm:${package_name}@${package_version}"
+        done

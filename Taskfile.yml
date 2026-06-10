@@ -51,7 +51,7 @@ tasks:
           task doctor                   Run doctor checks for the detected context
           task validate                 Run host-safe validation checks, excluding skills
           task validate:full            Run strict validation requiring shell quality tools
-          task ai:update                Manually update Pi packages inside the devcontainer
+          task ai:update                Update Pi packages and re-pin selected packages
           task ssh:check                Check host SSH agent for devcontainer GitHub access
 
         Doctor:

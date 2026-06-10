@@ -53,11 +53,9 @@ tasks:
         set +a
         devcontainer {{.ARGS}}
 
-  rm:
-    desc: Force-remove the devcontainer service container
+  resolve-container-name:
     silent: true
     cmds:
-      - task: ensure-identity-env
       - |
         container="$(awk '$1 == "container_name:" { gsub(/^"|"$/, "", $2); print $2; exit }' .devcontainer/docker-compose.yml)"
         project_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
@@ -66,6 +64,29 @@ tasks:
           echo "missing devcontainer container_name" >&2
           exit 1
         }
+        printf '%s\n' "$container"
+
+  ensure-running:
+    internal: true
+    silent: true
+    cmds:
+      - task: ensure-identity-env
+      - |
+        container="$(task --silent container:resolve-container-name)"
+        if docker ps --filter "name=^/${container}$" --filter "status=running" --quiet | grep -q .; then
+          exit 0
+        fi
+
+        echo "Devcontainer is not running. Starting it..."
+        task container:up
+
+  rm:
+    desc: Force-remove the devcontainer service container
+    silent: true
+    cmds:
+      - task: ensure-identity-env
+      - |
+        container="$(task --silent container:resolve-container-name)"
         docker rm "$container" -f || true
 
   build:
@@ -93,20 +114,21 @@ tasks:
     desc: Open bash inside devcontainer
     interactive: true
     cmds:
+      - task: ensure-running
       - task: run-devcontainer
         vars:
           ARGS: exec --workspace-folder {{.WORKSPACE}} bash
 
   pi:
-    desc: Open pi inside devcontainer
+    desc: Connect to Pi inside devcontainer
     interactive: true
     cmds:
       - task: run-devcontainer
         vars:
-          ARGS: exec --workspace-folder {{.WORKSPACE}} pi
+          ARGS: exec --workspace-folder {{.WORKSPACE}} pi --continue
 
   engram:
-    desc: Open Engram TUI inside devcontainer
+    desc: Connect to Engram TUI inside devcontainer
     interactive: true
     cmds:
       - task: run-devcontainer
