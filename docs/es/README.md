@@ -45,6 +45,9 @@ partida antes de lanzar cualquier prompt, logrando lo siguiente:
 - **[Taskfile](https://taskfile.dev/installation/)** para centralizar comandos frecuentes.
 - **Skills versionadas**, un conjunto base y actualizable a tu gusto.
 - **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** para pruebas e2e opcionales.
+- **[Go](https://go.dev/doc/install)**, instalado desde la última versión estable publicada por `go.dev`.
+- **[Java 25](https://sdkman.io/jdks#tem)**, instalado con [SDKMAN](https://sdkman.io/install) usando la distribución Temurin por defecto.
+- **[pnpm](https://pnpm.io/installation)**, instalado globalmente desde la última versión estable de npm.
 - Scripts separados para instalar y configurar dependencias en Ubuntu.
 
 ## ✅ Requisitos
@@ -107,12 +110,14 @@ Opcional pero recomendado, usar solo la terminal en lugar de un IDE, instala:
     /login
 
     # Ajuste los modelos que usa cada agente:
-    >_ "Asigna la mejor configuración modelo/esfuerzo para cada agente de gentle-ai @.devcontainer/pi-config/gentle-ai/models.json con los modelos disponibles (pi --list-models) y de acuerdo a la guía: @docs/assets/ref/GUIA_MODELOS_v4.png"
+    >_ "Asigna la mejor configuración modelo/esfuerzo para cada agente de gentle-ai @.devcontainer/pi-config/gentle-ai/models.json con los modelos disponibles (pi --list-models) y de acuerdo a la guía: @docs/assets/ref/GUIA_MODELOS_v4.md"
     ```
 
     > Nota: ajustes personalizados con revisión manual: `/gentle:models`.
 
 ## 🛠️ Comandos útiles
+
+### Diagnóstico y validación
 
 ```bash
 # Diagnóstico básico
@@ -123,18 +128,52 @@ task validate
 
 # Validación estricta, recomendada dentro del contenedor
 task validate:full
+```
 
-# Actualización manual del stack AI dentro del contenedor
+### Herramientas AI
+
+```bash
+# Actualiza paquetes de Pi y vuelve a fijar paquetes seleccionados con versión explícita
 task ai:update
 
+# Sobrescribe qué paquetes deben volver a fijarse después de actualizar
+task ai:update PINNED_PI_PACKAGES="pi-mcp-adapter otro-paquete"
+
+# Actualiza la configuración modelo/effort de Gentle AI usando la guía Markdown
+task ai:configure-models
+```
+
+### Toolchain de lenguajes
+
+```bash
+# Disponible dentro del devcontainer
+go version
+java --version
+pnpm --version
+```
+
+### Ciclo de vida del contenedor
+
+```bash
 # Container, solo útiles en tu PC (afuera del contenedor)
 task container:build
 task container:up
-task container:rebuild
-task container:connect      # conecta a la terminal
-task container:pi           # conecta a la TUI de Pi
-task container:engram       # conecta a la TUI de Engram
+task container:restart      # elimina y levanta usando la imagen existente
+task container:rebuild      # elimina, construye y levanta
+```
 
+### Entradas al contenedor
+
+```bash
+# Estas tareas levantan el devcontainer automáticamente si no está corriendo
+task container:connect      # conecta a la terminal
+task container:pi           # conecta a Pi usando `pi --continue`
+task container:engram       # conecta a la TUI de Engram
+```
+
+### Skills y calidad
+
+```bash
 # Skills flexibles por proyecto
 task skill:sync
 
@@ -236,7 +275,8 @@ ARG TZ=America/Mexico_City
 
 Agregá scripts numerados dentro de `.devcontainer/scripts/`.
 
-Los scripts se ejecutan en orden durante el build de la imagen.
+Los scripts se ejecutan en orden durante el build de la imagen. La imagen base
+usa este mecanismo para instalar el stack AI, Go, Java 25 y pnpm.
 
 ### 🧠 Gestionar skills
 

@@ -45,6 +45,9 @@ prompt, enabling workflows like these:
 - **[Taskfile](https://taskfile.dev/installation/)** to centralize common commands.
 - **Versioned skills**, a base set that you can update and customize.
 - **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** for optional e2e tests.
+- **[Go](https://go.dev/doc/install)**, installed from the latest stable release published by `go.dev`.
+- **[Java 25](https://sdkman.io/jdks#tem)**, installed with [SDKMAN](https://sdkman.io/install) using the Temurin distribution by default.
+- **[pnpm](https://pnpm.io/installation)**, installed globally from the latest stable npm release.
 - Separate scripts to install and configure Ubuntu dependencies.
 
 ## ✅ Requirements
@@ -108,12 +111,14 @@ Optional but recommended, use just the terminal instead of an IDE, install:
     /login
 
     # ask to config the best model of each agent:
-    >_ "Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v4.png"
+    >_ "Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v4.md"
     ```
 
     > Note: custom settings with manual review: `/gentle:models`.
 
 ## 🛠️ Useful commands
+
+### Diagnostics and validation
 
 ```bash
 # Basic diagnostics
@@ -124,18 +129,52 @@ task validate
 
 # Strict validation, recommended inside the container
 task validate:full
+```
 
-# Manual AI stack update inside the container
+### AI tooling
+
+```bash
+# Update Pi packages and re-pin selected packages with explicit versions
 task ai:update
 
+# Override the packages that should be re-pinned after update
+task ai:update PINNED_PI_PACKAGES="pi-mcp-adapter another-package"
+
+# Refresh Gentle AI model/effort config using the Markdown model guide
+task ai:configure-models
+```
+
+### Language toolchain
+
+```bash
+# Available inside the devcontainer
+go version
+java --version
+pnpm --version
+```
+
+### Container lifecycle
+
+```bash
 # Container commands, only useful on your PC (outside the container)
 task container:build
 task container:up
-task container:rebuild
-task container:connect      # connect to the terminal
-task container:pi           # connect to the Pi TUI
-task container:engram       # connect to the Engram TUI
+task container:restart      # remove and start the existing image
+task container:rebuild      # remove, build, and start
+```
 
+### Container entrypoints
+
+```bash
+# These tasks auto-start the devcontainer if it is not running
+task container:connect      # connect to the terminal
+task container:pi           # connect to Pi using `pi --continue`
+task container:engram       # connect to the Engram TUI
+```
+
+### Skills and quality
+
+```bash
 # Flexible project skills
 task skill:sync
 
@@ -239,7 +278,8 @@ ARG TZ=America/Mexico_City
 
 Add numbered scripts inside `.devcontainer/scripts/`.
 
-The scripts run in order during the image build.
+The scripts run in order during the image build. The base image currently uses
+this mechanism to install the AI stack plus Go, Java 25, and pnpm.
 
 ### 🧠 Manage skills
 

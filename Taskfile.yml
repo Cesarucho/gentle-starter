@@ -52,6 +52,7 @@ tasks:
           task validate                 Run host-safe validation checks, excluding skills
           task validate:full            Run strict validation requiring shell quality tools
           task ai:update                Update Pi packages and re-pin selected packages
+          task ai:configure-models      Update Gentle AI model/effort config
           task ssh:check                Check host SSH agent for devcontainer GitHub access
 
         Doctor:

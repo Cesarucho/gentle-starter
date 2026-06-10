@@ -16,6 +16,12 @@ releases start.
   `task doctor:container`, backed by `.taskfiles/scripts/doctor.sh`.
 - MIT license.
 - Security documentation in `docs/security.md`.
+- Devcontainer language tooling: latest stable Go, Java 25 through SDKMAN, and
+  latest stable pnpm.
+- `task container:restart` to remove and start the devcontainer without
+  rebuilding the image.
+- Auto-start guard for `task container:connect`, `task container:pi`, and
+  `task container:engram` when the devcontainer is not running.
 
 ### Changed
 
@@ -36,6 +42,9 @@ releases start.
 - Simplified Engram installation to an idempotent user-local binary install that
   detects architecture and registers the local bin directory on `PATH`.
 - Added idempotent Pi workspace trust setup for `/home/ubuntu/code`.
+- `task ai:update` now re-pins selected Pi packages with explicit latest npm
+  versions after updating.
+- `task container:pi` now opens Pi with `pi --continue`.
 
 ### Security
 

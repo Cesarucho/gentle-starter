@@ -20,3 +20,9 @@ tasks:
           echo "Pinning ${package_name}@${package_version} in Pi settings..."
           pi install "npm:${package_name}@${package_version}"
         done
+
+  configure-models:
+    desc: Update Gentle AI model and effort configuration with Pi
+    cmds:
+      - |
+        pi 'Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v4.md'
