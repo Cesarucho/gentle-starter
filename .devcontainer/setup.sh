@@ -58,6 +58,10 @@ setup_versioned_pi_config() {
 	link_versioned_pi_config \
 		"${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai/models.json" \
 		"${HOME}/.pi/gentle-ai/models.json"
+
+	link_versioned_pi_config \
+		"${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai/persona.json" \
+		"${HOME}/.pi/gentle-ai/persona.json"
 }
 
 setup_pi_workspace_trust() {
