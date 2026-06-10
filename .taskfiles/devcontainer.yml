@@ -13,6 +13,7 @@ tasks:
         Container tasks
 
           task container:rebuild   Remove, build, and start devcontainer
+          task container:restart   Remove and start devcontainer
           task container:build     Build devcontainer
           task container:up        Start devcontainer
           task container:connect   Open bash inside devcontainer
@@ -110,6 +111,12 @@ tasks:
       - task: build
       - task: up
 
+  restart:
+    desc: Remove and start devcontainer
+    cmds:
+      - task: rm
+      - task: up
+
   connect:
     desc: Open bash inside devcontainer
     interactive: true
@@ -123,6 +130,7 @@ tasks:
     desc: Connect to Pi inside devcontainer
     interactive: true
     cmds:
+      - task: ensure-running
       - task: run-devcontainer
         vars:
           ARGS: exec --workspace-folder {{.WORKSPACE}} pi --continue
@@ -131,6 +139,7 @@ tasks:
     desc: Connect to Engram TUI inside devcontainer
     interactive: true
     cmds:
+      - task: ensure-running
       - task: run-devcontainer
         vars:
           ARGS: exec --workspace-folder {{.WORKSPACE}} engram tui
