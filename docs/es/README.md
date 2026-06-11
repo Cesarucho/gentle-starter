@@ -1,412 +1,48 @@
-<div align="center">
-
-<img width="85%" height="85%" alt="Logo de Gentle Starter" src="../assets/brand/gentle-starter-v2.png" />
-
-<h1>🌱 Gentle Starter</h1>
-
-<p><strong>Entorno aislado y portable "ready-to-prompt" para el ecosistema Gentle AI</strong></p>
-
-<p>
-<a href="../../LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="Licencia: MIT"></a>
-<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Plataforma">
-</p>
-
-<p><strong>Idioma:</strong> <a href="../../README.md">Español</a> · English</p>
-
-</div>
-
----
-
-## 🎯 ¿Qué hace?
-
-Provee un entorno "ready-to-prompt" preconfigurado, multiplataforma, fiable,
-extensible y replicable para iniciar proyectos con AI de manera ordenada:
-entender el objetivo, aclarar requisitos, usar artefactos SDD/OpenSpec, aplicar
-skills, coordinar subagentes, implementar por fases —descubre, investiga,
-diseña, planea, implementa y verifica— e iterar hasta obtener los resultados
-esperados.
-
-El proyecto está pensado para ofrecer una estructura base limpia como punto de
-partida antes de lanzar cualquier prompt, logrando lo siguiente:
-
-```shell
-1. git clone repo  --> rename project-foo --> prompt "crea ..."
-2. git clone repo  --> rename project-bar --> prompt "diseña ..."
-3. copy/paste repo --> rename project-baz --> prompt "investiga ..."
-```
-
-## 📦 ¿Qué incluye?
-
-- **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** como harness de desarrollo asistido.
-- **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** para flujos de trabajo controlados con Pi.
-- **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** como memoria local persistente dentro del entorno.
-- **[Context7](https://github.com/upstash/context7)** integrado mediante MCP para documentación actualizada de librerías.
-- **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** basado en [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
-- **[Docker Compose](https://docs.docker.com/compose/install/)** para construir y levantar el entorno.
-- **[Taskfile](https://taskfile.dev/installation/)** para centralizar comandos frecuentes.
-- **Skills versionadas**, un conjunto base y actualizable a tu gusto.
-- **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** para pruebas e2e opcionales.
-- **[Go](https://go.dev/doc/install)**, instalado desde la última versión estable publicada por `go.dev`.
-- **[Java 25](https://sdkman.io/jdks#tem)**, instalado con [SDKMAN](https://sdkman.io/install) usando la distribución Temurin por defecto.
-- **[pnpm](https://pnpm.io/installation)**, instalado globalmente desde la última versión estable de npm.
-- Scripts separados para instalar y configurar dependencias en Ubuntu.
-
-## ✅ Requisitos
-
-En tu PC necesitás:
-
-- **[Docker](https://docs.docker.com/get-started/get-docker/)**, **[Git](https://git-scm.com/downloads)** y **[jq](https://jqlang.org/download/)**.
-- Un **IDE** compatible con **[Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** ([VS Code](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/)) con su respectiva extensión si aplica.
-
-Opcional pero recomendado, usar solo la terminal en lugar de un IDE, instala:
-
-- **[Task](https://taskfile.dev/installation/)**.
-- **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**.
-
-## 🚀 Uso rápido
-
-1. En tu PC:
-
-    ```bash
-    git clone https://github.com/Cesarucho/gentle-starter.git <nombre-de-mi-proyecto>
-    cd <nombre-de-mi-proyecto>
-    # `.env` debe existir y funciona bien con los valores por defecto.
-    cp .env.example .env
-    # Comprobación básica opcional.
-    task validate
-    ```
-
-2. Si usás **IDE**, buscá la opción `Dev Containers: Reopen in Container` (o similar). Si usás la **terminal**, ejecutá:
-
-    ```bash
-    task container:up
-    task container:connect
-    ```
-
-3. Dentro del contenedor ya podés usar cualquier herramienta con normalidad. Si estás con un **IDE**, buscá la opción para abrir su terminal.
-
-    ```bash
-    git status
-    engram tui
-    pi update
-
-    # Comprobación interna opcional.
-    task validate:full
-
-    # También podés instalar lo que te haga falta:
-    sudo apt update
-    sudo apt install {foo}
-    ```
-
-    > Nota: instalar herramientas al vuelo es recomendable para pruebas, pero
-    > una vez validadas deben incluirse en `.devcontainer/install/...` como base.
-
-4. Conectá con tu proveedor de AI:
-
-    ```bash
-    # Entrá a la interfaz principal (a partir de ahora tu lugar favorito).
-    pi
-
-    # Elegí proveedor y repetí si querés registrar más de uno.
-    /login
-
-    # Ajuste los modelos que usa cada agente:
-    >_ "Asigna la mejor configuración modelo/esfuerzo para cada agente de gentle-ai @.devcontainer/pi-config/gentle-ai/models.json con los modelos disponibles (pi --list-models) y de acuerdo a la guía: @docs/assets/ref/GUIA_MODELOS_v4.md"
-    ```
-
-    > Nota: ajustes personalizados con revisión manual: `/gentle:models`.
-
-## 🛠️ Comandos útiles
-
-### Diagnóstico y validación
-
-```bash
-# Diagnóstico básico
-task doctor
-
-# Validación host-safe del repo (no fuerza skills específicas)
-task validate
-
-# Validación estricta, recomendada dentro del contenedor
-task validate:full
-```
-
-### Herramientas AI
-
-```bash
-# Actualiza paquetes de Pi y vuelve a fijar paquetes seleccionados con versión explícita
-task ai:update
-
-# Sobrescribe qué paquetes deben volver a fijarse después de actualizar
-task ai:update PINNED_PI_PACKAGES="pi-mcp-adapter otro-paquete"
-
-# Actualiza la configuración modelo/effort de Gentle AI usando la guía Markdown
-task ai:configure-models
-```
-
-Dentro de Pi, inspeccioná servidores MCP, incluido Context7:
-
-```text
-/mcp
-```
-
-### Toolchain de lenguajes
-
-```bash
-# Disponible dentro del devcontainer
-go version
-java --version
-pnpm --version
-```
-
-### Ciclo de vida del contenedor
-
-```bash
-# Container, solo útiles en tu PC (afuera del contenedor)
-task container:build
-task container:up
-task container:restart      # elimina y levanta usando la imagen existente
-task container:rebuild      # elimina, construye y levanta
-```
-
-### Entradas al contenedor
-
-```bash
-# Estas tareas levantan el devcontainer automáticamente si no está corriendo
-task container:connect      # conecta a la terminal
-task container:pi           # conecta a Pi usando `pi --continue`
-task container:engram       # conecta a la TUI de Engram
-```
-
-### Skills y calidad
-
-```bash
-# Skills flexibles por proyecto
-task skill:sync
-
-# Opcional: solo si querés validar skills-lock.json contra .agents/skills
-task skill:validate
-
-# Calidad de scripts
-task quality:check
-task quality:full
-```
-
-## 🗂️ Estructura del repo
-
-```text
-.
-├── .agents/                        Skills versionadas del proyecto
-├── .atl/                           <-- no-versionable -->
-├── CHANGELOG.md
-├── .devcontainer
-│   ├── devcontainer.json           Configuración del Dev Container
-│   ├── devcontainer-lock.json
-│   ├── docker-compose.yml          Servicio del Dev Container
-│   ├── Dockerfile                  Imagen base del entorno de desarrollo
-│   ├── install/                    Layout de instalación (grupos numerados, catálogo available/, helpers)
-│   │   ├── 01-core/                Scripts obligatorios (corren en cada build)
-│   │   ├── 02-enabled/             Symlinks a los scripts activos de available/
-│   │   ├── 03-hooks/               Extensiones del usuario (gitignored)
-│   │   ├── available/              Catálogo opt-in (numerados 00-99)
-│   │   ├── lib/                    Helpers compartidos (common.sh)
-│   │   └── templates/              Plantilla install-script.sh
-│   ├── pi-config/                  Configuración base de Pi, MCP y Gentle AI
-│   └── setup.sh                    Script post-create del contenedor (volume-aware)
-├── docs
-│   ├── assets/
-│   ├── es/README.md
-│   └── security.md
-├── .env                            <-- no-versionable -->
-├── env/                            Estado local persistente, <-- no-versionable -->
-├── .env.example                    Ejemplo de variables locales para `.env`
-├── .gitignore
-├── LICENSE
-|
-├── openspec/                       Fuente de la verdad para tu proyecto y debe
-|                                   ser versionado por tu cuenta
-|
-├── .pi/                            <-- no-versionable -->
-├── README.md                       Main documentation (English)
-├── skills-lock.json                Archivo de bloqueo para restaurar skills
-├── .taskfiles
-│   ├── devcontainer.yml            Tareas para construir y operar el Dev Container
-│   ├── doctor.yml                  Tareas de diagnóstico del host/devcontainer
-│   ├── install.yml                 Tareas para gestionar el layout install/
-│   ├── scripts                     Scripts auxiliares de diagnóstico e install
-│   ├── skills.yml                  Tareas para gestionar skills del proyecto
-│   └── ssh.yml
-└── Taskfile.yml                    Entrada principal de tareas del proyecto
-```
-
-## 💾 Estado local y persistencia
-
-El archivo `.env.example` documenta variables locales seguras para crear tu
-propio `.env`:
-
-```bash
-cp .env.example .env
-```
-
-El directorio `env/` está pensado para guardar estado local del entorno y no
-debe versionarse. Actualmente se usa para montar datos como:
-
-```text
-env/                          Contenido <-- no-versionable -->
-├── .engram                   Base local de Engram
-│   ├── engram.db
-│   ├── engram.db-shm
-│   └── engram.db-wal
-├── .gitconfig                Configuración local de Git dentro del contenedor
-│   ├── config
-│   └── .git-credentials
-└── .pi                       Estado y configuración local de Pi
-    ├── agent/
-    └── gentle-ai/
-```
-
-> Importante: no guardes tokens, credenciales ni bases locales en Git. El repo
-> ignora `env/`, `.env`, `.pi/` y `.atl/` para evitar publicar estado local por
-> accidente.
-
-## ⚙️ Personalización básica
-
-### 📥 Instalar paquetes del sistema
-
-Editá `.devcontainer/install/core/10-system.sh` para agregar paquetes instalados
-con `apt` durante la construcción de la imagen.
-
-### 🌎 Actualizar zona horaria y locales
-
-Editá los argumentos del Dockerfile `.devcontainer/Dockerfile`, por ejemplo:
-
-```dockerfile
-ARG LOCALE=es_MX.UTF-8
-ARG TZ=America/Mexico_City
-```
-
-### 🧩 Agregar scripts de instalación
-
-El layout de instalación se organiza en tres grupos de runtime (con un prefijo
-que indica visualmente el orden), el catálogo opt-in, e infraestructura
-compartida:
-
-```text
-.devcontainer/install/
-├── 01-core/               Scripts obligatorios (00-pre-apt, 10-system, 15-task,
-│                          90-post-setup-users, 99-cleanup)
-├── 02-enabled/            Symlinks a los scripts activos de available/
-├── 03-hooks/              Extensiones del usuario (gitignored)
-├── available/             Catálogo opt-in (numerados 00-99, sufijo .disabled
-│                          para defaults no activos)
-├── lib/                   Helpers compartidos (common.sh)
-└── templates/             Plantilla install-script.sh
-```
-
-El build de Docker corre los scripts en el orden `01-core` → `02-enabled` →
-`03-hooks` (el `for group in` del Dockerfile). Dentro de cada grupo, los
-scripts se ordenan por nombre de archivo, así que el prefijo numérico
-dentro del nombre (e.g. `20-runtime-…`, `30-ai-…`) controla el orden
-intra-grupo. Los scripts en `available/` quedan latentes hasta que los
-linkees en `02-enabled/`.
-
-Para agregar una nueva herramienta opt-in:
-
-```bash
-# 1. Copiá la plantilla
-cp .devcontainer/install/templates/install-script.sh \
-   .devcontainer/install/available/40-cli-mycli.sh
-
-# 2. Completá las secciones de variables, idempotencia, install y verify.
-#    Sourceá lib/common.sh para los helpers compartidos (logging,
-#    devcontainer_arch, devcontainer_run_as_root, devcontainer_has_cmd, etc.).
-
-# 3. Validá localmente
-shellcheck .devcontainer/install/available/40-cli-mycli.sh
-bash -n .devcontainer/install/available/40-cli-mycli.sh
-
-# 4. Habilitala (crea 02-enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
-task install:enable -- 40-cli-mycli
-
-# 5. Reconstruí y verificá
-task container:rebuild
-```
-
-Gestioná el layout de install con estas tareas:
-
-```bash
-task install:list                # Muestra los scripts de instalación activos
-task install:list --presets      # También muestra los .disabled de available/
-task install:enable -- NAME      # Habilita un script linkeando 02-enabled/ -> available/
-task install:disable -- NAME     # Deshabilita un script removiendo su symlink
-task install:doctor              # Verifica la integridad del layout install/
-```
-
-Algunas reglas para scripts nuevos:
-
-- Soltá `-u` (nounset) solo dentro del subshell que hace source de SDKMAN.
-  `lib/common.sh` corre bajo `set -euo pipefail`, pero el carve-out de Java
-  usa `set -eo pipefail` dentro del heredoc de sudo para evitar
-  `SDKMAN_CANDIDATES_API: unbound variable`.
-- Usá `devcontainer_run_as_root` en vez de `sudo` crudo, para que el script
-  funcione tanto en build (root) como en runtime (no-root).
-- Usá `devcontainer_has_cmd` para la idempotencia al inicio del script, así
-  las re-ejecuciones son no-op.
-- Los archivos fuente en `.devcontainer/install/` están en modo 0755 para
-  acompañar el bind-mount y el `chmod 0755` del Dockerfile; la tarea
-  `install:doctor` detecta symlinks rotos y helpers faltantes.
-
-### 🔌 Configurar servidores MCP opcionales
-
-La configuración MCP activa de Pi vive en:
-
-```text
-.devcontainer/pi-config/agent/mcp.json
-```
-
-Los presets opcionales están versionados en:
-
-```text
-.devcontainer/pi-config/agent/mcp.presets.json
-```
-
-Para habilitar un preset, copiá su entrada de servidor a `mcp.json > mcpServers`
-y después recargá Pi con `/reload`. El preset de GitHub requiere
-`GITHUB_PERSONAL_ACCESS_TOKEN` en `.env`; usá un token fine-grained con los
-permisos mínimos necesarios para tu flujo.
-
-### 🧠 Gestionar skills
-
-Las skills del proyecto viven en `.agents/skills/` y se controlan desde
-`skills-lock.json`.
-
-Comandos útiles:
-
-```bash
-task skill:add -- <package> --skill <skill-name>
-task skill:install
-task skill:update
-task skill:validate
-task skill:sync
-```
-
-Después de modificar skills, revisá y versioná los cambios relevantes:
-
-```bash
-git diff -- skills-lock.json .agents/skills
-```
-
-## 🔐 Seguridad
-
-Este starter usa Docker-in-Docker y permisos elevados para algunos flujos de
-desarrollo. No publiques `.env`, `env/`, `.pi/` ni `.atl/`.
-
-Ver [security.md](security.md).
-
-## 📝 Changelog
-
-Ver [CHANGELOG.md](../../CHANGELOG.md).
-
-## 📄 Licencia
-
-MIT. Ver [LICENSE](../../LICENSE).
+# `docs/`
+
+Documentación del proyecto. Los originales en inglés se encuentran
+en `en/`, y las traducciones al español se encuentran en `es/`. En
+caso de duda, la versión en inglés es la canónica.
+
+## Contenido
+
+| Archivo | Para qué sirve |
+|---|---|
+| [`en/extending.md`](../en/extending.md) | **Comienza aquí.** Guía completa para añadir nueva funcionalidad. Cubre los tres sistemas (instalación, volúmenes, configuraciones), un ejemplo práctico y las preguntas frecuentes. | **Empieza por aquí.** La guía comprehensiva para añadir nueva funcionalidad. Cubre los tres sistemas (install, volúmenes, configs), un ejemplo end-to-end y la FAQ. |
+| [`en/install-tree.md`](../en/install-tree.md) | Análisis en profundidad de la convención de `install/`: grupos, numeración, cómo añadir un nuevo script de instalación. |
+| [`en/install-volumes.md`](../en/install-volumes.md) | Análisis en profundidad del contrato de reparación de volúmenes: cómo funciona el mapeo de bind-mount a script propietario, cómo añadir un nuevo volumen con estado. |
+| [`en/configs.md`](../en/configs.md) | Análisis en profundidad de `seed_config_tree`: detección de privilegios, los tres casos, reglas de idempotencia, el patrón `*.local`. |
+| `es/extending.md` | Traducción al español de la guía comprehensiva. |
+| `es/install-tree.md` | Traducción al español del análisis de `install/`. |
+| `es/configs.md` | Traducción al español del análisis de configuraciones. |
+| `assets/` | Recursos de marca (logo, etc.). |
+
+## Por dónde empezar
+
+Si quieres **añadir una nueva herramienta** (Redis, kubectl, tu
+propia CLI), lee [`en/extending.md`](../en/extending.md) de principio
+a fin. Es una lectura de 10 minutos que cubre todo lo necesario.
+
+Si quieres **entender un sistema específico**, salta al análisis
+en profundidad correspondiente:
+
+- ¿Añadir un script de instalación? → [`en/install-tree.md`](../en/install-tree.md)
+- ¿Añadir un volumen con estado? → [`en/install-volumes.md`](../en/install-volumes.md)
+- ¿Añadir una configuración base? → [`en/configs.md`](../en/configs.md)
+
+Si tienes una **pregunta concreta** que no esté cubierta arriba,
+consulta la FAQ al final de [`en/extending.md`](../en/extending.md)
+antes de abrir un issue.
+
+## Convenciones
+
+- El inglés es canónico. Cuando la versión en inglés y la versión
+  en español difieran, gana la inglesa (la española se actualiza para
+  seguirla).
+- Cada archivo en `en/` (y su equivalente en `es/`) es un documento
+  autocontenido. Las referencias cruzadas entre documentos son
+  enlaces explícitos.
+- Los documentos se versionan con el proyecto. Las actualizaciones a
+  un sistema (por ejemplo, cambiar la lógica de detección de
+  privilegios de `seed_config_tree`) deben reflejarse en el
+  documento correspondiente en el mismo commit.
