@@ -18,8 +18,8 @@ if devcontainer_has_cmd task; then
 fi
 
 devcontainer_log_info "Adding go-task apt repo (cloudsmith)"
-curl -1sLf "https://dl.cloudsmith.io/public/task/task/setup.deb.sh" \
-	| devcontainer_run_as_root bash -
+curl -1sLf "https://dl.cloudsmith.io/public/task/task/setup.deb.sh" |
+	devcontainer_run_as_root bash -
 
 devcontainer_log_info "Installing task package"
 devcontainer_run_as_root apt-get install -y --no-install-recommends task
