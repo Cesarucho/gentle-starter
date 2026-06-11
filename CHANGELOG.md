@@ -18,6 +18,8 @@ releases start.
 - Security documentation in `docs/security.md`.
 - Devcontainer language tooling: latest stable Go, Java 25 through SDKMAN, and
   latest stable pnpm.
+- Context7 MCP integration through versioned Pi config and the official
+  `context7-mcp` skill.
 - `task container:restart` to remove and start the devcontainer without
   rebuilding the image.
 - Auto-start guard for `task container:connect`, `task container:pi`, and

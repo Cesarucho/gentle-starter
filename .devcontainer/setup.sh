@@ -52,6 +52,10 @@ setup_versioned_pi_config() {
 		"${HOME}/.pi/agent/settings.json"
 
 	link_versioned_pi_config \
+		"${WORKSPACE_DIR}/.devcontainer/pi-config/agent/mcp.json" \
+		"${HOME}/.pi/agent/mcp.json"
+
+	link_versioned_pi_config \
 		"${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai/banner.json" \
 		"${HOME}/.pi/gentle-ai/banner.json"
 

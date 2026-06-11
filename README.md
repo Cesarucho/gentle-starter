@@ -40,6 +40,7 @@ prompt, enabling workflows like these:
 - **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** as the assisted-development harness.
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** for controlled Pi workflows.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** as local persistent memory inside the environment.
+- **[Context7](https://github.com/upstash/context7)** integrated through MCP for current library documentation.
 - **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** based on [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
 - **[Docker Compose](https://docs.docker.com/compose/install/)** to build and run the environment.
 - **[Taskfile](https://taskfile.dev/installation/)** to centralize common commands.
@@ -144,6 +145,12 @@ task ai:update PINNED_PI_PACKAGES="pi-mcp-adapter another-package"
 task ai:configure-models
 ```
 
+Inside Pi, inspect MCP servers, including Context7:
+
+```text
+/mcp
+```
+
 ### Language toolchain
 
 ```bash
@@ -198,7 +205,7 @@ task quality:full
 │   ├── devcontainer-lock.json
 │   ├── docker-compose.yml          Dev Container service
 │   ├── Dockerfile                  Base image for the development environment
-│   ├── pi-config/                  Base Pi and Gentle AI configuration
+│   ├── pi-config/                  Base Pi, MCP, and Gentle AI configuration
 │   ├── scripts/                    Scripts executed during the image build
 │   └── setup.sh                    Container post-create script
 ├── docs

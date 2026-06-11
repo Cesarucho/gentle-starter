@@ -13,6 +13,12 @@
       "skillPath": "clean-code/SKILL.md",
       "computedHash": "0332ac3d35ccc70a6b921ac013133dffda4a6d33e1789e585e1a5693ef00d85c"
     },
+    "context7-mcp": {
+      "source": "upstash/context7",
+      "sourceType": "github",
+      "skillPath": "skills/context7-mcp/SKILL.md",
+      "computedHash": "6b02383f86f87e81a722b3b6c6d6e06efa5c72f23bc87bb02599e3d499ca2c58"
+    },
     "design-patterns": {
       "source": "ratacat/claude-skills",
       "sourceType": "github",
