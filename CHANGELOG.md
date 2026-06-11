@@ -26,6 +26,20 @@ releases start.
   rebuilding the image.
 - Auto-start guard for `task container:connect`, `task container:pi`, and
   `task container:engram` when the devcontainer is not running.
+- `.devcontainer/install/` layout with `core/`, `available/`, `enabled/`,
+  `hooks/`, `lib/`, and `templates/` directories and a numbered 00-99
+  ordering for opt-in scripts.
+- `.devcontainer/install/lib/common.sh` with 13 shared helpers
+  (`devcontainer_phase`, `devcontainer_arch`, `devcontainer_has_cmd`,
+  `devcontainer_run_as_root`, `devcontainer_install_bin`,
+  `devcontainer_fetch`, `devcontainer_verify_sha256`,
+  `devcontainer_log_info` / `_warn` / `_error`, and idempotency guards),
+  backed by a re-source guard so it can be sourced from any script safely.
+- `.devcontainer/install/templates/install-script.sh` as the template for
+  new install scripts.
+- `task install:list`, `task install:enable`, `task install:disable`,
+  `task install:doctor`, and `task install:help` to manage the install
+  layout, backed by `.taskfiles/scripts/install.sh`.
 
 ### Changed
 
@@ -49,6 +63,20 @@ releases start.
 - `task ai:update` now re-pins selected Pi packages with explicit latest npm
   versions after updating.
 - `task container:pi` now opens Pi with `pi --continue`.
+- Dockerfile now `COPY install/` instead of `scripts/`, and the build RUN
+  iterates only over the `core/`, `enabled/`, and `hooks/` groups. The
+  legacy `.devcontainer/scripts/` directory was removed; `lib/common.sh`
+  and `templates/install-script.sh` are never executed by the build loop.
+- `setup.sh` is now volume-aware: bind mounts from `docker-compose.yml`
+  are parsed with `yq` and the install scripts that own each target
+  (`~/.pi` → `30-ai-pi-coding` and `30-ai-pi-gentle`, `~/.engram` and
+  `~/.local` → `30-ai-engram`) are re-run with `DEVCONTAINER_PHASE=runtime`
+  on every container start.
+- `go-task` is now in `install/core/15-task.sh` and is unconditionally
+  present in the image; the previous `available/40-cli-task.sh` opt-in
+  path was dropped.
+- Source files under `.devcontainer/install/` are mode 0755 to match the
+  Dockerfile's `chmod 0755` and the workspace bind-mount contract.
 
 ### Security
 

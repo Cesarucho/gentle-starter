@@ -99,7 +99,7 @@ Opcional pero recomendado, usar solo la terminal en lugar de un IDE, instala:
     ```
 
     > Nota: instalar herramientas al vuelo es recomendable para pruebas, pero
-    > una vez validadas deben incluirse en `.devcontainer/scripts/...` como base.
+    > una vez validadas deben incluirse en `.devcontainer/install/...` como base.
 
 4. Conectá con tu proveedor de AI:
 
@@ -204,9 +204,15 @@ task quality:full
 │   ├── devcontainer-lock.json
 │   ├── docker-compose.yml          Servicio del Dev Container
 │   ├── Dockerfile                  Imagen base del entorno de desarrollo
+│   ├── install/                    Layout de instalación (core, available, enabled, hooks)
+│   │   ├── core/                   Scripts obligatorios (corren en cada build)
+│   │   ├── available/              Catálogo opt-in (numerados 00-99)
+│   │   ├── enabled/                Symlinks a los scripts activos de available/
+│   │   ├── hooks/                  Extensiones del usuario (gitignored)
+│   │   ├── lib/                    Helpers compartidos (common.sh)
+│   │   └── templates/              Plantilla install-script.sh
 │   ├── pi-config/                  Configuración base de Pi, MCP y Gentle AI
-│   ├── scripts/                    Scripts ejecutados durante el build de la imagen
-│   └── setup.sh                    Script post-create del contenedor
+│   └── setup.sh                    Script post-create del contenedor (volume-aware)
 ├── docs
 │   ├── assets/
 │   ├── es/README.md
@@ -226,7 +232,8 @@ task quality:full
 ├── .taskfiles
 │   ├── devcontainer.yml            Tareas para construir y operar el Dev Container
 │   ├── doctor.yml                  Tareas de diagnóstico del host/devcontainer
-│   ├── scripts                     Script de diagnóstico usado por `task doctor`
+│   ├── install.yml                 Tareas para gestionar el layout install/
+│   ├── scripts                     Scripts auxiliares de diagnóstico e install
 │   ├── skills.yml                  Tareas para gestionar skills del proyecto
 │   └── ssh.yml
 └── Taskfile.yml                    Entrada principal de tareas del proyecto
@@ -266,7 +273,7 @@ env/                          Contenido <-- no-versionable -->
 
 ### 📥 Instalar paquetes del sistema
 
-Editá `.devcontainer/scripts/01-install-apt.sh` para agregar paquetes instalados
+Editá `.devcontainer/install/core/10-system.sh` para agregar paquetes instalados
 con `apt` durante la construcción de la imagen.
 
 ### 🌎 Actualizar zona horaria y locales
@@ -280,10 +287,69 @@ ARG TZ=America/Mexico_City
 
 ### 🧩 Agregar scripts de instalación
 
-Agregá scripts numerados dentro de `.devcontainer/scripts/`.
+El layout de instalación se organiza en tres grupos de runtime más infraestructura
+compartida:
 
-Los scripts se ejecutan en orden durante el build de la imagen. La imagen base
-usa este mecanismo para instalar el stack AI, Go, Java 25 y pnpm.
+```text
+.devcontainer/install/
+├── core/                  Scripts obligatorios (00-pre-apt, 10-system, 15-task,
+│                          90-post-setup-users, 99-cleanup)
+├── available/             Catálogo opt-in (numerados 00-99, sufijo .disabled
+│                          para defaults no activos)
+├── enabled/               Symlinks a los scripts activos de available/
+├── hooks/                 Extensiones del usuario (gitignored)
+├── lib/                   Helpers compartidos (common.sh)
+└── templates/             Plantilla install-script.sh
+```
+
+El build de Docker solo corre scripts en `core/`, `enabled/` y `hooks/`. Los
+scripts en `available/` quedan latentes hasta que los linkees en `enabled/`.
+
+Para agregar una nueva herramienta opt-in:
+
+```bash
+# 1. Copiá la plantilla
+cp .devcontainer/install/templates/install-script.sh \
+   .devcontainer/install/available/40-cli-mycli.sh
+
+# 2. Completá las secciones de variables, idempotencia, install y verify.
+#    Sourceá lib/common.sh para los helpers compartidos (logging,
+#    devcontainer_arch, devcontainer_run_as_root, devcontainer_has_cmd, etc.).
+
+# 3. Validá localmente
+shellcheck .devcontainer/install/available/40-cli-mycli.sh
+bash -n .devcontainer/install/available/40-cli-mycli.sh
+
+# 4. Habilitala (crea enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
+task install:enable -- 40-cli-mycli
+
+# 5. Reconstruí y verificá
+task container:rebuild
+```
+
+Gestioná el layout de install con estas tareas:
+
+```bash
+task install:list                # Muestra los scripts de instalación activos
+task install:list --presets      # También muestra los .disabled de available/
+task install:enable -- NAME      # Habilita un script linkeando enabled/ -> available/
+task install:disable -- NAME     # Deshabilita un script removiendo su symlink
+task install:doctor              # Verifica la integridad del layout install/
+```
+
+Algunas reglas para scripts nuevos:
+
+- Soltá `-u` (nounset) solo dentro del subshell que hace source de SDKMAN.
+  `lib/common.sh` corre bajo `set -euo pipefail`, pero el carve-out de Java
+  usa `set -eo pipefail` dentro del heredoc de sudo para evitar
+  `SDKMAN_CANDIDATES_API: unbound variable`.
+- Usá `devcontainer_run_as_root` en vez de `sudo` crudo, para que el script
+  funcione tanto en build (root) como en runtime (no-root).
+- Usá `devcontainer_has_cmd` para la idempotencia al inicio del script, así
+  las re-ejecuciones son no-op.
+- Los archivos fuente en `.devcontainer/install/` están en modo 0755 para
+  acompañar el bind-mount y el `chmod 0755` del Dockerfile; la tarea
+  `install:doctor` detecta symlinks rotos y helpers faltantes.
 
 ### 🔌 Configurar servidores MCP opcionales
 
