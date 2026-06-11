@@ -13,6 +13,8 @@ includes:
     taskfile: ./.taskfiles/ssh.yml
   container:
     taskfile: ./.taskfiles/devcontainer.yml
+  install:
+    taskfile: ./.taskfiles/install.yml
 
 tasks:
   default:
@@ -77,4 +79,10 @@ tasks:
           task container:help           Show container workflow examples
           task container:rebuild        Remove, build, and start devcontainer
           task container:connect        Open bash inside devcontainer
+
+        Install:
+          task install:list             Show enabled install scripts
+          task install:enable -- NAME   Enable an available install script
+          task install:disable -- NAME  Disable an enabled install script
+          task install:doctor           Check install layout integrity
         EOF
