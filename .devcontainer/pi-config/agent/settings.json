@@ -9,7 +9,7 @@
     "npm:@juicesharp/rpiv-todo@1.18.2",
     "npm:@juicesharp/rpiv-ask-user-question@1.18.2",
     "npm:pi-terminal-theme@0.2.0",
-    "npm:pi-mcp-adapter",
+    "npm:pi-mcp-adapter@2.9.0",
     "npm:pi-hud@0.8.0",
     "npm:pi-powerline@0.7.1",
     "npm:@juicesharp/rpiv-btw@1.18.2"

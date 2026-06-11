@@ -285,6 +285,25 @@ Agregá scripts numerados dentro de `.devcontainer/scripts/`.
 Los scripts se ejecutan en orden durante el build de la imagen. La imagen base
 usa este mecanismo para instalar el stack AI, Go, Java 25 y pnpm.
 
+### 🔌 Configurar servidores MCP opcionales
+
+La configuración MCP activa de Pi vive en:
+
+```text
+.devcontainer/pi-config/agent/mcp.json
+```
+
+Los presets opcionales están versionados en:
+
+```text
+.devcontainer/pi-config/agent/mcp.presets.json
+```
+
+Para habilitar un preset, copiá su entrada de servidor a `mcp.json > mcpServers`
+y después recargá Pi con `/reload`. El preset de GitHub requiere
+`GITHUB_PERSONAL_ACCESS_TOKEN` en `.env`; usá un token fine-grained con los
+permisos mínimos necesarios para tu flujo.
+
 ### 🧠 Gestionar skills
 
 Las skills del proyecto viven en `.agents/skills/` y se controlan desde

@@ -20,6 +20,8 @@ releases start.
   latest stable pnpm.
 - Context7 MCP integration through versioned Pi config and the official
   `context7-mcp` skill.
+- Optional MCP presets for GitHub and Playwright, with GitHub token
+  documentation in `.env.example`.
 - `task container:restart` to remove and start the devcontainer without
   rebuilding the image.
 - Auto-start guard for `task container:connect`, `task container:pi`, and
