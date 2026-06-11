@@ -38,43 +38,77 @@ sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 75
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
 
-link_versioned_pi_config() {
-	local source_path="$1"
-	local target_path="$2"
-	local backup_path
+# Copy the file tree under source_root into target_root, but only
+# for files that do NOT already exist at the target (so the user's
+# customisations are preserved across rebuilds). The relative path
+# under source_root is preserved under target_root: a file at
+# source_root/foo/bar.json lands at target_root/foo/bar.json.
+#
+# If target_root is outside ${HOME} (e.g. /etc/postgresql/16/main,
+# /etc/redis), the helper escalates to sudo because the running
+# postCreate user (ubuntu) cannot write there. Inside ${HOME}
+# (e.g. ~/.pi, ~/.config/Code) the helper runs as ubuntu and the
+# files are owned by ubuntu.
+#
+# This is the building block for the versioned config contract:
+#   .devcontainer/<name>-config/<ruta>/archivo  ->  <target>/<ruta>/archivo
+# See .devcontainer/README.md for the convention.
+seed_config_tree() {
+	local source_root="$1"
+	local target_root="$2"
 
-	mkdir -p "$(dirname "${target_path}")"
-
-	if [ -e "${target_path}" ] && [ ! -L "${target_path}" ]; then
-		backup_path="${target_path}.devcontainer-backup.$(date +%Y%m%d%H%M%S)"
-		echo "Backing up existing Pi config: ${target_path} -> ${backup_path}"
-		mv "${target_path}" "${backup_path}"
+	if [ ! -d "${source_root}" ]; then
+		return 0
 	fi
 
-	ln -sfn "${source_path}" "${target_path}"
+	local needs_sudo=false
+	if [ "${target_root:0:1}" = "/" ] \
+		&& [ "${target_root}" != "${HOME}" ] \
+		&& [ "${target_root#"$HOME"/}" = "${target_root}" ]; then
+		needs_sudo=true
+	fi
+
+	local mkdir_cmd="mkdir -p"
+	local cp_cmd="cp"
+	if [ "${needs_sudo}" = true ]; then
+		mkdir_cmd="sudo mkdir -p"
+		cp_cmd="sudo cp"
+	fi
+
+	local source
+	local relative
+	local target
+	while IFS= read -r source; do
+		relative="${source#"${source_root}/"}"
+		target="${target_root}/${relative}"
+
+		if [ -e "${target}" ]; then
+			continue
+		fi
+
+		# shellcheck disable=SC2086
+		${mkdir_cmd} "$(dirname "${target}")"
+		# shellcheck disable=SC2086
+		${cp_cmd} "${source}" "${target}"
+	done < <(find "${source_root}" -type f)
 }
 
+# Seed the base config files for every tool the project cares about.
+# Each line is a (source_root, target_root) pair that gets handed to
+# seed_config_tree. To add a new tool's baseline config:
+#   1. Create .devcontainer/<name>-config/ with the file tree that
+#      mirrors the tool's runtime config location.
+#   2. Add a seed_config_tree call below with the absolute target.
+# See .devcontainer/README.md for the full convention.
 setup_versioned_pi_config() {
-	# Keep runtime state in ~/.pi, but source selected stable config files from Git.
-	link_versioned_pi_config \
-		"${WORKSPACE_DIR}/.devcontainer/pi-config/agent/settings.json" \
-		"${HOME}/.pi/agent/settings.json"
+	# Pi and Gentle-AI configs land in the user's home (~/.pi/).
+	seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
 
-	link_versioned_pi_config \
-		"${WORKSPACE_DIR}/.devcontainer/pi-config/agent/mcp.json" \
-		"${HOME}/.pi/agent/mcp.json"
-
-	link_versioned_pi_config \
-		"${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai/banner.json" \
-		"${HOME}/.pi/gentle-ai/banner.json"
-
-	link_versioned_pi_config \
-		"${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai/models.json" \
-		"${HOME}/.pi/gentle-ai/models.json"
-
-	link_versioned_pi_config \
-		"${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai/persona.json" \
-		"${HOME}/.pi/gentle-ai/persona.json"
+	# Add additional tool configs here, one line per source root:
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/redis-config" "/etc/redis"
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/vscode-config" "${HOME}/.config/Code"
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/<name>-config.local" "${HOME}/.<name>" || true
 }
 
 setup_pi_workspace_trust() {
@@ -129,10 +163,12 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # ---------------------------------------------------------------------------
 
 # Install/update user-scoped AI tooling after volumes are mounted for ubuntu.
-# Link before install so Pi reads the versioned settings, then link again in case
-# any tool rewrites config files via atomic replace and breaks the symlink.
+# setup_versioned_pi_config copies base configs (see above); it is
+# idempotent and safe to call once. The legacy implementation used
+# symlinks and had to be called twice (link, then re-link in case
+# any tool broke the symlinks via atomic replace); with copy, there
+# is nothing to re-link, so one call is enough.
 setup_versioned_pi_config
 setup_pi_workspace_trust
 # export PATH="${HOME}/.local/bin:${PATH}"
 repair_installed_volumes
-setup_versioned_pi_config

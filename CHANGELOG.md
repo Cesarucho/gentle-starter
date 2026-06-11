@@ -86,6 +86,17 @@ releases start.
   ARGs remain so users can still override via
   `docker build --build-arg VAR=...`, and the runtime ENVs are still
   propagated for re-installs at container start.
+- The Pi config seeding in `setup.sh` switched from symlinks to a
+  copy-on-first-run model. `seed_config_tree(source_root, target_root)`
+  walks the source tree and copies each file to the equivalent path
+  under the target, but only when the target does NOT already
+  exist (the user's customisations are preserved across rebuilds).
+  Targets outside `$HOME` escalate to `sudo` automatically. The
+  pipeline no longer calls the seed function twice (no symlinks
+  to re-link). The tree-walking shape means adding a new tool's
+  baseline config is one `seed_config_tree` call in
+  `setup_versioned_pi_config()` plus the source tree under
+  `.devcontainer/<name>-config/`.
 - `go-task` is now in `install/core/15-task.sh` and is unconditionally
   present in the image; the previous `available/40-cli-task.sh` opt-in
   path was dropped.

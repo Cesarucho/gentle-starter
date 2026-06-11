@@ -7,6 +7,16 @@ the `install/available/` scripts. The TL;DR lives in the header of
 file is for the contributor who wants to understand *why* the contract
 looks the way it does, and what to do when it breaks.
 
+## Sister contract: config seeding
+
+`setup.sh` ships a parallel mechanism for *config files*: a
+`seed_config_tree` helper that copies baseline configs from
+`.devcontainer/<name>-config/` to their runtime path. It is
+copy-on-first-run (idempotent, preserves user customisations) and
+auto-escalates to `sudo` for targets outside `$HOME`. The convention
+is documented in `.devcontainer/README.md`; the rationale is
+identical to this one (the source tree IS the manifest).
+
 ## The contract in one diagram
 
 ```text
