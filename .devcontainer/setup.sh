@@ -62,9 +62,9 @@ seed_config_tree() {
 	fi
 
 	local needs_sudo=false
-	if [ "${target_root:0:1}" = "/" ] \
-		&& [ "${target_root}" != "${HOME}" ] \
-		&& [ "${target_root#"$HOME"/}" = "${target_root}" ]; then
+	if [ "${target_root:0:1}" = "/" ] &&
+		[ "${target_root}" != "${HOME}" ] &&
+		[ "${target_root#"$HOME"/}" = "${target_root}" ]; then
 		needs_sudo=true
 	fi
 

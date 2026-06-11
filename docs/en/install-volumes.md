@@ -7,6 +7,11 @@ the `install/available/` scripts. The TL;DR lives in the header of
 file is for the contributor who wants to understand *why* the contract
 looks the way it does, and what to do when it breaks.
 
+> **Looking for the comprehensive view?** Start at
+> [`docs/en/extending.md`](./extending.md), which covers install,
+> volumes, and configs together with a worked example and the FAQ.
+> This file is the deep dive on the volume contract only.
+
 ## Sister contract: config seeding
 
 `setup.sh` ships a parallel mechanism for *config files*: a
@@ -14,7 +19,7 @@ looks the way it does, and what to do when it breaks.
 `.devcontainer/<name>-config/` to their runtime path. It is
 copy-on-first-run (idempotent, preserves user customisations) and
 auto-escalates to `sudo` for targets outside `$HOME`. The convention
-is documented in `.devcontainer/README.md`; the rationale is
+is documented in [`configs.md`](./configs.md); the rationale is
 identical to this one (the source tree IS the manifest).
 
 ## The contract in one diagram
