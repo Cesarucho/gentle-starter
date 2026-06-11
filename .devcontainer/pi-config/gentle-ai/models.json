@@ -45,7 +45,7 @@
   },
   "sdd-archive": {
     "model": "openai-codex/gpt-5.4-mini",
-    "thinking": "none"
+    "thinking": "low"
   },
   "context-builder": {
     "model": "opencode-go/deepseek-v4-pro",
