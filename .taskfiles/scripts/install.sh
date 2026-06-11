@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# install.sh — task helpers for the .devcontainer/install/ layout.
+#
+# Used by .taskfiles/install.yml. Not intended to be run directly,
+# but works fine that way too.
+#
+# Commands:
+#   help                       Show this help
+#   list [--presets]           List active scripts (core, enabled, hooks).
+#                              With --presets also show the disabled ones
+#                              in available/
+#   enable NAME                Create an enabled/ symlink to
+#                              available/NAME[.disabled]
+#   disable NAME               Remove the enabled/ symlink for NAME
+#   doctor                     Verify the install/ layout integrity
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+INSTALL_DIR="${REPO_ROOT}/.devcontainer/install"
+
+usage() {
+	cat <<'EOF'
+Usage:
+  install.sh <command> [args]
+
+Commands:
+  help                  Show this help
+  list [--presets]      List active scripts (core, enabled, hooks). With
+                        --presets, also show the disabled ones in available/
+  enable NAME           Create an enabled/ symlink to available/NAME
+  disable NAME          Remove the enabled/ symlink for NAME
+  doctor                Verify the install/ layout integrity
+EOF
+}
+
+# Resolve a script name (with or without .sh or .sh.disabled suffix)
+# to its absolute path under available/. Echoes the path; returns 1
+# if not found. Accepts NAME, NAME.sh, NAME.disabled, or NAME.sh.disabled.
+resolve_available() {
+	local name="$1"
+
+	for candidate in "${name}" "${name}.sh" "${name}.disabled" "${name}.sh.disabled"; do
+		if [ -f "${INSTALL_DIR}/available/${candidate}" ]; then
+			printf '%s\n' "${INSTALL_DIR}/available/${candidate}"
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+cmd_list() {
+	local show_presets=false
+	if [ "${1:-}" = "--presets" ]; then
+		show_presets=true
+	fi
+
+	echo "core (obligatorio):"
+	if [ -d "${INSTALL_DIR}/core" ]; then
+		find "${INSTALL_DIR}/core" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
+	else
+		echo "  (directorio ausente)"
+	fi
+
+	echo ""
+	echo "enabled (opt-in activos):"
+	if [ -d "${INSTALL_DIR}/enabled" ]; then
+		find "${INSTALL_DIR}/enabled" -maxdepth 1 -type l -print | sort | while read -r link; do
+			[ -L "${link}" ] || continue
+			printf "  %s -> %s\n" "$(basename "${link}")" "$(readlink "${link}")"
+		done
+	else
+		echo "  (directorio ausente)"
+	fi
+
+	echo ""
+	echo "available (catálogo):"
+	if [ -d "${INSTALL_DIR}/available" ]; then
+		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
+			name="$(basename "${f}")"
+			if [[ "${name}" == *.disabled ]]; then
+				if [ "${show_presets}" = true ]; then
+					echo "  ${name} (disabled)"
+				fi
+			else
+				if [ -L "${INSTALL_DIR}/enabled/${name}" ]; then
+					echo "  ${name} (enabled)"
+				else
+					echo "  ${name} (not enabled)"
+				fi
+			fi
+		done
+	else
+		echo "  (directorio ausente)"
+	fi
+
+	echo ""
+	echo "hooks:"
+	if [ -d "${INSTALL_DIR}/hooks" ]; then
+		find "${INSTALL_DIR}/hooks" -maxdepth 1 -mindepth 1 | sort | sed 's|.*/|  |'
+	else
+		echo "  (directorio ausente)"
+	fi
+}
+
+cmd_enable() {
+	local name="$1"
+	local source_path
+
+	if [ -z "${name}" ]; then
+		echo "ERROR: enable requires a NAME argument" >&2
+		usage >&2
+		exit 2
+	fi
+
+	if ! source_path="$(resolve_available "${name}")"; then
+		echo "ERROR: ${name} not found under available/" >&2
+		exit 1
+	fi
+
+	local base
+	base="$(basename "${source_path}")"
+
+	# Strip the .disabled suffix from the link name so the
+	# Dockerfile's find filter (-not -name "*.disabled") picks it up.
+	local link_name="${base%.disabled}"
+
+	if [ -L "${INSTALL_DIR}/enabled/${link_name}" ]; then
+		echo "${link_name} is already enabled"
+		return 0
+	fi
+
+	(
+		cd "${INSTALL_DIR}/enabled"
+		ln -sfn "../available/${base}" "${link_name}"
+	)
+	echo "Enabled: enabled/${link_name} -> available/${base}"
+}
+
+cmd_disable() {
+	local name="$1"
+	local removed=0
+
+	if [ -z "${name}" ]; then
+		echo "ERROR: disable requires a NAME argument" >&2
+		usage >&2
+		exit 2
+	fi
+
+	for candidate in "${name}" "${name}.sh" "${name}.sh.disabled"; do
+		if [ -L "${INSTALL_DIR}/enabled/${candidate}" ]; then
+			rm "${INSTALL_DIR}/enabled/${candidate}"
+			echo "Disabled: ${candidate}"
+			removed=$((removed + 1))
+		fi
+	done
+
+	if [ "${removed}" -eq 0 ]; then
+		echo "${name} is not enabled"
+	fi
+}
+
+cmd_doctor() {
+	local errors=0
+	local warnings=0
+
+	if [ ! -f "${INSTALL_DIR}/lib/common.sh" ]; then
+		echo "FAIL: lib/common.sh missing"
+		errors=$((errors + 1))
+	else
+		echo "ok: lib/common.sh present"
+	fi
+
+	if [ ! -f "${INSTALL_DIR}/templates/install-script.sh" ]; then
+		echo "FAIL: templates/install-script.sh missing"
+		errors=$((errors + 1))
+	else
+		echo "ok: templates/install-script.sh present"
+	fi
+
+	for required_dir in core available enabled hooks lib templates; do
+		if [ ! -d "${INSTALL_DIR}/${required_dir}" ]; then
+			echo "FAIL: directory ${required_dir}/ missing"
+			errors=$((errors + 1))
+		fi
+	done
+
+	if [ -d "${INSTALL_DIR}/enabled" ]; then
+		for link in "${INSTALL_DIR}/enabled}"*; do
+			[ -e "${link}" ] || continue
+			if [ -L "${link}" ] && [ ! -e "${link}" ]; then
+				echo "FAIL: broken symlink enabled/$(basename "${link}")"
+				errors=$((errors + 1))
+			fi
+		done
+	fi
+
+	if [ "${errors}" -eq 0 ]; then
+		echo "ok: install layout"
+		return 0
+	fi
+
+	echo "FAIL: ${errors} error(s), ${warnings} warning(s)"
+	return 1
+}
+
+case "${1:-help}" in
+help | --help | -h)
+	usage
+	;;
+list)
+	shift
+	cmd_list "$@"
+	;;
+enable)
+	shift
+	cmd_enable "$@"
+	;;
+disable)
+	shift
+	cmd_disable "$@"
+	;;
+doctor)
+	cmd_doctor
+	;;
+*)
+	usage >&2
+	exit 2
+	;;
+esac

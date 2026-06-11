@@ -1,0 +1,28 @@
+version: "3"
+
+tasks:
+  help:
+    desc: Show install task help
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/install.sh help
+
+  list:
+    desc: List install scripts (core, enabled, hooks). Pass --presets to also show disabled available/ entries
+    cmds:
+      - ./.taskfiles/scripts/install.sh list {{.CLI_ARGS}}
+
+  enable:
+    desc: Enable an available install script by symlinking it into enabled/
+    cmds:
+      - ./.taskfiles/scripts/install.sh enable {{.CLI_ARGS}}
+
+  disable:
+    desc: Disable an enabled install script by removing its enabled/ symlink
+    cmds:
+      - ./.taskfiles/scripts/install.sh disable {{.CLI_ARGS}}
+
+  doctor:
+    desc: Check install/ layout integrity (lib/, templates/, enabled/ symlinks, required directories)
+    cmds:
+      - ./.taskfiles/scripts/install.sh doctor
