@@ -77,6 +77,15 @@ releases start.
   (`~/.pi` → `30-ai-pi-coding` and `30-ai-pi-gentle`, `~/.engram` and
   `~/.local` → `30-ai-engram`) are re-run with `DEVCONTAINER_PHASE=runtime`
   on every container start.
+- The devuser creation path in `01-core/90-post-setup-users.sh` and the
+  matching `HOST_UID` / `HOST_GID` ARGs in the Dockerfile were removed.
+  The project settles on `ubuntu` as the single devcontainer user.
+- Library-version ARGs in the Dockerfile (`ENGRAM_VERSION`,
+  `NODE_MAJOR`, `PLAYWRIGHT_VERSION`) now have no default; the canonical
+  default lives in the install script that consumes the value. The
+  ARGs remain so users can still override via
+  `docker build --build-arg VAR=...`, and the runtime ENVs are still
+  propagated for re-installs at container start.
 - `go-task` is now in `install/core/15-task.sh` and is unconditionally
   present in the image; the previous `available/40-cli-task.sh` opt-in
   path was dropped.
