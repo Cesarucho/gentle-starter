@@ -112,13 +112,101 @@ git config --global alias.logline \
 
 git config --global alias.config-list "config --list --show-origin --show-scope"
 
+# ---------------------------------------------------------------------------
+# Volume-aware install repair
+# ---------------------------------------------------------------------------
+#
+# The install/ tree has a catalog of available/ scripts and a set of
+# enabled/ symlinks that run during image build. A subset of those
+# scripts owns a bind-mounted volume (declared in docker-compose.yml)
+# and needs to run again at runtime when the host directory has just
+# been created or repopulated. The three functions below implement
+# that wiring without the legacy scripts/ hardcoded paths.
+
+# Emit "source|target" pairs, one per line, for each bind mount in
+# docker-compose.yml with both source and target defined.
+resolve_compose_volume_targets() {
+	local compose_file="${WORKSPACE_DIR}/.devcontainer/docker-compose.yml"
+	local vol
+	local src
+	local tgt
+
+	while IFS= read -r vol; do
+		# Skip empty lines
+		[ -z "${vol// /}" ] && continue
+
+		# The short-form volume entry is a string like
+		# "../env/.pi:/home/ubuntu/.pi[:ro|:rw]". Strip the YAML
+		# list prefix and split on the first colon.
+		vol="${vol#"${vol%%[![:space:]]*}"}" # leading whitespace
+		vol="${vol#- }"                      # YAML list marker
+		vol="${vol#-}"                       # YAML list marker (no space)
+
+		if [[ "${vol}" == *:* ]]; then
+			src="${vol%%:*}"
+			tgt="${vol#*:}"
+			tgt="${tgt%%:*}" # strip optional :ro/:rw mode
+
+			# Bind mounts have a non-empty source.
+			if [ -n "${src}" ] && [ -n "${tgt}" ]; then
+				printf '%s|%s\n' "${src}" "${tgt}"
+			fi
+		fi
+	done < <(yq -r '.services."container-svc".volumes[]' "${compose_file}" 2>/dev/null || true)
+}
+
+# Map a container-side target path to the install script base names
+# (without the .sh extension) that own that volume.
+compose_target_to_install_scripts() {
+	local target="$1"
+	local -n scripts_ref="$2"
+
+	scripts_ref=()
+	case "${target}" in
+	"${HOME}/.pi" | "/home/${UID}/.pi")
+		scripts_ref+=("30-ai-pi-coding" "30-ai-pi-gentle")
+		;;
+	"${HOME}/.engram" | "/home/${UID}/.engram")
+		scripts_ref+=("30-ai-engram")
+		;;
+	"${HOME}/.local" | "/home/${UID}/.local")
+		scripts_ref+=("30-ai-engram")
+		;;
+	esac
+}
+
+# Iterate over bind-mount volume targets from docker-compose.yml and
+# run the install scripts that own each target, with
+# DEVCONTAINER_PHASE=runtime. Each script is idempotent: it skips
+# itself when the tool is already installed, so a re-run on a
+# populated volume is a no-op.
+repair_installed_volumes() {
+	local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
+	local source_path
+	local target_path
+	local scripts=()
+	local script
+	local script_path
+
+	while IFS='|' read -r source_path target_path; do
+		compose_target_to_install_scripts "${target_path}" scripts
+
+		for script in "${scripts[@]}"; do
+			script_path="${install_root}/${script}.sh"
+			if [ ! -f "${script_path}" ]; then
+				continue
+			fi
+			echo "Volume repair: ${target_path} -> ${script}.sh"
+			DEVCONTAINER_PHASE=runtime bash "${script_path}"
+		done
+	done < <(resolve_compose_volume_targets)
+}
+
 # Install/update user-scoped AI tooling after volumes are mounted for ubuntu.
 # Link before install so Pi reads the versioned settings, then link again in case
 # any tool rewrites config files via atomic replace and breaks the symlink.
 setup_versioned_pi_config
 setup_pi_workspace_trust
 # export PATH="${HOME}/.local/bin:${PATH}"
-# DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/08-install-ai-opencode.sh"
-DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/09-install-ai-pi-gentle.sh"
-DEVCONTAINER_PHASE=runtime "${WORKSPACE_DIR}/.devcontainer/scripts/10-install-ai-engram.sh"
+repair_installed_volumes
 setup_versioned_pi_config
