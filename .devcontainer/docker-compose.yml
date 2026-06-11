@@ -15,6 +15,5 @@ services:
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     ports:
       - "${APP_PORT}:${APP_PORT}"    # port for you app
-      - "7437:7437"                  # engram port
     env_file:
       - ../.env
