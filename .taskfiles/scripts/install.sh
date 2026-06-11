@@ -38,6 +38,9 @@ Commands:
   enable NAME           Create an 02-enabled/ symlink to available/NAME
   disable NAME          Remove the 02-enabled/ symlink for NAME
   doctor                Verify the install/ layout integrity
+  volumes               Print the live volume contract: bind mounts from
+                        docker-compose.yml and the install scripts that
+                        own each target
 EOF
 }
 
@@ -211,6 +214,62 @@ cmd_doctor() {
 	return 1
 }
 
+# Print the live volume contract: the bind mounts docker-compose.yml
+# declares, the install scripts that own each target, and a step-by-step
+# for adding a new stateful volume. Sources setup-volumes.sh for the
+# two functions that own the contract (parse + map).
+cmd_volumes() {
+	local setup_volumes="${REPO_ROOT}/.devcontainer/setup-volumes.sh"
+	local target_path
+	local source_path
+	local scripts=()
+
+	if [ ! -f "${setup_volumes}" ]; then
+		echo "ERROR: setup-volumes.sh not found at ${setup_volumes}" >&2
+		return 1
+	fi
+
+	# Source the contract functions. WORKSPACE_DIR is read at call
+	# time inside setup-volumes.sh; HOME and UID come from the
+	# calling shell (UID is bash-readonly, can't be reassigned).
+	# shellcheck disable=SC2034
+	WORKSPACE_DIR="${REPO_ROOT}"
+	# shellcheck source=/dev/null
+	source "${setup_volumes}"
+
+	echo "=== install/ volume contract ==="
+	echo ""
+	echo "Bind mounts declared in .devcontainer/docker-compose.yml:"
+	echo ""
+
+	while IFS='|' read -r source_path target_path; do
+		scripts=()
+		compose_target_to_install_scripts "${target_path}" scripts
+		if [ "${#scripts[@]}" -gt 0 ]; then
+			printf "  %-25s -> %-30s owned by: %s\n" \
+				"${source_path}" "${target_path}" "${scripts[*]}"
+		else
+			printf "  %-25s -> %-30s (no mapping yet)\n" \
+				"${source_path}" "${target_path}"
+		fi
+	done < <(resolve_compose_volume_targets)
+
+	echo ""
+	echo "When postCreate runs, each target is re-populated by running"
+	echo "the owning install script with DEVCONTAINER_PHASE=runtime. Each"
+	echo "script is idempotent (skips itself when already installed)."
+	echo ""
+	echo "To add a new stateful volume (e.g. PostgreSQL data dir):"
+	echo "  1. Add the bind mount to .devcontainer/docker-compose.yml."
+	echo "  2. Add a case for the new target path in"
+	echo "     compose_target_to_install_scripts in"
+	echo "     .devcontainer/setup-volumes.sh, listing the install script's"
+	echo "     base name (without the .sh extension)."
+	echo "  3. Add the install script in .devcontainer/install/available/."
+	echo "  4. Link it from .devcontainer/install/02-enabled/ if it should"
+	echo "     run by default."
+}
+
 case "${1:-help}" in
 help | --help | -h)
 	usage
@@ -229,6 +288,9 @@ disable)
 	;;
 doctor)
 	cmd_doctor
+	;;
+volumes)
+	cmd_volumes
 	;;
 *)
 	usage >&2

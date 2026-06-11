@@ -16,6 +16,20 @@
 #      .devcontainer/install/02-enabled/ pointing to it. Otherwise leave
 #      it in available/ and opt in with `task install:enable -- NAME`.
 #
+# State and volumes:
+#   If your script OWNS a bind-mounted volume (e.g. a database, a
+#   local service data dir, an index/cache), it has to participate
+#   in the postCreate volume contract. Three pieces must agree:
+#     a. Add the bind mount in .devcontainer/docker-compose.yml.
+#     b. Add a case for the new target path in
+#        compose_target_to_install_scripts in
+#        .devcontainer/setup-volumes.sh, listing this script's
+#        base name (without the .sh extension).
+#     c. Keep this script idempotent (use devcontainer_has_cmd at
+#        the top, return 0 if already present) so the repair
+#        re-run on a populated volume is a no-op.
+#   Run `task install:volumes` to see the live contract.
+#
 # Strict mode:
 #   The default is `set -euo pipefail`. Drop `-u` only inside subshells
 #   that source SDKMAN (see Fase 7 notes for the Java script).

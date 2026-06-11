@@ -26,3 +26,8 @@ tasks:
     desc: Check install/ layout integrity (lib/, templates/, enabled/ symlinks, required directories)
     cmds:
       - ./.taskfiles/scripts/install.sh doctor
+
+  volumes:
+    desc: "Print the live volume contract: bind mounts from docker-compose.yml and the install scripts that own each target"
+    cmds:
+      - ./.taskfiles/scripts/install.sh volumes
