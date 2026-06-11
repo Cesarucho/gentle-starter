@@ -4,11 +4,11 @@
     "thinking": "low"
   },
   "sdd-onboard": {
-    "model": "opencode-go/deepseek-v4-pro",
+    "model": "opencode-go/kimi-k2.6",
     "thinking": "low"
   },
   "sdd-explore": {
-    "model": "opencode-go/kimi-k2.6",
+    "model": "opencode-go/qwen3.7-max",
     "thinking": "high"
   },
   "sdd-proposal": {
@@ -16,11 +16,11 @@
     "thinking": "high"
   },
   "sdd-spec": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4",
     "thinking": "medium"
   },
   "sdd-design": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "opencode-go/minimax-m3",
     "thinking": "medium"
   },
   "sdd-tasks": {
@@ -32,20 +32,20 @@
     "thinking": "low"
   },
   "sdd-apply": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
-    "thinking": "high"
-  },
-  "sdd-verify": {
     "model": "opencode-go/deepseek-v4-pro",
     "thinking": "high"
   },
+  "sdd-verify": {
+    "model": "opencode-go/kimi-k2.6",
+    "thinking": "high"
+  },
   "sdd-sync": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "openai-codex/gpt-5.4",
     "thinking": "medium"
   },
   "sdd-archive": {
-    "model": "openai-codex/gpt-5.4-mini",
-    "thinking": "low"
+    "model": "opencode-go/deepseek-v4-flash",
+    "thinking": "none"
   },
   "context-builder": {
     "model": "opencode-go/deepseek-v4-pro",
@@ -57,7 +57,7 @@
   },
   "oracle": {
     "model": "openai-codex/gpt-5.5",
-    "thinking": "medium"
+    "thinking": "high"
   },
   "planner": {
     "model": "openai-codex/gpt-5.5",
@@ -68,7 +68,7 @@
     "thinking": "high"
   },
   "reviewer": {
-    "model": "opencode-go/deepseek-v4-pro",
+    "model": "opencode-go/kimi-k2.6",
     "thinking": "high"
   },
   "scout": {
@@ -76,7 +76,7 @@
     "thinking": "medium"
   },
   "worker": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
+    "model": "opencode-go/deepseek-v4-pro",
     "thinking": "high"
   }
 }

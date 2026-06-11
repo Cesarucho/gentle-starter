@@ -112,7 +112,7 @@ Optional but recommended, use just the terminal instead of an IDE, install:
     /login
 
     # ask to config the best model of each agent:
-    >_ "Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v4.md"
+    >_ "Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json and @.devcontainer/pi-config/agent/settings.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v5.md"
     ```
 
     > Note: custom settings with manual review: `/gentle:models`.

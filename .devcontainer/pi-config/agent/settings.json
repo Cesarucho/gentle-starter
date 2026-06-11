@@ -34,7 +34,7 @@
       },
       "oracle": {
         "model": "openai-codex/gpt-5.5",
-        "thinking": "medium"
+        "thinking": "high"
       },
       "planner": {
         "model": "openai-codex/gpt-5.5",
@@ -45,7 +45,7 @@
         "thinking": "high"
       },
       "reviewer": {
-        "model": "opencode-go/deepseek-v4-pro",
+        "model": "opencode-go/kimi-k2.6",
         "thinking": "high"
       },
       "scout": {
@@ -53,7 +53,7 @@
         "thinking": "medium"
       },
       "worker": {
-        "model": "openai-codex/gpt-5.3-codex-spark",
+        "model": "opencode-go/deepseek-v4-pro",
         "thinking": "high"
       }
     }
