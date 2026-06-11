@@ -26,9 +26,13 @@ releases start.
   rebuilding the image.
 - Auto-start guard for `task container:connect`, `task container:pi`, and
   `task container:engram` when the devcontainer is not running.
-- `.devcontainer/install/` layout with `core/`, `available/`, `enabled/`,
-  `hooks/`, `lib/`, and `templates/` directories and a numbered 00-99
-  ordering for opt-in scripts.
+- `.devcontainer/install/` layout with `01-core/`, `02-enabled/`,
+  `03-hooks/`, `available/`, `lib/`, and `templates/` directories. The
+  `01-` / `02-` / `03-` prefix is a visual hint of execution order
+  (group order is hardcoded in the Dockerfile, the numeric prefix
+  within each group controls the in-group sort). The `available/`
+  catalog uses a 00-99 prefix for the spec's category ranges
+  (runtimes, AI tooling, CLI tools, presets, post-setup, cleanup).
 - `.devcontainer/install/lib/common.sh` with 13 shared helpers
   (`devcontainer_phase`, `devcontainer_arch`, `devcontainer_has_cmd`,
   `devcontainer_run_as_root`, `devcontainer_install_bin`,
@@ -64,9 +68,10 @@ releases start.
   versions after updating.
 - `task container:pi` now opens Pi with `pi --continue`.
 - Dockerfile now `COPY install/` instead of `scripts/`, and the build RUN
-  iterates only over the `core/`, `enabled/`, and `hooks/` groups. The
-  legacy `.devcontainer/scripts/` directory was removed; `lib/common.sh`
-  and `templates/install-script.sh` are never executed by the build loop.
+  iterates only over the `01-core/`, `02-enabled/`, and `03-hooks/`
+  groups. The legacy `.devcontainer/scripts/` directory was removed;
+  `lib/common.sh` and `templates/install-script.sh` are never executed
+  by the build loop.
 - `setup.sh` is now volume-aware: bind mounts from `docker-compose.yml`
   are parsed with `yq` and the install scripts that own each target
   (`~/.pi` → `30-ai-pi-coding` and `30-ai-pi-gentle`, `~/.engram` and
@@ -76,7 +81,9 @@ releases start.
   present in the image; the previous `available/40-cli-task.sh` opt-in
   path was dropped.
 - Source files under `.devcontainer/install/` are mode 0755 to match the
-  Dockerfile's `chmod 0755` and the workspace bind-mount contract.
+  Dockerfile's `chmod 0755` and the workspace bind-mount contract. The
+  runtime groups carry a `01-` / `02-` / `03-` prefix as a visual hint
+  of execution order; the prefix is not load-bearing for ordering.
 
 ### Security
 

@@ -205,11 +205,11 @@ task quality:full
 │   ├── devcontainer-lock.json
 │   ├── docker-compose.yml          Dev Container service
 │   ├── Dockerfile                  Base image for the development environment
-│   ├── install/                    Install layout (core, available, enabled, hooks)
-│   │   ├── core/                   Mandatory scripts (run in every build)
+│   ├── install/                    Install layout (numbered groups, available catalog, helpers)
+│   │   ├── 01-core/                Mandatory scripts (run in every build)
+│   │   ├── 02-enabled/             Symlinks to active available/ scripts
+│   │   ├── 03-hooks/               User extensions (gitignored)
 │   │   ├── available/              Opt-in catalog (numbered 00-99)
-│   │   ├── enabled/                Symlinks to active available/ scripts
-│   │   ├── hooks/                  User extensions (gitignored)
 │   │   ├── lib/                    Shared helpers (common.sh)
 │   │   └── templates/              install-script.sh template
 │   ├── pi-config/                  Base Pi, MCP, and Gentle AI configuration
@@ -290,23 +290,27 @@ ARG TZ=America/Mexico_City
 
 ### 🧩 Add installation scripts
 
-The install layout is organized into three runtime groups plus shared
-infrastructure:
+The install layout is organized into three runtime groups (with a
+visual-order prefix), the opt-in catalog, and shared infrastructure:
 
 ```text
 .devcontainer/install/
-├── core/                  Mandatory scripts (00-pre-apt, 10-system, 15-task,
+├── 01-core/               Mandatory scripts (00-pre-apt, 10-system, 15-task,
 │                          90-post-setup-users, 99-cleanup)
+├── 02-enabled/            Symlinks to active available/ scripts
+├── 03-hooks/              User extensions (gitignored)
 ├── available/             Opt-in catalog (numbered 00-99, .disabled suffix
 │                          for opt-out defaults)
-├── enabled/               Symlinks pointing to active available/ scripts
-├── hooks/                 User extensions (gitignored)
 ├── lib/                   Shared helpers (common.sh)
 └── templates/             install-script.sh template for new scripts
 ```
 
-The Docker build only runs scripts in `core/`, `enabled/`, and `hooks/`.
-Scripts in `available/` are dormant until you link them into `enabled/`.
+The Docker build runs scripts in the order `01-core` → `02-enabled` →
+`03-hooks` (the `for group in` loop in the Dockerfile). Within each
+group, scripts are sorted by filename, so the numeric prefix inside
+the filename (e.g. `20-runtime-…`, `30-ai-…`) controls the in-group
+order. Scripts in `available/` are dormant until you link them into
+`02-enabled/`.
 
 To add a new opt-in tool:
 
@@ -323,7 +327,7 @@ cp .devcontainer/install/templates/install-script.sh \
 shellcheck .devcontainer/install/available/40-cli-mycli.sh
 bash -n .devcontainer/install/available/40-cli-mycli.sh
 
-# 4. Enable it (creates enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
+# 4. Enable it (creates 02-enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
 task install:enable -- 40-cli-mycli
 
 # 5. Rebuild and verify
@@ -335,7 +339,7 @@ Manage the install layout with these tasks:
 ```bash
 task install:list                # Show active install scripts
 task install:list --presets      # Also show disabled available/ entries
-task install:enable -- NAME      # Enable a script by linking enabled/ -> available/
+task install:enable -- NAME      # Enable a script by linking 02-enabled/ -> available/
 task install:disable -- NAME     # Disable a script by removing its enabled/ link
 task install:doctor              # Verify install/ layout integrity
 ```

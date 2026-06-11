@@ -29,7 +29,7 @@ COPY install/ ./.devcontainer-install/
 
 RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-install \
     && find ./.devcontainer-install -type f -name "*.sh" -exec chmod 0755 {} \; \
-    && for group in core enabled hooks; do \
+    && for group in 01-core 02-enabled 03-hooks; do \
         if [ -d "./.devcontainer-install/${group}" ]; then \
             find -L "./.devcontainer-install/${group}" -maxdepth 1 -type f -name "*.sh" \
                 -not -name "*.disable" \

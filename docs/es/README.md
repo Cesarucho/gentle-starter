@@ -204,11 +204,11 @@ task quality:full
 │   ├── devcontainer-lock.json
 │   ├── docker-compose.yml          Servicio del Dev Container
 │   ├── Dockerfile                  Imagen base del entorno de desarrollo
-│   ├── install/                    Layout de instalación (core, available, enabled, hooks)
-│   │   ├── core/                   Scripts obligatorios (corren en cada build)
+│   ├── install/                    Layout de instalación (grupos numerados, catálogo available/, helpers)
+│   │   ├── 01-core/                Scripts obligatorios (corren en cada build)
+│   │   ├── 02-enabled/             Symlinks a los scripts activos de available/
+│   │   ├── 03-hooks/               Extensiones del usuario (gitignored)
 │   │   ├── available/              Catálogo opt-in (numerados 00-99)
-│   │   ├── enabled/                Symlinks a los scripts activos de available/
-│   │   ├── hooks/                  Extensiones del usuario (gitignored)
 │   │   ├── lib/                    Helpers compartidos (common.sh)
 │   │   └── templates/              Plantilla install-script.sh
 │   ├── pi-config/                  Configuración base de Pi, MCP y Gentle AI
@@ -287,23 +287,28 @@ ARG TZ=America/Mexico_City
 
 ### 🧩 Agregar scripts de instalación
 
-El layout de instalación se organiza en tres grupos de runtime más infraestructura
+El layout de instalación se organiza en tres grupos de runtime (con un prefijo
+que indica visualmente el orden), el catálogo opt-in, e infraestructura
 compartida:
 
 ```text
 .devcontainer/install/
-├── core/                  Scripts obligatorios (00-pre-apt, 10-system, 15-task,
+├── 01-core/               Scripts obligatorios (00-pre-apt, 10-system, 15-task,
 │                          90-post-setup-users, 99-cleanup)
+├── 02-enabled/            Symlinks a los scripts activos de available/
+├── 03-hooks/              Extensiones del usuario (gitignored)
 ├── available/             Catálogo opt-in (numerados 00-99, sufijo .disabled
 │                          para defaults no activos)
-├── enabled/               Symlinks a los scripts activos de available/
-├── hooks/                 Extensiones del usuario (gitignored)
 ├── lib/                   Helpers compartidos (common.sh)
 └── templates/             Plantilla install-script.sh
 ```
 
-El build de Docker solo corre scripts en `core/`, `enabled/` y `hooks/`. Los
-scripts en `available/` quedan latentes hasta que los linkees en `enabled/`.
+El build de Docker corre los scripts en el orden `01-core` → `02-enabled` →
+`03-hooks` (el `for group in` del Dockerfile). Dentro de cada grupo, los
+scripts se ordenan por nombre de archivo, así que el prefijo numérico
+dentro del nombre (e.g. `20-runtime-…`, `30-ai-…`) controla el orden
+intra-grupo. Los scripts en `available/` quedan latentes hasta que los
+linkees en `02-enabled/`.
 
 Para agregar una nueva herramienta opt-in:
 
@@ -320,7 +325,7 @@ cp .devcontainer/install/templates/install-script.sh \
 shellcheck .devcontainer/install/available/40-cli-mycli.sh
 bash -n .devcontainer/install/available/40-cli-mycli.sh
 
-# 4. Habilitala (crea enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
+# 4. Habilitala (crea 02-enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
 task install:enable -- 40-cli-mycli
 
 # 5. Reconstruí y verificá
@@ -332,7 +337,7 @@ Gestioná el layout de install con estas tareas:
 ```bash
 task install:list                # Muestra los scripts de instalación activos
 task install:list --presets      # También muestra los .disabled de available/
-task install:enable -- NAME      # Habilita un script linkeando enabled/ -> available/
+task install:enable -- NAME      # Habilita un script linkeando 02-enabled/ -> available/
 task install:disable -- NAME     # Deshabilita un script removiendo su symlink
 task install:doctor              # Verifica la integridad del layout install/
 ```

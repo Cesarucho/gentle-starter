@@ -117,7 +117,7 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # ---------------------------------------------------------------------------
 #
 # The install/ tree has a catalog of available/ scripts and a set of
-# enabled/ symlinks that run during image build. A subset of those
+# 02-enabled/ symlinks that run during image build. A subset of those
 # scripts owns a bind-mounted volume (declared in docker-compose.yml)
 # and needs to run again at runtime when the host directory has just
 # been created or repopulated. The three functions below implement

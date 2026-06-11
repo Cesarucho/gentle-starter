@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  SHELL_FILES: .devcontainer/setup.sh .devcontainer/install/core/*.sh .devcontainer/install/available/*.sh .devcontainer/install/lib/*.sh .devcontainer/install/templates/*.sh .taskfiles/scripts/*.sh
+  SHELL_FILES: .devcontainer/setup.sh .devcontainer/install/01-core/*.sh .devcontainer/install/available/*.sh .devcontainer/install/lib/*.sh .devcontainer/install/templates/*.sh .taskfiles/scripts/*.sh
 
 tasks:
   shellcheck:

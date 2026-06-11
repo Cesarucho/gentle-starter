@@ -4,14 +4,20 @@
 # Used by .taskfiles/install.yml. Not intended to be run directly,
 # but works fine that way too.
 #
+# The runtime groups carry a numeric prefix (01-core, 02-enabled,
+# 03-hooks) as a visual hint of execution order. The prefix is not
+# load-bearing for ordering: the Dockerfile iterates the groups
+# explicitly, and within each group the Dockerfile sorts the entries
+# by filename.
+#
 # Commands:
 #   help                       Show this help
-#   list [--presets]           List active scripts (core, enabled, hooks).
-#                              With --presets also show the disabled ones
-#                              in available/
-#   enable NAME                Create an enabled/ symlink to
+#   list [--presets]           List active scripts (01-core, 02-enabled,
+#                              03-hooks). With --presets also show the
+#                              disabled ones in available/
+#   enable NAME                Create an 02-enabled/ symlink to
 #                              available/NAME[.disabled]
-#   disable NAME               Remove the enabled/ symlink for NAME
+#   disable NAME               Remove the 02-enabled/ symlink for NAME
 #   doctor                     Verify the install/ layout integrity
 set -euo pipefail
 
@@ -26,10 +32,11 @@ Usage:
 
 Commands:
   help                  Show this help
-  list [--presets]      List active scripts (core, enabled, hooks). With
-                        --presets, also show the disabled ones in available/
-  enable NAME           Create an enabled/ symlink to available/NAME
-  disable NAME          Remove the enabled/ symlink for NAME
+  list [--presets]      List active scripts (01-core, 02-enabled, 03-hooks).
+                        With --presets, also show the disabled ones in
+                        available/
+  enable NAME           Create an 02-enabled/ symlink to available/NAME
+  disable NAME          Remove the 02-enabled/ symlink for NAME
   doctor                Verify the install/ layout integrity
 EOF
 }
@@ -56,17 +63,17 @@ cmd_list() {
 		show_presets=true
 	fi
 
-	echo "core (obligatorio):"
-	if [ -d "${INSTALL_DIR}/core" ]; then
-		find "${INSTALL_DIR}/core" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
+	echo "01-core (obligatorio):"
+	if [ -d "${INSTALL_DIR}/01-core" ]; then
+		find "${INSTALL_DIR}/01-core" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
 	else
 		echo "  (directorio ausente)"
 	fi
 
 	echo ""
-	echo "enabled (opt-in activos):"
-	if [ -d "${INSTALL_DIR}/enabled" ]; then
-		find "${INSTALL_DIR}/enabled" -maxdepth 1 -type l -print | sort | while read -r link; do
+	echo "02-enabled (opt-in activos):"
+	if [ -d "${INSTALL_DIR}/02-enabled" ]; then
+		find "${INSTALL_DIR}/02-enabled" -maxdepth 1 -type l -print | sort | while read -r link; do
 			[ -L "${link}" ] || continue
 			printf "  %s -> %s\n" "$(basename "${link}")" "$(readlink "${link}")"
 		done
@@ -84,7 +91,7 @@ cmd_list() {
 					echo "  ${name} (disabled)"
 				fi
 			else
-				if [ -L "${INSTALL_DIR}/enabled/${name}" ]; then
+				if [ -L "${INSTALL_DIR}/02-enabled/${name}" ]; then
 					echo "  ${name} (enabled)"
 				else
 					echo "  ${name} (not enabled)"
@@ -96,9 +103,9 @@ cmd_list() {
 	fi
 
 	echo ""
-	echo "hooks:"
-	if [ -d "${INSTALL_DIR}/hooks" ]; then
-		find "${INSTALL_DIR}/hooks" -maxdepth 1 -mindepth 1 | sort | sed 's|.*/|  |'
+	echo "03-hooks:"
+	if [ -d "${INSTALL_DIR}/03-hooks" ]; then
+		find "${INSTALL_DIR}/03-hooks" -maxdepth 1 -mindepth 1 | sort | sed 's|.*/|  |'
 	else
 		echo "  (directorio ausente)"
 	fi
@@ -126,13 +133,13 @@ cmd_enable() {
 	# Dockerfile's find filter (-not -name "*.disabled") picks it up.
 	local link_name="${base%.disabled}"
 
-	if [ -L "${INSTALL_DIR}/enabled/${link_name}" ]; then
+	if [ -L "${INSTALL_DIR}/02-enabled/${link_name}" ]; then
 		echo "${link_name} is already enabled"
 		return 0
 	fi
 
 	(
-		cd "${INSTALL_DIR}/enabled"
+		cd "${INSTALL_DIR}/02-enabled"
 		ln -sfn "../available/${base}" "${link_name}"
 	)
 	echo "Enabled: enabled/${link_name} -> available/${base}"
@@ -149,8 +156,8 @@ cmd_disable() {
 	fi
 
 	for candidate in "${name}" "${name}.sh" "${name}.sh.disabled"; do
-		if [ -L "${INSTALL_DIR}/enabled/${candidate}" ]; then
-			rm "${INSTALL_DIR}/enabled/${candidate}"
+		if [ -L "${INSTALL_DIR}/02-enabled/${candidate}" ]; then
+			rm "${INSTALL_DIR}/02-enabled/${candidate}"
 			echo "Disabled: ${candidate}"
 			removed=$((removed + 1))
 		fi
@@ -179,18 +186,17 @@ cmd_doctor() {
 		echo "ok: templates/install-script.sh present"
 	fi
 
-	for required_dir in core available enabled hooks lib templates; do
+	for required_dir in 01-core available 02-enabled 03-hooks lib templates; do
 		if [ ! -d "${INSTALL_DIR}/${required_dir}" ]; then
 			echo "FAIL: directory ${required_dir}/ missing"
 			errors=$((errors + 1))
 		fi
 	done
 
-	if [ -d "${INSTALL_DIR}/enabled" ]; then
-		for link in "${INSTALL_DIR}/enabled}"*; do
-			[ -e "${link}" ] || continue
+	if [ -d "${INSTALL_DIR}/02-enabled" ]; then
+		for link in "${INSTALL_DIR}/02-enabled/"*; do
 			if [ -L "${link}" ] && [ ! -e "${link}" ]; then
-				echo "FAIL: broken symlink enabled/$(basename "${link}")"
+				echo "FAIL: broken symlink 02-enabled/$(basename "${link}")"
 				errors=$((errors + 1))
 			fi
 		done

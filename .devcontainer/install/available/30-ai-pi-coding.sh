@@ -4,7 +4,7 @@
 # package globally. Provides the `pi` binary on PATH.
 #
 # Mirrors .devcontainer/scripts/07-install-ai-pi-coding.sh with the
-# common.sh helpers. Runs in the image build (core/enabled/).
+# common.sh helpers. Runs in the image build (01-core / 02-enabled).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

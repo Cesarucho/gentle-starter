@@ -13,7 +13,7 @@
 #   2. Fill the variables, idempotency check, install, and verify blocks
 #      with the real steps.
 #   3. If the script should run by default, create a symlink in
-#      .devcontainer/install/enabled/ pointing to it. Otherwise leave
+#      .devcontainer/install/02-enabled/ pointing to it. Otherwise leave
 #      it in available/ and opt in with `task install:enable -- NAME`.
 #
 # Strict mode:
