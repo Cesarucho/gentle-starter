@@ -25,18 +25,23 @@ ENV PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}
 ENV TZ=${TZ}
 
 WORKDIR /home/${UID_NAME}
-COPY scripts/ ./.devcontainer-scripts/
+COPY install/ ./.devcontainer-install/
 
-RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-scripts \
-    # Win11-native issue solved
-    # && find ./.devcontainer-scripts -type f -name "*.sh" -exec sed -i 's/\r$//' {} \; \
-    && find ./.devcontainer-scripts -type f -name "*.sh" -exec chmod 0755 {} \; \
-    && find ./.devcontainer-scripts -type f -name "*.sh" | sort | while read -r script; do \
-        echo ""; \
-        echo "============================================================"; \
-        echo "Running: ${script}"; \
-        echo "============================================================"; \
-        DEVCONTAINER_PHASE=build bash "${script}"; \
+RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-install \
+    && find ./.devcontainer-install -type f -name "*.sh" -exec chmod 0755 {} \; \
+    && for group in core enabled hooks; do \
+        if [ -d "./.devcontainer-install/${group}" ]; then \
+            find "./.devcontainer-install/${group}" -type f -name "*.sh" \
+                -not -name "*.disable" \
+                -not -name "*.disabled" \
+                | sort | while read -r script; do \
+                echo ""; \
+                echo "============================================================"; \
+                echo "Running: ${script}"; \
+                echo "============================================================"; \
+                DEVCONTAINER_PHASE=build bash "${script}"; \
+            done; \
+        fi; \
     done
 
 USER ${UID_NAME}
