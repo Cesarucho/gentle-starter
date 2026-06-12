@@ -55,13 +55,13 @@ prompt, enabling workflows like these:
 
 On your PC you need:
 
-- **[Docker](https://docs.docker.com/get-started/get-docker/)**, **[Git](https://git-scm.com/downloads)**, and **[jq](https://jqlang.org/download/)**.
-- An **IDE** compatible with **[Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** ([VS Code](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/)) with its corresponding extension when needed.
-
-Optional but recommended, use just the terminal instead of an IDE, install:
-
+- **[jq](https://jqlang.org/download/)**
+- **[Git](https://git-scm.com/downloads)**
 - **[Task](https://taskfile.dev/installation/)**.
+- **[Docker](https://docs.docker.com/get-started/get-docker/)**
 - **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**.
+
+> Alternatively, you can use your **IDE** if it has support for DevContainers ([VS Code](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/))
 
 ## 🚀 Quick start
 
@@ -70,28 +70,29 @@ Optional but recommended, use just the terminal instead of an IDE, install:
     ```bash
     git clone https://github.com/Cesarucho/gentle-starter.git <my-project-name>
     cd <my-project-name>
-    # `.env` must exist and works well with the default values.
-    cp .env.example .env
-    # Optional basic check.
-    task validate
+    cp .env.example .env    # works well with the default values
+    task validate           # optional basic check
     ```
 
-2. If you use an **IDE**, look for the `Dev Containers: Reopen in Container` option (or similar). If you use the **terminal**, run:
+2.  In your **terminal**, run:
 
     ```bash
-    task container:up
+    task container:up         # it will build the image if needed
     task container:connect
     ```
+
+    > If you use an **IDE**, look for the `Dev Containers: Reopen in Container` option (or similar).
 
 3. Inside the container, you can use any tool normally. If you are using an **IDE**, look for the option to open its terminal.
 
     ```bash
     git status
     engram tui
-    pi update
+    pi --version
 
-    # Optional internal check.
-    task validate:full
+    # Optionals
+    task validate:full        # internal check
+    task ai:update            # update pi, deps and extensions
 
     # You can also install anything else you need:
     sudo apt update
@@ -105,17 +106,19 @@ Optional but recommended, use just the terminal instead of an IDE, install:
 4. Connect your AI provider:
 
     ```bash
-    # Open the main interface (from now on, your favorite place).
-    pi
-
-    # Choose a provider and repeat if you want to register more than one.
-    /login
+    pi                        # open the main interface
+    >_ /login                 # choose a provider
 
     # ask to config the best model of each agent:
     >_ "Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json and @.devcontainer/pi-config/agent/settings.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v5.md"
     ```
 
-    > Note: custom settings with manual review: `/gentle:models`.
+      > Note: always manually check the available models `/gentle:models`.
+
+    ```bash
+    # Ask AI to install what you need:
+    >_ "Read @AGENTS and add a PostgreSQL-16 installer script with pg_hba.conf versioned"
+    ```
 
 ## 🛠️ Useful commands
 
