@@ -7,14 +7,14 @@ preguntas que surgen con más frecuencia.
 
 Los tres sistemas son:
 
-1. **[El árbol de instalación](install-tree.md)** — scripts en
+1. **[El árbol de instalación](./install-tree.md)** — scripts en
    build-time que instalan herramientas y dependencias durante la
    construcción de la imagen.
 2. **[El contrato de volúmenes](install-volumes.md)** — bind
    mounts declarados en `docker-compose.yml` que el hook postCreate
    re-puebla ejecutando los scripts de instalación que son dueños
    de cada target.
-3. **[Siembra de configuraciones](configs.md)** — archivos de
+3. **[Siembra de configuraciones](./configs.md)** — archivos de
    configuración base versionados en
    `.devcontainer/<name>-config/` y copiados a su path de runtime
    en la primera ejecución.
@@ -155,7 +155,7 @@ Copiá `.devcontainer/install/templates/install-script.sh` a
 `.devcontainer/install/available/NN-categoria-tool.sh`, llená las
 secciones de variables, instalación y verificación, y linkeá desde
 `02-enabled/` si debería estar activo por defecto. Consultá
-[install-tree.md](install-tree.md) para la convención completa.
+[install-tree.md](./install-tree.md) para la convención completa.
 
 ### ¿Cómo añado un nuevo volumen con estado?
 
@@ -185,7 +185,7 @@ de archivos que mirrorea la ubicación de la config de runtime
 de la herramienta. Añadí una llamada a `seed_config_tree` en
 `setup_versioned_pi_config` en `setup.sh`. Los targets fuera de
 `$HOME` se manejan automáticamente (el helper escala a `sudo`).
-Consultá [configs.md](configs.md) para la referencia en
+Consultá [configs.md](./configs.md) para la referencia en
 profundidad.
 
 ### ¿Cómo mantengo mis cambios personales fuera de git?
@@ -289,7 +289,7 @@ anterior; ejecutá
 para limpiar los symlinks legacy, y luego
 `bash /home/ubuntu/code/.devcontainer/setup.sh` dentro del container.
 Consultá la sección de migración en
-[configs.md](configs.md) para el procedimiento completo.
+[configs.md](./configs.md) para el procedimiento completo.
 
 ### ¡La CLI de devcontainer no está en mi host!
 
@@ -302,7 +302,7 @@ si la CLI no está.
 
 ## Ver también
 
-- [install-tree.md](install-tree.md) — la convención de `install/` en profundidad
-- [install-volumes.md](install-volumes.md) — el contrato de volume repair en profundidad
-- [configs.md](configs.md) — siembra de configs en profundidad
+- [install-tree.md](./install-tree.md) — la convención de `install/` en profundidad
+- [install-volumes.md](./install-volumes.md) — el contrato de volume repair en profundidad
+- [configs.md](./configs.md) — siembra de configs en profundidad
 - [`.devcontainer/README.md`](../../.devcontainer/README.md) — tour del directorio `.devcontainer/`
