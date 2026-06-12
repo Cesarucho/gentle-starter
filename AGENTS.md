@@ -17,7 +17,7 @@ linked from there. This file is a shortcut.
   CLI tools.
 - **Active branch**: `refactor` (post-refactor of the install-layout
   work; ready to push when the user gives the go-ahead).
-- **Last commit at session start**: `8694bed docs: update devcontainer CLI FAQ and known-good count after core install`.
+- **Last commit at session start**: `5f2b083 refactor(core): move devcontainer CLI from core to available/02-enabled`.
 
 ## AI session contract
 
