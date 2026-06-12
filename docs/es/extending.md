@@ -293,12 +293,16 @@ Consultá la sección de migración en
 
 ### ¡La CLI de devcontainer no está en mi host!
 
-Es una dependencia opcional, pero `task container:*` la usa.
-Instalá con `sudo npm install -g @devcontainers/cli`. La tarea
-`task doctor:host` (bajo el namespace `doctor:`, no `container:`)
-la chequea y reporta un warning si falta; las tareas
-`task container:*` fallan con "executable file not found in $PATH"
-si la CLI no está.
+### ¡Falta la CLI de devcontainer en mi host!
+
+Dentro de la imagen del devcontainer, `@devcontainers/cli` es una
+dependencia del core (script `16-devcontainer-cli.sh`) — no hace
+falta reinstalarla dentro del container.
+
+Desde el host, `task container:*` todavía necesita la CLI
+instalada en la máquina host. Instalala con
+`sudo npm install -g @devcontainers/cli`. La tarea `task
+doctor:host` la detecta y reporta un warning si falta.
 
 ## Ver también
 

@@ -279,12 +279,14 @@ inside the container. See the migration section in
 
 ### The devcontainer CLI is missing on my host!
 
-It's an optional dependency, but `task container:*` uses it.
-Install with `sudo npm install -g @devcontainers/cli`. The
-`task doctor:host` command (under the `doctor:` namespace, not
-`container:`) checks for it and reports a warning if it's
-missing; the `task container:*` tasks fail with "executable
-file not found in $PATH" if the CLI is absent.
+Inside the devcontainer image, `@devcontainers/cli` is a core
+dependency (script `16-devcontainer-cli.sh`) — you don't need to
+reinstall it inside the container.
+
+From the host, `task container:*` still requires the CLI to be
+installed on the host machine. Install it with
+`sudo npm install -g @devcontainers/cli`. The `task doctor:host`
+command checks for it and reports a warning if it's missing.
 
 ## See also
 

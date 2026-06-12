@@ -134,10 +134,10 @@ grep "Running: " /tmp/rebuild.log | grep -vE "\\\$script"  # 13 lines expected
 grep "Volume repair" /tmp/rebuild.log                     # 3 lines expected
 ```
 
-The known-good state at the end of the refactor: 14/14 tools
-present (`curl`, `jq`, `git`, `task`, `node`, `npm`, `pnpm`, `go`,
-`gofmt`, `java`, `javac`, `pi`, `engram`, `skills`), postCreate
-exit 0, both `validate` and `validate:full` pass.
+The known-good state at the end of the refactor: 15/15 tools
+present (`curl`, `jq`, `git`, `task`, `devcontainer`, `node`, `npm`,
+`pnpm`, `go`, `gofmt`, `java`, `javac`, `pi`, `engram`, `skills`),
+postCreate exit 0, both `validate` and `validate:full` pass.
 
 ## How to extend (cheat sheet)
 
