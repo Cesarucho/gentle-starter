@@ -17,8 +17,7 @@ linked from there. This file is a shortcut.
   CLI tools.
 - **Active branch**: `refactor` (post-refactor of the install-layout
   work; ready to push when the user gives the go-ahead).
-- **Last commit at session start**: `3b3609e docs(es): translate
-  the new docs/en/ structure to neutral Spanish`.
+- **Last commit at session start**: `a24fa10 docs(es): normalize internal links to use ./ prefix for translated docs`.
 
 ## AI session contract
 
