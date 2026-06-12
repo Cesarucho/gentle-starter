@@ -15,6 +15,8 @@ includes:
     taskfile: ./.taskfiles/devcontainer.yml
   install:
     taskfile: ./.taskfiles/install.yml
+  test:
+    taskfile: ./.taskfiles/test.yml
 
 tasks:
   default:

@@ -1,0 +1,47 @@
+version: "3"
+
+vars:
+  DEVCONTAINER_DIR: .devcontainer
+
+tasks:
+  help:
+    desc: Show test task help
+    silent: true
+    cmds:
+      - |
+        cat <<'ENDHELP'
+        Testing tasks (BATS)
+
+          task test:install      Install BATS if not present
+          task test:unit         Run unit tests for common.sh
+          task test:integration  Run integration tests for installed tools
+          task test:all          Run both unit and integration tests
+        ENDHELP
+
+  install:
+    desc: Install BATS (Bash Automated Testing System)
+    cmds:
+      - |
+        if command -v bats >/dev/null 2>&1; then
+          echo "BATS already installed: $(command -v bats)"
+        else
+          echo "Installing BATS..."
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/{{.DEVCONTAINER_DIR}}"
+          bash "${SCRIPT_DIR}/install/available/10-bats.sh"
+        fi
+
+  unit:
+    desc: Run unit tests for common.sh helpers
+    cmds:
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/common.sh.bats
+
+  integration:
+    desc: Run integration tests for installed tools
+    cmds:
+      - bats {{.DEVCONTAINER_DIR}}/test/integration/tools.bats
+
+  all:
+    desc: Run unit and integration tests
+    cmds:
+      - task: unit
+      - task: integration

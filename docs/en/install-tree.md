@@ -94,18 +94,23 @@ opt-in, rename to remove the suffix and link from `02-enabled/`.
 
 ## `lib/common.sh` — shared helpers
 
-`lib/common.sh` provides 13 helpers that every install script can
+`lib/common.sh` provides 19 helpers that every install script can
 source:
 
-- `devcontainer_phase`, `devcontainer_is_build`, `devcontainer_is_runtime`
-  — phase detection
-- `devcontainer_arch` — normalized architecture (`amd64` / `arm64`)
-- `devcontainer_has_cmd`, `devcontainer_has_path`,
-  `devcontainer_skip_if_cmd`, `devcontainer_skip_if_path` — idempotency guards
-- `devcontainer_fetch`, `devcontainer_verify_sha256` — download + integrity
-- `devcontainer_run_as_root` — privilege escalation that no-ops when already root
-- `devcontainer_install_bin` — copy a binary into `/usr/local/bin`
-- `devcontainer_log_info`, `devcontainer_log_warn`, `devcontainer_log_error` — logging
+- Phase detection: `devcontainer_phase`, `devcontainer_is_build`,
+  `devcontainer_is_runtime`
+- Architecture: `devcontainer_arch` (`amd64` / `arm64`)
+- Idempotency guards: `devcontainer_has_cmd`, `devcontainer_has_path`,
+  `devcontainer_skip_if_cmd`, `devcontainer_skip_if_path`
+- Download + integrity: `devcontainer_fetch`, `devcontainer_verify_sha256`
+- Privilege escalation: `devcontainer_run_as_root`
+- Binary install: `devcontainer_install_bin`
+- Logging: `devcontainer_log_info`, `devcontainer_log_warn`,
+  `devcontainer_log_error`
+- **Version checking**: `devcontainer_check_tool`,
+  `devcontainer_check_tool_with_version`, `devcontainer_with_tool`,
+  `_devcontainer_get_version`, `_devcontainer_version_compare`,
+  `_devcontainer_version_satisfies`
 
 It also has a re-source guard, so it's safe to source from any
 script multiple times. See the header comment in `lib/common.sh`

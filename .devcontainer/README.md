@@ -15,6 +15,7 @@ links from there.
 | `devcontainer.json` | VS Code Dev Containers integration. `postCreateCommand` runs `setup.sh`. |
 | `docker-compose.yml` | Service definition. Stateful bind mounts live here. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
+| `test/` | BATS test suite. Run `task test:all` to verify the environment. |
 | `pi-config/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, Pi config seeding, Pi workspace trust, gitconfig wiring. |
 | `setup-volumes.sh` | Sourced by `setup.sh`. Owns the bind-mount → install-script repair contract. |

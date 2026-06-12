@@ -147,3 +147,162 @@ devcontainer_log_warn() {
 devcontainer_log_error() {
 	printf '[install:error] %s\n' "$*" >&2
 }
+
+# ---------------------------------------------------------------------------
+# Version extraction and comparison
+# ---------------------------------------------------------------------------
+
+# Export DEVCONTAINER_TOOL_VERSION so callers can read the extracted version.
+DEVCONTAINER_TOOL_VERSION=""
+
+# Extract version string from a command's --version output.
+# Handles: go version go1.x.y, node v20.5.0, java version "21", and generic
+# patterns. Returns 0 on success, 1 if the command is not found.
+_devcontainer_get_version() {
+	local cmd="$1"
+	local version_output
+
+	# Try "cmd --version" first (works for most tools, including Go 1.24+).
+	# Fall back to "cmd version" for Go if --version exits non-zero.
+	if ! version_output="$(eval "${cmd}" --version 2>&1)"; then
+		if ! version_output="$(eval "${cmd}" version 2>&1)"; then
+			return 1
+		fi
+	fi
+
+	local _go_pat='go([0-9]+\.[0-9]+\.[0-9]+)'
+	local _node_pat='v([0-9]+\.[0-9]+\.[0-9]+)'
+	local _java_pat='version[[:space:]]+"([0-9]+)"'
+	local _java2_pat='java[[:space:]]+([0-9]+)'
+	local _xyz_pat='([0-9]+\.[0-9]+\.[0-9]+)'
+	local _xy_pat='([0-9]+\.[0-9]+)'
+
+	# go version go1.22.3 linux/amd64 → 1.22.3
+	if [[ "$version_output" =~ $_go_pat ]]; then
+		DEVCONTAINER_TOOL_VERSION="${BASH_REMATCH[1]}"
+		return 0
+	fi
+
+	# node v20.5.0 → 20.5.0
+	if [[ "$version_output" =~ $_node_pat ]]; then
+		DEVCONTAINER_TOOL_VERSION="${BASH_REMATCH[1]}"
+		return 0
+	fi
+
+	# java version "21" or java version "25" → 21 or 25
+	if [[ "$version_output" =~ $_java_pat ]]; then
+		DEVCONTAINER_TOOL_VERSION="${BASH_REMATCH[1]}"
+		return 0
+	fi
+
+	# java 25 → 25 (alternative java --version format)
+	if [[ "$version_output" =~ $_java2_pat ]]; then
+		DEVCONTAINER_TOOL_VERSION="${BASH_REMATCH[1]}"
+		return 0
+	fi
+
+	# Generic: first occurrence of X.Y.Z pattern anywhere in output
+	if [[ "$version_output" =~ $_xyz_pat ]]; then
+		DEVCONTAINER_TOOL_VERSION="${BASH_REMATCH[1]}"
+		return 0
+	fi
+
+	# Generic: X.Y pattern as fallback
+	if [[ "$version_output" =~ $_xy_pat ]]; then
+		DEVCONTAINER_TOOL_VERSION="${BASH_REMATCH[1]}"
+		return 0
+	fi
+
+	return 1
+}
+
+# Compare two version strings using sort -V.
+# Returns 0 if $installed >= $required, 1 otherwise.
+_devcontainer_version_compare() {
+	local installed="$1"
+	local required="$2"
+	printf '%s\n%s\n' "${required}" "${installed}" | sort -V -C >/dev/null 2>&1
+}
+
+# Check if a command satisfies a minimum version requirement.
+# Returns 0 if the version is sufficient, 1 otherwise.
+# If version cannot be extracted, falls back to presence check (returns 0).
+_devcontainer_version_satisfies() {
+	local cmd="$1"
+	local required="$2"
+
+	if ! devcontainer_has_cmd "${cmd}"; then
+		return 1
+	fi
+
+	DEVCONTAINER_TOOL_VERSION=""
+	# Use `|| true` to prevent `set -e` from exiting the caller when
+	# _devcontainer_get_version returns 1 (no match found).
+	_devcontainer_get_version "${cmd}" || true
+
+	# If no version was extracted, be lenient and return 0 (presence is
+	# sufficient; caller can still fall back to a binary check).
+	if [ -z "${DEVCONTAINER_TOOL_VERSION}" ]; then
+		return 0
+	fi
+
+	_devcontainer_version_compare "${DEVCONTAINER_TOOL_VERSION}" "${required}"
+}
+
+# Check if a command exists and optionally meets a minimum version.
+# Usage: devcontainer_check_tool <cmd> [required_version]
+# Returns 0 on success, 1 if the tool is missing or version is insufficient.
+devcontainer_check_tool() {
+	local cmd="$1"
+	local required="${2:-}"
+
+	if [ -z "${required}" ]; then
+		devcontainer_has_cmd "${cmd}"
+		return $?
+	fi
+
+	_devcontainer_version_satisfies "${cmd}" "${required}"
+}
+
+# Same as devcontainer_check_tool, but also exports DEVCONTAINER_TOOL_VERSION
+# with the extracted version string on success.
+devcontainer_check_tool_with_version() {
+	local cmd="$1"
+	local required="${2:-}"
+
+	DEVCONTAINER_TOOL_VERSION=""
+	if devcontainer_check_tool "${cmd}" "${required}"; then
+		return 0
+	fi
+	return 1
+}
+
+# Run an install function only if the tool is missing or version is insufficient.
+# Usage: devcontainer_with_tool <cmd> <required_version> <install_fn>
+# Logs info when skipping (tool OK) or running (tool missing/insufficient).
+devcontainer_with_tool() {
+	local cmd="$1"
+	local required="$2"
+	local install_fn="$3"
+
+	# Disable `set -e` locally: the following conditional calls can return 1
+	# (command not found or version insufficient), and we need to capture
+	# those exit codes without exiting the shell.
+	set +e
+	local tool_ok=false
+	if devcontainer_has_cmd "${cmd}"; then
+		if _devcontainer_version_satisfies "${cmd}" "${required}"; then
+			tool_ok=true
+		fi
+	fi
+	set -e
+
+	if $tool_ok; then
+		devcontainer_log_info "Skipping ${cmd}: already present and version is sufficient"
+		return 0
+	fi
+
+	# Use eval so the caller can pass any command string, including
+	# quoted arguments: e.g. devcontainer_with_tool foo 1.0 "make install"
+	eval "${install_fn}"
+}

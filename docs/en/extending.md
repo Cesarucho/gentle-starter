@@ -265,6 +265,53 @@ all images, builds, and volumes) and `task container:rebuild`
 from scratch. Heavy hammer; usually you only need one of the
 above.
 
+### How do I run the test suite?
+
+The project uses [BATS](https://github.com/bats-core/bats-core)
+(Bash Automated Testing System) for shell-based tests.
+
+```bash
+task test:unit         # unit tests for common.sh helpers (36 tests)
+task test:integration  # integration tests for installed tools (24 tests)
+task test:all          # both suites together
+task test:install      # install BATS if not present
+task test:help         # show available test tasks
+```
+
+Unit tests live in `.devcontainer/test/unit/common.sh.bats` and
+cover the `common.sh` helpers (phase detection, logging, fetching,
+version extraction, version comparison, idempotency). Integration
+tests in `.devcontainer/test/integration/tools.bats` verify that
+the expected tools are present after setup (core, Go, Java, Node,
+AI tools, and environment variables).
+
+Two integration tests (`GOROOT` and `DEVCONTAINER_PHASE`) skip
+when run outside the devcontainer — this is by design; they need
+the lifecycle environment variables. The rest run anywhere.
+
+BATS itself is installed by the `10-bats.sh` script in
+`install/available/`, linked from `install/02-enabled/` for
+default activation.
+
+### How do I write a test for a new helper?
+
+Add a new `@test` block to
+`.devcontainer/test/unit/common.sh.bats`. The file sources
+`common.sh` at the top; use `export -f` to mock shell functions:
+
+```bash
+@test "my helper returns correct value" {
+    some_function() { echo "mocked output"; }
+    export -f some_function
+    run bash -c "source '${COMMON_SH}' && my_helper some_function && printf '%s' \"\${DEVCONTAINER_TOOL_VERSION}\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "expected" ]
+}
+```
+
+Run `bats .devcontainer/test/unit/common.sh.bats` to validate
+locally before committing.
+
 ### Why do my symlinks in `~/.pi/` keep coming back?
 
 If you deleted the symlink and rebuilt, but a fresh symlink
