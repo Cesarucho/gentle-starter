@@ -17,7 +17,7 @@ linked from there. This file is a shortcut.
   CLI tools.
 - **Active branch**: `refactor` (post-refactor of the install-layout
   work; ready to push when the user gives the go-ahead).
-- **Last commit at session start**: `a24fa10 docs(es): normalize internal links to use ./ prefix for translated docs`.
+- **Last commit at session start**: `83d0e74 feat(core): install @devcontainers/cli as a core dependency`.
 
 ## AI session contract
 
@@ -151,16 +151,12 @@ exit 0, both `validate` and `validate:full` pass.
 
 ## Known issues
 
-1. **The `devcontainer` CLI does not persist on the Pi host.**
-   Each new session needs `sudo npm install -g @devcontainers/cli`.
-   If `task container:*` fails with "executable file not found in
-   $PATH", reinstall.
-2. **Legacy symlinks may still exist in `~/.pi/` from older
+1. **Legacy symlinks may still exist in `~/.pi/` from older
    builds.** The new `seed_config_tree` correctly leaves them
    alone (`if [ -e ]`). To migrate: `docker exec code-run rm -f
    ~/.pi/agent/{settings,mcp}.json ~/.pi/gentle-ai/{banner,models,persona}.json`
    then `bash /home/ubuntu/code/.devcontainer/setup.sh`.
-3. **A whitespace-only change in `setup.sh` re-applies on every
+2. **A whitespace-only change in `setup.sh` re-applies on every
    rebuild:** the `if [ ... ] \` line in `seed_config_tree` becomes
    `if [ ... ] &&`. Semantic-equivalent, but it shows up in
    `git diff` after each rebuild. Don't try to "fix" it; the build
