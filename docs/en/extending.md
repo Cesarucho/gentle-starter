@@ -280,7 +280,7 @@ inside the container. See the migration section in
 ### The devcontainer CLI is missing on my host!
 
 Inside the devcontainer image, `@devcontainers/cli` is a core
-dependency (script `16-devcontainer-cli.sh`) — you don't need to
+dependency (script `20-tool-devcontainer-cli.sh`) — you don't need to
 reinstall it inside the container.
 
 From the host, `task container:*` still requires the CLI to be

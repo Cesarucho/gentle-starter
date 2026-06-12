@@ -296,7 +296,7 @@ Consultá la sección de migración en
 ### ¡Falta la CLI de devcontainer en mi host!
 
 Dentro de la imagen del devcontainer, `@devcontainers/cli` es una
-dependencia del core (script `16-devcontainer-cli.sh`) — no hace
+dependencia del core (script `20-tool-devcontainer-cli.sh`) — no hace
 falta reinstalarla dentro del container.
 
 Desde el host, `task container:*` todavía necesita la CLI

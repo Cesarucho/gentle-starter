@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 16-devcontainer-cli.sh — install the devcontainer CLI.
+# 20-tool-devcontainer-cli.sh — install the devcontainer CLI.
 #
 # The devcontainer CLI (devcontainer open / build / logs / etc.) is the
 # project's interface for managing the devcontainer lifecycle from the
