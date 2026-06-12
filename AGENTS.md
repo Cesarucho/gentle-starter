@@ -17,7 +17,7 @@ linked from there. This file is a shortcut.
   CLI tools.
 - **Active branch**: `refactor` (post-refactor of the install-layout
   work; ready to push when the user gives the go-ahead).
-- **Last commit at session start**: `83d0e74 feat(core): install @devcontainers/cli as a core dependency`.
+- **Last commit at session start**: `8694bed docs: update devcontainer CLI FAQ and known-good count after core install`.
 
 ## AI session contract
 
