@@ -40,8 +40,7 @@ tasks:
     cmds:
       - bats {{.DEVCONTAINER_DIR}}/test/integration/tools.bats
 
-  all:
-    desc: Run unit and integration tests
+  test:
+    desc: Run all tests (unit + integration)
     cmds:
-      - task: unit
-      - task: integration
+      - task: test:all

@@ -17,6 +17,8 @@ includes:
     taskfile: ./.taskfiles/install.yml
   test:
     taskfile: ./.taskfiles/test.yml
+  quality:
+    taskfile: ./.taskfiles/quality.yml
 
 tasks:
   default:
@@ -40,6 +42,12 @@ tasks:
     cmds:
       - task: doctor
       - task: quality:full
+
+  test:
+    desc: Run all tests (unit + integration)
+    cmds:
+      - bats .devcontainer/test/unit/common.sh.bats
+      - bats .devcontainer/test/integration/tools.bats
 
   help:
     desc: Show task help
@@ -85,6 +93,12 @@ tasks:
         Install:
           task install:list             Show enabled install scripts
           task install:enable -- NAME   Enable an available install script
-          task install:disable -- NAME  Disable an enabled install script
+          task install:disable -- NAME  Disable an available install script
           task install:doctor           Check install layout integrity
+
+        Testing:
+          task test                    Run all tests (unit + integration)
+          task test:unit               Run unit tests for common.sh helpers
+          task test:integration        Run integration tests for installed tools
+          task test:install            Install BATS if not present
         EOF
