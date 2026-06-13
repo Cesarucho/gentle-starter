@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${ENGRAM_VERSION:=1.16.1}"
+: "${ENGRAM_VERSION:=1.16.3}"
 : "${ENGRAM_INSTALL_DIR:=${HOME}/.local/bin}"
 : "${ENGRAM_DATA_DIR:=${HOME}/.engram}"
 : "${ENGRAM_PROFILE_FILE:=${HOME}/.bashrc}"
