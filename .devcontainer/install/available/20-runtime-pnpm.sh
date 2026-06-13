@@ -14,8 +14,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${PNPM_VERSION:=latest}"
 
 if devcontainer_has_cmd pnpm; then
-	devcontainer_log_info "pnpm already installed: $(pnpm --version)"
-	exit 0
+    devcontainer_log_info "pnpm already installed: $(pnpm --version)"
+    exit 0
 fi
 
 devcontainer_log_info "Installing pnpm@${PNPM_VERSION} via npm"

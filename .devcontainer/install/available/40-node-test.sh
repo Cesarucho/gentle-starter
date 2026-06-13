@@ -15,13 +15,13 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 # Guard: skip if node is not present (this tool depends on node being installed).
 if ! devcontainer_has_cmd node; then
-	devcontainer_log_warn "Skipping vitest: node is not installed. Run 'task install:enable -- 20-runtime-node' first."
-	exit 0
+    devcontainer_log_warn "Skipping vitest: node is not installed. Run 'task install:enable -- 20-runtime-node' first."
+    exit 0
 fi
 
 if devcontainer_has_cmd vitest; then
-	devcontainer_log_info "vitest already installed: $(vitest --version)"
-	exit 0
+    devcontainer_log_info "vitest already installed: $(vitest --version)"
+    exit 0
 fi
 
 devcontainer_log_info "Installing vitest@${VITEST_VERSION} globally via npm"

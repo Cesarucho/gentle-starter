@@ -41,53 +41,53 @@
 # Emit "source|target" pairs, one per line, for each bind mount in
 # docker-compose.yml with both source and target defined.
 resolve_compose_volume_targets() {
-	local compose_file="${WORKSPACE_DIR}/.devcontainer/docker-compose.yml"
-	local vol
-	local src
-	local tgt
+    local compose_file="${WORKSPACE_DIR}/.devcontainer/docker-compose.yml"
+    local vol
+    local src
+    local tgt
 
-	while IFS= read -r vol; do
-		# Skip empty lines
-		[ -z "${vol// /}" ] && continue
+    while IFS= read -r vol; do
+        # Skip empty lines
+        [ -z "${vol// /}" ] && continue
 
-		# The short-form volume entry is a string like
-		# "../env/.pi:/home/ubuntu/.pi[:ro|:rw]". Strip the YAML
-		# list prefix and split on the first colon.
-		vol="${vol#"${vol%%[![:space:]]*}"}" # leading whitespace
-		vol="${vol#- }"                      # YAML list marker
-		vol="${vol#-}"                       # YAML list marker (no space)
+        # The short-form volume entry is a string like
+        # "../env/.pi:/home/ubuntu/.pi[:ro|:rw]". Strip the YAML
+        # list prefix and split on the first colon.
+        vol="${vol#"${vol%%[![:space:]]*}"}" # leading whitespace
+        vol="${vol#- }"                      # YAML list marker
+        vol="${vol#-}"                       # YAML list marker (no space)
 
-		if [[ "${vol}" == *:* ]]; then
-			src="${vol%%:*}"
-			tgt="${vol#*:}"
-			tgt="${tgt%%:*}" # strip optional :ro/:rw mode
+        if [[ "${vol}" == *:* ]]; then
+            src="${vol%%:*}"
+            tgt="${vol#*:}"
+            tgt="${tgt%%:*}" # strip optional :ro/:rw mode
 
-			# Bind mounts have a non-empty source.
-			if [ -n "${src}" ] && [ -n "${tgt}" ]; then
-				printf '%s|%s\n' "${src}" "${tgt}"
-			fi
-		fi
-	done < <(yq -r '.services."container-svc".volumes[]' "${compose_file}" 2>/dev/null || true)
+            # Bind mounts have a non-empty source.
+            if [ -n "${src}" ] && [ -n "${tgt}" ]; then
+                printf '%s|%s\n' "${src}" "${tgt}"
+            fi
+        fi
+    done < <(yq -r '.services."container-svc".volumes[]' "${compose_file}" 2>/dev/null || true)
 }
 
 # Map a container-side target path to the install script base names
 # (without the .sh extension) that own that volume.
 compose_target_to_install_scripts() {
-	local target="$1"
-	local -n scripts_ref="$2"
+    local target="$1"
+    local -n scripts_ref="$2"
 
-	scripts_ref=()
-	case "${target}" in
-	"${HOME}/.pi" | "/home/${UID}/.pi")
-		scripts_ref+=("30-ai-pi-coding" "30-ai-pi-gentle")
-		;;
-	"${HOME}/.engram" | "/home/${UID}/.engram")
-		scripts_ref+=("30-ai-engram")
-		;;
-	"${HOME}/.local" | "/home/${UID}/.local")
-		scripts_ref+=("30-ai-engram")
-		;;
-	esac
+    scripts_ref=()
+    case "${target}" in
+    "${HOME}/.pi" | "/home/${UID}/.pi")
+        scripts_ref+=("30-ai-pi-coding" "30-ai-pi-gentle")
+        ;;
+    "${HOME}/.engram" | "/home/${UID}/.engram")
+        scripts_ref+=("30-ai-engram")
+        ;;
+    "${HOME}/.local" | "/home/${UID}/.local")
+        scripts_ref+=("30-ai-engram")
+        ;;
+    esac
 }
 
 # Iterate over bind-mount volume targets from docker-compose.yml and
@@ -96,22 +96,22 @@ compose_target_to_install_scripts() {
 # itself when the tool is already installed, so a re-run on a
 # populated volume is a no-op.
 repair_installed_volumes() {
-	local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
-	local target_path
-	local scripts=()
-	local script
-	local script_path
+    local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
+    local target_path
+    local scripts=()
+    local script
+    local script_path
 
-	while IFS='|' read -r _ target_path; do
-		compose_target_to_install_scripts "${target_path}" scripts
+    while IFS='|' read -r _ target_path; do
+        compose_target_to_install_scripts "${target_path}" scripts
 
-		for script in "${scripts[@]}"; do
-			script_path="${install_root}/${script}.sh"
-			if [ ! -f "${script_path}" ]; then
-				continue
-			fi
-			echo "Volume repair: ${target_path} -> ${script}.sh"
-			DEVCONTAINER_PHASE=runtime bash "${script_path}"
-		done
-	done < <(resolve_compose_volume_targets)
+        for script in "${scripts[@]}"; do
+            script_path="${install_root}/${script}.sh"
+            if [ ! -f "${script_path}" ]; then
+                continue
+            fi
+            echo "Volume repair: ${target_path} -> ${script}.sh"
+            DEVCONTAINER_PHASE=runtime bash "${script_path}"
+        done
+    done < <(resolve_compose_volume_targets)
 }

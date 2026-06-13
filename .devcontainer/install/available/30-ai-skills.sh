@@ -15,8 +15,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${SKILLS_VERSION:=1.5.10}"
 
 if devcontainer_has_cmd skills; then
-	devcontainer_log_info "skills already installed"
-	exit 0
+    devcontainer_log_info "skills already installed"
+    exit 0
 fi
 
 devcontainer_log_info "Installing skills@${SKILLS_VERSION}"

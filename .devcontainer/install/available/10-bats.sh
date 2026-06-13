@@ -19,14 +19,14 @@ BATS_INSTALL_DIR="/usr/local"
 
 # Only run during build (BATS is a dev tool, not needed at runtime).
 if ! devcontainer_is_build; then
-	devcontainer_log_info "Skipping BATS: not in build phase"
-	exit 0
+    devcontainer_log_info "Skipping BATS: not in build phase"
+    exit 0
 fi
 
 # Idempotency: skip if BATS is already installed.
 if devcontainer_has_cmd bats; then
-	devcontainer_log_info "BATS already installed: $(command -v bats)"
-	exit 0
+    devcontainer_log_info "BATS already installed: $(command -v bats)"
+    exit 0
 fi
 
 devcontainer_log_info "Installing BATS ${BATS_VERSION}"
@@ -44,8 +44,8 @@ rm -rf "${BATS_TMPDIR}"
 
 # Verify.
 if ! devcontainer_has_cmd bats; then
-	devcontainer_log_error "BATS install failed: bats not on PATH after install"
-	exit 1
+    devcontainer_log_error "BATS install failed: bats not on PATH after install"
+    exit 1
 fi
 
 devcontainer_log_info "BATS installed at $(command -v bats)"

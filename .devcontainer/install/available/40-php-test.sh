@@ -15,13 +15,13 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 # Guard: skip if php is not present (this tool depends on php being installed).
 if ! devcontainer_has_cmd php; then
-	devcontainer_log_warn "Skipping PHPUnit: php is not installed. Run 'task install:enable -- 40-php-lang' first."
-	exit 0
+    devcontainer_log_warn "Skipping PHPUnit: php is not installed. Run 'task install:enable -- 40-php-lang' first."
+    exit 0
 fi
 
 if devcontainer_has_cmd phpunit; then
-	devcontainer_log_info "phpunit already installed: $(phpunit --version)"
-	exit 0
+    devcontainer_log_info "phpunit already installed: $(phpunit --version)"
+    exit 0
 fi
 
 devcontainer_log_info "Installing phpunit/phpunit@${PHPUNIT_VERSION} globally via composer"
@@ -31,12 +31,12 @@ composer global require --quiet "phpunit/phpunit@${PHPUNIT_VERSION}"
 # The installer prints the path; we use the conventional location.
 COMPOSER_BIN="${HOME}/.config/composer/vendor/bin"
 if [ -d "${COMPOSER_BIN}" ] && [ ! -L "/usr/local/bin/phpunit" ]; then
-	devcontainer_run_as_root ln -sfn "${COMPOSER_BIN}/phpunit" /usr/local/bin/phpunit
+    devcontainer_run_as_root ln -sfn "${COMPOSER_BIN}/phpunit" /usr/local/bin/phpunit
 fi
 
 if devcontainer_has_cmd phpunit; then
-	devcontainer_log_info "phpunit installed: $(phpunit --version)"
+    devcontainer_log_info "phpunit installed: $(phpunit --version)"
 else
-	devcontainer_log_error "phpunit install failed: binary not on PATH after composer global require"
-	exit 1
+    devcontainer_log_error "phpunit install failed: binary not on PATH after composer global require"
+    exit 1
 fi

@@ -14,7 +14,7 @@ devcontainer_log_info "Cleaning apt and npm caches"
 devcontainer_run_as_root apt-get clean
 
 if devcontainer_has_cmd npm; then
-	devcontainer_run_as_root npm cache clean --force
+    devcontainer_run_as_root npm cache clean --force
 fi
 
 devcontainer_log_info "Removing cache and temp directories"
