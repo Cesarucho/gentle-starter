@@ -15,6 +15,11 @@
 #   3. If the script should run by default, create a symlink in
 #      .devcontainer/install/02-enabled/ pointing to it. Otherwise leave
 #      it in available/ and opt in with `task install:enable -- NAME`.
+#   4. Ensure the file ends with a single newline character. shfmt and
+#      shfmt expects POSIX text files. A missing trailing newline
+#      newline causes quality:format to fail. Verify with
+#      newline causes quality:format to fail. Verify with
+#      `tail -c 1 FILE` (empty output = OK) or fix with `echo >> FILE`.
 #
 # State and volumes:
 #   If your script OWNS a bind-mounted volume (e.g. a database, a
