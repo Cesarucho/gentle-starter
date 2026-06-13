@@ -16,7 +16,7 @@ interact, plus a worked example), see
 ├── 01-core/                # mandatory, runs in every build
 ├── 02-enabled/             # symlinks to active available/ scripts
 ├── 03-hooks/               # user extensions (read its README first)
-├── available/              # opt-in catalog (numbered 00-99, .disabled suffix)
+├── available/              # opt-in catalog (numbered 00-99)
 ├── lib/                    # shared helpers (common.sh)
 └── templates/              # install-script.sh template for new scripts
 ```
@@ -28,7 +28,6 @@ The Dockerfile's build loop is:
 ```dockerfile
 for group in 01-core 02-enabled 03-hooks; do
     find -L "./.devcontainer-install/${group}" -maxdepth 1 -type f -name "*.sh" \
-        -not -name "*.disabled" \
         | sort | while read -r script; do
         DEVCONTAINER_PHASE=build bash "${script}"
     done
@@ -81,16 +80,17 @@ The numbering convention follows the spec's category ranges:
 10-19  sistema base       (e.g. 10-system.sh, 15-task.sh)
 20-39  runtimes y AI      (e.g. 20-runtime-go.sh, 30-ai-engram.sh)
 40-49  CLI tools          (e.g. 40-cli-mycli.sh)
-50-79  presets opt-in     (e.g. 50-browser-playwright.sh.disabled)
+50-79  presets opt-in     (e.g. 50-browser-playwright.sh)
 80-89  misc
 90-98  post-setup         (e.g. 90-post-setup-users.sh)
 99     cleanup            (e.g. 99-cleanup.sh)
 ```
 
-The `.disabled` suffix marks scripts that are in the catalog but
-**not** enabled by default. The Dockerfile's `find` filter
-(`-not -name "*.disabled"`) excludes them from the build loop. To
-opt-in, rename to remove the suffix and link from `02-enabled/`.
+Every script in `available/` is a self-contained install script
+with no expectation of being enabled. A script runs if and only if
+there is a symlink to it in `02-enabled/`.
+
+The numbering convention follows the spec's category ranges:
 
 ## `lib/common.sh` — shared helpers
 
@@ -195,7 +195,7 @@ Three tasks tell you the live state:
 
 ```bash
 task install:list              # shows 01-core, 02-enabled, hooks
-task install:list --presets    # also shows .disabled entries in available/
+task install:list --presets    # also shows available/ entries not in 02-enabled/
 task install:doctor            # verifies lib/, templates/, enabled/ symlinks
 task install:volumes           # shows the volume contract (separate concern)
 ```

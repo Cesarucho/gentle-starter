@@ -40,7 +40,7 @@ landing in commits `f5e9679` through `c11d975` plus follow-ups.
 ├── 01-core/                # mandatory, runs in every build
 ├── 02-enabled/             # symlinks to active available/ scripts
 ├── 03-hooks/               # user extensions (intentionally not gitignored)
-├── available/              # opt-in catalog (numbered 00-99, .disabled suffix)
+├── available/              # opt-in catalog (numbered 00-99)
 ├── lib/                    # shared helpers (common.sh)
 └── templates/              # install-script.sh template
 ```

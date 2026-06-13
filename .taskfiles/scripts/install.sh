@@ -14,9 +14,9 @@
 #   help                       Show this help
 #   list [--presets]           List active scripts (01-core, 02-enabled,
 #                              03-hooks). With --presets also show the
-#                              disabled ones in available/
+#                              available/ entries that are not linked in 02-enabled/
 #   enable NAME                Create an 02-enabled/ symlink to
-#                              available/NAME[.disabled]
+#                              available/NAME.sh
 #   disable NAME               Remove the 02-enabled/ symlink for NAME
 #   doctor                     Verify the install/ layout integrity
 set -euo pipefail
@@ -33,8 +33,7 @@ Usage:
 Commands:
   help                  Show this help
   list [--presets]      List active scripts (01-core, 02-enabled, 03-hooks).
-                        With --presets, also show the disabled ones in
-                        available/
+                        With --presets, also show the available/ entries that are not linked in 02-enabled/
   enable NAME           Create an 02-enabled/ symlink to available/NAME
   disable NAME          Remove the 02-enabled/ symlink for NAME
   doctor                Verify the install/ layout integrity
@@ -44,13 +43,13 @@ Commands:
 EOF
 }
 
-# Resolve a script name (with or without .sh or .sh.disabled suffix)
-# to its absolute path under available/. Echoes the path; returns 1
-# if not found. Accepts NAME, NAME.sh, NAME.disabled, or NAME.sh.disabled.
+# Resolve a script name (with or without .sh suffix) to its
+# absolute path under available/. Echoes the path; returns 1 if not
+# found. Accepts NAME or NAME.sh.
 resolve_available() {
 	local name="$1"
 
-	for candidate in "${name}" "${name}.sh" "${name}.disabled" "${name}.sh.disabled"; do
+	for candidate in "${name}" "${name}.sh"; do
 		if [ -f "${INSTALL_DIR}/available/${candidate}" ]; then
 			printf '%s\n' "${INSTALL_DIR}/available/${candidate}"
 			return 0
@@ -89,16 +88,10 @@ cmd_list() {
 	if [ -d "${INSTALL_DIR}/available" ]; then
 		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
 			name="$(basename "${f}")"
-			if [[ "${name}" == *.disabled ]]; then
-				if [ "${show_presets}" = true ]; then
-					echo "  ${name} (disabled)"
-				fi
-			else
-				if [ -L "${INSTALL_DIR}/02-enabled/${name}" ]; then
-					echo "  ${name} (enabled)"
-				else
-					echo "  ${name} (not enabled)"
-				fi
+			if [ -L "${INSTALL_DIR}/02-enabled/${name}" ]; then
+				echo "  ${name} (enabled)"
+			elif [ "${show_presets}" = true ]; then
+				echo "  ${name} (not enabled)"
 			fi
 		done
 	else
@@ -132,9 +125,7 @@ cmd_enable() {
 	local base
 	base="$(basename "${source_path}")"
 
-	# Strip the .disabled suffix from the link name so the
-	# Dockerfile's find filter (-not -name "*.disabled") picks it up.
-	local link_name="${base%.disabled}"
+	local link_name="${base}"
 
 	if [ -L "${INSTALL_DIR}/02-enabled/${link_name}" ]; then
 		echo "${link_name} is already enabled"
@@ -158,7 +149,7 @@ cmd_disable() {
 		exit 2
 	fi
 
-	for candidate in "${name}" "${name}.sh" "${name}.sh.disabled"; do
+	for candidate in "${name}" "${name}.sh"; do
 		if [ -L "${INSTALL_DIR}/02-enabled/${candidate}" ]; then
 			rm "${INSTALL_DIR}/02-enabled/${candidate}"
 			echo "Disabled: ${candidate}"

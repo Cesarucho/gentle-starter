@@ -42,7 +42,7 @@ aterrizando en los commits `f5e9679` a `c11d975` más follow-ups.
 ├── 01-core/                # obligatorio, corre en cada build
 ├── 02-enabled/             # symlinks a scripts activos de available/
 ├── 03-hooks/               # extensiones del usuario (intencionalmente no gitignored)
-├── available/              # catálogo opt-in (numerados 00-99, sufijo .disabled)
+├── available/              # catálogo opt-in (numerados 00-99)
 ├── lib/                    # helpers compartidos (common.sh)
 └── templates/              # plantilla install-script.sh
 ```

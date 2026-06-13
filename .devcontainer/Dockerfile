@@ -35,8 +35,6 @@ RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-install \
     && for group in 01-core 02-enabled 03-hooks; do \
         if [ -d "./.devcontainer-install/${group}" ]; then \
             find -L "./.devcontainer-install/${group}" -maxdepth 1 -type f -name "*.sh" \
-                -not -name "*.disable" \
-                -not -name "*.disabled" \
                 | sort | while read -r script; do \
                 echo ""; \
                 echo "============================================================"; \

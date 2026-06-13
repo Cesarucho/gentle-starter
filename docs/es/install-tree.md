@@ -17,7 +17,7 @@ consulta [`docs/es/extending.md`](./extending.md).
 ├── 01-core/                # obligatorio, corre en cada build
 ├── 02-enabled/             # symlinks a los scripts activos de available/
 ├── 03-hooks/               # extensiones del usuario (lee su README antes)
-├── available/              # catálogo opt-in (numerados 00-99, sufijo .disabled)
+├── available/              # catálogo opt-in (numerados 00-99)
 ├── lib/                    # helpers compartidos (common.sh)
 └── templates/              # plantilla install-script.sh para scripts nuevos
 ```
@@ -29,7 +29,6 @@ El loop de build del Dockerfile es:
 ```dockerfile
 for group in 01-core 02-enabled 03-hooks; do
     find -L "./.devcontainer-install/${group}" -maxdepth 1 -type f -name "*.sh" \
-        -not -name "*.disabled" \
         | sort | while read -r script; do
         DEVCONTAINER_PHASE=build bash "${script}"
     done
@@ -86,16 +85,17 @@ convención de numeración sigue los rangos por categoría del spec:
 10-19  sistema base       (ej. 10-system.sh, 15-task.sh)
 20-39  runtimes y AI      (ej. 20-runtime-go.sh, 30-ai-engram.sh)
 40-49  CLI tools          (ej. 40-cli-mycli.sh)
-50-79  presets opt-in     (ej. 50-browser-playwright.sh.disabled)
+50-79  presets opt-in     (ej. 50-browser-playwright.sh)
 80-89  misc
 90-98  post-setup         (ej. 90-post-setup-users.sh)
 99     cleanup            (ej. 99-cleanup.sh)
 ```
 
-El sufijo `.disabled` marca scripts que están en el catálogo pero
-**no** habilitados por defecto. El filtro `find` del Dockerfile
-(`-not -name "*.disabled"`) los excluye del loop de build. Para
-optar-in, renombrá quitando el sufijo y linkeá desde `02-enabled/`.
+Cada script en `available/` es autocontenido, sin expectativa de
+estar habilitado. Un script corre si y solo si existe un symlink
+hacia él en `02-enabled/`.
+
+La convención de numeración sigue los rangos por categoría del spec:
 
 ## `lib/common.sh` — helpers compartidos
 
@@ -196,7 +196,7 @@ Tres tareas te dicen el estado en vivo:
 
 ```bash
 task install:list              # muestra 01-core, 02-enabled, hooks
-task install:list --presets    # también muestra entradas .disabled en available/
+task install:list --presets    # también muestra entradas de available/ no linkeadas en 02-enabled/
 task install:doctor            # verifica lib/, templates/, symlinks de enabled/
 task install:volumes           # muestra el contrato de volúmenes (concern aparte)
 ```
