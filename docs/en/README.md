@@ -1,8 +1,7 @@
 # `docs/`
 
-Project documentation. The English originals live under `en/`, and
-the Spanish translations live under `es/`. When in doubt, the
-English version is canonical.
+Project documentation. The English originals live under `en/`.
+When in doubt, the English version is canonical.
 
 ## What's here
 
@@ -12,7 +11,6 @@ English version is canonical.
 | [`en/install-tree.md`](./en/install-tree.md) | Deep dive on the `install/` convention: groups, numbering, how to add a new install script. |
 | [`en/install-volumes.md`](./en/install-volumes.md) | Deep dive on the volume repair contract: how the bind-mount → owning-script mapping works, how to add a new stateful volume. |
 | [`en/configs.md`](./en/configs.md) | Deep dive on `seed_config_tree`: privilege detection, the three cases, idempotency rules, the `*.local` pattern. |
-| `es/` | Spanish translations of the above. |
 | `assets/` | Brand assets (logo, etc.). |
 
 ## Where to start
@@ -34,10 +32,9 @@ before opening an issue.
 
 ## Conventions
 
-- English is canonical. When the English and Spanish versions
-  disagree, the English wins (the Spanish is updated to follow).
-- Each file in `en/` (and its `es/` counterpart) is a self-contained
-  document. Cross-references between docs are explicit links.
+- English is canonical.
+- Each file in `en/` is a self-contained document. Cross-references
+  between docs are explicit links.
 - The docs are versioned with the project. Updates to a system
   (e.g. changing `seed_config_tree`'s privilege detection logic)
   must be reflected in the corresponding doc in the same commit.

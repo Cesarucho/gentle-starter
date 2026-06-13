@@ -11,7 +11,7 @@
 <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
 </p>
 
-<p><strong>Language:</strong> English · <a href="./docs/es/README.md">Español</a></p>
+<p><strong>Documentation:</strong> <a href="./docs/en/README.md">English</a></p>
 
 </div>
 
@@ -220,9 +220,7 @@ task quality:full
 ├── docs
 │   ├── assets/
 │   ├── en/README.md                Full English documentation
-│   ├── es/README.md                Full Spanish documentation
-│   ├── en/security.md              English security guide
-│   └── es/security.md              Spanish security guide
+│   └── en/security.md              English security guide
 ├── .env                            <-- not versioned -->
 ├── env/                            Persistent local state, <-- not versioned -->
 ├── .env.example                    Example local variables for `.env`

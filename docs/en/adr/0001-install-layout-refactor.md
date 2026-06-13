@@ -147,9 +147,10 @@ The same discoverability pattern was later applied to the
 config-seeding system (`docs/configs.md`, the `seed_config_tree`
 helper, etc.).
 
-### 11. Documentation under `docs/en/` (with `docs/es/` mirror)
+### 11. Documentation under `docs/en/`
 
-`docs/en/` is canonical; `docs/es/` is the Spanish translation.
+`docs/en/` is canonical. The directory structure (`docs/en/`) is
+designed to accommodate future language mirrors if needed.
 Files: `README.md` (index), `extending.md` (the comprehensive
 guide), `install-tree.md`, `install-volumes.md`, `configs.md`.
 Plus `AGENTS.md` at the repo root for AI-facing context.

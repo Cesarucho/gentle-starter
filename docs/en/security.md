@@ -1,4 +1,4 @@
-**Language:** [Español](../es/security.md) · English
+**Language:** English
 
 ---
 

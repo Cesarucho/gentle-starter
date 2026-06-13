@@ -170,4 +170,4 @@ postCreate exit 0, both `validate` and `validate:full` pass.
 - [`docs/en/install-volumes.md`](docs/en/install-volumes.md) — volume repair contract deep dive
 - [`docs/en/configs.md`](docs/en/configs.md) — `seed_config_tree` deep dive
 - [`docs/en/adr/0001-install-layout-refactor.md`](docs/en/adr/0001-install-layout-refactor.md) — the ADR for the refactor
-- [`docs/es/`](docs/es/) — Spanish translations of the above (where they exist)
+- [`docs/en/`](docs/en/) — English documentation
