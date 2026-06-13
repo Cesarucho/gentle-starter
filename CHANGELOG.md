@@ -63,7 +63,7 @@ releases start.
   `container:*`.
 - Simplified Engram installation to an idempotent user-local binary install that
   detects architecture and registers the local bin directory on `PATH`.
-- Added idempotent Pi workspace trust setup for `/home/ubuntu/code`.
+- Added idempotent Pi workspace trust setup for `/home/ubuntu/${APP_NAME}`.
 - `task ai:update` now re-pins selected Pi packages with explicit latest npm
   versions after updating.
 - `task container:pi` now opens Pi with `pi --continue`.

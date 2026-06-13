@@ -181,13 +181,13 @@ correctly leaves them alone. To migrate, delete the symlinks and
 re-run `setup.sh`:
 
 ```bash
-docker exec code-run rm -f \
+docker exec ${APP_NAME}-run rm -f \
     ~/.pi/agent/settings.json \
     ~/.pi/agent/mcp.json \
     ~/.pi/gentle-ai/banner.json \
     ~/.pi/gentle-ai/models.json \
     ~/.pi/gentle-ai/persona.json
-docker exec code-run bash /home/ubuntu/code/.devcontainer/setup.sh
+docker exec ${APP_NAME}-run bash /home/ubuntu/${APP_NAME}/.devcontainer/setup.sh
 ```
 
 After that, all five files are regular files owned by ubuntu and

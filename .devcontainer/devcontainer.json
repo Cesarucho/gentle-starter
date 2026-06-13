@@ -1,8 +1,8 @@
 {
-    "name": "${localEnv:APP_NAME:gentle-starter}-svc",
+    "name": "${localEnv:APP_NAME:project-name}-svc",
     "dockerComposeFile": "./docker-compose.yml",
     "service": "container-svc",
-    "workspaceFolder": "/home/ubuntu/code",
+    "workspaceFolder": "/home/ubuntu/${localEnv:APP_NAME}",
     "overrideCommand": true,
     "remoteUser": "ubuntu",
 
@@ -35,7 +35,7 @@
     },
 
     "mounts": [
-        "source=${localWorkspaceFolder},target=/home/ubuntu/code,type=bind",
+        "source=${localWorkspaceFolder},target=/home/ubuntu/${localEnv:APP_NAME},type=bind",
         "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
     ],
 

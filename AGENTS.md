@@ -153,9 +153,9 @@ postCreate exit 0, both `validate` and `validate:full` pass.
 
 1. **Legacy symlinks may still exist in `~/.pi/` from older
    builds.** The new `seed_config_tree` correctly leaves them
-   alone (`if [ -e ]`). To migrate: `docker exec code-run rm -f
+   alone (`if [ -e ]`). To migrate: `docker exec ${APP_NAME}-run rm -f
    ~/.pi/agent/{settings,mcp}.json ~/.pi/gentle-ai/{banner,models,persona}.json`
-   then `bash /home/ubuntu/code/.devcontainer/setup.sh`.
+   then `bash /home/ubuntu/${APP_NAME}/.devcontainer/setup.sh`.
 2. **A whitespace-only change in `setup.sh` re-applies on every
    rebuild:** the `if [ ... ] \` line in `seed_config_tree` becomes
    `if [ ... ] &&`. Semantic-equivalent, but it shows up in

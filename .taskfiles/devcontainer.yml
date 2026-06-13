@@ -27,21 +27,24 @@ tasks:
     silent: true
     cmds:
       - |
-        env_file=".devcontainer/.env"
         app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
         app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
 
-        mkdir -p "$(dirname "$env_file")"
-        touch "$env_file"
-
-        tmp_file="$(mktemp)"
-        awk '!/^(APP_NAME|APP_PORT)=/' "$env_file" > "$tmp_file"
-        {
-          cat "$tmp_file"
-          printf 'APP_NAME=%s\n' "$app_name"
-          printf 'APP_PORT=%s\n' "$app_port"
-        } > "$env_file"
-        rm -f "$tmp_file"
+        # Write to both locations:
+        #   .devcontainer/.env  — devcontainer.json variable interpolation + compose variable interpolation
+        #   .env (root)         — env_file for runtime environment inside containers
+        for env_file in ".devcontainer/.env" ".env"; do
+          mkdir -p "$(dirname "$env_file")"
+          touch "$env_file"
+          tmp_file="$(mktemp)"
+          awk '!/^(APP_NAME|APP_PORT)=/' "$env_file" > "$tmp_file"
+          {
+            cat "$tmp_file"
+            printf 'APP_NAME=%s\n' "$app_name"
+            printf 'APP_PORT=%s\n' "$app_port"
+          } > "$env_file"
+          rm -f "$tmp_file"
+        done
 
   run-devcontainer:
     internal: true

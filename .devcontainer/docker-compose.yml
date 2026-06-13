@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
+      args:
+        APP_NAME: ${APP_NAME}
     privileged: true
     # Bind mounts below are stateful volumes. Each one is parsed by
     # setup-volumes.sh at container start and re-populated by the
@@ -21,6 +23,6 @@ services:
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     ports:
-      - "${APP_PORT}:${APP_PORT}"    # port for you app
+      - "${APP_PORT}:${APP_PORT}" # port for you app
     env_file:
-      - ../.env
+      - ./.env

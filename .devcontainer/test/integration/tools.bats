@@ -70,14 +70,17 @@
 # ---------------------------------------------------------------------------
 
 @test "java: java is installed" {
+    skip "java is opt-in (task install:enable -- 20-runtime-java to activate)" if ! command -v java >/dev/null
     command -v java >/dev/null
 }
 
 @test "java: javac is installed" {
+    skip "java is opt-in (task install:enable -- 20-runtime-java to activate)" if ! command -v java >/dev/null
     command -v javac >/dev/null
 }
 
 @test "java: java version >= 21" {
+    skip "java is opt-in (task install:enable -- 20-runtime-java to activate)" if ! command -v java >/dev/null
     java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
     printf '%s\n%s\n' "21" "${java_version}" | sort -V -C
 }
@@ -94,6 +97,30 @@
 @test "node: npm is functional" {
     run npm --version
     [ "$status" -eq 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# Opt-in tools (require explicit task install:enable)
+# ---------------------------------------------------------------------------
+
+@test "opt-in dlv: dlv is installed" {
+    skip "opt-in (task install:enable -- 40-go-debug to activate)" if ! command -v dlv >/dev/null
+    command -v dlv >/dev/null
+}
+
+@test "opt-in vitest: vitest is installed" {
+    skip "opt-in (task install:enable -- 40-node-test to activate)" if ! command -v vitest >/dev/null
+    command -v vitest >/dev/null
+}
+
+@test "opt-in php: php is installed" {
+    skip "opt-in (task install:enable -- 40-php-lang to activate)" if ! command -v php >/dev/null
+    command -v php >/dev/null
+}
+
+@test "opt-in phpunit: phpunit is installed" {
+    skip "opt-in (task install:enable -- 40-php-test to activate)" if ! command -v phpunit >/dev/null
+    command -v phpunit >/dev/null
 }
 
 # ---------------------------------------------------------------------------

@@ -319,8 +319,8 @@ appeared at the same path, you're on the pre-`seed_config_tree`
 behavior. As of the current build, the function copies real files,
 not symlinks. If you still see symlinks, you may have an old
 build's state; run
-`docker exec code-run rm -f ~/.pi/agent/{settings,mcp}.json ~/.pi/gentle-ai/{banner,models,persona}.json`
-to clear the legacy symlinks, then `bash /home/ubuntu/code/.devcontainer/setup.sh`
+`docker exec ${APP_NAME}-run rm -f ~/.pi/agent/{settings,mcp}.json ~/.pi/gentle-ai/{banner,models,persona}.json`
+to clear the legacy symlinks, then `bash /home/ubuntu/${APP_NAME}/.devcontainer/setup.sh`
 inside the container. See the migration section in
 [configs.md](configs.md) for the full procedure.
 

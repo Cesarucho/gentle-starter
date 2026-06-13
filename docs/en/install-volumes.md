@@ -210,8 +210,8 @@ when the script is called in unusual contexts.
 actually in a target:
 
 ```bash
-docker exec code-run ls -la ~/.engram/
-docker exec code-run cat ~/.pi/agent/mcp.json
+docker exec ${APP_NAME}-run ls -la ~/.engram/
+docker exec ${APP_NAME}-run cat ~/.pi/agent/mcp.json
 ```
 
 Or from the host:

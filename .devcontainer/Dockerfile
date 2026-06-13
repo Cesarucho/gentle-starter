@@ -17,6 +17,10 @@ ARG TZ=America/Mexico_City
 # Identity of the single devcontainer user.
 ARG UID_NAME=ubuntu
 
+# Project name — used for the container name and runtime environment.
+# Passed via docker-compose.yml build.args and env_file.
+ARG APP_NAME=project-name
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ENGRAM_VERSION=${ENGRAM_VERSION}
 ENV NODE_MAJOR=${NODE_MAJOR}
@@ -46,5 +50,5 @@ RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-install \
     done
 
 USER ${UID_NAME}
-WORKDIR /home/${UID_NAME}/code
+WORKDIR /home/${UID_NAME}/${APP_NAME}
 CMD ["/bin/bash"]
