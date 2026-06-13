@@ -1,1 +1,0 @@
-../available/20-runtime-java.sh
