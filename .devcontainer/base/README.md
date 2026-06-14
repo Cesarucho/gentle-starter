@@ -135,6 +135,22 @@ task validate
 task validate:full
 ```
 
+### Install catalog management
+
+```bash
+# Show active install scripts and available opt-in tools
+task install:list -- --presets
+
+# Enable a new tool from .devcontainer/install/available/
+task install:enable -- 40-php-lang
+
+# Disable an enabled tool
+task install:disable -- 40-php-lang
+
+# Verify install layout and symlink integrity
+task install:doctor
+```
+
 ### AI tooling
 
 ```bash
