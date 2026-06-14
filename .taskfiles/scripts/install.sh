@@ -174,6 +174,9 @@ cmd_enable() {
 		ln -sfn "../available/${base}" "${link_name}"
 	)
 	echo "Enabled: enabled/${link_name} -> available/${base}"
+	echo ""
+	echo "Next step: task container:rebuild"
+	echo "Note: install:enable changes the default tool set for future builds; it does not run the install script in the current container automatically."
 }
 
 cmd_disable() {
@@ -207,7 +210,12 @@ cmd_disable() {
 
 	if [ "${removed}" -eq 0 ]; then
 		echo "${name} is not enabled"
+		return 0
 	fi
+
+	echo ""
+	echo "Next step: task container:rebuild"
+	echo "Note: install:disable changes the default tool set for future builds; existing tools in the current container remain until the environment is rebuilt."
 }
 
 cmd_doctor() {
