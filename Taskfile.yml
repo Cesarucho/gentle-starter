@@ -17,8 +17,6 @@ includes:
     taskfile: ./.taskfiles/install.yml
   test:
     taskfile: ./.taskfiles/test.yml
-  quality:
-    taskfile: ./.taskfiles/quality.yml
 
 tasks:
   default:
@@ -64,7 +62,7 @@ tasks:
           task validate                 Run host-safe validation checks, excluding skills
           task validate:full            Run strict validation requiring shell quality tools
           task ai:update                Update Pi packages and re-pin selected packages
-          task ai:configure-models      Update Gentle AI model/effort config
+          task ai:configure-models      Update Gentle AI model/effort configuration with Pi
           task ssh:check                Check host SSH agent for devcontainer GitHub access
 
         Doctor:
@@ -87,18 +85,25 @@ tasks:
 
         Container:
           task container:help           Show container workflow examples
+          task container:build          Build devcontainer
+          task container:up             Start devcontainer
+          task container:rm             Force-remove the devcontainer service container
           task container:rebuild        Remove, build, and start devcontainer
+          task container:restart        Remove and start devcontainer
           task container:connect        Open bash inside devcontainer
+          task container:pi             Connect to Pi inside devcontainer
+          task container:engram         Connect to Engram TUI inside devcontainer
+          task container:base:apply     Apply gentle-starter base files to project
 
         Install:
           task install:list             Show enabled install scripts
           task install:enable -- NAME   Enable an available install script
-          task install:disable -- NAME  Disable an available install script
+          task install:disable -- NAME  Disable an enabled install script
           task install:doctor           Check install layout integrity
 
         Testing:
-          task test                    Run all tests (unit + integration)
-          task test:unit               Run unit tests for common.sh helpers
-          task test:integration        Run integration tests for installed tools
-          task test:install            Install BATS if not present
+          task test                     Run all tests (unit + integration)
+          task test:unit                Run unit tests for common.sh helpers
+          task test:integration         Run integration tests for installed tools
+          task test:install             Install BATS if not present
         EOF

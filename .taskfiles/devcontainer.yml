@@ -12,13 +12,15 @@ tasks:
         cat <<'EOF'
         Container tasks
 
-          task container:rm        Force-remove the devcontainer service container
-          task container:rebuild   Remove, build, and start devcontainer
+          task container:rebuild    Remove, build, and start devcontainer
+          task container:restart    Remove and start devcontainer
+          task container:build      Build devcontainer
           task container:up         Start devcontainer
-          task container:rm        Force-remove the devcontainer service container
-          task container:connect   Open bash inside devcontainer
-          task container:pi        Open pi inside devcontainer
-          task container:engram    Open Engram TUI inside devcontainer
+          task container:connect    Open bash inside devcontainer
+          task container:pi         Open pi inside devcontainer
+          task container:engram     Open Engram TUI inside devcontainer
+          task container:rm         Force-remove devcontainer container
+          task container:base:apply Apply gentle-starter base files to project
         EOF
 
   ensure-identity-env:
@@ -29,12 +31,13 @@ tasks:
         app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
         app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
 
-        # Write to both locations:
-        #   .devcontainer/.env  — devcontainer.json variable interpolation + compose variable interpolation
-        #   .env (root)         — env_file for runtime environment inside containers
+        # Write identity to both locations:
+        #   .devcontainer/.env  -> compose/devcontainer interpolation
+        #   .env                -> runtime env_file for user apps/tools
         for env_file in ".devcontainer/.env" ".env"; do
           mkdir -p "$(dirname "$env_file")"
           touch "$env_file"
+
           tmp_file="$(mktemp)"
           awk '!/^(APP_NAME|APP_PORT)=/' "$env_file" > "$tmp_file"
           {
@@ -69,75 +72,56 @@ tasks:
         }
         printf '%s\n' "$container"
 
-  rm:
-    desc: Force-remove the devcontainer service container
-    cmds:
-      - task: ensure-identity-env
-      - |
-        set -a
-        . .devcontainer/.env
-        set +a
-        container="$(task resolve-container-name)"
-        echo "Removing container ${container}..."
-        docker rm -f "${container}" 2>/dev/null || true
-
   ensure-running:
     internal: true
     silent: true
     cmds:
       - task: ensure-identity-env
       - |
-        set -a
-        . .devcontainer/.env
-        set +a
-        container="$(task resolve-container-name)"
-        if ! docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
-          echo "Container ${container} is not running. Use 'task container:up' first."
-          exit 1
+        container="$(task --silent container:resolve-container-name)"
+        if docker ps --filter "name=^/${container}$" --filter "status=running" --quiet | grep -q .; then
+          exit 0
         fi
 
-  build:
-    internal: true
+        echo "Devcontainer is not running. Starting it..."
+        task container:up
+
+  rm:
+    desc: Force-remove the devcontainer service container
     silent: true
     cmds:
       - task: ensure-identity-env
       - |
-        set -a
-        . .devcontainer/.env
-        set +a
-        docker compose -f .devcontainer/docker-compose.yml build
+        container="$(task --silent container:resolve-container-name)"
+        docker rm -f "$container" 2>/dev/null || true
 
-  build-project-base:
-    internal: true
-    silent: true
+  build:
+    desc: Build devcontainer
     cmds:
-      - task: ensure-running
       - task: run-devcontainer
         vars:
           ARGS: build --workspace-folder {{.WORKSPACE}}
-
-  rebuild:
-    desc: Remove, build, and start devcontainer
-    cmds:
-      - task: ensure-running
-      - task: rm
-      - task: up
-
-  restart:
-    desc: Remove and start devcontainer
-    cmds:
-      - task: container:rm
-      - task: container:up
 
   up:
     desc: Start devcontainer
     interactive: true
     cmds:
-      - task: build
       - task: run-devcontainer
         vars:
           ARGS: up --workspace-folder {{.WORKSPACE}}
-        interactive: true
+
+  rebuild:
+    desc: Remove, build, and start devcontainer
+    cmds:
+      - task: rm
+      - task: build
+      - task: up
+
+  restart:
+    desc: Remove and start devcontainer
+    cmds:
+      - task: rm
+      - task: up
 
   connect:
     desc: Open bash inside devcontainer
@@ -168,19 +152,19 @@ tasks:
 
   base:apply:
     desc: Apply gentle-starter base files to the project workspace.
-          Backs up conflicting files to .base-backup/ and replaces them
-          with gentle-starter defaults.
+      Backs up conflicting files to .base-backup/ and replaces them
+      with gentle-starter defaults.
     cmds:
       - |
         SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.devcontainer"
         WORKSPACE="${WORKSPACE:-.}"
         BACKUP_DIR="${WORKSPACE}/.base-backup"
+
         echo "Applying gentle-starter base files..."
         echo "Workspace: ${WORKSPACE}"
         echo "Backup dir: ${BACKUP_DIR}"
         mkdir -p "${BACKUP_DIR}"
 
-        # Files: "source_file:target_file"
         for pair in \
           "README.md:README.md" \
           "LICENSE:LICENSE" \
@@ -191,10 +175,12 @@ tasks:
           tgt="${pair##*:}"
           src_path="${SCRIPT_DIR}/base/${src}"
           tgt_path="${WORKSPACE}/${tgt}"
+
           if [ -f "${tgt_path}" ]; then
             echo "  Backup: ${tgt} -> ${BACKUP_DIR}/"
             mv "${tgt_path}" "${BACKUP_DIR}/${tgt}"
           fi
+
           if [ -f "${src_path}" ]; then
             echo "  Apply: ${src} -> ${tgt}"
             cp "${src_path}" "${tgt_path}"
@@ -203,7 +189,6 @@ tasks:
           fi
         done
 
-        # .agents/ — backup if exists, apply base version
         agents_src="${SCRIPT_DIR}/agent-skills"
         agents_tgt="${WORKSPACE}/.agents"
         if [ -d "${agents_tgt}" ]; then
