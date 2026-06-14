@@ -65,8 +65,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 # (e.g. `${TOOL_NAME} --version`).
 # ---------------------------------------------------------------------------
 if devcontainer_has_cmd "${TOOL_NAME}"; then
-    devcontainer_log_info "${TOOL_NAME} already installed: $(command -v "${TOOL_NAME}")"
-    exit 0
+	devcontainer_log_info "${TOOL_NAME} already installed: $(command -v "${TOOL_NAME}")"
+	exit 0
 fi
 
 # ---------------------------------------------------------------------------
@@ -81,8 +81,8 @@ devcontainer_log_info "Installing ${TOOL_NAME} ${TOOL_VERSION} into ${TOOL_INSTA
 # Verify: confirm the install landed. Fail loud when it didn't.
 # ---------------------------------------------------------------------------
 if ! devcontainer_has_cmd "${TOOL_NAME}"; then
-    devcontainer_log_error "${TOOL_NAME} install failed: binary not on PATH"
-    exit 1
+	devcontainer_log_error "${TOOL_NAME} install failed: binary not on PATH"
+	exit 1
 fi
 
 devcontainer_log_info "${TOOL_NAME} ${TOOL_VERSION} installed at $(command -v "${TOOL_NAME}")"

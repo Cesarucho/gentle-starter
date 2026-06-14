@@ -13,13 +13,13 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${NODE_MAJOR:=26}"
 
 if devcontainer_has_cmd node; then
-    devcontainer_log_info "node already installed: $(node --version)"
-    exit 0
+	devcontainer_log_info "node already installed: $(node --version)"
+	exit 0
 fi
 
 devcontainer_log_info "Adding NodeSource apt repo (major ${NODE_MAJOR})"
 curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" |
-    devcontainer_run_as_root bash -
+	devcontainer_run_as_root bash -
 
 devcontainer_log_info "Installing nodejs package"
 devcontainer_run_as_root apt-get install -y --no-install-recommends nodejs

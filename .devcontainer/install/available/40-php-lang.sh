@@ -13,25 +13,25 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${PHP_VERSION:=8.4}"
 
 if devcontainer_has_cmd php; then
-    devcontainer_log_info "php already installed: $(php --version | head -1)"
-    exit 0
+	devcontainer_log_info "php already installed: $(php --version | head -1)"
+	exit 0
 fi
 
 devcontainer_log_info "Adding Ondrej Sury PHP PPA (php${PHP_VERSION})"
 devcontainer_run_as_root apt-get update -qq
 devcontainer_run_as_root apt-get install -y --no-install-recommends \
-    software-properties-common
+	software-properties-common
 
 add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || true
 devcontainer_run_as_root apt-get update -qq
 
 devcontainer_log_info "Installing php${PHP_VERSION}-cli and php${PHP_VERSION}-curl"
 devcontainer_run_as_root apt-get install -y --no-install-recommends \
-    "php${PHP_VERSION}-cli" \
-    "php${PHP_VERSION}-curl" \
-    "php${PHP_VERSION}-mbstring" \
-    "php${PHP_VERSION}-xml" \
-    "php${PHP_VERSION}-zip"
+	"php${PHP_VERSION}-cli" \
+	"php${PHP_VERSION}-curl" \
+	"php${PHP_VERSION}-mbstring" \
+	"php${PHP_VERSION}-xml" \
+	"php${PHP_VERSION}-zip"
 
 # Install Composer (official installer).
 devcontainer_log_info "Installing Composer"

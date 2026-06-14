@@ -15,13 +15,13 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 # Guard: skip if go is not present (this tool depends on go being installed).
 if ! devcontainer_has_cmd go; then
-    devcontainer_log_warn "Skipping dlv: go is not installed. Run 'task install:enable -- 20-runtime-go' first."
-    exit 0
+	devcontainer_log_warn "Skipping dlv: go is not installed. Run 'task install:enable -- 20-runtime-go' first."
+	exit 0
 fi
 
 if devcontainer_has_cmd dlv; then
-    devcontainer_log_info "dlv already installed: $(dlv version)"
-    exit 0
+	devcontainer_log_info "dlv already installed: $(dlv version)"
+	exit 0
 fi
 
 target_arch="$(devcontainer_arch)"

@@ -20,14 +20,14 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${JAVA_VERSION:=25-tem}"
 
 if devcontainer_has_cmd java; then
-    devcontainer_log_info "java already installed: $(java --version | head -1)"
-    exit 0
+	devcontainer_log_info "java already installed: $(java --version | head -1)"
+	exit 0
 fi
 
 user_home="$(getent passwd "${UID_NAME}" | cut -d: -f6)"
 if [ -z "${user_home}" ]; then
-    devcontainer_log_error "User not found: ${UID_NAME}"
-    exit 1
+	devcontainer_log_error "User not found: ${UID_NAME}"
+	exit 1
 fi
 
 devcontainer_log_info "Installing Java ${JAVA_VERSION} via SDKMAN as ${UID_NAME}"
@@ -61,9 +61,9 @@ devcontainer_run_as_root chown -R "${UID_NAME}:${UID_NAME}" "${user_home}/.sdkma
 devcontainer_log_info "Symlinking java binaries to /usr/local/bin"
 java_bin_dir="${user_home}/.sdkman/candidates/java/current/bin"
 for command_name in jar java javac javadoc jshell keytool; do
-    if [ -x "${java_bin_dir}/${command_name}" ]; then
-        devcontainer_run_as_root ln -sfn "${java_bin_dir}/${command_name}" "/usr/local/bin/${command_name}"
-    fi
+	if [ -x "${java_bin_dir}/${command_name}" ]; then
+		devcontainer_run_as_root ln -sfn "${java_bin_dir}/${command_name}" "/usr/local/bin/${command_name}"
+	fi
 done
 
 devcontainer_log_info "java installed: $(java --version | head -1)"

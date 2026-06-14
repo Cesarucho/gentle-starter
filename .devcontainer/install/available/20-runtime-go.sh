@@ -13,15 +13,15 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${GO_VERSION:=latest}"
 
 if devcontainer_has_cmd go; then
-    devcontainer_log_info "go already installed: $(go version)"
-    exit 0
+	devcontainer_log_info "go already installed: $(go version)"
+	exit 0
 fi
 
 target_arch="$(devcontainer_arch)"
 
 if [ "${GO_VERSION}" = "latest" ]; then
-    devcontainer_log_info "Resolving latest stable Go version from go.dev"
-    GO_VERSION="$(curl -fsSL "https://go.dev/dl/?mode=json" | jq -r '.[0].version')"
+	devcontainer_log_info "Resolving latest stable Go version from go.dev"
+	GO_VERSION="$(curl -fsSL "https://go.dev/dl/?mode=json" | jq -r '.[0].version')"
 fi
 
 archive="${GO_VERSION}.linux-${target_arch}.tar.gz"

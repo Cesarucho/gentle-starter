@@ -14,12 +14,12 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${PI_CODING_AGENT_VERSION:=0.79.3}"
 
 if devcontainer_has_cmd pi; then
-    devcontainer_log_info "pi already installed: $(pi --version)"
-    exit 0
+	devcontainer_log_info "pi already installed: $(pi --version)"
+	exit 0
 fi
 
 devcontainer_log_info "Installing @earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}"
 devcontainer_run_as_root npm install -g --ignore-scripts \
-    "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}"
+	"@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}"
 
 devcontainer_log_info "pi installed: $(pi --version)"
