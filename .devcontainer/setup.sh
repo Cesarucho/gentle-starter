@@ -125,10 +125,11 @@ setup_pi_workspace_trust() {
 	fi
 
 	tmp_file="$(mktemp)"
+	local fixed_dir="/home/ubuntu/code"
 	if [ -f "${trust_file}" ]; then
-		jq --arg workspace "${WORKSPACE_DIR}" '. + {($workspace): true}' "${trust_file}" >"${tmp_file}"
+		jq --arg workspace "${WORKSPACE_DIR}" --arg fixed "${fixed_dir}" '. + {($workspace): true, ($fixed): true}' "${trust_file}" >"${tmp_file}"
 	else
-		jq -n --arg workspace "${WORKSPACE_DIR}" '{($workspace): true}' >"${tmp_file}"
+		jq -n --arg workspace "${WORKSPACE_DIR}" --arg fixed "${fixed_dir}" '{($workspace): true, ($fixed): true}' >"${tmp_file}"
 	fi
 
 	mv "${tmp_file}" "${trust_file}"
