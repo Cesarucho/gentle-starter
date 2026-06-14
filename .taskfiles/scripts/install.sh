@@ -59,6 +59,42 @@ resolve_available() {
     return 1
 }
 
+preferred_enabled_name() {
+    local base="$1"
+
+    case "${base}" in
+    10-bats.sh) printf '10-bats.sh\n' ;;
+    20-runtime-go.sh) printf '20-go.sh\n' ;;
+    20-runtime-node.sh) printf '30-node.sh\n' ;;
+    20-runtime-pnpm.sh) printf '40-pnpm.sh\n' ;;
+    20-tool-devcontainer-cli.sh) printf '50-devcontainer-cli.sh\n' ;;
+    30-ai-engram.sh) printf '60-engram.sh\n' ;;
+    30-ai-pi-coding.sh) printf '70-pi-coding.sh\n' ;;
+    30-ai-pi-gentle.sh) printf '80-pi-gentle.sh\n' ;;
+    30-ai-skills.sh) printf '90-skills.sh\n' ;;
+    *) printf '%s\n' "${base}" ;;
+    esac
+}
+
+enabled_link_names_for_base() {
+    local base="$1"
+    local link
+
+    [ -d "${INSTALL_DIR}/02-enabled" ] || return 0
+
+    for link in "${INSTALL_DIR}/02-enabled/"*; do
+        [ -L "${link}" ] || continue
+        if [ "$(basename "$(readlink "${link}")")" = "${base}" ]; then
+            basename "${link}"
+        fi
+    done
+}
+
+is_available_enabled() {
+    local base="$1"
+    enabled_link_names_for_base "${base}" | grep -q .
+}
+
 cmd_list() {
     local show_presets=false
     if [ "${1:-}" = "--presets" ]; then
@@ -88,7 +124,7 @@ cmd_list() {
     if [ -d "${INSTALL_DIR}/available" ]; then
         find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
             name="$(basename "${f}")"
-            if [ -L "${INSTALL_DIR}/02-enabled/${name}" ]; then
+            if is_available_enabled "${name}"; then
                 echo "  ${name} (enabled)"
             elif [ "${show_presets}" = true ]; then
                 echo "  ${name} (not enabled)"
@@ -125,10 +161,11 @@ cmd_enable() {
     local base
     base="$(basename "${source_path}")"
 
-    local link_name="${base}"
+    local link_name
+    link_name="$(preferred_enabled_name "${base}")"
 
-    if [ -L "${INSTALL_DIR}/02-enabled/${link_name}" ]; then
-        echo "${link_name} is already enabled"
+    if is_available_enabled "${base}"; then
+        echo "${base} is already enabled"
         return 0
     fi
 
@@ -156,6 +193,17 @@ cmd_disable() {
             removed=$((removed + 1))
         fi
     done
+
+    if source_path="$(resolve_available "${name}" 2>/dev/null)"; then
+        while IFS= read -r enabled_name; do
+            [ -n "${enabled_name}" ] || continue
+            if [ -L "${INSTALL_DIR}/02-enabled/${enabled_name}" ]; then
+                rm "${INSTALL_DIR}/02-enabled/${enabled_name}"
+                echo "Disabled: ${enabled_name}"
+                removed=$((removed + 1))
+            fi
+        done < <(enabled_link_names_for_base "$(basename "${source_path}")")
+    fi
 
     if [ "${removed}" -eq 0 ]; then
         echo "${name} is not enabled"

@@ -43,7 +43,7 @@ Three things to notice:
 - **Within each group, scripts are sorted by filename** (default `sort`
   order). The numeric prefix you put on each script controls the
   in-group order. In `02-enabled/`, the convention is now an explicit
-  unique sequence (`10-bats.sh`, `20-go.sh`, ..., `90-skills.sh`) so
+  unique sequence (`10-bats.sh`, `30-node.sh`, ..., `90-skills.sh`) so
   the execution order is readable at a glance.
 - **`-L` follows symlinks**, which is how `02-enabled/` (all symlinks
   into `available/`) actually gets the script bodies to run.
@@ -66,7 +66,6 @@ Current default order:
 
 ```text
 10-bats.sh
-20-go.sh
 30-node.sh
 40-pnpm.sh
 50-devcontainer-cli.sh
@@ -76,6 +75,8 @@ Current default order:
 90-skills.sh
 ```
 
+The numeric gap is intentional: `20-go.sh` is currently disabled, and a
+missing slot is acceptable when a default-active tool is turned off.
 This ordering is intentional: `bats` runs first, `skills` runs last,
 and the Node/npm-dependent tools stay after the Node runtime scripts.
 To disable one, delete the symlink. To enable one, run

@@ -7,6 +7,30 @@
 #   bats .devcontainer/test/integration/tools.bats
 #
 
+enabled_install_targets() {
+    local enabled_dir="${BATS_TEST_DIRNAME}/../../install/02-enabled"
+    [ -d "${enabled_dir}" ] || return 0
+
+    find -L "${enabled_dir}" -maxdepth 1 -type f -name "*.sh" -print 2>/dev/null \
+        | while read -r path; do
+            basename "${path}"
+        done
+}
+
+is_enabled_install() {
+    local script_name="$1"
+    enabled_install_targets | grep -Fxq "${script_name}"
+}
+
+skip_if_install_disabled() {
+    local script_name="$1"
+    local hint="$2"
+
+    if ! is_enabled_install "${script_name}"; then
+        skip "disabled install (${hint})"
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Core tools
 # ---------------------------------------------------------------------------
@@ -46,19 +70,23 @@
 # ---------------------------------------------------------------------------
 
 @test "go: go is installed" {
+    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
     command -v go >/dev/null
 }
 
 @test "go: gofmt is installed" {
+    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
     command -v gofmt >/dev/null
 }
 
 @test "go: go version >= 1.20" {
+    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
     go_version=$(go version | grep -oE 'go[0-9]+\.[0-9]+\.[0-9]+' | sed 's/go//')
     printf '%s\n%s\n' "1.20.0" "${go_version}" | sort -V -C
 }
 
 @test "go: GOROOT is set" {
+    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
     # GOROOT is set by the Go install script during devcontainer setup.
     # Outside the devcontainer it may be unset; in that case skip.
     skip "DEVCONTAINER_PHASE not set (run inside devcontainer)" if [ -z "${DEVCONTAINER_PHASE:-}" ]
