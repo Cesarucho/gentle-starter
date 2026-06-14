@@ -12,6 +12,7 @@ tasks:
         cat <<'EOF'
         Container tasks
 
+          task container:rm        Force-remove the devcontainer service container
           task container:rebuild   Remove, build, and start devcontainer
           task container:up         Start devcontainer
           task container:rm        Force-remove the devcontainer service container
@@ -68,6 +69,18 @@ tasks:
         }
         printf '%s\n' "$container"
 
+  rm:
+    desc: Force-remove the devcontainer service container
+    cmds:
+      - task: ensure-identity-env
+      - |
+        set -a
+        . .devcontainer/.env
+        set +a
+        container="$(task resolve-container-name)"
+        echo "Removing container ${container}..."
+        docker rm -f "${container}" 2>/dev/null || true
+
   ensure-running:
     internal: true
     silent: true
@@ -113,8 +126,8 @@ tasks:
   restart:
     desc: Remove and start devcontainer
     cmds:
-      - task: rm
-      - task: up
+      - task: container:rm
+      - task: container:up
 
   up:
     desc: Start devcontainer
