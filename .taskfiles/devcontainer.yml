@@ -101,7 +101,7 @@ tasks:
       - task: ensure-running
       - task: run-devcontainer
         vars:
-          ARGS: build --workspace-folder-override {{.WORKSPACE}}
+          ARGS: build --workspace-folder {{.WORKSPACE}}
 
   rebuild:
     desc: Remove, build, and start devcontainer
@@ -123,7 +123,7 @@ tasks:
       - task: build
       - task: run-devcontainer
         vars:
-          ARGS: up --workspace-folder-override {{.WORKSPACE}}
+          ARGS: up --workspace-folder {{.WORKSPACE}}
         interactive: true
 
   connect:
