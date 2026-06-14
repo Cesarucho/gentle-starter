@@ -93,7 +93,6 @@ tasks:
           task container:connect        Open bash inside devcontainer
           task container:pi             Connect to Pi inside devcontainer
           task container:engram         Connect to Engram TUI inside devcontainer
-          task container:base:apply     Apply gentle-starter base files to project
 
         Install:
           task install:list             Show enabled install scripts
