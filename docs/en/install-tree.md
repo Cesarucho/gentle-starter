@@ -42,8 +42,9 @@ Three things to notice:
   `for` loop.
 - **Within each group, scripts are sorted by filename** (default `sort`
   order). The numeric prefix you put on each script controls the
-  in-group order. So `30-ai-engram.sh` runs after `20-runtime-go.sh`
-  in the same group.
+  in-group order. In `02-enabled/`, the convention is now an explicit
+  unique sequence (`10-bats.sh`, `20-go.sh`, ..., `90-skills.sh`) so
+  the execution order is readable at a glance.
 - **`-L` follows symlinks**, which is how `02-enabled/` (all symlinks
   into `available/`) actually gets the script bodies to run.
 
@@ -57,9 +58,27 @@ a new file with the right `NN-` prefix and committing it.
 ### `02-enabled/` — opt-in, default active
 
 Each entry in `02-enabled/` is a symlink to a script in `available/`.
-Default-active scripts (the 8 today: go, java, node, pnpm, engram,
-pi-coding, pi-gentle, skills) are linked here at install time. To
-disable one, delete the symlink. To enable one, run
+Default-active scripts use a unique `NN-name.sh` sequence whose only
+job is to make the build order explicit while the symlink target keeps
+its richer catalog name in `available/`.
+
+Current default order:
+
+```text
+10-bats.sh
+20-go.sh
+30-node.sh
+40-pnpm.sh
+50-devcontainer-cli.sh
+60-engram.sh
+70-pi-coding.sh
+80-pi-gentle.sh
+90-skills.sh
+```
+
+This ordering is intentional: `bats` runs first, `skills` runs last,
+and the Node/npm-dependent tools stay after the Node runtime scripts.
+To disable one, delete the symlink. To enable one, run
 `task install:enable -- NAME`.
 
 ### `03-hooks/` — user extensions (gitignored)
@@ -134,6 +153,12 @@ place the result in `available/`.
 
 Three cases, in order of likelihood:
 
+When adding a new default-active symlink in `02-enabled/`, pick the next
+free number in the sequence and keep the tool name only in the symlink
+filename (`NN-tool.sh`). Do **not** copy the category/type prefix from
+`available/` into `02-enabled/`; that extra information belongs to the
+catalog script name, not the enabled ordering layer.
+
 ### Case 1: a new script for an existing tool (most common)
 
 You're adding a second Pi agent config script, or you want to split a
@@ -151,7 +176,7 @@ If you want it active by default, link it from `02-enabled/`:
 
 ```bash
 cd .devcontainer/install/02-enabled
-ln -sfn ../available/30-ai-pi-extras.sh 30-ai-pi-extras.sh
+ln -sfn ../available/30-ai-pi-extras.sh 75-pi-extras.sh
 ```
 
 If only an opt-in, leave it in `available/` and let users enable
@@ -175,7 +200,7 @@ cp .devcontainer/install/templates/install-script.sh \
    .devcontainer/install/available/20-runtime-kubectl.sh
 # fill in: download kubectl binary, verify, exit 0 if already present
 cd .devcontainer/install/02-enabled
-ln -sfn ../available/20-runtime-kubectl.sh 20-runtime-kubectl.sh
+ln -sfn ../available/20-runtime-kubectl.sh 35-kubectl.sh
 ```
 
 The "State and volumes" section in the template's header tells you

@@ -47,6 +47,9 @@ version of each.
 1. **Install tree** (`.devcontainer/install/`) — build-time
    scripts that the Dockerfile iterates in three groups
    (`01-core/`, `02-enabled/`, `03-hooks/`), each sorted by filename.
+   `02-enabled/` is intentionally a pure ordering layer: symlink names
+   use a unique `NN-tool.sh` sequence (`10-bats.sh` ... `90-skills.sh`)
+   while `available/` keeps the richer category-based script names.
    Adding a new install script = drop a file in `available/` and
    optionally link it from `02-enabled/`. Doc: `docs/en/install-tree.md`.
 
@@ -93,6 +96,11 @@ get its own ADR.
   the load-bearing order. The numeric prefix inside a filename
   (`00-`, `10-`, `20-`) controls in-group sort order. Do not "fix"
   the directory names to match the in-filename prefixes.
+- **`02-enabled/` is ordered for execution, not taxonomy.** Keep a
+  unique `NN-tool.sh` sequence there and preserve the intended build
+  order (`10-bats` first, `90-skills` last). Category/type prefixes
+  such as `runtime-` or `ai-` belong in `available/`, not in the
+  enabled symlink names.
 - **The `03-hooks/` directory is intentionally NOT in
   `.gitignore`.** A file dropped in there shows up in
   `git status` so the user can decide what to do with it.
@@ -143,7 +151,7 @@ postCreate exit 0, both `validate` and `validate:full` pass.
 
 | You want to... | Do this |
 |---|---|
-| Add a new install script | `cp templates/install-script.sh available/NN-categoria-tool.sh`, fill in, link from `02-enabled/` if default-active. |
+| Add a new install script | `cp templates/install-script.sh available/NN-categoria-tool.sh`, fill in, then if it is default-active link it from `02-enabled/` as `NN-tool.sh` using the next free execution slot. |
 | Add a new stateful volume | bind mount in `docker-compose.yml` + case in `compose_target_to_install_scripts` + install script in `available/`. |
 | Add a new tool's baseline config (HOME) | create `<name>-config/`, add `seed_config_tree ... "${HOME}/.<name>"` in `setup_versioned_pi_config`. |
 | Add a new tool's baseline config (/etc) | same, target is `/etc/<ruta>` — the helper auto-escalates to `sudo`. |
