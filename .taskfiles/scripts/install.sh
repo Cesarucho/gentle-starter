@@ -17,7 +17,7 @@
 #                              available/ entries that are not linked in 02-enabled/
 #   enable NAME                Create an 02-enabled/ symlink to
 #                              available/NAME.sh
-#   disable NAME               Remove the 02-enabled/ symlink for NAME
+#   disable NAME               Remove the 02-enabled/ symlink for NAME.sh
 #   doctor                     Verify the install/ layout integrity
 set -euo pipefail
 
@@ -34,8 +34,8 @@ Commands:
   help                  Show this help
   list [--presets]      List active scripts (01-core, 02-enabled, 03-hooks).
                         With --presets, also show the available/ entries that are not linked in 02-enabled/
-  enable NAME           Create an 02-enabled/ symlink to available/NAME
-  disable NAME          Remove the 02-enabled/ symlink for NAME
+  enable NAME           Create an 02-enabled/ symlink to available/NAME.sh
+  disable NAME          Remove the 02-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
   volumes               Print the live volume contract: bind mounts from
                         docker-compose.yml and the install scripts that

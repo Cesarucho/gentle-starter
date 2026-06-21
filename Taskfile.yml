@@ -96,8 +96,8 @@ tasks:
 
         Install:
           task install:list             Show enabled install scripts
-          task install:enable -- NAME   Enable an available install script
-          task install:disable -- NAME  Disable an enabled install script
+          task install:enable -- NAME   Enable an available install script (NAME = filename without .sh)
+          task install:disable -- NAME  Disable an enabled install script (NAME = filename without .sh)
           task install:doctor           Check install layout integrity
 
         Testing:
