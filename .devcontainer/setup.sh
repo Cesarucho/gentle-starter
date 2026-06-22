@@ -190,3 +190,19 @@ setup_versioned_pi_config
 setup_pi_workspace_trust
 # export PATH="${HOME}/.local/bin:${PATH}"
 repair_installed_volumes
+
+# ---------------------------------------------------------------------------
+# SSH server: start if the install script is enabled.
+# Detection: check for the symlink in 02-enabled/ (created by
+# task install:enable -- ssh, or manually). The script is NOT started
+# by default — this is an intentional security gate: SSH on a LAN port
+# should not spin up silently for every rebuild.
+# ---------------------------------------------------------------------------
+_ssh_enabled_file="${SCRIPT_DIR}/install/02-enabled/20-ssh.sh"
+if [ -L "${_ssh_enabled_file}" ]; then
+	if command -v start-sshd >/dev/null 2>&1; then
+		start-sshd
+	else
+		echo "[setup:warn] start-sshd not on PATH; rebuild the container to complete SSH install" >&2
+	fi
+fi

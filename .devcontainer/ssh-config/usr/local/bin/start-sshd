@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#
+# start-sshd — start/restart the SSH daemon inside the devcontainer.
+#
+# Usage:
+#   start-sshd              # start sshd (idempotent: no-op if already running)
+#   start-sshd --regenerate # regenerate host keys first, then start
+#
+# Requires openssh-server to be installed (see 20-tool-ssh.sh).
+
+set -euo pipefail
+
+REGENERATE=false
+if [ "${1:-}" = "--regenerate" ]; then
+	REGENERATE=true
+fi
+
+SSH_CONFIG_DIR="${HOME}/.ssh-server"
+SSH_DIR="${SSH_CONFIG_DIR}/ssh"
+SSHD_CONFIG="/etc/ssh/sshd_config"
+PIDFILE="/run/sshd.pid"
+
+# --- sanity checks -------------------------------------------------------
+if ! command -v sshd >/dev/null 2>&1; then
+	echo "[start-sshd] ERROR: sshd not found. Run the install script first:" >&2
+	echo "[start-sshd]   DEVCONTAINER_PHASE=build bash ~/.devcontainer-install/available/20-tool-ssh.sh" >&2
+	exit 1
+fi
+
+if [ ! -f "${SSHD_CONFIG}" ]; then
+	echo "[start-sshd] ERROR: ${SSHD_CONFIG} not found. Run setup.sh first." >&2
+	exit 1
+fi
+
+# --- regenerate host keys ------------------------------------------------
+if [ "${REGENERATE}" = true ]; then
+	echo "[start-sshd] Regenerating host keys..."
+	for key_type in rsa ed25519; do
+		rm -f "${SSH_DIR}/ssh_host_${key_type}_key" \
+		       "${SSH_DIR}/ssh_host_${key_type}_key.pub"
+		ssh-keygen -t "${key_type}" -f "${SSH_DIR}/ssh_host_${key_type}_key" -N "" -C "" 2>/dev/null || true
+		echo "[start-sshd]   generated ssh_host_${key_type}_key"
+	done
+fi
+
+# --- stop existing daemon -------------------------------------------------
+if [ -f "${PIDFILE}" ]; then
+	PID=$(cat "${PIDFILE}" 2>/dev/null || echo "")
+	if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
+		echo "[start-sshd] Stopping existing sshd (PID ${PID})"
+		kill "${PID}"
+		sleep 1
+	fi
+	rm -f "${PIDFILE}"
+fi
+
+# --- start sshd -----------------------------------------------------------
+echo "[start-sshd] Starting sshd on port 22 (exposed as 2222 by compose)"
+mkdir -p /run
+/usr/sbin/sshd -f "${SSHD_CONFIG}" -e
+
+# Wait for sshd to be ready
+sleep 1
+if ! pgrep -x sshd >/dev/null; then
+	echo "[start-sshd] ERROR: sshd failed to start. Check logs with:" >&2
+	echo "[start-sshd]   grep -E 'sshd|error' /var/log/auth.log" >&2
+	exit 1
+fi
+
+echo "[start-sshd] sshd running on port 22. Connect from remote PC:"
+echo "[start-sshd]   ssh -p 2222 ubuntu@<host-ip>"
+echo "[start-sshd]   # Add your public key to ~/.ssh/authorized_keys first"

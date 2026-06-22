@@ -23,6 +23,7 @@ services:
       # GIT-CONFIG
       - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
     ports:
-      - "${APP_PORT}:${APP_PORT}" # port for you app
+      - "${APP_PORT}:${APP_PORT}" # app port
+      - "2222:22" # SSH (open to LAN at your own risk)
     env_file:
       - ./.env
