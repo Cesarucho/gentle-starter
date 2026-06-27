@@ -20,6 +20,7 @@ devcontainer_run_as_root apt-get install -y --no-install-recommends \
 	coreutils \
 	curl \
 	entr \
+	fd-find \
 	file \
 	fzf \
 	git \
@@ -34,6 +35,7 @@ devcontainer_run_as_root apt-get install -y --no-install-recommends \
 	parallel \
 	pkg-config \
 	psmisc \
+	ripgrep \
 	rsync \
 	shellcheck \
 	shfmt \
@@ -48,5 +50,10 @@ devcontainer_run_as_root apt-get install -y --no-install-recommends \
 	xz-utils \
 	yq \
 	zip
+
+# The Debian package ships the binary as `fdfind` to avoid a name clash.
+# Expose it as `fd` (the canonical name used by sharkdp/fd upstream and
+# expected by Pi's tools-manager and most ecosystem configs).
+devcontainer_run_as_root ln -sfn /usr/bin/fdfind /usr/local/bin/fd
 
 devcontainer_log_info "Base apt packages installed"

@@ -26,4 +26,4 @@ services:
       - "${APP_PORT}:${APP_PORT}" # app port
       - "2222:22" # SSH (open to LAN at your own risk)
     env_file:
-      - ./.env
+      - ../.env

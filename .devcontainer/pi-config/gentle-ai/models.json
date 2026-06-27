@@ -16,7 +16,7 @@
     "thinking": "high"
   },
   "sdd-spec": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "opencode-go/minimax-m3",
     "thinking": "medium"
   },
   "sdd-design": {
@@ -40,12 +40,11 @@
     "thinking": "high"
   },
   "sdd-sync": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "opencode-go/minimax-m3",
     "thinking": "medium"
   },
   "sdd-archive": {
-    "model": "opencode-go/deepseek-v4-flash",
-    "thinking": "none"
+    "model": "opencode-go/deepseek-v4-flash"
   },
   "context-builder": {
     "model": "opencode-go/deepseek-v4-pro",
@@ -78,5 +77,28 @@
   "worker": {
     "model": "opencode-go/deepseek-v4-pro",
     "thinking": "high"
+  },
+  "jd-judge-a": {
+    "model": "opencode-go/minimax-m3",
+    "thinking": "medium"
+  },
+  "jd-judge-b": {
+    "model": "opencode-go/minimax-m2.7",
+    "thinking": "medium"
+  },
+  "jd-fix-agent": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-readability": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-reliability": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-resilience": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-risk": {
+    "model": "opencode-go/minimax-m3"
   }
 }

@@ -17,19 +17,18 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${PI_AUTO_UPDATE:=0}"
 
 PACKAGES=(
-	"npm:gentle-pi@0.5.0"                           # gentle-core
-	"npm:pi-subagents@0.28.0"                       # gentle-recommendation
+	"npm:gentle-pi@0.10.2"                          # gentle-core
+	"npm:pi-subagents@0.31.0"                       # gentle-recommendation
 	"npm:pi-intercom@0.6.0"                         # gentle-recommendation
-	"npm:pi-web-access@0.10.7"                      # gentle-recommendation
-	"npm:pi-lens@3.8.50"                            # gentle-recommendation
-	"npm:@juicesharp/rpiv-todo@1.18.2"              # gentle-recommendation
-	"npm:@juicesharp/rpiv-ask-user-question@1.18.2" # gentle-recommendation
-	"npm:@juicesharp/rpiv-btw@1.18.2"               # extra
+	"npm:pi-web-access@0.13.0"                      # gentle-recommendation
+	"npm:pi-lens@3.8.61"                            # gentle-recommendation
+	"npm:@juicesharp/rpiv-todo@1.20.0"              # gentle-recommendation
+	"npm:@juicesharp/rpiv-ask-user-question@1.20.0" # gentle-recommendation
+	"npm:@juicesharp/rpiv-btw@1.20.0"               # extra
 	"npm:gentle-engram@0.1.8"                       # engram-dependency
 	"npm:pi-mcp-adapter@2.10.0"                     # engram-dependency
-	"npm:pi-powerline@0.7.1"                        # extra
+	"npm:pi-powerline@0.6.1"                        # extra
 	"npm:pi-terminal-theme@0.2.0"                   # extra
-	"npm:pi-hud@0.8.0"                              # extra
 )
 
 package_name() {

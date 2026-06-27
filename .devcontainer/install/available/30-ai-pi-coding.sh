@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PI_CODING_AGENT_VERSION:=0.79.3}"
+: "${PI_CODING_AGENT_VERSION:=0.80.2}"
 
 if devcontainer_has_cmd pi; then
 	devcontainer_log_info "pi already installed: $(pi --version)"
