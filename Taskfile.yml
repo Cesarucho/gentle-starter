@@ -3,18 +3,20 @@ version: "3"
 includes:
   ai:
     taskfile: ./.taskfiles/ai.yml
-  doctor:
-    taskfile: ./.taskfiles/doctor.yml
-  skill:
-    taskfile: ./.taskfiles/skills.yml
-  quality:
-    taskfile: ./.taskfiles/quality.yml
-  ssh:
-    taskfile: ./.taskfiles/ssh.yml
+  clean:
+    taskfile: ./.taskfiles/clean.yml
   container:
     taskfile: ./.taskfiles/devcontainer.yml
+  doctor:
+    taskfile: ./.taskfiles/doctor.yml
   install:
     taskfile: ./.taskfiles/install.yml
+  quality:
+    taskfile: ./.taskfiles/quality.yml
+  skill:
+    taskfile: ./.taskfiles/skills.yml
+  ssh:
+    taskfile: ./.taskfiles/ssh.yml
   test:
     taskfile: ./.taskfiles/test.yml
 
@@ -56,53 +58,55 @@ tasks:
         Tasks help
 
         General:
-          task help                     Show this help
-          task --list                   List all available tasks
-          task doctor                   Run doctor checks for the detected context
-          task validate                 Run host-safe validation checks, excluding skills
-          task validate:full            Run strict validation requiring shell quality tools
-          task ai:update                Update Pi packages and re-pin selected packages
-          task ai:configure-models      Update Gentle AI model/effort configuration with Pi
-          task ssh:check                Check host SSH agent for devcontainer GitHub access
+          task help                       Show this help
+          task --list                     List all available tasks
+          task doctor                     Run doctor checks for the detected context
+          task validate                   Run host-safe validation checks, excluding skills
+          task validate:full              Run strict validation requiring shell quality tools
+          task ai:update                  Update Pi packages and re-pin selected packages
+          task ai:configure-models        Update Gentle AI model/effort configuration with Pi
+          task clean                      Show clean task help
+          task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
+          task ssh:check                  Check host SSH agent for devcontainer GitHub access
 
         Doctor:
-          task doctor:host              Check host requirements
-          task doctor:container         Check tools inside the devcontainer
+          task doctor:host                Check host requirements
+          task doctor:container           Check tools inside the devcontainer
 
         Quality:
-          task quality:check            Run host-safe shell quality checks
-          task quality:full             Run strict shell quality checks
-          task quality:shellcheck       Run ShellCheck when available
-          task quality:shellcheck:full  Require ShellCheck and run it
-          task quality:format           Check shell formatting when available
-          task quality:format:full      Require shfmt and check formatting
+          task quality:check              Run host-safe shell quality checks
+          task quality:full               Run strict shell quality checks
+          task quality:shellcheck         Run ShellCheck when available
+          task quality:shellcheck:full    Require ShellCheck and run it
+          task quality:format             Check shell formatting when available
+          task quality:format:full        Require shfmt and check formatting
 
         Skills:
-          task skill:help               Show skill workflow examples
-          task skill:list               List installed project skills
-          task skill:sync               Restore, update, prune, and validate skills
-          task skill:validate           Optional: validate skills-lock against installed skills
+          task skill:help                 Show skill workflow examples
+          task skill:list                 List installed project skills
+          task skill:sync                 Restore, update, prune, and validate skills
+          task skill:validate             Optional: validate skills-lock against installed skills
 
         Container:
-          task container:help           Show container workflow examples
-          task container:build          Build devcontainer
-          task container:up             Start devcontainer
-          task container:rm             Force-remove the devcontainer service container
-          task container:rebuild        Remove, build, and start devcontainer
-          task container:restart        Remove and start devcontainer
-          task container:connect        Open bash inside devcontainer
-          task container:pi             Connect to Pi inside devcontainer
-          task container:engram         Connect to Engram TUI inside devcontainer
+          task container:help             Show container workflow examples
+          task container:build            Build devcontainer
+          task container:up               Start devcontainer
+          task container:rm               Force-remove the devcontainer service container
+          task container:rebuild          Remove, build, and start devcontainer
+          task container:restart          Remove and start devcontainer
+          task container:connect          Open bash inside devcontainer
+          task container:pi               Connect to Pi inside devcontainer
+          task container:engram           Connect to Engram TUI inside devcontainer
 
         Install:
-          task install:list             Show enabled install scripts
-          task install:enable -- NAME   Enable an available install script (NAME = filename without .sh)
-          task install:disable -- NAME  Disable an enabled install script (NAME = filename without .sh)
-          task install:doctor           Check install layout integrity
+          task install:list               Show enabled install scripts
+          task install:enable -- NAME     Enable an available install script (NAME = filename without .sh)
+          task install:disable -- NAME    Disable an enabled install script (NAME = filename without .sh)
+          task install:doctor             Check install layout integrity
 
         Testing:
-          task test                     Run all tests (unit + integration)
-          task test:unit                Run unit tests for common.sh helpers
-          task test:integration         Run integration tests for installed tools
-          task test:install             Install BATS if not present
+          task test                       Run all tests (unit + integration)
+          task test:unit                  Run unit tests for common.sh helpers
+          task test:integration           Run integration tests for installed tools
+          task test:install               Install BATS if not present
         EOF
