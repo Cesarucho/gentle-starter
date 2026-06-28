@@ -132,8 +132,8 @@ tasks:
           echo "[skip] container:rebuild must be run on the host." >&2
           exit 0
         fi
-        task rm
-        task build
+        task container:rm
+        task container:build
 
   restart:
     desc: Remove and start devcontainer
@@ -143,8 +143,8 @@ tasks:
           echo "[skip] container:restart must be run on the host." >&2
           exit 0
         fi
-        task rm
-        task up
+        task container:rm
+        task container:up
 
   connect:
     desc: Open bash inside devcontainer
