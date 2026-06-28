@@ -54,9 +54,10 @@ _devcontainer_ssh_install() {
 		fi
 	done
 
-	# Install openssh-server
+	# Install openssh-server (sshd for remote container access)
+	# Install openssh-client (ssh, ssh-add, scp for debugging agent forwarding)
 	devcontainer_run_as_root apt-get update -qq
-	devcontainer_run_as_root apt-get install -y -qq openssh-server >/dev/null
+	devcontainer_run_as_root apt-get install -y -qq openssh-server openssh-client >/dev/null
 
 	devcontainer_log_info "openssh-server installed"
 }
