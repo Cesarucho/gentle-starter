@@ -65,9 +65,15 @@ tasks:
           task validate:full              Run strict validation requiring shell quality tools
           task ai:update                  Update Pi packages and re-pin selected packages
           task ai:configure-models        Update Gentle AI model/effort configuration with Pi
-          task clean                      Show clean task help
-          task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
-          task ssh:check                  Check host SSH agent for devcontainer GitHub access
+              task clean                      Show clean task help
+              task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
+
+            SSH:
+              task ssh:help                   Show SSH workflow help
+              task ssh:start                  Start SSH agent and add keys
+              task ssh:check                  Verify SSH agent and GitHub connectivity
+              task ssh:status                 Show current SSH agent status
+              task ssh:stop                   Stop the SSH agent
 
         Doctor:
           task doctor:host                Check host requirements
