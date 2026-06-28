@@ -18,10 +18,10 @@ tasks:
 
         B) REMOTE ACCESS (SSH into the container from another machine)
           task ssh:register-keys   Auto-detect and register .pub keys
-          task container:rebuild     Rebuild so keys get registered
+          task container:rebuild   Rebuild so keys get registered
 
           Then from another machine on the same WiFi:
-            ssh -p 2222 ubuntu@<host-ip>
+            ssh -p ${APP_PORT}22 ubuntu@<host-ip>
 
         How agent forwarding works:
           1. Host: ssh-agent holds your keys in memory
