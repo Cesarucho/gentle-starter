@@ -70,6 +70,7 @@ tasks:
 
             SSH:
               task ssh:help                   Show SSH workflow help
+              task ssh:register-keys           Auto-detect and register .pub keys
               task ssh:start                  Start SSH agent and add keys
               task ssh:check                  Verify SSH agent and GitHub connectivity
               task ssh:status                 Show current SSH agent status

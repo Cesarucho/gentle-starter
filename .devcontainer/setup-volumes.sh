@@ -15,7 +15,7 @@
 #      .devcontainer/docker-compose.yml as a string under
 #      services.container-svc.volumes, e.g.
 #        - ../.env.d/.postgresql:/home/ubuntu/.postgresql
-      #        - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent/socket   (SSH agent forwarding)
+#        - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent/socket   (SSH agent forwarding)
 #
 #   2. The target-to-script mapping: a case in
 #      compose_target_to_install_scripts() below, e.g.

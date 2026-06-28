@@ -8,23 +8,22 @@ tasks:
         cat <<'EOF'
         SSH workflow help
 
-        The devcontainer shares your host's SSH agent via a socket mount
-        (configured in docker-compose.yml). This means your host's keys
-        are available inside the container without copying them.
+        Two use cases:
 
-        Setup (run once per host session):
-          task ssh:start
+        A) AGENT FORWARDING (git push from container using host keys)
+          task ssh:start     Start agent + add keys
+          task ssh:check     Verify agent and GitHub connectivity
+          task ssh:status    Current agent state
+          task ssh:stop      Stop agent when done
 
-        Before using (verify everything works):
-          task ssh:check
+        B) REMOTE ACCESS (SSH into the container from another machine)
+          task ssh:register-keys   Auto-detect and register .pub keys
+          task container:rebuild     Rebuild so keys get registered
 
-        During work (check current state):
-          task ssh:status
+          Then from another machine on the same WiFi:
+            ssh -p 2222 ubuntu@<host-ip>
 
-        When done (optional cleanup):
-          task ssh:stop
-
-        How it works:
+        How agent forwarding works:
           1. Host: ssh-agent holds your keys in memory
           2. Container: mounts the agent socket from the host
           3. Git inside the container uses the host's keys automatically
@@ -32,9 +31,6 @@ tasks:
         If SSH_AUTH_SOCK is not set on the host:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/<your-key>
-
-        If git push asks for credentials inside the container:
-          task ssh:check   # diagnose the problem
         EOF
 
   check:
@@ -44,71 +40,33 @@ tasks:
       - |
         echo "=== SSH Agent Check ==="
         echo
-
-        # 1. Check if SSH_AUTH_SOCK is set
         if [ -z "$SSH_AUTH_SOCK" ]; then
           echo "✗ SSH_AUTH_SOCK is not set"
           echo
-          echo "  Run these commands to start:"
-          echo "    eval \"\$(ssh-agent -s)\""
-          echo "    ssh-add ~/.ssh/<your-key>"
-          echo
-          echo "  Then run 'task ssh:check' again."
+          echo "  Run: task ssh:start"
           exit 1
         fi
-
         echo "✓ SSH_AUTH_SOCK is set: $SSH_AUTH_SOCK"
-
-        # 2. Check if agent process is running
-        if [ -n "$SSH_AGENT_PID" ]; then
-          if kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
-            echo "✓ SSH agent is running (PID: $SSH_AGENT_PID)"
-          else
-            echo "✗ SSH_AGENT_PID is set but process is not running"
-            echo "  Run: task ssh:start"
-            exit 1
-          fi
+        if [ -n "$SSH_AGENT_PID" ] && kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
+          echo "✓ SSH agent running (PID: $SSH_AGENT_PID)"
         fi
-
         echo
-
-        # 3. List loaded keys
         echo "=== Loaded Keys ==="
         if ssh-add -l 2>/dev/null; then
-          echo
-          echo "✓ Keys are loaded and ready"
+          echo "✓ Keys loaded"
         else
           code=$?
           if [ $code -eq 1 ]; then
             echo "✗ No keys loaded"
-            echo
-            echo "  Run: ssh-add ~/.ssh/<your-key>"
-            exit 1
           else
-            echo "✗ Cannot connect to SSH agent (code: $code)"
-            echo "  Run: task ssh:start"
-            exit 1
+            echo "✗ Cannot connect to agent"
           fi
+          exit 1
         fi
-
         echo
-
-        # 4. Test GitHub connectivity
-        echo "=== GitHub Connectivity ==="
-        echo "Testing connection to git@github.com..."
-        if ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com 2>/dev/null; then
-          echo "✓ GitHub is reachable"
-        else
-          # ssh returns 1 when it connects but has no key for the host
-          # that's actually fine — it just means github doesn't have our key
-          echo "✓ GitHub is reachable (agent responded)"
-          echo "  Note: 'git@github.com: Permission denied' is normal if"
-          echo "  your key is not registered with GitHub. The agent still works."
-        fi
-
-        echo
-        echo "=== All checks passed ==="
-        echo "  You can push from the container using your host's SSH keys."
+        echo "=== GitHub Test ==="
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com 2>/dev/null || true
+        echo "✓ Check complete"
 
   start:
     silent: true
@@ -117,51 +75,25 @@ tasks:
       - |
         echo "=== Starting SSH Agent ==="
         echo
-
-        # Check if already running
         if [ -n "$SSH_AGENT_PID" ] && kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
-          echo "✓ SSH agent already running (PID: $SSH_AGENT_PID)"
-          echo "  Socket: $SSH_AUTH_SOCK"
-          echo
-          echo "Loaded keys:"
-          ssh-add -l 2>/dev/null || echo "  (no keys loaded)"
+          echo "✓ Agent already running (PID: $SSH_AGENT_PID)"
         else
-          # Start new agent
           echo "Starting ssh-agent..."
           eval "$(ssh-agent -s)"
-          echo "✓ Agent started"
-          echo "  PID: $SSH_AGENT_PID"
-          echo "  Socket: $SSH_AUTH_SOCK"
-          echo
-          echo "  Add your keys with:"
-          echo "    ssh-add ~/.ssh/<your-key>"
+          echo "✓ Agent started (PID: $SSH_AGENT_PID)"
         fi
-
         echo
-
-        # Try to add common key paths automatically
-        COMMON_KEYS=(
-          "$HOME/.ssh/id_ed25519"
-          "$HOME/.ssh/id_rsa"
-          "$HOME/.ssh/github_key"
-        )
-
-        for key in "${COMMON_KEYS[@]}"; do
+        echo "=== Adding Keys ==="
+        for key in "$HOME/.ssh/id_ed25519" "$HOME/.ssh/id_rsa" "$HOME/.ssh/github_key"; do
           if [ -f "$key" ] && ! ssh-add -l 2>/dev/null | grep -q "$key"; then
-            echo "Found: $key"
-            ssh-add "$key" 2>/dev/null && echo "  ✓ Added" || echo "  ✗ Failed (check passphrase)"
+            if ssh-add "$key" 2>/dev/null; then
+              echo "  ✓ $(basename $key)"
+            fi
           fi
         done
-
         echo
         echo "=== Current Keys ==="
-        if ssh-add -l 2>/dev/null; then
-          echo
-          echo "Ready to push from the container."
-        else
-          echo "No keys loaded. Add manually:"
-          echo "  ssh-add ~/.ssh/<your-key>"
-        fi
+        ssh-add -l 2>/dev/null || echo "  (none)"
 
   status:
     silent: true
@@ -170,43 +102,90 @@ tasks:
       - |
         echo "=== SSH Agent Status ==="
         echo
-
         if [ -z "$SSH_AUTH_SOCK" ]; then
           echo "✗ SSH_AUTH_SOCK: not set"
-          echo "  Run: task ssh:start"
+          exit 1
+        fi
+        echo "✓ SSH_AUTH_SOCK: $SSH_AUTH_SOCK"
+        if [ -n "$SSH_AGENT_PID" ] && kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
+          echo "✓ Agent PID: $SSH_AGENT_PID (running)"
+        else
+          echo "✗ Agent PID: $SSH_AGENT_PID (not running)"
+        fi
+        echo
+        echo "=== Loaded Keys ==="
+        ssh-add -l 2>/dev/null || echo "  (none)"
+
+  register-keys:
+    silent: true
+    desc: Auto-detect .pub keys in ~/.ssh and register them in .env for container SSH access
+    cmds:
+      - |
+        echo "=== SSH Key Registration ==="
+        echo
+        SSH_DIR="${HOME}/.ssh"
+        ENV_FILE=".env"
+        ENV_VAR="SSH_AUTHORIZED_KEYS"
+
+        mapfile -t PUB_KEYS < <(find "${SSH_DIR}" -maxdepth 1 -name "*.pub" -type f 2>/dev/null | sort)
+
+        if [ ${#PUB_KEYS[@]} -eq 0 ]; then
+          echo "No .pub keys found in ${SSH_DIR}/"
+          echo
+          echo "Generate one with:"
+          echo "  ssh-keygen -t ed25519 -C 'tu-comentario'"
           exit 1
         fi
 
-        echo "✓ SSH_AUTH_SOCK: $SSH_AUTH_SOCK"
+        echo "Found ${#PUB_KEYS[@]} public key(s):"
+        echo
 
-        if [ -n "$SSH_AGENT_PID" ]; then
-          if kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
-            echo "✓ Agent PID: $SSH_AGENT_PID (running)"
+        ALL_KEYS=""
+        for keyfile in "${PUB_KEYS[@]}"; do
+          priv_key="${keyfile%.pub}"
+          if [ -f "${priv_key}" ]; then
+            key_content=$(cat "${keyfile}")
+            key_comment=$(ssh-keygen -y -f "${priv_key}" 2>/dev/null | awk '{print $NF}')
+            if [ -z "${key_comment}" ]; then
+              key_comment=$(head -1 "${keyfile}" | awk '{print $3}' | tr -d '()')
+            fi
+            echo "  $(basename "${keyfile}")  (${key_comment})"
+            ALL_KEYS+="${key_content}"
+            if [ "${keyfile}" != "${PUB_KEYS[-1]}" ]; then
+              ALL_KEYS+=$'\n'
+            fi
           else
-            echo "✗ Agent PID: $SSH_AGENT_PID (not running)"
+            echo "  $(basename "${keyfile}")  (private key not found, skipping)"
+          fi
+        done
+
+        echo
+        echo "=== Updating ${ENV_FILE} ==="
+        echo
+
+        ESCAPED_KEYS="${ALL_KEYS//$'\n'/\\n}"
+
+        if grep -q "^${ENV_VAR}=" "${ENV_FILE}" 2>/dev/null; then
+          if sed -i "s|^${ENV_VAR}=.*|${ENV_VAR}=\"${ESCAPED_KEYS}\"|" "${ENV_FILE}"; then
+            echo "✓ Updated ${ENV_VAR} in ${ENV_FILE}"
+          else
+            echo "✗ Failed to update ${ENV_FILE}"
+            exit 1
           fi
         else
-          echo "? Agent PID: unknown"
+          if echo "" >> "${ENV_FILE}" && echo "${ENV_VAR}=\"${ESCAPED_KEYS}\"" >> "${ENV_FILE}"; then
+            echo "✓ Added ${ENV_VAR} to ${ENV_FILE}"
+          else
+            echo "✗ Failed to write to ${ENV_FILE}"
+            exit 1
+          fi
         fi
 
         echo
-
-        echo "=== Loaded Keys ==="
-        if ssh-add -l 2>/dev/null; then
-          :
-        else
-          code=$?
-          if [ $code -eq 1 ]; then
-            echo "  No keys loaded"
-          else
-            echo "  Cannot list keys (agent not accessible)"
-          fi
-        fi
-
-        echo
-        echo "=== GitHub Test ==="
-        result=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1)
-        echo "  $result"
+        echo "=== Next Steps ==="
+        echo "  1. task container:rebuild    # rebuild so keys get registered"
+        echo "  2. From another machine:"
+        echo "       ssh -p 2222 ubuntu@<host-ip>"
 
   stop:
     silent: true
@@ -217,15 +196,10 @@ tasks:
           echo "SSH_AGENT_PID not set. Nothing to stop."
           exit 0
         fi
-
         if kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
           echo "Stopping SSH agent (PID: $SSH_AGENT_PID)..."
           kill "$SSH_AGENT_PID"
           echo "✓ Agent stopped"
-          echo
-          echo "Note: SSH_AUTH_SOCK still points to the old socket."
-          echo "Start a new shell or run:"
-          echo "  unset SSH_AUTH_SOCK SSH_AGENT_PID"
         else
-          echo "Agent PID $SSH_AGENT_PID is not running. Nothing to stop."
+          echo "Agent $SSH_AGENT_PID is not running."
         fi
