@@ -27,7 +27,7 @@ PACKAGES=(
 	"npm:@juicesharp/rpiv-btw@1.20.0"               # extra
 	"npm:gentle-engram@0.1.8"                       # engram-dependency
 	"npm:pi-mcp-adapter@2.10.0"                     # engram-dependency
-	"npm:pi-powerline@0.6.1"                        # extra
+	"npm:pi-powerline@0.8.0"                        # extra
 	"npm:pi-terminal-theme@0.2.0"                   # extra
 )
 

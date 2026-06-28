@@ -21,6 +21,73 @@ tasks:
           pi install "npm:${package_name}@${package_version}"
         done
 
+  update-tags:
+    silent: true
+    desc: Update package version tags in repo config files from npm
+    cmds:
+      - |
+        set -e
+
+        REPO_ROOT="${HOME}/code"
+        WORKSPACE="${HOME}/gentle-starter"
+
+        # Packages to track
+        PACKAGES=(
+          "gentle-pi"
+          "pi-subagents"
+          "pi-web-access"
+          "pi-lens"
+          "pi-powerline"
+          "@juicesharp/rpiv-todo"
+          "@juicesharp/rpiv-ask-user-question"
+          "@juicesharp/rpiv-btw"
+          "pi-mcp-adapter"
+        )
+        declare -A VERSIONS
+
+        echo "=== Checking npm package versions ==="
+        for pkg in "${PACKAGES[@]}"; do
+          version=$(npm view "${pkg}" version 2>/dev/null)
+          if [ -n "${version}" ]; then
+            VERSIONS["${pkg}"]="${version}"
+            echo "  ${pkg}@${version}"
+          else
+            echo "  ${pkg}: failed to fetch"
+          fi
+        done
+        echo
+
+        # Update settings.json (pi-config/agent/settings.json)
+        SETTINGS_JSON="${WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
+        echo "=== Updating ${SETTINGS_JSON} ==="
+        for pkg in "${!VERSIONS[@]}"; do
+          version="${VERSIONS[${pkg}]}"
+          escaped=$(printf '%s' "${pkg}" | sed 's/[/]/\\\//g')
+          if grep -q "${escaped}@" "${SETTINGS_JSON}"; then
+            sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${SETTINGS_JSON}"
+            echo "  ✓ ${pkg} -> ${version}"
+          else
+            echo "  - ${pkg} (not found in file)"
+          fi
+        done
+        echo
+
+        # Update install script (30-ai-pi-gentle.sh)
+        INSTALL_SCRIPT="${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
+        echo "=== Updating ${INSTALL_SCRIPT} ==="
+        for pkg in "${!VERSIONS[@]}"; do
+          version="${VERSIONS[${pkg}]}"
+          escaped=$(printf '%s' "${pkg}" | sed 's/[/]/\\\//g')
+          if grep -q "${escaped}@" "${INSTALL_SCRIPT}"; then
+            sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${INSTALL_SCRIPT}"
+            echo "  ✓ ${pkg} -> ${version}"
+          else
+            echo "  - ${pkg} (not found in file)"
+          fi
+        done
+        echo
+        echo "Done. Review changes with: git diff"
+
   configure-models:
     desc: Update Gentle AI model and effort configuration with Pi
     cmds:

@@ -64,6 +64,7 @@ tasks:
           task validate                   Run host-safe validation checks, excluding skills
           task validate:full              Run strict validation requiring shell quality tools
           task ai:update                  Update Pi packages and re-pin selected packages
+          task ai:update-tags             Update package version tags in repo config files
           task ai:configure-models        Update Gentle AI model/effort configuration with Pi
               task clean                      Show clean task help
               task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
