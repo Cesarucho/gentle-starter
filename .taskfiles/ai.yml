@@ -1,5 +1,9 @@
 version: "3"
 
+vars:
+  WORKSPACE:
+    sh: git rev-parse --show-toplevel 2>/dev/null || pwd
+
 tasks:
   update:
     desc: Update Pi packages (runtime) and sync version tags to repo config files
@@ -31,7 +35,7 @@ tasks:
 
         echo "=== Syncing version tags to repo ==="
 
-        WORKSPACE="${HOME}/gentle-starter"
+        WORKSPACE="{{.WORKSPACE}}"
         INSTALL_SCRIPT="${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
         SETTINGS_JSON="${WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
 
