@@ -39,7 +39,7 @@ tasks:
     cmds:
       - |
         # Guard: must run on the host
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] ssh:check must be run on the host, not inside the container." >&2
           exit 0
         fi
@@ -79,7 +79,7 @@ tasks:
     cmds:
       - |
         # Guard: must run on the host
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] ssh:start must be run on the host, not inside the container." >&2
           exit 0
         fi
@@ -111,7 +111,7 @@ tasks:
     cmds:
       - |
         # Guard: must run on the host
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] ssh:status must be run on the host, not inside the container." >&2
           exit 0
         fi
@@ -137,7 +137,7 @@ tasks:
     cmds:
       - |
         # Guard: must run on the host
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] ssh:register-keys must be run on the host, not inside the container." >&2
           exit 0
         fi
@@ -213,7 +213,7 @@ tasks:
     cmds:
       - |
         # Guard: must run on the host
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] ssh:stop must be run on the host, not inside the container." >&2
           exit 0
         fi

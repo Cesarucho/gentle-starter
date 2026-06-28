@@ -24,11 +24,11 @@ services:
       - ../.env.d/.gitconfig:/home/ubuntu/.gitconfig-volume
       # SSH-AGENT-FORWARDING: share host SSH agent so git push inside the
       # container uses the host's keys. Requires host SSH_AUTH_SOCK to be set.
-      - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent/socket
+      # - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent/socket
     environment:
       SSH_AUTH_SOCK: /ssh-agent/socket
     ports:
       - "${APP_PORT}:${APP_PORT}" # app port
-      - "${APP_PORT}22:22" # SSH (open to LAN at your own risk)
+      - "2222:22" # SSH (open to LAN at your own risk)
     env_file:
       - ../.env

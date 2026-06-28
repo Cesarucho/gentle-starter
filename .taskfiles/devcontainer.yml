@@ -92,7 +92,7 @@ tasks:
     cmds:
       - task: ensure-identity-env
       - |
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] container:rm must be run on the host." >&2
           exit 0
         fi
@@ -103,48 +103,48 @@ tasks:
     desc: Build devcontainer
     cmds:
       - |
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] container:build must be run on the host." >&2
           exit 0
         fi
-        task run-devcontainer
-          vars:
-            ARGS: build --workspace-folder {{.WORKSPACE}}
+      - task: run-devcontainer
+        vars:
+          ARGS: build --workspace-folder {{.WORKSPACE}}
 
   up:
     desc: Start devcontainer
     interactive: true
     cmds:
       - |
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] container:up must be run on the host." >&2
           exit 0
         fi
-        task run-devcontainer
-          vars:
-            ARGS: up --workspace-folder {{.WORKSPACE}}
+      - task: run-devcontainer
+        vars:
+          ARGS: up --workspace-folder {{.WORKSPACE}}
 
   rebuild:
     desc: Remove, build, and start devcontainer
     cmds:
       - |
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] container:rebuild must be run on the host." >&2
           exit 0
         fi
-        task container:rm
-        task container:build
+      - task: rm
+      - task: build
 
   restart:
     desc: Remove and start devcontainer
     cmds:
       - |
-        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+        if [ -f /.dockerenv ]; then
           echo "[skip] container:restart must be run on the host." >&2
           exit 0
         fi
-        task container:rm
-        task container:up
+      - task: rm
+      - task: up
 
   connect:
     desc: Open bash inside devcontainer
