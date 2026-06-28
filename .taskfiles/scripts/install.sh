@@ -12,9 +12,9 @@
 #
 # Commands:
 #   help                       Show this help
-#   list [--presets]           List active scripts (01-core, 02-enabled,
-#                              03-hooks). With --presets also show the
-#                              available/ entries that are not linked in 02-enabled/
+#   list                       List active scripts (01-core, 02-enabled,
+#                              03-hooks) plus the full available/ catalog
+#                              with enabled/not enabled status
 #   enable NAME                Create an 02-enabled/ symlink to
 #                              available/NAME.sh
 #   disable NAME               Remove the 02-enabled/ symlink for NAME.sh
@@ -32,8 +32,8 @@ Usage:
 
 Commands:
   help                  Show this help
-  list [--presets]      List active scripts (01-core, 02-enabled, 03-hooks).
-                        With --presets, also show the available/ entries that are not linked in 02-enabled/
+  list                  List active scripts (01-core, 02-enabled, 03-hooks)
+                        plus the full available/ catalog with enabled/not enabled status
   enable NAME           Create an 02-enabled/ symlink to available/NAME.sh
   disable NAME          Remove the 02-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
@@ -96,11 +96,6 @@ is_available_enabled() {
 }
 
 cmd_list() {
-	local show_presets=false
-	if [ "${1:-}" = "--presets" ]; then
-		show_presets=true
-	fi
-
 	echo "01-core (obligatorio):"
 	if [ -d "${INSTALL_DIR}/01-core" ]; then
 		find "${INSTALL_DIR}/01-core" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
@@ -120,13 +115,13 @@ cmd_list() {
 	fi
 
 	echo ""
-	echo "available (catálogo):"
+	echo "available (catálogo completo):"
 	if [ -d "${INSTALL_DIR}/available" ]; then
 		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
 			name="$(basename "${f}")"
 			if is_available_enabled "${name}"; then
 				echo "  ${name} (enabled)"
-			elif [ "${show_presets}" = true ]; then
+			else
 				echo "  ${name} (not enabled)"
 			fi
 		done

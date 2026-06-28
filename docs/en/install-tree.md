@@ -220,8 +220,7 @@ empty and is documented in its own README.
 Three tasks tell you the live state:
 
 ```bash
-task install:list              # shows 01-core, 02-enabled, hooks
-task install:list --presets    # also shows available/ entries not in 02-enabled/
+task install:list              # shows 01-core, 02-enabled, hooks, and the full available/ catalog with status
 task install:doctor            # verifies lib/, templates/, enabled/ symlinks
 task install:volumes           # shows the volume contract (separate concern)
 ```

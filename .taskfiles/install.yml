@@ -8,7 +8,7 @@ tasks:
       - ./.taskfiles/scripts/install.sh help
 
   list:
-    desc: List install scripts (core, enabled, hooks). Pass --presets to also show disabled available/ entries
+    desc: List install scripts (core, enabled, hooks) plus the full available/ catalog with status
     cmds:
       - ./.taskfiles/scripts/install.sh list {{.CLI_ARGS}}
 

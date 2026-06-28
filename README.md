@@ -138,8 +138,8 @@ task validate:full
 ### Install catalog management
 
 ```bash
-# Show active install scripts and available opt-in tools
-task install:list -- --presets
+# Show active install scripts and the full available catalog with status
+task install:list
 
 # Enable a new tool from .devcontainer/install/available/
 task install:enable -- 40-php-lang
@@ -354,8 +354,7 @@ task container:rebuild
 Manage the install layout with these tasks:
 
 ```bash
-task install:list                # Show active install scripts
-task install:list --presets      # Also show disabled available/ entries
+task install:list                # Show active install scripts and full catalog status
 task install:enable -- NAME      # Enable a script by linking 02-enabled/ -> available/
 task install:disable -- NAME     # Disable a script by removing its enabled/ link
 task install:doctor              # Verify install/ layout integrity

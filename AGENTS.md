@@ -122,8 +122,7 @@ get its own ADR.
 After any change, run:
 
 ```bash
-task install:list              # core, enabled, available
-task install:list --presets    # also shows .disabled
+task install:list              # core, enabled, available + enabled/not enabled status
 task install:doctor            # lib/, templates/, symlinks integrity
 task install:volumes           # bind-mount → owning-script contract
 task validate                  # doctor + host-safe quality
