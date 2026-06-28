@@ -38,6 +38,7 @@ tasks:
         EOF
 
   check:
+    silent: true
     desc: Verify SSH agent and GitHub connectivity from host
     cmds:
       - |
@@ -110,6 +111,7 @@ tasks:
         echo "  You can push from the container using your host's SSH keys."
 
   start:
+    silent: true
     desc: Start SSH agent and add default key
     cmds:
       - |
@@ -162,6 +164,7 @@ tasks:
         fi
 
   status:
+    silent: true
     desc: Show current SSH agent status
     cmds:
       - |
@@ -206,6 +209,7 @@ tasks:
         echo "  $result"
 
   stop:
+    silent: true
     desc: Stop the SSH agent
     cmds:
       - |
