@@ -38,6 +38,11 @@ tasks:
     desc: Verify SSH agent and GitHub connectivity from host
     cmds:
       - |
+        # Guard: must run on the host
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] ssh:check must be run on the host, not inside the container." >&2
+          exit 0
+        fi
         echo "=== SSH Agent Check ==="
         echo
         if [ -z "$SSH_AUTH_SOCK" ]; then
@@ -73,6 +78,11 @@ tasks:
     desc: Start SSH agent and add default key
     cmds:
       - |
+        # Guard: must run on the host
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] ssh:start must be run on the host, not inside the container." >&2
+          exit 0
+        fi
         echo "=== Starting SSH Agent ==="
         echo
         if [ -n "$SSH_AGENT_PID" ] && kill -0 "$SSH_AGENT_PID" 2>/dev/null; then
@@ -100,6 +110,11 @@ tasks:
     desc: Show current SSH agent status
     cmds:
       - |
+        # Guard: must run on the host
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] ssh:status must be run on the host, not inside the container." >&2
+          exit 0
+        fi
         echo "=== SSH Agent Status ==="
         echo
         if [ -z "$SSH_AUTH_SOCK" ]; then
@@ -121,6 +136,11 @@ tasks:
     desc: Auto-detect .pub keys in ~/.ssh and register them in .env for container SSH access
     cmds:
       - |
+        # Guard: must run on the host
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] ssh:register-keys must be run on the host, not inside the container." >&2
+          exit 0
+        fi
         echo "=== SSH Key Registration ==="
         echo
         SSH_DIR="${HOME}/.ssh"
@@ -192,6 +212,11 @@ tasks:
     desc: Stop the SSH agent
     cmds:
       - |
+        # Guard: must run on the host
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] ssh:stop must be run on the host, not inside the container." >&2
+          exit 0
+        fi
         if [ -z "$SSH_AGENT_PID" ]; then
           echo "SSH_AGENT_PID not set. Nothing to stop."
           exit 0

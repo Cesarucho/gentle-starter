@@ -10,7 +10,7 @@ tasks:
     cmds:
       - |
         cat <<'EOF'
-        Container tasks
+        Container tasks (all require the host, not inside the container)
 
           task container:rebuild    Remove, build, and start devcontainer
           task container:restart    Remove and start devcontainer
@@ -30,9 +30,6 @@ tasks:
         app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
         app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
 
-        # Write identity to both locations:
-        #   .devcontainer/.env  -> compose/devcontainer interpolation
-        #   .env                -> runtime env_file for user apps/tools
         for env_file in ".devcontainer/.env" ".env"; do
           mkdir -p "$(dirname "$env_file")"
           touch "$env_file"
@@ -85,41 +82,69 @@ tasks:
         echo "Devcontainer is not running. Starting it..."
         task container:up
 
+  # Guards: most container tasks must run on the host.
+  # They check for /.dockerenv which only exists inside the container.
+  # connect/pi/engram are fine inside the container (no-op or connect to nested).
+
   rm:
     desc: Force-remove the devcontainer service container
     silent: true
     cmds:
       - task: ensure-identity-env
       - |
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] container:rm must be run on the host." >&2
+          exit 0
+        fi
         container="$(task --silent container:resolve-container-name)"
         docker rm -f "$container" 2>/dev/null || true
 
   build:
     desc: Build devcontainer
     cmds:
-      - task: run-devcontainer
-        vars:
-          ARGS: build --workspace-folder {{.WORKSPACE}}
+      - |
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] container:build must be run on the host." >&2
+          exit 0
+        fi
+        task run-devcontainer
+          vars:
+            ARGS: build --workspace-folder {{.WORKSPACE}}
 
   up:
     desc: Start devcontainer
     interactive: true
     cmds:
-      - task: run-devcontainer
-        vars:
-          ARGS: up --workspace-folder {{.WORKSPACE}}
+      - |
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] container:up must be run on the host." >&2
+          exit 0
+        fi
+        task run-devcontainer
+          vars:
+            ARGS: up --workspace-folder {{.WORKSPACE}}
 
   rebuild:
     desc: Remove, build, and start devcontainer
     cmds:
-      - task: rm
-      - task: build
+      - |
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] container:rebuild must be run on the host." >&2
+          exit 0
+        fi
+        task rm
+        task build
 
   restart:
     desc: Remove and start devcontainer
     cmds:
-      - task: rm
-      - task: up
+      - |
+        if [ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]; then
+          echo "[skip] container:restart must be run on the host." >&2
+          exit 0
+        fi
+        task rm
+        task up
 
   connect:
     desc: Open bash inside devcontainer
