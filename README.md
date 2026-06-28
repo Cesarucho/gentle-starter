@@ -74,7 +74,7 @@ On your PC you need:
     task validate           # optional basic check
     ```
 
-2.  In your **terminal**, run:
+2. In your **terminal**, run:
 
     ```bash
     task container:up         # it will build the image if needed
@@ -238,7 +238,7 @@ task quality:full
 │   ├── en/README.md                Full English documentation
 │   └── en/security.md              English security guide
 ├── .env                            <-- not versioned -->
-├── env/                            Persistent local state, <-- not versioned -->
+├── .env.d/                         Persistent local state, <-- not versioned -->
 ├── .env.example                    Example local variables for `.env`
 ├── .gitignore
 ├── LICENSE
@@ -268,11 +268,11 @@ The `.env.example` file documents safe local variables for creating your own
 cp .env.example .env
 ```
 
-The `env/` directory is intended to store local environment state and should not
+The `.env.d/` directory is intended to store local environment state and should not
 be versioned. It is currently used to mount data such as:
 
 ```text
-env/                          Content <-- not versioned -->
+.env.d/                       Content <-- not versioned -->
 ├── .engram                   Local Engram database
 │   ├── engram.db
 │   ├── engram.db-shm
@@ -286,7 +286,7 @@ env/                          Content <-- not versioned -->
 ```
 
 > Important: do not commit tokens, credentials, or local databases to Git. The
-> repository ignores `env/`, `.env`, `.pi/`, and `.atl/` to avoid publishing
+> repository ignores `.env.d/`, `.env`, `.pi/`, and `.atl/` to avoid publishing
 > local state by accident.
 
 ## ⚙️ Basic customization

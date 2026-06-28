@@ -195,8 +195,8 @@ Plus `AGENTS.md` at the repo root for AI-facing context.
   the user opted out.
 - **Bind mounts, not named volumes.** The project uses
   host bind mounts for `~/.pi`, `~/.engram`, etc. so the user
-  has direct physical access (`cat env/.pi/agent/mcp.json`,
-  `cp -r env/ backup/`). The trade-off: state lives in the
+has direct physical access (`cat .env.d/.pi/agent/mcp.json`,
+  `cp -r .env.d/ backup/`). The trade-off: state lives in the
   working tree (per-clone, not per-machine) and is in
   `.gitignore`. A `task env:backup` / `task env:restore` pair
   was designed and tested but the user chose to defer it.

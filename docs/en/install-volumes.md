@@ -29,8 +29,8 @@ identical to this one (the source tree IS the manifest).
 ┌──────────────────────────────┐         ┌─────────────────────────────────┐
 │ services.container-svc       │         │ resolve_compose_volume_targets │
 │   volumes:                   │ ──────▶ │   reads the volumes block,     │
-│     - ../env/.pi:~/pi        │         │   emits source|target pairs    │
-│     - ../env/.engram:~/engram│         │                                 │
+│     - ../.env.d/.pi:~/pi        │         │   emits source|target pairs    │
+│     - ../.env.d/.engram:~/engram│         │                                 │
 │     - (yours here)           │         │ compose_target_to_install_     │
 └──────────────────────────────┘         │   scripts(target) -> [names]   │
                                          │                                 │
@@ -57,13 +57,13 @@ empty volume.
 
 ## Why bind mounts (and not named volumes)
 
-The project uses **host bind mounts** (`../env/.pi:/home/ubuntu/.pi`)
+The project uses **host bind mounts** (`../.env.d/.pi:/home/ubuntu/.pi`)
 rather than Docker named volumes because the primary use case is
 **physical access from the host**:
 
-- Edit `env/.pi/agent/models.json` with a host editor.
-- `cat env/.engram/.engram.db | jq` from a host terminal.
-- `cp -r env/ env.backup/` for an offline snapshot.
+- Edit `.env.d/.pi/agent/models.json` with a host editor.
+- `cat .env.d/.engram/.engram.db | jq` from a host terminal.
+- `cp -r .env.d/ .env.d.backup/` for an offline snapshot.
 - `grep -r` across the whole state tree from the host.
 
 A named volume would force every one of those into a `docker run`/
@@ -72,7 +72,7 @@ A named volume would force every one of those into a `docker run`/
 | | Bind mount (current) | Named volume |
 |---|---|---|
 | Persist across rebuild | Yes | Yes |
-| Host-side access | Yes (`ls env/`) | No (requires `docker run`) |
+| Host-side access | Yes (`ls .env.d/`) | No (requires `docker run`) |
 | Host editor / grep / cat | Yes | No |
 | `cp -r` for backup | Yes | `docker run --rm -v ... tar` |
 | Survives `rm -rf` of the clone | No (lives in the repo's working tree) | Yes (Docker-managed) |
@@ -80,9 +80,9 @@ A named volume would force every one of those into a `docker run`/
 | UID mismatch host ↔ container | Needs care (the project syncs them in `setup.sh`) | Handled by Docker |
 | `git status` shows it | Yes (intentionally — see below) | No |
 
-The current `env/` is **not** in `.gitignore`'s default, so `git status`
+The current `.env.d/` is **not** in `.gitignore`'s default, so `git status`
 will list any files you drop there. This is intentional: a file in
-`env/` is a deliberate, per-clone, per-checkout piece of state. Use
+`.env.d/` is a deliberate, per-clone, per-checkout piece of state. Use
 `git status --ignored` if you also want to see the contents of other
 ignored paths.
 
@@ -124,18 +124,21 @@ itself. `setup-volumes.sh` is the dispatch; the scripts are the work.
 Let's say you want to add a PostgreSQL data dir that survives rebuilds.
 
 1. **Add the bind mount** in `.devcontainer/docker-compose.yml`:
+
    ```yaml
    volumes:
-     - ../env/.pi:/home/ubuntu/.pi
-     - ../env/.engram:/home/ubuntu/.engram
-     - ../env/.postgresql:/home/ubuntu/.postgresql
+     - ../.env.d/.pi:/home/ubuntu/.pi
+     - ../.env.d/.engram:/home/ubuntu/.engram
+     - ../.env.d/.postgresql:/home/ubuntu/.postgresql
    ```
 
 2. **Add the install script** in `.devcontainer/install/available/`:
+
    ```bash
    cp .devcontainer/install/templates/install-script.sh \
       .devcontainer/install/available/40-data-postgresql.sh
    ```
+
    Fill the script. Make it idempotent (skip if already present) and
    **runtime-safe** (it will be called as ubuntu, not root — the
    `setup.sh` heredoc for SDKMAN is the model).
@@ -143,6 +146,7 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
 3. **Add the target-to-script mapping** in
    `.devcontainer/setup-volumes.sh` (the `case` block in
    `compose_target_to_install_scripts`):
+
    ```bash
    case "${target}" in
        "${HOME}/.pi"        | "/home/${UID}/.pi")
@@ -158,22 +162,27 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
    ```
 
 4. **Enable the script** by linking from `02-enabled/`:
+
    ```bash
    cd .devcontainer/install/02-enabled
    ln -sfn ../available/40-data-postgresql.sh 40-data-postgresql.sh
    ```
 
 5. **Verify the live contract**:
+
    ```bash
    task install:volumes
    ```
+
    The output should now show the postgresql target with its owning
    script.
 
 6. **Rebuild and validate**:
+
    ```bash
    task container:rebuild
    ```
+
    The build log should include a `Running: .../40-data-postgresql.sh`
    line during build, and the postCreate log should include a
    `Volume repair: /home/ubuntu/.postgresql -> 40-data-postgresql.sh`
@@ -217,8 +226,8 @@ docker exec ${APP_NAME}-run cat ~/.pi/agent/mcp.json
 Or from the host:
 
 ```bash
-ls -la env/.engram/
-cat env/.pi/agent/mcp.json
+ls -la .env.d/.engram/
+cat .env.d/.pi/agent/mcp.json
 ```
 
 (The host-side path is exactly the bind-mount source path.)

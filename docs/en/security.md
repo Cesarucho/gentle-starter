@@ -14,7 +14,7 @@ Do not commit:
 
 ```text
 .env
-env/
+.env.d/
 .pi/
 .atl/
 ```
@@ -37,15 +37,15 @@ Rules:
 - Do not add real tokens, passwords, private keys, or external service
   credentials to versioned files.
 
-## Local state in `env/`
+## Local state in `.env.d/`
 
-The `env/` directory is used to persist local state mounted in the container,
+The `.env.d/` directory is used to persist local state mounted in the container,
 for example:
 
 ```text
-env/.pi/
-env/.engram/
-env/.gitconfig/
+.env.d/.pi/
+.env.d/.engram/
+.env.d/.gitconfig/
 ```
 
 That content belongs to the developer's machine. It should not be published or
@@ -78,14 +78,14 @@ If your project does not need Docker inside the devcontainer, consider removing:
 The container may mount local Git configuration in:
 
 ```text
-env/.gitconfig/
+.env.d/.gitconfig/
 ```
 
 Before publishing, check that there are no credentials or tokens in:
 
 ```text
-env/.gitconfig/config
-env/.gitconfig/.git-credentials
+.env.d/.gitconfig/config
+.env.d/.gitconfig/.git-credentials
 ```
 
 If you use `gh auth login`, treat the generated tokens as local secrets.
@@ -93,10 +93,10 @@ If you use `gh auth login`, treat the generated tokens as local secrets.
 ## Engram and local memory
 
 Engram can store persistent information from the work done. Check its local
-database before sharing an environment or copying `env/`:
+database before sharing an environment or copying `.env.d/`:
 
 ```text
-env/.engram/
+.env.d/.engram/
 ```
 
 It may contain decisions, project context, prompts, summaries, or sensitive data
@@ -116,7 +116,7 @@ task doctor
 ```
 
 Manually review any new files before committing, especially if they come from
-`env/`, `.pi/`, `.atl/`, or local configurations.
+`.env.d/`, `.pi/`, `.atl/`, or local configurations.
 
 ## Reporting issues
 

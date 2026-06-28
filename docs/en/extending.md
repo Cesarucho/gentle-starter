@@ -112,7 +112,7 @@ In `docker-compose.yml`:
 
 ```yaml
 volumes:
-  - ../env/.redis:/var/lib/redis
+  - ../.env.d/.redis:/var/lib/redis
 ```
 
 In `setup-volumes.sh`'s `compose_target_to_install_scripts`:
@@ -127,7 +127,7 @@ In `setup-volumes.sh`'s `compose_target_to_install_scripts`:
 
 ```bash
 task install:list          # shows 30-tool-redis in 02-enabled
-task install:volumes       # shows ../env/.redis -> /var/lib/redis owned by 30-tool-redis
+task install:volumes       # shows ../.env.d/.redis -> /var/lib/redis owned by 30-tool-redis
 task container:rebuild     # builds with all three changes
 
 # inside the container:
@@ -181,8 +181,8 @@ helper escalates to `sudo`). See
 
 Two patterns:
 
-- **Bind mounts in `env/`**: `env/` is in `.gitignore`. Anything you
-  drop in `env/.pi/`, `env/.engram/`, etc. is per-clone and won't
+- **Bind mounts in `.env.d/`**: `.env.d/` is in `.gitignore`. Anything you
+  drop in `.env.d/.pi/`, `.env.d/.engram/`, etc. is per-clone and won't
   be committed.
 - **Personal config sources**: use a `<name>-config.local/`
   suffix; the pattern `*-config.local/` is in `.gitignore`. Drop
@@ -231,9 +231,9 @@ fi
 `30-ai-pi-gentle.sh` and `30-ai-engram.sh` are real examples of
 this pattern.
 
-### What happens if I delete `env/` and rebuild?
+### What happens if I delete `.env.d/` and rebuild?
 
-The volume-repair contract kicks in. With `env/.pi/` empty,
+The volume-repair contract kicks in. With `.env.d/.pi/` empty,
 `repair_installed_volumes` notices the target is empty and re-runs
 `30-ai-pi-coding.sh` and `30-ai-pi-gentle.sh` with
 `DEVCONTAINER_PHASE=runtime`. The scripts' idempotency guards
@@ -256,7 +256,7 @@ source.
 For the runtime data of a stateful volume: the volume repair
 contract doesn't reset data — that's deliberate, to avoid
 accidentally wiping your work. If you really want a clean slate,
-rename `env/<vol>/` to `env/<vol>.bak` and rebuild. The next
+rename `.env.d/<vol>/` to `.env.d/<vol>.bak` and rebuild. The next
 startup will see an empty bind mount and re-seed whatever the
 owning install scripts do at runtime.
 
@@ -324,7 +324,7 @@ to clear the legacy symlinks, then `bash /home/ubuntu/${APP_NAME}/.devcontainer/
 inside the container. See the migration section in
 [configs.md](configs.md) for the full procedure.
 
-### The devcontainer CLI is missing on my host!
+### The devcontainer CLI is missing on my host
 
 Inside the devcontainer image, `@devcontainers/cli` is a core
 dependency (script `20-tool-devcontainer-cli.sh`) — you don't need to

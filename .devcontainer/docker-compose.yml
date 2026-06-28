@@ -17,11 +17,11 @@ services:
     # `task install:volumes` to inspect the current contract end-to-end.
     volumes:
       # AI-TOOLS
-      - ../env/.pi:/home/ubuntu/.pi
-      - ../env/.engram:/home/ubuntu/.engram
-      # - ../env/.opencode:/home/ubuntu/.config/opencode
+      - ../.env.d/.pi:/home/ubuntu/.pi
+      - ../.env.d/.engram:/home/ubuntu/.engram
+      # - ../.env.d/.opencode:/home/ubuntu/.config/opencode
       # GIT-CONFIG
-      - ../env/.gitconfig:/home/ubuntu/.gitconfig-volume
+      - ../.env.d/.gitconfig:/home/ubuntu/.gitconfig-volume
     ports:
       - "${APP_PORT}:${APP_PORT}" # app port
       - "2222:22" # SSH (open to LAN at your own risk)
