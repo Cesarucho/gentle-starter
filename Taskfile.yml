@@ -66,16 +66,16 @@ tasks:
           task ai:update                  Update Pi packages and re-pin selected packages
           task ai:update-tags             Update package version tags in repo config files
           task ai:configure-models        Update Gentle AI model/effort configuration with Pi
-              task clean                      Show clean task help
-              task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
+          task clean                      Show clean task help
+          task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
 
-            SSH:
-              task ssh:help                   Show SSH workflow help
-              task ssh:register-keys           Auto-detect and register .pub keys
-              task ssh:start                  Start SSH agent and add keys
-              task ssh:check                  Verify SSH agent and GitHub connectivity
-              task ssh:status                 Show current SSH agent status
-              task ssh:stop                   Stop the SSH agent
+        SSH:
+          task ssh:help                   Show SSH workflow help
+          task ssh:register-keys          Auto-detect and register .pub keys
+          task ssh:start                  Start SSH agent and add keys
+          task ssh:check                  Verify SSH agent and GitHub connectivity
+          task ssh:status                 Show current SSH agent status
+          task ssh:stop                   Stop the SSH agent
 
         Doctor:
           task doctor:host                Check host requirements

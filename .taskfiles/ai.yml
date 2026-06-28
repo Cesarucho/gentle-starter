@@ -23,30 +23,28 @@ tasks:
 
   update-tags:
     silent: true
-    desc: Update package version tags in repo config files from npm
+    desc: Update package version tags in repo config files from npm (reads PACKAGES from install script)
     cmds:
       - |
         set -e
 
-        REPO_ROOT="${HOME}/code"
         WORKSPACE="${HOME}/gentle-starter"
+        INSTALL_SCRIPT="${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
+        SETTINGS_JSON="${WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
 
-        # Packages to track
-        PACKAGES=(
-          "gentle-pi"
-          "pi-subagents"
-          "pi-web-access"
-          "pi-lens"
-          "pi-powerline"
-          "@juicesharp/rpiv-todo"
-          "@juicesharp/rpiv-ask-user-question"
-          "@juicesharp/rpiv-btw"
-          "pi-mcp-adapter"
-        )
+        # Parse package names from the install script's PACKAGES array
+        echo "=== Reading packages from ${INSTALL_SCRIPT} ==="
+        mapfile -t LINES < <(sed -n '/^[[:space:]]*PACKAGES=/,/^[[:space:]]*)$/p' "${INSTALL_SCRIPT}" | grep -oP 'npm:\K[^@]+')
+
+        if [ ${#LINES[@]} -eq 0 ]; then
+          echo "No packages found in ${INSTALL_SCRIPT}"
+          exit 1
+        fi
+
         declare -A VERSIONS
-
-        echo "=== Checking npm package versions ==="
-        for pkg in "${PACKAGES[@]}"; do
+        echo
+        echo "=== Checking npm versions ==="
+        for pkg in "${LINES[@]}"; do
           version=$(npm view "${pkg}" version 2>/dev/null)
           if [ -n "${version}" ]; then
             VERSIONS["${pkg}"]="${version}"
@@ -58,7 +56,6 @@ tasks:
         echo
 
         # Update settings.json (pi-config/agent/settings.json)
-        SETTINGS_JSON="${WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
         echo "=== Updating ${SETTINGS_JSON} ==="
         for pkg in "${!VERSIONS[@]}"; do
           version="${VERSIONS[${pkg}]}"
@@ -67,13 +64,12 @@ tasks:
             sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${SETTINGS_JSON}"
             echo "  ✓ ${pkg} -> ${version}"
           else
-            echo "  - ${pkg} (not found in file)"
+            echo "  - ${pkg} (not pinned in file)"
           fi
         done
         echo
 
         # Update install script (30-ai-pi-gentle.sh)
-        INSTALL_SCRIPT="${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
         echo "=== Updating ${INSTALL_SCRIPT} ==="
         for pkg in "${!VERSIONS[@]}"; do
           version="${VERSIONS[${pkg}]}"
