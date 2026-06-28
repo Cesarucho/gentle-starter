@@ -2,7 +2,7 @@ version: "3"
 
 tasks:
   update:
-    desc: Update Pi packages and re-pin selected packages
+    desc: Update Pi packages (runtime) and sync version tags to repo config files
     silent: true
     vars:
       PINNED_PI_PACKAGES: '{{.PINNED_PI_PACKAGES | default "pi-mcp-adapter"}}'
@@ -10,79 +10,66 @@ tasks:
       - |
         set -e
 
+        echo "=== Updating Pi packages (runtime) ==="
         if ! pi update; then
-          echo "pi update could not self-update. Falling back to sudo npm global update..."
+          echo "pi update failed. Falling back to sudo npm global update..."
           sudo npm --prefix /usr install -g --ignore-scripts --min-release-age=0 @earendil-works/pi-coding-agent
         fi
 
         for package_name in {{.PINNED_PI_PACKAGES}}; do
           package_version="$(npm view "${package_name}" version)"
-          echo "Pinning ${package_name}@${package_version} in Pi settings..."
+          echo "  Pinning ${package_name}@${package_version} in Pi settings..."
           pi install "npm:${package_name}@${package_version}"
         done
+      - task: _sync-tags
 
-  update-tags:
+  _sync-tags:
     silent: true
-    desc: Update package version tags in repo config files from npm (reads PACKAGES from install script)
     cmds:
       - |
         set -e
+
+        echo "=== Syncing version tags to repo ==="
 
         WORKSPACE="${HOME}/gentle-starter"
         INSTALL_SCRIPT="${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
         SETTINGS_JSON="${WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
 
-        # Parse package names from the install script's PACKAGES array
-        echo "=== Reading packages from ${INSTALL_SCRIPT} ==="
         mapfile -t LINES < <(sed -n '/^[[:space:]]*PACKAGES=/,/^[[:space:]]*)$/p' "${INSTALL_SCRIPT}" | grep -oP 'npm:\K[^@]+')
-
-        if [ ${#LINES[@]} -eq 0 ]; then
-          echo "No packages found in ${INSTALL_SCRIPT}"
-          exit 1
-        fi
+        [ ${#LINES[@]} -gt 0 ] || { echo "No packages found in ${INSTALL_SCRIPT}"; exit 1; }
 
         declare -A VERSIONS
-        echo
-        echo "=== Checking npm versions ==="
         for pkg in "${LINES[@]}"; do
           version=$(npm view "${pkg}" version 2>/dev/null)
-          if [ -n "${version}" ]; then
-            VERSIONS["${pkg}"]="${version}"
-            echo "  ${pkg}@${version}"
-          else
-            echo "  ${pkg}: failed to fetch"
-          fi
+          [ -n "${version}" ] && VERSIONS["${pkg}"]="${version}"
         done
-        echo
 
-        # Update settings.json (pi-config/agent/settings.json)
-        echo "=== Updating ${SETTINGS_JSON} ==="
+        updated=0
         for pkg in "${!VERSIONS[@]}"; do
           version="${VERSIONS[${pkg}]}"
           escaped=$(printf '%s' "${pkg}" | sed 's/[/]/\\\//g')
-          if grep -q "${escaped}@" "${SETTINGS_JSON}"; then
-            sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${SETTINGS_JSON}"
-            echo "  ✓ ${pkg} -> ${version}"
-          else
-            echo "  - ${pkg} (not pinned in file)"
-          fi
+          grep -q "${escaped}@" "${SETTINGS_JSON}" && \
+            sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${SETTINGS_JSON}" && \
+            updated=$((updated + 1))
         done
-        echo
+        echo "Updated ${updated} tag(s) in settings.json"
 
-        # Update install script (30-ai-pi-gentle.sh)
-        echo "=== Updating ${INSTALL_SCRIPT} ==="
+        updated=0
         for pkg in "${!VERSIONS[@]}"; do
           version="${VERSIONS[${pkg}]}"
           escaped=$(printf '%s' "${pkg}" | sed 's/[/]/\\\//g')
-          if grep -q "${escaped}@" "${INSTALL_SCRIPT}"; then
-            sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${INSTALL_SCRIPT}"
-            echo "  ✓ ${pkg} -> ${version}"
-          else
-            echo "  - ${pkg} (not found in file)"
-          fi
+          grep -q "${escaped}@" "${INSTALL_SCRIPT}" && \
+            sed -i "s|${escaped}@[0-9][0-9.]*|${escaped}@${version}|g" "${INSTALL_SCRIPT}" && \
+            updated=$((updated + 1))
         done
-        echo
+        echo "Updated ${updated} tag(s) in install script"
         echo "Done. Review changes with: git diff"
+
+  update-tags:
+    silent: true
+    desc: Update version tags in repo config files from npm (standalone, reads from install script)
+    cmds:
+      - task: _sync-tags
 
   configure-models:
     desc: Update Gentle AI model and effort configuration with Pi
