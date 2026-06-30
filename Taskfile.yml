@@ -82,12 +82,14 @@ tasks:
           task doctor:container           Check tools inside the devcontainer
 
         Quality:
-          task quality:check              Run host-safe shell quality checks
-          task quality:full               Run strict shell quality checks
+          task quality:check              Run host-safe quality checks
+          task quality:full               Run strict quality checks
           task quality:shellcheck         Run ShellCheck when available
           task quality:shellcheck:full    Require ShellCheck and run it
           task quality:format             Check shell formatting when available
           task quality:format:full        Require shfmt and check formatting
+          task quality:markdown           Run Markdown lint when available
+          task quality:markdown:full      Require markdownlint-cli2 and run it
 
         Skills:
           task skill:help                 Show skill workflow examples
@@ -107,7 +109,7 @@ tasks:
           task container:engram           Connect to Engram TUI inside devcontainer
 
         Install:
-          task install:list               Show install scripts and catalog status
+          task install:list               Show enabled install scripts
           task install:enable -- NAME     Enable an available install script (NAME = filename without .sh)
           task install:disable -- NAME    Disable an enabled install script (NAME = filename without .sh)
           task install:doctor             Check install layout integrity

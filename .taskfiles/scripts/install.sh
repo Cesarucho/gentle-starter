@@ -12,9 +12,9 @@
 #
 # Commands:
 #   help                       Show this help
-#   list                       List active scripts (01-core, 02-enabled,
-#                              03-hooks) plus the full available/ catalog
-#                              with enabled/not enabled status
+#   list [--presets]           List active scripts (01-core, 02-enabled,
+#                              03-hooks). With --presets also show the
+#                              available/ entries that are not linked in 02-enabled/
 #   enable NAME                Create an 02-enabled/ symlink to
 #                              available/NAME.sh
 #   disable NAME               Remove the 02-enabled/ symlink for NAME.sh
@@ -32,8 +32,8 @@ Usage:
 
 Commands:
   help                  Show this help
-  list                  List active scripts (01-core, 02-enabled, 03-hooks)
-                        plus the full available/ catalog with enabled/not enabled status
+  list [--presets]      List active scripts (01-core, 02-enabled, 03-hooks).
+                        With --presets, also show the available/ entries that are not linked in 02-enabled/
   enable NAME           Create an 02-enabled/ symlink to available/NAME.sh
   disable NAME          Remove the 02-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
@@ -67,6 +67,7 @@ preferred_enabled_name() {
 	20-runtime-go.sh) printf '20-go.sh\n' ;;
 	20-runtime-node.sh) printf '30-node.sh\n' ;;
 	20-runtime-pnpm.sh) printf '40-pnpm.sh\n' ;;
+	40-node-markdownlint.sh) printf '45-markdownlint.sh\n' ;;
 	20-tool-devcontainer-cli.sh) printf '50-devcontainer-cli.sh\n' ;;
 	30-ai-engram.sh) printf '60-engram.sh\n' ;;
 	30-ai-pi-coding.sh) printf '70-pi-coding.sh\n' ;;
@@ -96,6 +97,11 @@ is_available_enabled() {
 }
 
 cmd_list() {
+	local show_presets=false
+	if [ "${1:-}" = "--presets" ]; then
+		show_presets=true
+	fi
+
 	echo "01-core (obligatorio):"
 	if [ -d "${INSTALL_DIR}/01-core" ]; then
 		find "${INSTALL_DIR}/01-core" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
@@ -115,13 +121,13 @@ cmd_list() {
 	fi
 
 	echo ""
-	echo "available (catálogo completo):"
+	echo "available (catálogo):"
 	if [ -d "${INSTALL_DIR}/available" ]; then
 		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
 			name="$(basename "${f}")"
 			if is_available_enabled "${name}"; then
 				echo "  ${name} (enabled)"
-			else
+			elif [ "${show_presets}" = true ]; then
 				echo "  ${name} (not enabled)"
 			fi
 		done

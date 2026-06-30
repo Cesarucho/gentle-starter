@@ -37,14 +37,32 @@ tasks:
     cmds:
       - shfmt -d {{.SHELL_FILES}}
 
+  markdown:
+    desc: Run markdownlint-cli2 when available, otherwise skip with a warning
+    silent: true
+    cmds:
+      - |
+        if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
+          echo "[warn] markdownlint-cli2 not found; skipping Markdown lint"
+          exit 0
+        fi
+        markdownlint-cli2
+
+  markdown:full:
+    desc: Run markdownlint-cli2 and require it to be installed
+    cmds:
+      - markdownlint-cli2
+
   check:
     desc: Run host-safe repository quality checks
     cmds:
       - task: shellcheck
       - task: format
+      - task: markdown
 
   full:
     desc: Run strict repository quality checks
     cmds:
       - task: shellcheck:full
       - task: format:full
+      - task: markdown:full
