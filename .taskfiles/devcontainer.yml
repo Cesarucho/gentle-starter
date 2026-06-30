@@ -92,7 +92,7 @@ tasks:
     cmds:
       - task: ensure-identity-env
       - |
-        if [ -f /.dockerenv ]; then
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:rm must be run on the host." >&2
           exit 0
         fi
@@ -102,49 +102,53 @@ tasks:
   build:
     desc: Build devcontainer
     cmds:
+      - task: ensure-identity-env
       - |
-        if [ -f /.dockerenv ]; then
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:build must be run on the host." >&2
           exit 0
         fi
-      - task: run-devcontainer
-        vars:
-          ARGS: build --workspace-folder {{.WORKSPACE}}
+        set -a
+        . .devcontainer/.env
+        set +a
+        devcontainer build --workspace-folder {{.WORKSPACE}}
 
   up:
     desc: Start devcontainer
     interactive: true
     cmds:
+      - task: ensure-identity-env
       - |
-        if [ -f /.dockerenv ]; then
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:up must be run on the host." >&2
           exit 0
         fi
-      - task: run-devcontainer
-        vars:
-          ARGS: up --workspace-folder {{.WORKSPACE}}
+        set -a
+        . .devcontainer/.env
+        set +a
+        devcontainer up --workspace-folder {{.WORKSPACE}}
 
   rebuild:
     desc: Remove, build, and start devcontainer
     cmds:
       - |
-        if [ -f /.dockerenv ]; then
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:rebuild must be run on the host." >&2
           exit 0
         fi
-      - task: rm
-      - task: build
+        task container:rm
+        task container:build
 
   restart:
     desc: Remove and start devcontainer
     cmds:
       - |
-        if [ -f /.dockerenv ]; then
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:restart must be run on the host." >&2
           exit 0
         fi
-      - task: rm
-      - task: up
+        task container:rm
+        task container:up
 
   connect:
     desc: Open bash inside devcontainer

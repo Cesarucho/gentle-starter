@@ -119,17 +119,105 @@ get its own ADR.
 
 ## How to verify
 
-After any change, run:
+### Fast verification in the current devcontainer
+
+Use this path for normal repository validation when the current Pi
+session is already running inside the devcontainer:
 
 ```bash
-task install:list              # core, enabled, available + enabled/not enabled status
-task install:doctor            # lib/, templates/, symlinks integrity
-task install:volumes           # bind-mount → owning-script contract
-task validate                  # doctor + host-safe quality
-task validate:full             # strict (requires shellcheck)
+task install:list -- --presets   # enabled scripts + disabled catalog presets
+task install:doctor              # lib/, templates/, symlinks integrity
+task install:volumes             # bind-mount → owning-script contract
+task validate                    # doctor + host-safe quality
+task validate:full               # strict shell + Markdown quality
+task test                        # BATS unit + integration suite
 ```
 
-For a full clean rebuild:
+Expected result in the current repo: `validate`, `validate:full`, and
+`test` should pass.
+
+### Host-only tasks from inside a devcontainer
+
+This repo now protects `task container:*` host-only commands from running
+accidentally inside a devcontainer. From the current devcontainer, these
+commands should **skip**:
+
+```bash
+task container:build
+task container:up
+task container:restart
+task container:rebuild
+task container:rm
+```
+
+If any of them starts a nested devcontainer from a normal in-container
+session, treat it as a regression.
+
+### Simulated host verification from inside a devcontainer
+
+When the session itself runs inside the devcontainer, a realistic full
+host-flow test must use a temporary repo copy plus
+`FORCE_HOST_CONTEXT=1`. This is the supported way to simulate the host
+without mutating the main workspace.
+
+Recommended flow:
+
+```bash
+ROOT="$PWD"
+SIM_BASE="$ROOT/.tmp-host-sim-$(date +%s)"
+rsync -a --exclude '.env.d' --exclude '.tmp-host-sim-*' ./ "$SIM_BASE/"
+cd "$SIM_BASE"
+
+FORCE_HOST_CONTEXT=1 task doctor:host
+FORCE_HOST_CONTEXT=1 task container:build
+FORCE_HOST_CONTEXT=1 task container:up
+
+devcontainer exec --workspace-folder . bash -lc '
+  task validate:full &&
+  task test &&
+  ./.taskfiles/scripts/doctor.sh auto
+'
+
+FORCE_HOST_CONTEXT=1 task container:rm
+rm -rf "$SIM_BASE"
+```
+
+Notes:
+
+- `FORCE_HOST_CONTEXT=1` is **test-only**. Do not bake it into normal
+  workflows.
+- Use `devcontainer exec`, not raw `docker exec`, because the simulated
+  container workspace path differs from the source path of the current
+  session.
+- The temporary copy should live under the mounted workspace root so the
+  host Docker daemon can see it.
+
+### Bootstrap / clean-flow verification
+
+Test `task clean` in a separate temporary copy so the real repo is not
+wiped:
+
+```bash
+ROOT="$PWD"
+CLEAN_BASE="$ROOT/.tmp-clean-sim-$(date +%s)"
+rsync -a --exclude '.env.d' --exclude '.tmp-clean-sim-*' ./ "$CLEAN_BASE/"
+cd "$CLEAN_BASE"
+printf 'y\n' | task clean
+```
+
+Verify that:
+
+- `README.md`, `AGENTS.md`, `docs/`, `LICENSE`, and `CHANGELOG.md` are
+  removed;
+- `AGENTS.md.TEMPLATE` is kept;
+- `AGENTS.md` is recreated from `AGENTS.md.TEMPLATE`;
+- the placeholder warning is printed;
+- `.env.example`, `.taskfiles/`, and `.devcontainer/` remain present.
+
+### Full clean rebuild from a real host
+
+Use this only from a real host shell, not from inside a devcontainer
+unless you are intentionally using the host-sim flow above.
 
 ```bash
 task container:rm
@@ -138,16 +226,17 @@ docker rmi code-img:0.1 2>/dev/null
 docker rmi $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "vsc-code-.*-uid" | head -1) 2>/dev/null
 task container:up > /tmp/rebuild.log 2>&1
 grep "Running: " /tmp/rebuild.log | grep -vE "\\\$script"  # 12 lines expected
-grep "Volume repair" /tmp/rebuild.log                     # 3 lines expected
+grep "Volume repair" /tmp/rebuild.log                         # 3 lines expected
 ```
 
-The known-good state after the enabled-order cleanup: core + enabled
+The known-good state after the current validation fixes: core + enabled
 validation passes with Go currently disabled by default in
 `02-enabled/`. The expected always-on tools are `curl`, `jq`, `git`,
 `task`, `devcontainer`, `node`, `npm`, `pnpm`, `pi`, `engram`, and
 `skills`; Java, Go, and other catalog tools may be enabled or disabled
-per project needs. postCreate should exit 0, and both `validate` and
-`validate:full` should pass.
+per project needs. postCreate should exit 0, the host-sim flow should
+pass, and both `validate:full` and `test` should pass inside the active
+or simulated devcontainer.
 
 ## How to extend (cheat sheet)
 

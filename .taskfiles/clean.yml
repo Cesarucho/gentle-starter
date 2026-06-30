@@ -30,7 +30,7 @@ tasks:
 
           KEPT (structure):
             - AGENTS.md.TEMPLATE     reusable AI-facing template
-            - openspec/              project source of truth
+            - openspec/              project source of truth (if present)
             - .agents/               versioned project skills
             - skills-lock.json       skill lock file
             - .env.example           environment template
@@ -42,7 +42,7 @@ tasks:
             - if AGENTS.md.TEMPLATE exists, it is copied to AGENTS.md
             - adapt AGENTS.md placeholders and delete optional sections
             - review .env.example  (APP_NAME, APP_PORT, APP_IMAGE)
-            - review openspec/config.yaml  (project name)
+            - review or create OpenSpec config if your project uses OpenSpec
             - optionally delete AGENTS.md.TEMPLATE once AGENTS.md is final
         EOF
 
@@ -75,7 +75,7 @@ tasks:
         echo "The following are kept as base structure:"
         echo
         echo "  - AGENTS.md.TEMPLATE"
-        echo "  - openspec/"
+        echo "  - openspec/ (if present)"
         echo "  - .agents/"
         echo "  - skills-lock.json"
         echo "  - .env.example"
@@ -114,7 +114,7 @@ tasks:
         echo "  1. Review and update AGENTS.md from the copied template"
         echo "  2. Delete optional AGENTS.md sections that do not apply"
         echo "  3. Review and update .env.example (APP_NAME, APP_PORT, APP_IMAGE)"
-        echo "  4. Review openspec/config.yaml (project name)"
+        echo "  4. Review or create OpenSpec config if your project uses OpenSpec"
         echo "  5. Rename the repo to your project name"
         echo "  6. task validate   # verify the base structure works"
         echo "  7. Optionally delete AGENTS.md.TEMPLATE once AGENTS.md is final"

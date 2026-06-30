@@ -78,11 +78,15 @@ repo_root() {
 }
 
 is_devcontainer() {
+	if [ "${FORCE_HOST_CONTEXT:-}" = "1" ]; then
+		return 1
+	fi
+
 	if [ "${DEVCONTAINER:-}" = "true" ] || [ "${REMOTE_CONTAINERS:-}" = "true" ]; then
 		return 0
 	fi
 
-	[ -f /.dockerenv ] && [ -f "${HOME}/.devcontainer/devcontainer.json" ]
+	[ -f /.dockerenv ] && [ -d .devcontainer ]
 }
 
 extract_devcontainer_service() {
