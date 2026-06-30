@@ -211,6 +211,9 @@ Verify that:
   removed;
 - `AGENTS.md.TEMPLATE` is kept;
 - `AGENTS.md` is recreated from `AGENTS.md.TEMPLATE`;
+- `.devcontainer/docs/` is created with the migrated deep-dive docs;
+- `.devcontainer/README.md` now points at `./docs/*.md` instead of the
+  deleted `../docs/en/*.md` paths;
 - the placeholder warning is printed;
 - `.env.example`, `.taskfiles/`, and `.devcontainer/` remain present.
 
