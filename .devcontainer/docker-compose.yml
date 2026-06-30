@@ -29,6 +29,6 @@ services:
       SSH_AUTH_SOCK: /ssh-agent/socket
     ports:
       - "${APP_PORT}:${APP_PORT}" # app port
-      - "2222:22" # SSH (open to LAN at your own risk)
+      # - "2222:22" # SSH (open to LAN at your own risk)
     env_file:
       - ../.env
