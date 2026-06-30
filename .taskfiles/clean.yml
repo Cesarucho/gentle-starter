@@ -10,8 +10,11 @@ tasks:
         Clean tasks help
 
         Usage:
-          task clean              Show this help
-          task clean:identity     Remove project identity files
+          task clean              Review, confirm, and execute identity cleanup
+          task clean:identity     Explicit alias for the same cleanup
+
+        Preferred command:
+          task clean
 
         About clean:identity:
           Removes files that reference "Gentle Starter" so the repo can be
@@ -26,6 +29,7 @@ tasks:
             - .github/               (if present)
 
           KEPT (structure):
+            - AGENTS.md.TEMPLATE     reusable AI-facing template
             - openspec/              project source of truth
             - .agents/               versioned project skills
             - skills-lock.json       skill lock file
@@ -34,13 +38,17 @@ tasks:
             - .taskfiles/            build and dev tasks
             - .devcontainer/         dev environment
 
-          After running, review the remaining files and manually update:
-            - .env.example  (APP_NAME, APP_PORT, APP_IMAGE)
-            - openspec/config.yaml  (project name)
+          After running:
+            - if AGENTS.md.TEMPLATE exists, it is copied to AGENTS.md
+            - adapt AGENTS.md placeholders and delete optional sections
+            - review .env.example  (APP_NAME, APP_PORT, APP_IMAGE)
+            - review openspec/config.yaml  (project name)
+            - optionally delete AGENTS.md.TEMPLATE once AGENTS.md is final
         EOF
 
   identity:
     desc: Remove project identity files (README, docs, LICENSE, CHANGELOG, .github)
+    silent: true
     cmds:
       - |
         set -euo pipefail
@@ -66,6 +74,7 @@ tasks:
         echo
         echo "The following are kept as base structure:"
         echo
+        echo "  - AGENTS.md.TEMPLATE"
         echo "  - openspec/"
         echo "  - .agents/"
         echo "  - skills-lock.json"
@@ -89,9 +98,23 @@ tasks:
           fi
         done
 
+        if [ -f "AGENTS.md.TEMPLATE" ] && [ ! -e "AGENTS.md" ]; then
+          cp "AGENTS.md.TEMPLATE" "AGENTS.md"
+          echo "Copied: AGENTS.md.TEMPLATE -> AGENTS.md"
+
+          if grep -Eq '<[A-Z0-9_]+>' "AGENTS.md" || grep -Fq 'Template note:' "AGENTS.md"; then
+            echo
+            echo "[warn] AGENTS.md still contains template placeholders or notes."
+            echo "[warn] Update AGENTS.md before committing the new project identity."
+          fi
+        fi
+
         echo
         echo "Identity removed. Next steps:"
-        echo "  1. Review and update .env.example (APP_NAME, APP_PORT, APP_IMAGE)"
-        echo "  2. Review openspec/config.yaml (project name)"
-        echo "  3. Rename the repo to your project name"
-        echo "  4. task validate   # verify the base structure works"
+        echo "  1. Review and update AGENTS.md from the copied template"
+        echo "  2. Delete optional AGENTS.md sections that do not apply"
+        echo "  3. Review and update .env.example (APP_NAME, APP_PORT, APP_IMAGE)"
+        echo "  4. Review openspec/config.yaml (project name)"
+        echo "  5. Rename the repo to your project name"
+        echo "  6. task validate   # verify the base structure works"
+        echo "  7. Optionally delete AGENTS.md.TEMPLATE once AGENTS.md is final"

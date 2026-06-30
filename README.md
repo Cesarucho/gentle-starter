@@ -65,16 +65,21 @@ On your PC you need:
 
 ## 🚀 Quick start
 
+### Fast path: start a new project from this base
+
 1. On your PC:
 
     ```bash
     git clone https://github.com/Cesarucho/gentle-starter.git <my-project-name>
     cd <my-project-name>
-    cp .env.example .env    # works well with the default values
-    task validate           # optional basic check
+    cp .env.example .env
+    task clean                # review, confirm, and remove starter identity
+    task validate             # optional host-safe check
     ```
 
-2. In your **terminal**, run:
+### Build and enter the environment
+
+1. In your **terminal**, run:
 
     ```bash
     task container:up         # it will build the image if needed
@@ -83,7 +88,7 @@ On your PC you need:
 
     > If you use an **IDE**, look for the `Dev Containers: Reopen in Container` option (or similar).
 
-3. Inside the container, you can use any tool normally. If you are using an **IDE**, look for the option to open its terminal.
+2. Inside the container, you can use any tool normally. If you are using an **IDE**, look for the option to open its terminal.
 
     ```bash
     git status
@@ -103,21 +108,20 @@ On your PC you need:
     > validated they should be added to `.devcontainer/install/...` as part of
     > the base environment.
 
-4. Connect your AI provider:
+3. Connect your AI provider:
 
     ```bash
     pi                        # open the main interface
     >_ /login                 # choose a provider
 
-    # ask to config the best model of each agent:
-    >_ "Assign the best model/effort configuration for each gentle-ai agent in @.devcontainer/pi-config/gentle-ai/models.json and @.devcontainer/pi-config/agent/settings.json using the available models (pi --list-models) and following this guide: @docs/assets/ref/GUIA_MODELOS_v5.md"
-    ```
+    # ask to complete '@AGENTS' templete:
+    >_ "Read @AGENTS.md as a template and help me fill in the placeholders."
 
-      > Note: always manually check the available models `/gentle:models`.
+    # start your project from scratch:
+    >_ "Explain to me how Gentle-AI works and how to use it to start a new project."
 
-    ```bash
-    # Ask AI to install what you need:
-    >_ "Read @AGENTS and add a PostgreSQL-16 installer script with pg_hba.conf versioned"
+    # ask AI to install what you need:
+    >_ "Based on the `@.devcontainers/` structure, add an installation for PostgreSQL 16 that includes a version-controlled `pg_hba.conf` file and a volume for data persistence between the host and the container."
     ```
 
 ## 🛠️ Useful commands
@@ -138,8 +142,11 @@ task validate:full
 ### Install catalog management
 
 ```bash
-# Show active install scripts and the full available catalog with status
+# Show enabled install scripts
 task install:list
+
+# Also show disabled presets from .devcontainer/install/available/
+task install:list -- --presets
 
 # Enable a new tool from .devcontainer/install/available/
 task install:enable -- 40-php-lang
@@ -207,7 +214,12 @@ task skill:sync
 # Optional: only if you want to validate skills-lock.json against .agents/skills
 task skill:validate
 
-# Script quality checks
+# New-project identity cleanup
+# task clean is the main command; clean:identity is the explicit alias
+task clean
+task clean:identity
+
+# Script and Markdown quality checks
 task quality:check
 task quality:full
 ```
@@ -354,7 +366,8 @@ task container:rebuild
 Manage the install layout with these tasks:
 
 ```bash
-task install:list                # Show active install scripts and full catalog status
+task install:list                # Show enabled install scripts
+task install:list -- --presets   # Also show disabled catalog presets
 task install:enable -- NAME      # Enable a script by linking 02-enabled/ -> available/
 task install:disable -- NAME     # Disable a script by removing its enabled/ link
 task install:doctor              # Verify install/ layout integrity

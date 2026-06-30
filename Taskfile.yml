@@ -26,6 +26,11 @@ tasks:
     cmds:
       - task: help
 
+  clean:
+    desc: Review and execute project identity cleanup
+    cmds:
+      - task: clean:identity
+
   doctor:
     desc: Run doctor checks for the detected context
     cmds:
@@ -66,8 +71,8 @@ tasks:
           task ai:update                  Update Pi packages and re-pin selected packages
           task ai:update-tags             Update package version tags in repo config files
           task ai:configure-models        Update Gentle AI model/effort configuration with Pi
-          task clean                      Show clean task help
-          task clean:identity             Remove project identity files (README, docs, LICENSE, etc.)
+          task clean                      Review, confirm, and remove project identity files
+          task clean:identity             Explicit alias for project identity cleanup
 
         SSH:
           task ssh:help                   Show SSH workflow help
