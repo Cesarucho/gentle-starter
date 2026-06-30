@@ -1,0 +1,104 @@
+{
+  "sdd-init": {
+    "model": "opencode-go/deepseek-v4-flash",
+    "thinking": "low"
+  },
+  "sdd-onboard": {
+    "model": "opencode-go/kimi-k2.6",
+    "thinking": "low"
+  },
+  "sdd-explore": {
+    "model": "opencode-go/qwen3.7-max",
+    "thinking": "high"
+  },
+  "sdd-proposal": {
+    "model": "opencode-go/kimi-k2.6",
+    "thinking": "high"
+  },
+  "sdd-spec": {
+    "model": "opencode-go/minimax-m3",
+    "thinking": "medium"
+  },
+  "sdd-design": {
+    "model": "opencode-go/minimax-m3",
+    "thinking": "medium"
+  },
+  "sdd-tasks": {
+    "model": "opencode-go/deepseek-v4-flash",
+    "thinking": "low"
+  },
+  "sdd-status": {
+    "model": "opencode-go/deepseek-v4-flash",
+    "thinking": "low"
+  },
+  "sdd-apply": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "thinking": "high"
+  },
+  "sdd-verify": {
+    "model": "opencode-go/kimi-k2.6",
+    "thinking": "high"
+  },
+  "sdd-sync": {
+    "model": "opencode-go/minimax-m3",
+    "thinking": "medium"
+  },
+  "sdd-archive": {
+    "model": "opencode-go/deepseek-v4-flash"
+  },
+  "context-builder": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "thinking": "medium"
+  },
+  "delegate": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "oracle": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "planner": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "medium"
+  },
+  "researcher": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "thinking": "high"
+  },
+  "reviewer": {
+    "model": "opencode-go/kimi-k2.6",
+    "thinking": "high"
+  },
+  "scout": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "thinking": "medium"
+  },
+  "worker": {
+    "model": "opencode-go/deepseek-v4-pro",
+    "thinking": "high"
+  },
+  "jd-judge-a": {
+    "model": "opencode-go/minimax-m3",
+    "thinking": "medium"
+  },
+  "jd-judge-b": {
+    "model": "opencode-go/minimax-m2.7",
+    "thinking": "medium"
+  },
+  "jd-fix-agent": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-readability": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-reliability": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-resilience": {
+    "model": "opencode-go/minimax-m3"
+  },
+  "review-risk": {
+    "model": "opencode-go/minimax-m3"
+  }
+}
