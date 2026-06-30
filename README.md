@@ -121,7 +121,7 @@ On your PC you need:
     >_ "Explain to me how Gentle-AI works and how to use it to start a new project."
 
     # ask AI to install what you need:
-    >_ "Based on the `@.devcontainers/` structure, add an installation for PostgreSQL 16 that includes a version-controlled `pg_hba.conf` file and a volume for data persistence between the host and the container."
+    >_ "Based on the `@.devcontainer/` structure, add an installation for PostgreSQL 16 that includes a version-controlled `pg_hba.conf` file and a volume for data persistence between the host and the container."
     ```
 
 ## 🛠️ Useful commands
