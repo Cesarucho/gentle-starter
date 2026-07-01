@@ -362,6 +362,33 @@ End with a short suggestions summary that offers explicit options:
 - investigate further through repo research, web research, or Context7
   when that would materially improve the decision.
 
+### ToDo lifecycle guardrail
+
+Keep Pi ToDos current proactively; closure reconciliation is only a safety net.
+
+- Maintain exactly one ToDo `in_progress` during normal single-threaded work.
+- Mark a ToDo `completed` immediately when its acceptance condition is met; do
+  not wait for the end of the session or a final summary.
+- When an active ToDo creates a subtask, micro-slice, or blocker, immediately
+  reframe the parent ToDo in the same turn:
+  - mark the parent `completed` if the subtask replaces or finishes its goal;
+  - make the parent blocked by the subtask if the parent still represents real
+    remaining work;
+  - update the parent description if the remaining work changed;
+  - avoid leaving broad bookkeeping parents active when the real work now lives
+    in narrower subtasks.
+- Complete verification, commit, merge, review, and reconciliation ToDos as soon
+  as the corresponding command or artifact is done.
+- At each functional closure point, run `todo list` and inspect any
+  `in_progress` or stale `pending` items before reporting done. Functional
+  closure means a slice is committed, merged, handed off, marked verified, or
+  otherwise described as complete.
+- For each active ToDo at closure, compare it against Git state, commits,
+  verification evidence, and OpenSpec state. Keep it active only when real work
+  remains, and state the blocker or next action explicitly.
+- Mention any remaining active ToDos in the closure summary so the user can
+  distinguish real work from stale task state.
+
 ## Continuity and handoff rules
 
 These rules exist so a fresh session can continue from repo artifacts
