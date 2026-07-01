@@ -125,7 +125,7 @@ Use this path for normal repository validation when the current Pi
 session is already running inside the devcontainer:
 
 ```bash
-task install:list -- --presets   # enabled scripts + disabled catalog presets
+task install:list                # full install catalog from available/ + enabled status
 task install:doctor              # lib/, templates/, symlinks integrity
 task install:volumes             # bind-mount → owning-script contract
 task validate                    # doctor + host-safe quality

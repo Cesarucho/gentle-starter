@@ -142,10 +142,10 @@ task validate:full
 ### Install catalog management
 
 ```bash
-# Show enabled install scripts
+# Show install scripts and the full dynamic catalog from .devcontainer/install/available/
 task install:list
 
-# Also show disabled presets from .devcontainer/install/available/
+# Legacy alias kept for compatibility; same output as install:list
 task install:list -- --presets
 
 # Enable a new tool from .devcontainer/install/available/
@@ -366,8 +366,8 @@ task container:rebuild
 Manage the install layout with these tasks:
 
 ```bash
-task install:list                # Show enabled install scripts
-task install:list -- --presets   # Also show disabled catalog presets
+task install:list                # Show install scripts and full catalog status
+task install:list -- --presets   # Legacy alias; same output as install:list
 task install:enable -- NAME      # Enable a script by linking 02-enabled/ -> available/
 task install:disable -- NAME     # Disable a script by removing its enabled/ link
 task install:doctor              # Verify install/ layout integrity
