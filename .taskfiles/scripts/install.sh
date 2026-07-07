@@ -70,6 +70,7 @@ preferred_enabled_name() {
 	20-runtime-node.sh) printf '30-node.sh\n' ;;
 	20-runtime-pnpm.sh) printf '40-pnpm.sh\n' ;;
 	40-node-markdownlint.sh) printf '45-markdownlint.sh\n' ;;
+	40-cli-glow.sh) printf '46-glow.sh\n' ;;
 	20-tool-devcontainer-cli.sh) printf '50-devcontainer-cli.sh\n' ;;
 	30-ai-engram.sh) printf '60-engram.sh\n' ;;
 	30-ai-pi-coding.sh) printf '70-pi-coding.sh\n' ;;

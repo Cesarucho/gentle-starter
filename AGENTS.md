@@ -48,8 +48,10 @@ version of each.
    scripts that the Dockerfile iterates in three groups
    (`01-core/`, `02-enabled/`, `03-hooks/`), each sorted by filename.
    `02-enabled/` is intentionally a pure ordering layer: symlink names
-   use a unique `NN-tool.sh` sequence (`10-bats.sh` ... `90-skills.sh`)
-   while `available/` keeps the richer category-based script names.
+   use a unique `NN-tool.sh` sequence (`10-bats.sh` ... `90-skills.sh`,
+   including intermediate slots such as `45-markdownlint.sh` and
+   `46-glow.sh`) while `available/` keeps the richer category-based
+   script names.
    Adding a new install script = drop a file in `available/` and
    optionally link it from `02-enabled/`. Doc: `docs/en/install-tree.md`.
 
@@ -235,11 +237,11 @@ grep "Volume repair" /tmp/rebuild.log                         # 3 lines expected
 The known-good state after the current validation fixes: core + enabled
 validation passes with Go currently disabled by default in
 `02-enabled/`. The expected always-on tools are `curl`, `jq`, `git`,
-`task`, `devcontainer`, `node`, `npm`, `pnpm`, `pi`, `engram`, and
-`skills`; Java, Go, and other catalog tools may be enabled or disabled
-per project needs. postCreate should exit 0, the host-sim flow should
-pass, and both `validate:full` and `test` should pass inside the active
-or simulated devcontainer.
+`task`, `devcontainer`, `node`, `npm`, `pnpm`, `glow`, `pi`, `engram`,
+and `skills`; Java, Go, and other catalog tools may be enabled or
+disabled per project needs. postCreate should exit 0, the host-sim flow
+should pass, and both `validate:full` and `test` should pass inside the
+active or simulated devcontainer.
 
 ## How to extend (cheat sheet)
 

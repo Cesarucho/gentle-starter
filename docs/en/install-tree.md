@@ -68,6 +68,9 @@ Current default order:
 10-bats.sh
 30-node.sh
 40-pnpm.sh
+45-markdownlint.sh
+46-glow.sh
+50-browser-playwright.sh
 50-devcontainer-cli.sh
 60-engram.sh
 70-pi-coding.sh
@@ -78,9 +81,10 @@ Current default order:
 The numeric gap is intentional: `20-go.sh` is currently disabled, and a
 missing slot is acceptable when a default-active tool is turned off.
 This ordering is intentional: `bats` runs first, `skills` runs last,
-and the Node/npm-dependent tools stay after the Node runtime scripts.
-To disable one, delete the symlink. To enable one, run
-`task install:enable -- NAME`.
+Node/npm-dependent tools stay after the Node runtime scripts, and small
+CLI additions such as `glow` can take the next free execution slot without
+renaming the rest of the layer. To disable one, delete the symlink. To
+enable one, run `task install:enable -- NAME`.
 
 ### `03-hooks/` — user extensions (gitignored)
 
