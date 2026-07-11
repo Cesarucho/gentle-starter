@@ -1,114 +1,115 @@
 {
   "sdd-init": {
-    "model": "openai-codex/gpt-5.4-mini",
+    "model": "openai-codex/gpt-5.6-luna",
     "thinking": "low"
   },
   "sdd-onboard": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-luna",
     "thinking": "low"
   },
   "sdd-explore": {
-    "model": "openai-codex/gpt-5.5",
-    "thinking": "high",
-    "maxExecutionTimeMs": 1200000
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low",
+    "maxExecutionTimeMs": 1800000
   },
   "sdd-proposal": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "openai-codex/gpt-5.6-sol",
     "thinking": "xhigh",
-    "maxExecutionTimeMs": 1200000
+    "maxExecutionTimeMs": 1800000
   },
   "sdd-spec": {
-    "model": "openai-codex/gpt-5.4",
-    "thinking": "medium"
+    "model": "openai-codex/gpt-5.6-terra",
+    "thinking": "low"
   },
   "sdd-design": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "openai-codex/gpt-5.6-sol",
     "thinking": "medium"
   },
   "sdd-tasks": {
-    "model": "openai-codex/gpt-5.4-mini",
+    "model": "openai-codex/gpt-5.6-luna",
     "thinking": "low"
   },
   "sdd-status": {
-    "model": "openai-codex/gpt-5.4-mini",
+    "model": "openai-codex/gpt-5.6-luna",
     "thinking": "low"
   },
   "sdd-apply": {
     "model": "openai-codex/gpt-5.3-codex-spark",
+    "fallbackModels": ["openai-codex/gpt-5.6-sol"],
     "thinking": "high",
     "maxExecutionTimeMs": 1800000
   },
   "sdd-verify": {
-    "model": "openai-codex/gpt-5.5",
-    "thinking": "high",
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "medium",
     "maxExecutionTimeMs": 1800000
   },
   "sdd-sync": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "sdd-archive": {
-    "model": "openai-codex/gpt-5.4",
-    "thinking": "minimal"
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low"
   },
   "context-builder": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "delegate": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "oracle": {
-    "model": "openai-codex/gpt-5.5",
-    "thinking": "high"
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "medium"
   },
   "planner": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "researcher": {
-    "model": "openai-codex/gpt-5.5",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "high"
   },
   "reviewer": {
-    "model": "openai-codex/gpt-5.5",
-    "thinking": "high"
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "medium"
   },
   "scout": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "worker": {
-    "model": "openai-codex/gpt-5.3-codex-spark",
-    "thinking": "high"
-  },
-  "jd-judge-a": {
-    "model": "openai-codex/gpt-5.4",
-    "thinking": "medium"
-  },
-  "jd-judge-b": {
-    "model": "opencode-go/minimax-m2.7",
+    "model": "openai-codex/gpt-5.6-sol",
     "thinking": "medium"
   },
   "jd-fix-agent": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
+  "jd-judge-b": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "high"
+  },
+  "jd-judge-a": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "high"
+  },
   "review-readability": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "review-reliability": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "review-resilience": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-terra",
     "thinking": "medium"
   },
   "review-risk": {
-    "model": "openai-codex/gpt-5.4",
+    "model": "openai-codex/gpt-5.6-sol",
     "thinking": "medium"
   }
 }

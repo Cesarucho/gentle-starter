@@ -1,16 +1,16 @@
 {
   "packages": [
-    "npm:gentle-pi@0.10.2",
-    "npm:pi-subagents@0.31.0",
+    "npm:gentle-pi@0.16.0",
+    "npm:pi-subagents@0.34.0",
     "npm:pi-intercom@0.6.0",
-    "npm:gentle-engram@0.1.8",
+    "npm:gentle-engram@0.1.10",
     "npm:pi-web-access@0.13.0",
-    "npm:pi-lens@3.8.61",
+    "npm:pi-lens@3.8.68",
     "npm:@juicesharp/rpiv-todo@1.20.0",
     "npm:@juicesharp/rpiv-ask-user-question@1.20.0",
     "npm:@juicesharp/rpiv-btw@1.20.0",
     "npm:pi-mcp-adapter",
-    "npm:pi-powerline@0.8.0",
+    "npm:pi-powerline@0.8.1",
     "npm:pi-terminal-theme@0.2.0"
   ],
   "lastChangelogVersion": "0.80.2",
@@ -24,35 +24,35 @@
   "subagents": {
     "agentOverrides": {
       "context-builder": {
-        "model": "opencode-go/deepseek-v4-pro",
+        "model": "openai-codex/gpt-5.6-terra",
         "thinking": "medium"
       },
       "delegate": {
-        "model": "openai-codex/gpt-5.4",
-        "thinking": "medium"
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "low"
       },
       "oracle": {
-        "model": "openai-codex/gpt-5.5",
+        "model": "openai-codex/gpt-5.6-sol",
         "thinking": "high"
       },
       "planner": {
-        "model": "openai-codex/gpt-5.5",
+        "model": "openai-codex/gpt-5.6-terra",
         "thinking": "medium"
       },
       "researcher": {
-        "model": "opencode-go/deepseek-v4-pro",
+        "model": "openai-codex/gpt-5.6-terra",
         "thinking": "high"
       },
       "reviewer": {
-        "model": "opencode-go/kimi-k2.6",
+        "model": "openai-codex/gpt-5.6-sol",
         "thinking": "high"
       },
       "scout": {
-        "model": "opencode-go/deepseek-v4-pro",
+        "model": "openai-codex/gpt-5.6-terra",
         "thinking": "medium"
       },
       "worker": {
-        "model": "opencode-go/deepseek-v4-pro",
+        "model": "openai-codex/gpt-5.3-codex-spark",
         "thinking": "high"
       }
     }
