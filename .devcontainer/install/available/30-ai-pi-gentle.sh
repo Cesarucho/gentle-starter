@@ -17,16 +17,16 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${PI_AUTO_UPDATE:=0}"
 
 PACKAGES=(
-	"npm:gentle-pi@0.16.0"                          # gentle-core
-	"npm:pi-subagents@0.34.0"                       # gentle-recommendation
+	"npm:gentle-pi@1.2.0"                          # gentle-core
+	"npm:pi-subagents@0.36.0"                       # gentle-recommendation
 	"npm:pi-intercom@0.6.0"                         # gentle-recommendation
 	"npm:pi-web-access@0.13.0"                      # gentle-recommendation
-	"npm:pi-lens@3.8.68"                            # gentle-recommendation
+	"npm:pi-lens@3.8.71"                            # gentle-recommendation
 	"npm:@juicesharp/rpiv-todo@1.20.0"              # gentle-recommendation
 	"npm:@juicesharp/rpiv-ask-user-question@1.20.0" # gentle-recommendation
 	"npm:@juicesharp/rpiv-btw@1.20.0"               # extra
 	"npm:gentle-engram@0.1.10"                      # engram-dependency
-	"npm:pi-mcp-adapter@2.11.0"                     # engram-dependency
+	"npm:pi-mcp-adapter@2.13.0"                     # engram-dependency
 	"npm:pi-powerline@0.8.1"                        # extra
 	"npm:pi-terminal-theme@0.2.0"                   # extra
 )
