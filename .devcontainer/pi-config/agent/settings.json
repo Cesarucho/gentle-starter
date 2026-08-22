@@ -1,16 +1,16 @@
 {
   "packages": [
-    "npm:gentle-pi@1.2.0",
-    "npm:pi-subagents@0.36.0",
-    "npm:pi-intercom@0.6.0",
+    "npm:gentle-pi@2.2.0",
+    "npm:pi-subagents@0.54.0",
+    "npm:pi-intercom@0.11.0",
     "npm:gentle-engram@0.1.10",
-    "npm:pi-web-access@0.13.0",
-    "npm:pi-lens@3.8.71",
+    "npm:pi-web-access@0.24.1",
+    "npm:pi-lens@4.1.1",
     "npm:@juicesharp/rpiv-todo@1.20.0",
     "npm:@juicesharp/rpiv-ask-user-question@1.20.0",
     "npm:@juicesharp/rpiv-btw@1.20.0",
     "npm:pi-mcp-adapter",
-    "npm:pi-powerline@0.8.1",
+    "npm:pi-powerline@0.9.1",
     "npm:pi-terminal-theme@0.2.0"
   ],
   "lastChangelogVersion": "0.80.2",

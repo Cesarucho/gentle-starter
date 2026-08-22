@@ -316,6 +316,30 @@ file-only rule, document it here.
 These rules protect reviewer focus, keep work discardable, and make
 fresh-session continuation reliable.
 
+### AGENTS.md maintenance guardrail
+
+`AGENTS.md` must be updated in the same change when a durable repository
+convention changes.
+
+Update it when a change modifies stable policy such as:
+
+- repository layout;
+- bounded-context ownership;
+- package/module naming;
+- kernel/shared-code rules;
+- canonical build, test, lint, format, or verification commands;
+- OpenSpec, Graphify, contract, diagram, or executable-spec locations;
+- architecture fitness checks;
+- security, authorization, privacy, or data-handling guardrails;
+- delivery, branch, review, or agent workflow policy.
+
+Do not update it for transient state, active task progress, branch names,
+temporary workarounds, unvalidated hypotheses, or slice-local decisions.
+
+Before archiving an OpenSpec change, check whether any validated convention must be
+promoted to `AGENTS.md`. If no durable policy changed, state that explicitly in the
+change evidence.
+
 ### Work-unit policy
 
 - A commit represents a reviewable work unit, not a session boundary.
