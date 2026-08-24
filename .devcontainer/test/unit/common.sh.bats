@@ -359,10 +359,14 @@ EOF
     [ "$output" = "1.17.0" ]
 }
 
-@test "Dockerfile preserves existing Engram ARG and ENV override" {
+@test "Dockerfile preserves existing Engram and Playwright ARG and ENV overrides" {
     run grep -F 'ARG ENGRAM_VERSION=' "${SCRIPT_DIR}/Dockerfile"
     [ "$status" -eq 0 ]
     run grep -F 'ENV ENGRAM_VERSION=${ENGRAM_VERSION}' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'ARG PLAYWRIGHT_VERSION=' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'ENV PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}' "${SCRIPT_DIR}/Dockerfile"
     [ "$status" -eq 0 ]
 }
 
@@ -421,6 +425,62 @@ EOF
 
     [ "$status" -eq 0 ]
     [ "$output" = "ENGRAM_VERSION=9.9.9" ]
+}
+
+@test "Phase 3A installers resolve central exact values" {
+    local policy_file="${BATS_TEST_TMPDIR}/phase-3a-tool-versions.conf"
+    local case_entry script_name environment_name expected_version
+    local -a cases=(
+        '30-ai-pi-coding.sh|PI_CODING_AGENT_VERSION|9.9.1'
+        '30-ai-skills.sh|SKILLS_VERSION|9.9.2'
+        '40-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION|9.9.3'
+        '40-node-mermaid.sh|MERMAID_CLI_VERSION|9.9.4'
+        '40-python-graphify.sh|GRAPHIFY_VERSION|9.9.5'
+        '50-browser-playwright.sh|PLAYWRIGHT_VERSION|9.9.6'
+    )
+
+    cat >"${policy_file}" <<'EOF'
+TOOL_PI_CODING_AGENT_VERSION="9.9.1"
+TOOL_SKILLS_VERSION="9.9.2"
+TOOL_MARKDOWNLINT_CLI2_VERSION="9.9.3"
+TOOL_MERMAID_CLI_VERSION="9.9.4"
+TOOL_GRAPHIFY_VERSION="9.9.5"
+TOOL_PLAYWRIGHT_VERSION="9.9.6"
+EOF
+
+    for case_entry in "${cases[@]}"; do
+        IFS='|' read -r script_name environment_name expected_version <<<"${case_entry}"
+        run env -u "${environment_name}" \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
+
+        [ "$status" -eq 0 ]
+        [ "$output" = "${environment_name}=${expected_version}" ]
+    done
+}
+
+@test "Phase 3A installer environment overrides win over central values" {
+    local policy_file="${SCRIPT_DIR}/tool-versions.conf"
+    local case_entry script_name environment_name
+    local -a cases=(
+        '30-ai-pi-coding.sh|PI_CODING_AGENT_VERSION'
+        '30-ai-skills.sh|SKILLS_VERSION'
+        '40-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION'
+        '40-node-mermaid.sh|MERMAID_CLI_VERSION'
+        '40-python-graphify.sh|GRAPHIFY_VERSION'
+        '50-browser-playwright.sh|PLAYWRIGHT_VERSION'
+    )
+
+    for case_entry in "${cases[@]}"; do
+        IFS='|' read -r script_name environment_name <<<"${case_entry}"
+        run env \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            "${environment_name}=9.9.9" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
+
+        [ "$status" -eq 0 ]
+        [ "$output" = "${environment_name}=9.9.9" ]
+    done
 }
 
 @test "Docker build ARG persists as runtime Engram ENV" {

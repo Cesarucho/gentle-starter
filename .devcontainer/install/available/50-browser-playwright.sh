@@ -13,8 +13,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PLAYWRIGHT_VERSION:=1.60.0}"
+devcontainer_load_tool_versions
+
+: "${PLAYWRIGHT_VERSION:=${TOOL_PLAYWRIGHT_VERSION:-1.60.0}}"
 : "${PLAYWRIGHT_BROWSERS_PATH:=/opt/ms-playwright}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'PLAYWRIGHT_VERSION=%s\n' "${PLAYWRIGHT_VERSION}"
+	exit 0
+fi
 
 devcontainer_log_info "Preparing playwright browsers path at ${PLAYWRIGHT_BROWSERS_PATH}"
 devcontainer_run_as_root mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}"

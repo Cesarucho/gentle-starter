@@ -10,9 +10,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${GRAPHIFY_VERSION:=0.9.48}"
+devcontainer_load_tool_versions
+
+: "${GRAPHIFY_VERSION:=${TOOL_GRAPHIFY_VERSION:-0.9.48}}"
 : "${GRAPHIFY_INSTALL_DIR:=/opt/graphify}"
 : "${GRAPHIFY_BIN_DIR:=/usr/local/bin}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'GRAPHIFY_VERSION=%s\n' "${GRAPHIFY_VERSION}"
+	exit 0
+fi
 
 if devcontainer_has_cmd graphify && devcontainer_has_cmd graphify-mcp; then
 	devcontainer_log_info "Graphify and Graphify MCP already installed: $(graphify --version)"

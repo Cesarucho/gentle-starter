@@ -11,7 +11,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${MARKDOWNLINT_CLI2_VERSION:=0.22.1}"
+devcontainer_load_tool_versions
+
+: "${MARKDOWNLINT_CLI2_VERSION:=${TOOL_MARKDOWNLINT_CLI2_VERSION:-0.22.1}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'MARKDOWNLINT_CLI2_VERSION=%s\n' "${MARKDOWNLINT_CLI2_VERSION}"
+	exit 0
+fi
 
 markdownlint_cli2_version() {
 	markdownlint-cli2 --help | sed -n '1p'

@@ -10,8 +10,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${MERMAID_CLI_VERSION:=11.16.0}"
+devcontainer_load_tool_versions
+
+: "${MERMAID_CLI_VERSION:=${TOOL_MERMAID_CLI_VERSION:-11.16.0}}"
 : "${UID_NAME:=ubuntu}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'MERMAID_CLI_VERSION=%s\n' "${MERMAID_CLI_VERSION}"
+	exit 0
+fi
 
 if ! devcontainer_has_cmd npm; then
 	devcontainer_log_error "npm is required to install Mermaid CLI"
