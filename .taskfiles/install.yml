@@ -27,6 +27,11 @@ tasks:
     cmds:
       - ./.taskfiles/scripts/install.sh doctor
 
+  versions:validate:
+    desc: Validate the declarative tool-version policy file
+    cmds:
+      - ./.taskfiles/scripts/install.sh versions-validate
+
   volumes:
     desc: "Print the live volume contract: bind mounts from docker-compose.yml and the install scripts that own each target"
     cmds:

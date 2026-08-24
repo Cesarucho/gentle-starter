@@ -4,6 +4,6 @@
 
 .env
 .devcontainer/.env
-.env.d/*
+.env.d/
 *-config.local/
 .base-backup/

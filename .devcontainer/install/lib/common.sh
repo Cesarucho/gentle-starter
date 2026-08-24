@@ -17,6 +17,76 @@ fi
 readonly DEVC_INSTALL_LIB_COMMON_LOADED=1
 
 # ---------------------------------------------------------------------------
+# Declarative tool-version policy
+# ---------------------------------------------------------------------------
+
+# Resolve the version-policy file without depending on the current directory.
+# An explicit path is authoritative. Otherwise support both the Docker build
+# copy (`.devcontainer-install/tool-versions.conf`) and the repository runtime
+# tree (`.devcontainer/tool-versions.conf`).
+devcontainer_tool_versions_file() {
+	local install_root
+	install_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+	if [ -n "${DEVCONTAINER_TOOL_VERSIONS_FILE:-}" ]; then
+		printf '%s\n' "${DEVCONTAINER_TOOL_VERSIONS_FILE}"
+	elif [ -f "${install_root}/tool-versions.conf" ]; then
+		printf '%s\n' "${install_root}/tool-versions.conf"
+	else
+		printf '%s\n' "${install_root}/../tool-versions.conf"
+	fi
+}
+
+# Load a restricted assignment-only file. The file is data, never shell code:
+# no source, eval, command substitutions, exports, functions, or extra syntax.
+devcontainer_load_tool_versions() {
+	local versions_file="${1:-}"
+	local line line_number=0 key quoted value
+	local assignment_pattern="^[[:space:]]*(TOOL_[A-Z0-9_]+)[[:space:]]*=[[:space:]]*('[^']*'|\"[^\"]*\")[[:space:]]*$"
+	local command_substitution="\$("
+	local backtick="\`"
+	local -A seen=()
+
+	if [ -z "${versions_file}" ]; then
+		versions_file="$(devcontainer_tool_versions_file)"
+	fi
+	if [ ! -f "${versions_file}" ]; then
+		devcontainer_log_error "Tool versions file not found: ${versions_file}"
+		return 1
+	fi
+
+	while IFS= read -r line || [ -n "${line}" ]; do
+		line_number=$((line_number + 1))
+		line="${line%$'\r'}"
+		if [[ "${line}" =~ ^[[:space:]]*$ || "${line}" =~ ^[[:space:]]*# ]]; then
+			continue
+		fi
+		if [[ "${line}" == *"${command_substitution}"* || "${line}" == *"${backtick}"* ]]; then
+			devcontainer_log_error "Invalid tool versions syntax at ${versions_file}:${line_number}"
+			return 1
+		fi
+		if [[ ! "${line}" =~ ${assignment_pattern} ]]; then
+			devcontainer_log_error "Invalid tool versions assignment at ${versions_file}:${line_number}"
+			return 1
+		fi
+
+		key="${BASH_REMATCH[1]}"
+		quoted="${BASH_REMATCH[2]}"
+		value="${quoted:1:${#quoted}-2}"
+		if [ -z "${value}" ]; then
+			devcontainer_log_error "Empty tool version is not allowed for ${key} at ${versions_file}:${line_number}"
+			return 1
+		fi
+		if [ -n "${seen[${key}]:-}" ]; then
+			devcontainer_log_error "Duplicate tool version key ${key} at ${versions_file}:${line_number}"
+			return 1
+		fi
+		seen["${key}"]=1
+		printf -v "${key}" '%s' "${value}"
+	done <"${versions_file}"
+}
+
+# ---------------------------------------------------------------------------
 # Phase detection
 # ---------------------------------------------------------------------------
 

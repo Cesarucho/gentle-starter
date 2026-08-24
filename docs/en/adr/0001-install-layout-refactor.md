@@ -155,6 +155,10 @@ Files: `README.md` (index), `extending.md` (the comprehensive
 guide), `install-tree.md`, `install-volumes.md`, `configs.md`.
 Plus `AGENTS.md` at the repo root for AI-facing context.
 
+### Amendment by ADR 0002
+
+[ADR 0002](0002-centralized-tool-version-policy.md) moves declarative tool-version defaults from individual installers to `.devcontainer/tool-versions.conf`. This amends section 6 only. The install tree, script ownership, runtime groups, and execution order decided here remain in force.
+
 ## Consequences
 
 ### Positive

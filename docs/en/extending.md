@@ -5,7 +5,7 @@ devcontainer. It covers the three systems that compose a new
 contribution, ties them together with a worked example, and answers
 the questions that come up most often.
 
-The three systems are:
+The four extension surfaces are:
 
 1. **[The install tree](install-tree.md)** — build-time scripts that
    install tools and dependencies during image build.
@@ -15,9 +15,16 @@ The three systems are:
 3. **[Config seeding](configs.md)** — baseline config files
    versioned in `.devcontainer/<name>-config/` and copied to their
    runtime path on first run.
+4. **[Tool-version policy](adr/0002-centralized-tool-version-policy.md)** —
+   declarative versions and selectors in `.devcontainer/tool-versions.conf`.
+   Installers retain URLs, checksums, architecture, permissions, idempotency,
+   and version checks. Environment variables override central values;
+   transitional local fallbacks apply only when neither is present.
 
-Each system has its own deep-dive doc. This file is the entry point
-and the FAQ. If you only have time to read one doc, read this one.
+Each surface has a deep-dive document or ADR.
+
+This file is the entry point and the FAQ. If you only have time to read one
+doc, read this one.
 
 ## The three systems in one diagram
 

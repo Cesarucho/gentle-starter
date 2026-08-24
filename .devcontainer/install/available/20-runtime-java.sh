@@ -16,10 +16,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${UID_NAME:=ubuntu}"
-: "${JAVA_VERSION:=25-tem}"
+devcontainer_load_tool_versions
 
-if devcontainer_has_cmd java; then
+: "${UID_NAME:=ubuntu}"
+: "${JAVA_VERSION:=${TOOL_JAVA_INSTALL_VERSION:-25-tem}}"
+: "${JAVA_REQUIRED_VERSION:=${TOOL_JAVA_REQUIRED_VERSION:-25}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'JAVA_VERSION=%s\n' "${JAVA_VERSION}"
+	printf 'JAVA_REQUIRED_VERSION=%s\n' "${JAVA_REQUIRED_VERSION}"
+	exit 0
+fi
+
+if devcontainer_check_tool java "${JAVA_REQUIRED_VERSION}"; then
 	devcontainer_log_info "java already installed: $(java --version | head -1)"
 	exit 0
 fi

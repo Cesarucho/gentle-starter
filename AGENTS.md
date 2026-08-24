@@ -38,7 +38,7 @@ linked from there. This file is a shortcut.
   convention, update this file in the same commit. Do not treat
   it as sacred; the docs/ entry is the long-form reference.
 
-## Architecture summary (the three systems)
+## Architecture summary (four extension surfaces)
 
 The devcontainer has three coordinated extension surfaces. The
 deep-dive is in `docs/en/extending.md`; this is the one-paragraph
@@ -70,7 +70,14 @@ version of each.
    `<name>-config/` + one `seed_config_tree` call in
    `setup_versioned_pi_config`. Doc: `docs/en/configs.md`.
 
-The comprehensive guide (how the three interact, a worked example
+4. **Tool-version policy** (`.devcontainer/tool-versions.conf`) — declarative
+   exact versions, provider selectors, observable requirements, major channels,
+   and explicit `latest` policies. Installers load it through the restricted
+   `devcontainer_load_tool_versions` parser while retaining installation logic,
+   URLs, checksums, and idempotency. Doc:
+   `docs/en/adr/0002-centralized-tool-version-policy.md`.
+
+The comprehensive guide (how these systems interact, a worked example
 adding Redis end-to-end, and the FAQ) is in
 [`docs/en/extending.md`](docs/en/extending.md).
 
@@ -274,4 +281,5 @@ active or simulated devcontainer.
 - [`docs/en/install-volumes.md`](docs/en/install-volumes.md) — volume repair contract deep dive
 - [`docs/en/configs.md`](docs/en/configs.md) — `seed_config_tree` deep dive
 - [`docs/en/adr/0001-install-layout-refactor.md`](docs/en/adr/0001-install-layout-refactor.md) — the ADR for the refactor
+- [`docs/en/adr/0002-centralized-tool-version-policy.md`](docs/en/adr/0002-centralized-tool-version-policy.md) — centralized version-policy ADR
 - [`docs/en/`](docs/en/) — English documentation

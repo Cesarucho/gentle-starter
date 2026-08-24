@@ -10,7 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${C4_PLANTUML_VERSION:=2.13.0}"
+devcontainer_load_tool_versions
+
+: "${C4_PLANTUML_VERSION:=${TOOL_C4_PLANTUML_VERSION:-2.13.0}}"
 : "${C4_PLANTUML_SHA256:=1bf4e0061dafc7dea13923a0c5e0456a3702e99b73ef1c01e0871832e15a4e91}"
 : "${C4_PLANTUML_INSTALL_DIR:=/usr/local/share/c4-plantuml}"
 

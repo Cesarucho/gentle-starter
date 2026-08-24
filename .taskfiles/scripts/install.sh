@@ -20,6 +20,7 @@
 #                              available/NAME.sh
 #   disable NAME               Remove the 02-enabled/ symlink for NAME.sh
 #   doctor                     Verify the install/ layout integrity
+#   versions-validate          Validate the declarative tool-version policy
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,6 +40,7 @@ Commands:
   enable NAME           Create an 02-enabled/ symlink to available/NAME.sh
   disable NAME          Remove the 02-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
+  versions-validate     Validate .devcontainer/tool-versions.conf
   volumes               Print the live volume contract: bind mounts from
                         docker-compose.yml and the install scripts that
                         own each target
@@ -266,6 +268,21 @@ cmd_doctor() {
 	return 1
 }
 
+cmd_versions_validate() {
+	local common_sh="${INSTALL_DIR}/lib/common.sh"
+	local versions_file="${REPO_ROOT}/.devcontainer/tool-versions.conf"
+
+	if [ ! -f "${common_sh}" ]; then
+		echo "FAIL: install/lib/common.sh missing" >&2
+		return 1
+	fi
+
+	# shellcheck source=/dev/null
+	source "${common_sh}"
+	DEVCONTAINER_TOOL_VERSIONS_FILE="${versions_file}" devcontainer_load_tool_versions
+	echo "ok: ${versions_file}"
+}
+
 # Print the live volume contract: the bind mounts docker-compose.yml
 # declares, the install scripts that own each target, and a step-by-step
 # for adding a new stateful volume. Sources setup-volumes.sh for the
@@ -340,6 +357,9 @@ disable)
 	;;
 doctor)
 	cmd_doctor
+	;;
+versions-validate)
+	cmd_versions_validate
 	;;
 volumes)
 	cmd_volumes

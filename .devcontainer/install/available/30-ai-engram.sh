@@ -14,12 +14,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${ENGRAM_VERSION:=1.17.0}"
+devcontainer_load_tool_versions
+
+: "${ENGRAM_VERSION:=${TOOL_ENGRAM_VERSION:-1.17.0}}"
 : "${ENGRAM_INSTALL_DIR:=${HOME}/.local/bin}"
 : "${ENGRAM_DATA_DIR:=${HOME}/.engram}"
 : "${ENGRAM_PROFILE_FILE:=${HOME}/.bashrc}"
 : "${ENGRAM_SETUP_PI:=1}"
 TARGET_OS="linux"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'ENGRAM_VERSION=%s\n' "${ENGRAM_VERSION}"
+	exit 0
+fi
 
 engram_binary() {
 	printf '%s/engram' "${ENGRAM_INSTALL_DIR}"

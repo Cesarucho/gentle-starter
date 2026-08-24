@@ -261,3 +261,184 @@ setup() {
         [ "$status" -eq 0 ]
         [[ "$output" == "INSTALLED" ]]
     }
+# ---------------------------------------------------------------------------
+# Declarative tool-version policy
+# ---------------------------------------------------------------------------
+
+@test "tool versions loader accepts quoted assignments comments and blank lines" {
+    file="${BATS_TEST_TMPDIR}/valid.conf"
+    cat >"${file}" <<'EOF'
+# comment
+
+TOOL_ALPHA_VERSION="1.2.3"
+TOOL_BETA_MAJOR='26'
+EOF
+    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && printf '%s|%s' \"\${TOOL_ALPHA_VERSION}\" \"\${TOOL_BETA_MAJOR}\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "1.2.3|26" ]
+}
+
+@test "tool versions loader rejects command substitution" {
+    file="${BATS_TEST_TMPDIR}/substitution.conf"
+    printf '%s\n' 'TOOL_BAD_VERSION="$(id)"' >"${file}"
+    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}'"
+    [ "$status" -ne 0 ]
+}
+
+@test "tool versions loader rejects backticks" {
+    file="${BATS_TEST_TMPDIR}/backticks.conf"
+    printf '%s\n' 'TOOL_BAD_VERSION="`id`"' >"${file}"
+    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}'"
+    [ "$status" -ne 0 ]
+}
+
+@test "tool versions loader rejects commands and functions" {
+    for content in 'echo bad' 'bad() { echo bad; }'; do
+        file="${BATS_TEST_TMPDIR}/command.conf"
+        printf '%s\n' "${content}" >"${file}"
+        run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}'"
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "tool versions loader rejects export and non TOOL keys" {
+    for content in 'export TOOL_BAD_VERSION="1"' 'BAD_VERSION="1"'; do
+        file="${BATS_TEST_TMPDIR}/foreign.conf"
+        printf '%s\n' "${content}" >"${file}"
+        run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}'"
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "tool versions loader rejects duplicate keys" {
+    file="${BATS_TEST_TMPDIR}/duplicate.conf"
+    printf '%s\n' 'TOOL_BAD_VERSION="1"' 'TOOL_BAD_VERSION="2"' >"${file}"
+    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}'"
+    [ "$status" -ne 0 ]
+}
+
+@test "tool versions loader rejects a missing explicit file" {
+    run bash -c "source '${COMMON_SH}' && DEVCONTAINER_TOOL_VERSIONS_FILE='${BATS_TEST_TMPDIR}/missing.conf' devcontainer_load_tool_versions"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not found"* ]]
+}
+
+@test "tool versions path selects build copy" {
+    root="${BATS_TEST_TMPDIR}/build"
+    mkdir -p "${root}/lib"
+    cp "${COMMON_SH}" "${root}/lib/common.sh"
+    printf '%s\n' 'TOOL_BUILD_VERSION="1"' >"${root}/tool-versions.conf"
+    run bash -c "source '${root}/lib/common.sh' && devcontainer_load_tool_versions && printf '%s' \"\${TOOL_BUILD_VERSION}\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "1" ]
+}
+
+@test "tool versions path selects runtime repository copy" {
+    root="${BATS_TEST_TMPDIR}/repo/.devcontainer"
+    mkdir -p "${root}/install/lib"
+    cp "${COMMON_SH}" "${root}/install/lib/common.sh"
+    printf '%s\n' 'TOOL_RUNTIME_VERSION="2"' >"${root}/tool-versions.conf"
+    run bash -c "cd / && source '${root}/install/lib/common.sh' && devcontainer_load_tool_versions && printf '%s' \"\${TOOL_RUNTIME_VERSION}\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "2" ]
+}
+
+@test "legacy environment override wins over central value" {
+    file="${BATS_TEST_TMPDIR}/precedence.conf"
+    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
+    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && ENGRAM_VERSION='9.9.9' && : \"\${ENGRAM_VERSION:=\${TOOL_ENGRAM_VERSION:-fallback}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "9.9.9" ]
+}
+
+@test "central value wins over transitional fallback" {
+    file="${BATS_TEST_TMPDIR}/central.conf"
+    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
+    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && : \"\${ENGRAM_VERSION:=\${TOOL_ENGRAM_VERSION:-fallback}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "1.17.0" ]
+}
+
+@test "Dockerfile preserves existing Engram ARG and ENV override" {
+    run grep -F 'ARG ENGRAM_VERSION=' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'ENV ENGRAM_VERSION=${ENGRAM_VERSION}' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 0 ]
+}
+
+@test "Java installer resolves central selector and observable requirement" {
+    file="${BATS_TEST_TMPDIR}/java-central.conf"
+    printf '%s\n' \
+        'TOOL_JAVA_INSTALL_VERSION="25-tem"' \
+        'TOOL_JAVA_REQUIRED_VERSION="25"' >"${file}"
+
+    run env -u JAVA_VERSION -u JAVA_REQUIRED_VERSION \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
+        bash "${SCRIPT_DIR}/install/available/20-runtime-java.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "JAVA_VERSION=25-tem" ]
+    [ "${lines[1]}" = "JAVA_REQUIRED_VERSION=25" ]
+}
+
+@test "Java installer environment overrides central values" {
+    file="${BATS_TEST_TMPDIR}/java-override.conf"
+    printf '%s\n' \
+        'TOOL_JAVA_INSTALL_VERSION="25-tem"' \
+        'TOOL_JAVA_REQUIRED_VERSION="25"' >"${file}"
+
+    run env \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
+        JAVA_VERSION="26-tem" \
+        JAVA_REQUIRED_VERSION="26" \
+        bash "${SCRIPT_DIR}/install/available/20-runtime-java.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "JAVA_VERSION=26-tem" ]
+    [ "${lines[1]}" = "JAVA_REQUIRED_VERSION=26" ]
+}
+
+@test "Engram installer resolves the central value" {
+    file="${BATS_TEST_TMPDIR}/engram-central.conf"
+    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
+
+    run env -u ENGRAM_VERSION \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
+        bash "${SCRIPT_DIR}/install/available/30-ai-engram.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "ENGRAM_VERSION=1.17.0" ]
+}
+
+@test "Docker-style Engram environment override wins in the installer" {
+    file="${BATS_TEST_TMPDIR}/engram-override.conf"
+    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
+
+    run env \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
+        ENGRAM_VERSION="9.9.9" \
+        bash "${SCRIPT_DIR}/install/available/30-ai-engram.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "ENGRAM_VERSION=9.9.9" ]
+}
+
+@test "Docker build ARG persists as runtime Engram ENV" {
+    command -v docker >/dev/null 2>&1 || skip "docker is unavailable"
+    docker info >/dev/null 2>&1 || skip "docker daemon is unavailable"
+
+    image="gentle-tool-version-contract:${BATS_TEST_NUMBER}"
+    run docker build \
+        --quiet \
+        --target devcontainer-version-contract \
+        --build-arg ENGRAM_VERSION="9.9.9" \
+        --tag "${image}" \
+        "${SCRIPT_DIR}"
+    [ "$status" -eq 0 ]
+
+    run docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${image}"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ENGRAM_VERSION=9.9.9"* ]]
+
+    docker image rm "${image}" >/dev/null
+}

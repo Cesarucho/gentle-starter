@@ -1,5 +1,5 @@
 ARG IMAGE=ubuntu:24.04
-FROM ${IMAGE}
+FROM ${IMAGE} AS devcontainer-version-contract
 
 # Library versions. The canonical default lives in the install script
 # that consumes the value; the Dockerfile only carries the override
@@ -31,7 +31,14 @@ ENV LC_ALL=${LOCALE}
 ENV LOCALE=${LOCALE}
 ENV TZ=${TZ}
 
+# Keep a cheap target that tests can build and inspect to verify ARG-to-ENV
+# propagation without running the complete tool installation layer.
+FROM devcontainer-version-contract AS devcontainer
+ARG UID_NAME=ubuntu
+ARG APP_NAME=project-name
+
 WORKDIR /home/${UID_NAME}
+COPY tool-versions.conf ./.devcontainer-install/tool-versions.conf
 COPY install/ ./.devcontainer-install/
 
 RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-install \

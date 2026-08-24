@@ -10,9 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${SPECTRAL_VERSION:=6.16.3}"
-: "${REDOCLY_VERSION:=2.47.0}"
-: "${ASYNCAPI_VERSION:=6.0.2}"
+devcontainer_load_tool_versions
+
+: "${SPECTRAL_VERSION:=${TOOL_SPECTRAL_VERSION:-6.16.3}}"
+: "${REDOCLY_VERSION:=${TOOL_REDOCLY_VERSION:-2.47.0}}"
+: "${ASYNCAPI_VERSION:=${TOOL_ASYNCAPI_VERSION:-6.0.2}}"
 
 if devcontainer_has_cmd spectral && devcontainer_has_cmd redocly && devcontainer_has_cmd asyncapi; then
 	devcontainer_log_info "API contract CLIs already installed"

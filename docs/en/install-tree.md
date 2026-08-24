@@ -137,8 +137,15 @@ source:
   `_devcontainer_version_satisfies`
 
 It also has a re-source guard, so it's safe to source from any
-script multiple times. See the header comment in `lib/common.sh`
-for the full contract.
+script multiple times. `devcontainer_load_tool_versions` safely parses the
+assignment-only `.devcontainer/tool-versions.conf` file without `source` or
+`eval`; it resolves both the Docker build copy and repository runtime tree
+independently of the current directory. See
+[ADR 0002](adr/0002-centralized-tool-version-policy.md) for the policy format,
+precedence, and migration plan. Representative installers expose an explicit
+`--print-version-policy` diagnostic argument so tests and maintainers can inspect
+the resolved values without performing installation; normal build and runtime
+invocations never pass this argument.
 
 ## `templates/install-script.sh` — the template
 
