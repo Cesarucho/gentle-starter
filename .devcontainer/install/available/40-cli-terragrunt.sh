@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${TERRAGRUNT_VERSION:=1.0.8}"
+devcontainer_load_tool_versions
+
+: "${TERRAGRUNT_VERSION:=${TOOL_TERRAGRUNT_VERSION:-1.0.8}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'TERRAGRUNT_VERSION=%s\n' "${TERRAGRUNT_VERSION}"
+	exit 0
+fi
 : "${TERRAGRUNT_INSTALL_DIR:=/usr/local/bin}"
 
 terragrunt_version_line() {

@@ -11,7 +11,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${DELVE_VERSION:=v1.26.3}"
+devcontainer_load_tool_versions
+
+: "${DELVE_VERSION:=${TOOL_DELVE_VERSION:-v1.26.3}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'DELVE_VERSION=%s\n' "${DELVE_VERSION}"
+	exit 0
+fi
 
 # Guard: skip if go is not present (this tool depends on go being installed).
 if ! devcontainer_has_cmd go; then

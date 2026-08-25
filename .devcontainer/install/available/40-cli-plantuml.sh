@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PLANTUML_VERSION:=1.2026.6}"
+devcontainer_load_tool_versions
+
+: "${PLANTUML_VERSION:=${TOOL_PLANTUML_VERSION:-1.2026.6}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'PLANTUML_VERSION=%s\n' "${PLANTUML_VERSION}"
+	exit 0
+fi
 : "${PLANTUML_INSTALL_DIR:=/usr/local/share/plantuml}"
 : "${PLANTUML_BIN_DIR:=/usr/local/bin}"
 

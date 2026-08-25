@@ -483,6 +483,68 @@ EOF
     done
 }
 
+@test "Phase 3B installers resolve central direct-download values" {
+    local policy_file="${BATS_TEST_TMPDIR}/phase-3b-tool-versions.conf"
+    local case_entry script_name environment_name expected_version
+    local -a cases=(
+        '40-cli-terraform.sh|TERRAFORM_VERSION|9.9.1'
+        '40-cli-gitleaks.sh|GITLEAKS_VERSION|9.9.2'
+        '40-cli-pulumi.sh|PULUMI_VERSION|9.9.3'
+        '40-cli-opentofu.sh|OPENTOFU_VERSION|9.9.4'
+        '40-cli-terragrunt.sh|TERRAGRUNT_VERSION|9.9.5'
+        '40-cli-kubectl.sh|KUBECTL_VERSION|9.9.6'
+        '40-cli-plantuml.sh|PLANTUML_VERSION|9.9.7'
+        '40-go-debug.sh|DELVE_VERSION|v9.9.8'
+    )
+
+    cat >"${policy_file}" <<'EOF'
+TOOL_TERRAFORM_VERSION="9.9.1"
+TOOL_GITLEAKS_VERSION="9.9.2"
+TOOL_PULUMI_VERSION="9.9.3"
+TOOL_OPENTOFU_VERSION="9.9.4"
+TOOL_TERRAGRUNT_VERSION="9.9.5"
+TOOL_KUBECTL_VERSION="9.9.6"
+TOOL_PLANTUML_VERSION="9.9.7"
+TOOL_DELVE_VERSION="v9.9.8"
+EOF
+
+    for case_entry in "${cases[@]}"; do
+        IFS='|' read -r script_name environment_name expected_version <<<"${case_entry}"
+        run env -u "${environment_name}" \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
+
+        [ "$status" -eq 0 ]
+        [ "$output" = "${environment_name}=${expected_version}" ]
+    done
+}
+
+@test "Phase 3B installer environment overrides win over central values" {
+    local policy_file="${SCRIPT_DIR}/tool-versions.conf"
+    local case_entry script_name environment_name override_version
+    local -a cases=(
+        '40-cli-terraform.sh|TERRAFORM_VERSION|8.8.1'
+        '40-cli-gitleaks.sh|GITLEAKS_VERSION|8.8.2'
+        '40-cli-pulumi.sh|PULUMI_VERSION|8.8.3'
+        '40-cli-opentofu.sh|OPENTOFU_VERSION|8.8.4'
+        '40-cli-terragrunt.sh|TERRAGRUNT_VERSION|8.8.5'
+        '40-cli-kubectl.sh|KUBECTL_VERSION|8.8.6'
+        '40-cli-plantuml.sh|PLANTUML_VERSION|8.8.7'
+        '40-go-debug.sh|DELVE_VERSION|v8.8.8'
+    )
+
+    for case_entry in "${cases[@]}"; do
+        IFS='|' read -r script_name environment_name override_version <<<"${case_entry}"
+        run env \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            "${environment_name}=${override_version}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
+
+        [ "$status" -eq 0 ]
+        [ "$output" = "${environment_name}=${override_version}" ]
+    done
+}
+
 @test "Docker build ARG persists as runtime Engram ENV" {
     command -v docker >/dev/null 2>&1 || skip "docker is unavailable"
     docker info >/dev/null 2>&1 || skip "docker daemon is unavailable"

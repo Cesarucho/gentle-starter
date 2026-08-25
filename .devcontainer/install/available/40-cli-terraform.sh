@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${TERRAFORM_VERSION:=1.15.7}"
+devcontainer_load_tool_versions
+
+: "${TERRAFORM_VERSION:=${TOOL_TERRAFORM_VERSION:-1.15.7}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'TERRAFORM_VERSION=%s\n' "${TERRAFORM_VERSION}"
+	exit 0
+fi
 : "${TERRAFORM_INSTALL_DIR:=/usr/local/bin}"
 
 terraform_version_line() {

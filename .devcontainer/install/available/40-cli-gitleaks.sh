@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${GITLEAKS_VERSION:=8.30.1}"
+devcontainer_load_tool_versions
+
+: "${GITLEAKS_VERSION:=${TOOL_GITLEAKS_VERSION:-8.30.1}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'GITLEAKS_VERSION=%s\n' "${GITLEAKS_VERSION}"
+	exit 0
+fi
 : "${GITLEAKS_INSTALL_DIR:=/usr/local/bin}"
 
 if devcontainer_has_cmd gitleaks; then

@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PULUMI_VERSION:=3.248.0}"
+devcontainer_load_tool_versions
+
+: "${PULUMI_VERSION:=${TOOL_PULUMI_VERSION:-3.248.0}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'PULUMI_VERSION=%s\n' "${PULUMI_VERSION}"
+	exit 0
+fi
 : "${PULUMI_INSTALL_DIR:=/usr/local/bin}"
 
 pulumi_version_line() {

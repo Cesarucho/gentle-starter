@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${OPENTOFU_VERSION:=1.12.3}"
+devcontainer_load_tool_versions
+
+: "${OPENTOFU_VERSION:=${TOOL_OPENTOFU_VERSION:-1.12.3}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'OPENTOFU_VERSION=%s\n' "${OPENTOFU_VERSION}"
+	exit 0
+fi
 : "${OPENTOFU_INSTALL_DIR:=/usr/local/bin}"
 
 tofu_version_line() {

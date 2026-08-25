@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${KUBECTL_VERSION:=1.36.2}"
+devcontainer_load_tool_versions
+
+: "${KUBECTL_VERSION:=${TOOL_KUBECTL_VERSION:-1.36.2}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'KUBECTL_VERSION=%s\n' "${KUBECTL_VERSION}"
+	exit 0
+fi
 : "${KUBECTL_INSTALL_DIR:=/usr/local/bin}"
 
 kubectl_client_version() {
