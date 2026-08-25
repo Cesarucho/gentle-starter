@@ -722,6 +722,70 @@ EOF
     [ "$output" = "${expected_output}" ]
 }
 
+@test "BATS installer resolves the central exact tag version" {
+    local policy_file="${BATS_TEST_TMPDIR}/bats-central.conf"
+    printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
+
+    run env -u BATS_VERSION \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+        bash "${SCRIPT_DIR}/install/available/10-bats.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "BATS_VERSION=9.9.2" ]
+}
+
+@test "BATS installer environment override wins over the central version" {
+    local policy_file="${BATS_TEST_TMPDIR}/bats-override.conf"
+    printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
+
+    run env \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+        BATS_VERSION="8.8.2" \
+        bash "${SCRIPT_DIR}/install/available/10-bats.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "BATS_VERSION=8.8.2" ]
+}
+
+@test "BATS installer clone consumes the resolved exact tag" {
+    local policy_file="${BATS_TEST_TMPDIR}/bats-clone-policy.conf"
+    local stub_bin="${BATS_TEST_TMPDIR}/bats-clone-bin"
+    local git_log="${BATS_TEST_TMPDIR}/bats-git.log"
+    mkdir -p "${stub_bin}"
+    printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
+
+    cat >"${stub_bin}/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >"${BATS_GIT_LOG}"
+target="${!#}"
+mkdir -p "${target}"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${target}/install.sh"
+chmod +x "${target}/install.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "Bats 9.9.2\\n"' >"${BATS_STUB_BIN}/bats"
+chmod +x "${BATS_STUB_BIN}/bats"
+EOF
+    chmod +x "${stub_bin}/git"
+
+    cat >"${stub_bin}/sudo" <<'EOF'
+#!/usr/bin/env bash
+exec "$@"
+EOF
+    chmod +x "${stub_bin}/sudo"
+
+    run env -u BATS_VERSION \
+        PATH="${stub_bin}:/usr/bin:/bin" \
+        DEVCONTAINER_PHASE=build \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+        BATS_GIT_LOG="${git_log}" \
+        BATS_STUB_BIN="${stub_bin}" \
+        /usr/bin/bash "${SCRIPT_DIR}/install/available/10-bats.sh"
+
+    [ "$status" -eq 0 ]
+    run grep -F -- '--branch v9.9.2' "${git_log}"
+    [ "$status" -eq 0 ]
+}
+
 @test "Docker build ARG persists as runtime Engram ENV" {
     command -v docker >/dev/null 2>&1 || skip "docker is unavailable"
     docker info >/dev/null 2>&1 || skip "docker daemon is unavailable"

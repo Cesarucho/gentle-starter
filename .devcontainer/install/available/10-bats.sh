@@ -14,8 +14,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${BATS_VERSION:=latest}"
+devcontainer_load_tool_versions
+
+: "${BATS_VERSION:=${TOOL_BATS_VERSION:-1.14.0}}"
 BATS_INSTALL_DIR="/usr/local"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'BATS_VERSION=%s\n' "${BATS_VERSION}"
+	exit 0
+fi
 
 # Only run during build (BATS is a dev tool, not needed at runtime).
 if ! devcontainer_is_build; then
@@ -33,7 +40,8 @@ devcontainer_log_info "Installing BATS ${BATS_VERSION}"
 
 # Clone BATS into a temporary directory.
 BATS_TMPDIR="$(mktemp -d)"
-git clone --depth 1 "https://github.com/bats-core/bats-core.git" "${BATS_TMPDIR}"
+git clone --depth 1 --branch "v${BATS_VERSION}" \
+	"https://github.com/bats-core/bats-core.git" "${BATS_TMPDIR}"
 
 # Run BATS' own install.sh to place files under /usr/local.
 # Use devcontainer_run_as_root because install.sh writes to /usr/local.

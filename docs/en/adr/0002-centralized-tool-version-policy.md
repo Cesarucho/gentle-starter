@@ -56,6 +56,21 @@ The Dockerfile copies `tool-versions.conf` into `/home/ubuntu/.devcontainer-inst
 - Artifacts without a CLI version command may use local markers while centralizing only the version.
 - Ubuntu core apt packages receive no invented versions without a real repository or snapshot pinning policy.
 
+### Provider-managed and deferred tools
+
+A `TOOL_*` key exists only when its installer enforces the declared policy. Omitting a key is intentional when centralization would be cosmetic or would require a separate provider or supply-chain redesign.
+
+| Tool | Status | Reason |
+| --- | --- | --- |
+| BATS | Centralized | The installer consumes the exact `v${BATS_VERSION}` Git tag. |
+| OpenCode | Provider-managed; central version omitted | An exact pnpm installation requires an explicit global-bin layout and narrowly approved lifecycle scripts. The official installer remains until that design is proven separately. |
+| Glow | Provider-managed; central version omitted | The Charm apt repository selects the candidate; migration to a verified upstream artifact is deferred. |
+| Ansible Core | Provider-managed; central version omitted | The apt candidate remains authoritative; moving to pipx is a separate provider and trust-boundary decision. |
+| Graphviz | Provider-managed; central version omitted | Ubuntu Noble apt intentionally owns dependency integration and security updates. |
+| Composer | Deferred; central version omitted | Exact PHAR installation requires a separately reviewed digest or attestation workflow. |
+
+No cosmetic `TOOL_*` declaration is added for an installer that cannot enforce it.
+
 ## Consequences
 
 ### Positive
