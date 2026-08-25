@@ -111,6 +111,27 @@ setup_versioned_pi_config() {
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/<name>-config.local" "${HOME}/.<name>" || true
 }
 
+run_enabled_opencode_installer() {
+	local enabled_dir="${SCRIPT_DIR}/install/02-enabled"
+	local installer="${SCRIPT_DIR}/install/available/30-ai-opencode.sh"
+	local canonical_installer
+	local enabled_script
+	local resolved_script
+
+	[ -f "${installer}" ] || return 0
+	canonical_installer="$(readlink -f -- "${installer}")"
+
+	for enabled_script in "${enabled_dir}"/*.sh; do
+		[ -L "${enabled_script}" ] || continue
+		resolved_script="$(readlink -f -- "${enabled_script}" 2>/dev/null)" || continue
+
+		if [ "${resolved_script}" = "${canonical_installer}" ]; then
+			DEVCONTAINER_PHASE=runtime bash "${canonical_installer}"
+			return
+		fi
+	done
+}
+
 setup_pi_workspace_trust() {
 	local trust_file="${HOME}/.pi/agent/trust.json"
 	local backup_path
@@ -190,6 +211,7 @@ setup_versioned_pi_config
 setup_pi_workspace_trust
 # export PATH="${HOME}/.local/bin:${PATH}"
 repair_installed_volumes
+run_enabled_opencode_installer
 
 # ---------------------------------------------------------------------------
 # SSH server: start if the install script is enabled.

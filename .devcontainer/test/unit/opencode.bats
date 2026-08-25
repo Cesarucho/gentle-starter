@@ -9,9 +9,13 @@ setup() {
 	PROFILE_FILE="${HOME_DIR}/.bashrc"
 	CALLS_FILE="${TEST_ROOT}/calls"
 	PATH_RESULT_FILE="${TEST_ROOT}/opencode-path"
+	SETUP_WORKSPACE="${TEST_ROOT}/workspace"
+	SETUP_CALLS_FILE="${TEST_ROOT}/setup-opencode-calls"
+	SETUP_DOWNLOADS_FILE="${TEST_ROOT}/setup-opencode-downloads"
 	mkdir -p "${HOME_DIR}" "${BIN_DIR}"
 	: >"${CALLS_FILE}"
 	export REPO_ROOT INSTALLER TEST_ROOT HOME_DIR BIN_DIR PROFILE_FILE CALLS_FILE PATH_RESULT_FILE
+	export SETUP_WORKSPACE SETUP_CALLS_FILE SETUP_DOWNLOADS_FILE
 	write_id_stub
 	write_curl_stub
 }
@@ -59,6 +63,70 @@ run_installer() {
 		bash "${INSTALLER}"
 }
 
+prepare_setup_sandbox() {
+	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/install/available" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled" \
+		"${HOME_DIR}/.gitconfig-volume"
+	cp "${REPO_ROOT}/.devcontainer/setup.sh" "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
+	cp "${REPO_ROOT}/.devcontainer/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/setup-volumes.sh"
+	touch "${SETUP_WORKSPACE}/.devcontainer/docker-compose.yml"
+	cat >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-opencode.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "${DEVCONTAINER_PHASE}" >>"${OPENCODE_SETUP_CALLS_FILE}"
+if [ ! -x "${HOME}/.opencode/bin/opencode" ]; then
+	printf 'download\n' >>"${OPENCODE_SETUP_DOWNLOADS_FILE}"
+	mkdir -p "${HOME}/.opencode/bin"
+	touch "${HOME}/.opencode/bin/opencode"
+	chmod +x "${HOME}/.opencode/bin/opencode"
+fi
+EOF
+	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-opencode.sh"
+	: >"${SETUP_CALLS_FILE}"
+	: >"${SETUP_DOWNLOADS_FILE}"
+	write_setup_command_stubs
+}
+
+write_setup_command_stubs() {
+	cat >"${BIN_DIR}/sudo" <<'EOF'
+#!/usr/bin/env bash
+exec "$@"
+EOF
+	cat >"${BIN_DIR}/chown" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+	cat >"${BIN_DIR}/find" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+	cat >"${BIN_DIR}/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ " $* " == *" --get-all "* ]]; then
+	exit 1
+fi
+exit 0
+EOF
+	cat >"${BIN_DIR}/jq" <<'EOF'
+#!/usr/bin/env bash
+printf '{}\n'
+EOF
+	cat >"${BIN_DIR}/yq" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+	chmod +x "${BIN_DIR}/sudo" "${BIN_DIR}/chown" "${BIN_DIR}/find" \
+		"${BIN_DIR}/git" "${BIN_DIR}/jq" "${BIN_DIR}/yq"
+}
+
+run_setup() {
+	run env HOME="${HOME_DIR}" \
+		PATH="${BIN_DIR}:/usr/bin:/bin" \
+		OPENCODE_SETUP_CALLS_FILE="${SETUP_CALLS_FILE}" \
+		OPENCODE_SETUP_DOWNLOADS_FILE="${SETUP_DOWNLOADS_FILE}" \
+		bash "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
+}
+
 @test "installs at the official path, exposes it immediately, and skips reinstall on rerun" {
 	run_installer
 
@@ -76,6 +144,35 @@ run_installer() {
 	[[ "${output}" == *"already installed; auto-update disabled"* ]]
 	[[ "${output}" != *"binary was not found at"* ]]
 	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 1 ]
+}
+
+@test "setup skips OpenCode when its canonical installer is not enabled" {
+	prepare_setup_sandbox
+	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/10-unrelated.sh"
+
+	run_setup
+
+	[ "${status}" -eq 0 ]
+	[ ! -s "${SETUP_CALLS_FILE}" ]
+}
+
+@test "setup invokes enabled OpenCode through an arbitrary ordered alias and preserves installer idempotency" {
+	prepare_setup_sandbox
+	ln -s ../available/30-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/47-custom-slot.sh"
+	ln -s ../available/missing.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/48-broken.sh"
+	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/49-unrelated.sh"
+
+	run_setup
+
+	[ "${status}" -eq 0 ]
+	[ "$(cat "${SETUP_CALLS_FILE}")" = "runtime" ]
+	[ "$(wc -l <"${SETUP_DOWNLOADS_FILE}")" -eq 1 ]
+
+	run_setup
+
+	[ "${status}" -eq 0 ]
+	[ "$(wc -l <"${SETUP_CALLS_FILE}")" -eq 2 ]
+	[ "$(wc -l <"${SETUP_DOWNLOADS_FILE}")" -eq 1 ]
 }
 
 @test "honors an explicit install directory override when checking an existing binary" {
