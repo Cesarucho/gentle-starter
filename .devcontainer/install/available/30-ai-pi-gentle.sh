@@ -65,7 +65,10 @@ PACKAGES=(
 
 package_name() {
 	local source="$1"
-	printf '%s' "${source}" | sed -E 's/^npm:([^@]+)@.*$/\1/'
+	local name_with_version
+
+	name_with_version="${source#npm:}"
+	printf '%s' "${name_with_version%@*}"
 }
 
 package_version() {
@@ -102,6 +105,22 @@ is_installed() {
 
 	[ -n "${actual_version}" ] && [ "${actual_version}" = "${expected_version}" ]
 }
+
+print_package_metadata() {
+	local source="$1"
+	local actual_version
+
+	actual_version="$(installed_version "${source}" 2>/dev/null || true)"
+	printf '%s\n' \
+		"PACKAGE_NAME=$(package_name "${source}")" \
+		"PACKAGE_VERSION=$(package_version "${source}")" \
+		"INSTALLED_VERSION=${actual_version}"
+}
+
+if [ "${1:-}" = "--print-package-metadata" ]; then
+	print_package_metadata "${2:?package source is required}"
+	exit 0
+fi
 
 # Build phase: skip. The Pi packages are user-scoped and are best
 # installed at runtime when the user's home directory is in scope.

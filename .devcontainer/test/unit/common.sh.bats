@@ -722,6 +722,54 @@ EOF
     [ "$output" = "${expected_output}" ]
 }
 
+@test "Gentle Pi package metadata resolves an installed unscoped package" {
+    local work_dir="${BATS_TEST_TMPDIR}/pi-unscoped-work"
+    local home_dir="${BATS_TEST_TMPDIR}/pi-unscoped-home"
+    mkdir -p "${work_dir}/.pi/npm/node_modules/gentle-pi"
+    mkdir -p "${home_dir}"
+    printf '%s\n' '{"version":"2.2.0"}' >"${work_dir}/.pi/npm/node_modules/gentle-pi/package.json"
+
+    run env HOME="${home_dir}" bash -c '
+        cd "$1"
+        exec bash "$2" --print-package-metadata "npm:gentle-pi@2.2.0"
+    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = $'PACKAGE_NAME=gentle-pi\nPACKAGE_VERSION=2.2.0\nINSTALLED_VERSION=2.2.0' ]
+}
+
+@test "Gentle Pi package metadata resolves an installed scoped package" {
+    local work_dir="${BATS_TEST_TMPDIR}/pi-scoped-work"
+    local home_dir="${BATS_TEST_TMPDIR}/pi-scoped-home"
+    mkdir -p "${work_dir}"
+    mkdir -p "${home_dir}/.pi/agent/npm/node_modules/@juicesharp/rpiv-todo"
+    printf '%s\n' '{"version":"1.20.0"}' >"${home_dir}/.pi/agent/npm/node_modules/@juicesharp/rpiv-todo/package.json"
+
+    run env HOME="${home_dir}" bash -c '
+        cd "$1"
+        exec bash "$2" --print-package-metadata "npm:@juicesharp/rpiv-todo@1.20.0"
+    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = $'PACKAGE_NAME=@juicesharp/rpiv-todo\nPACKAGE_VERSION=1.20.0\nINSTALLED_VERSION=1.20.0' ]
+}
+
+@test "Gentle Pi package metadata splits a scoped name at the final at-sign" {
+    local work_dir="${BATS_TEST_TMPDIR}/pi-scoped-edge-work"
+    local home_dir="${BATS_TEST_TMPDIR}/pi-scoped-edge-home"
+    mkdir -p "${work_dir}/.pi/npm/node_modules/@juicesharp/rpiv-ask-user-question"
+    mkdir -p "${home_dir}"
+    printf '%s\n' '{"version":"1.20.0"}' >"${work_dir}/.pi/npm/node_modules/@juicesharp/rpiv-ask-user-question/package.json"
+
+    run env HOME="${home_dir}" bash -c '
+        cd "$1"
+        exec bash "$2" --print-package-metadata "npm:@juicesharp/rpiv-ask-user-question@1.20.0"
+    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = $'PACKAGE_NAME=@juicesharp/rpiv-ask-user-question\nPACKAGE_VERSION=1.20.0\nINSTALLED_VERSION=1.20.0' ]
+}
+
 @test "BATS installer resolves the central exact tag version" {
     local policy_file="${BATS_TEST_TMPDIR}/bats-central.conf"
     printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
