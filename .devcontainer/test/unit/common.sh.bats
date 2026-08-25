@@ -627,6 +627,101 @@ EOF
     done
 }
 
+@test "Phase 3C-B Gentle Pi package versions resolve central exact values" {
+    local policy_file="${BATS_TEST_TMPDIR}/phase-3c-b-tool-versions.conf"
+    local expected_output
+
+    cat >"${policy_file}" <<'EOF'
+TOOL_GENTLE_PI_VERSION="9.9.1"
+TOOL_PI_SUBAGENTS_VERSION="9.9.2"
+TOOL_PI_INTERCOM_VERSION="9.9.3"
+TOOL_PI_WEB_ACCESS_VERSION="9.9.4"
+TOOL_PI_LENS_VERSION="9.9.5"
+TOOL_RPIV_TODO_VERSION="9.9.6"
+TOOL_RPIV_ASK_USER_QUESTION_VERSION="9.9.7"
+TOOL_RPIV_BTW_VERSION="9.9.8"
+TOOL_GENTLE_ENGRAM_VERSION="9.9.9"
+TOOL_PI_MCP_ADAPTER_VERSION="9.9.10"
+TOOL_PI_POWERLINE_VERSION="9.9.11"
+TOOL_PI_TERMINAL_THEME_VERSION="9.9.12"
+EOF
+
+    expected_output="$(cat <<'EOF'
+GENTLE_PI_VERSION=9.9.1
+PI_SUBAGENTS_VERSION=9.9.2
+PI_INTERCOM_VERSION=9.9.3
+PI_WEB_ACCESS_VERSION=9.9.4
+PI_LENS_VERSION=9.9.5
+RPIV_TODO_VERSION=9.9.6
+RPIV_ASK_USER_QUESTION_VERSION=9.9.7
+RPIV_BTW_VERSION=9.9.8
+GENTLE_ENGRAM_VERSION=9.9.9
+PI_MCP_ADAPTER_VERSION=9.9.10
+PI_POWERLINE_VERSION=9.9.11
+PI_TERMINAL_THEME_VERSION=9.9.12
+EOF
+)"
+
+    run env \
+        -u GENTLE_PI_VERSION \
+        -u PI_SUBAGENTS_VERSION \
+        -u PI_INTERCOM_VERSION \
+        -u PI_WEB_ACCESS_VERSION \
+        -u PI_LENS_VERSION \
+        -u RPIV_TODO_VERSION \
+        -u RPIV_ASK_USER_QUESTION_VERSION \
+        -u RPIV_BTW_VERSION \
+        -u GENTLE_ENGRAM_VERSION \
+        -u PI_MCP_ADAPTER_VERSION \
+        -u PI_POWERLINE_VERSION \
+        -u PI_TERMINAL_THEME_VERSION \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+        bash "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "${expected_output}" ]
+}
+
+@test "Phase 3C-B Gentle Pi package environment overrides win over central values" {
+    local policy_file="${SCRIPT_DIR}/tool-versions.conf"
+    local expected_output
+
+    expected_output="$(cat <<'EOF'
+GENTLE_PI_VERSION=8.8.1
+PI_SUBAGENTS_VERSION=8.8.2
+PI_INTERCOM_VERSION=8.8.3
+PI_WEB_ACCESS_VERSION=8.8.4
+PI_LENS_VERSION=8.8.5
+RPIV_TODO_VERSION=8.8.6
+RPIV_ASK_USER_QUESTION_VERSION=8.8.7
+RPIV_BTW_VERSION=8.8.8
+GENTLE_ENGRAM_VERSION=8.8.9
+PI_MCP_ADAPTER_VERSION=8.8.10
+PI_POWERLINE_VERSION=8.8.11
+PI_TERMINAL_THEME_VERSION=8.8.12
+EOF
+)"
+
+    run env \
+        DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+        GENTLE_PI_VERSION="8.8.1" \
+        PI_SUBAGENTS_VERSION="8.8.2" \
+        PI_INTERCOM_VERSION="8.8.3" \
+        PI_WEB_ACCESS_VERSION="8.8.4" \
+        PI_LENS_VERSION="8.8.5" \
+        RPIV_TODO_VERSION="8.8.6" \
+        RPIV_ASK_USER_QUESTION_VERSION="8.8.7" \
+        RPIV_BTW_VERSION="8.8.8" \
+        GENTLE_ENGRAM_VERSION="8.8.9" \
+        PI_MCP_ADAPTER_VERSION="8.8.10" \
+        PI_POWERLINE_VERSION="8.8.11" \
+        PI_TERMINAL_THEME_VERSION="8.8.12" \
+        bash "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh" --print-version-policy
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "${expected_output}" ]
+}
+
 @test "Docker build ARG persists as runtime Engram ENV" {
     command -v docker >/dev/null 2>&1 || skip "docker is unavailable"
     docker info >/dev/null 2>&1 || skip "docker daemon is unavailable"

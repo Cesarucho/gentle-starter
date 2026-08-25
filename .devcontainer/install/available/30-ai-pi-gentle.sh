@@ -14,21 +14,53 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
+devcontainer_load_tool_versions
+
+: "${GENTLE_PI_VERSION:=${TOOL_GENTLE_PI_VERSION:-2.2.0}}"
+: "${PI_SUBAGENTS_VERSION:=${TOOL_PI_SUBAGENTS_VERSION:-0.54.0}}"
+: "${PI_INTERCOM_VERSION:=${TOOL_PI_INTERCOM_VERSION:-0.11.0}}"
+: "${PI_WEB_ACCESS_VERSION:=${TOOL_PI_WEB_ACCESS_VERSION:-0.24.1}}"
+: "${PI_LENS_VERSION:=${TOOL_PI_LENS_VERSION:-4.1.1}}"
+: "${RPIV_TODO_VERSION:=${TOOL_RPIV_TODO_VERSION:-1.20.0}}"
+: "${RPIV_ASK_USER_QUESTION_VERSION:=${TOOL_RPIV_ASK_USER_QUESTION_VERSION:-1.20.0}}"
+: "${RPIV_BTW_VERSION:=${TOOL_RPIV_BTW_VERSION:-1.20.0}}"
+: "${GENTLE_ENGRAM_VERSION:=${TOOL_GENTLE_ENGRAM_VERSION:-0.1.10}}"
+: "${PI_MCP_ADAPTER_VERSION:=${TOOL_PI_MCP_ADAPTER_VERSION:-2.27.0}}"
+: "${PI_POWERLINE_VERSION:=${TOOL_PI_POWERLINE_VERSION:-0.9.1}}"
+: "${PI_TERMINAL_THEME_VERSION:=${TOOL_PI_TERMINAL_THEME_VERSION:-0.2.0}}"
+
 : "${PI_AUTO_UPDATE:=0}"
 
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf '%s\n' \
+		"GENTLE_PI_VERSION=${GENTLE_PI_VERSION}" \
+		"PI_SUBAGENTS_VERSION=${PI_SUBAGENTS_VERSION}" \
+		"PI_INTERCOM_VERSION=${PI_INTERCOM_VERSION}" \
+		"PI_WEB_ACCESS_VERSION=${PI_WEB_ACCESS_VERSION}" \
+		"PI_LENS_VERSION=${PI_LENS_VERSION}" \
+		"RPIV_TODO_VERSION=${RPIV_TODO_VERSION}" \
+		"RPIV_ASK_USER_QUESTION_VERSION=${RPIV_ASK_USER_QUESTION_VERSION}" \
+		"RPIV_BTW_VERSION=${RPIV_BTW_VERSION}" \
+		"GENTLE_ENGRAM_VERSION=${GENTLE_ENGRAM_VERSION}" \
+		"PI_MCP_ADAPTER_VERSION=${PI_MCP_ADAPTER_VERSION}" \
+		"PI_POWERLINE_VERSION=${PI_POWERLINE_VERSION}" \
+		"PI_TERMINAL_THEME_VERSION=${PI_TERMINAL_THEME_VERSION}"
+	exit 0
+fi
+
 PACKAGES=(
-	"npm:gentle-pi@2.2.0"                           # gentle-core
-	"npm:pi-subagents@0.54.0"                       # gentle-recommendation
-	"npm:pi-intercom@0.11.0"                        # gentle-recommendation
-	"npm:pi-web-access@0.24.1"                      # gentle-recommendation
-	"npm:pi-lens@4.1.1"                             # gentle-recommendation
-	"npm:@juicesharp/rpiv-todo@1.20.0"              # gentle-recommendation
-	"npm:@juicesharp/rpiv-ask-user-question@1.20.0" # gentle-recommendation
-	"npm:@juicesharp/rpiv-btw@1.20.0"               # extra
-	"npm:gentle-engram@0.1.10"                      # engram-dependency
-	"npm:pi-mcp-adapter@2.27.0"                     # engram-dependency
-	"npm:pi-powerline@0.9.1"                        # extra
-	"npm:pi-terminal-theme@0.2.0"                   # extra
+	"npm:gentle-pi@${GENTLE_PI_VERSION}"                                       # gentle-core
+	"npm:pi-subagents@${PI_SUBAGENTS_VERSION}"                                 # gentle-recommendation
+	"npm:pi-intercom@${PI_INTERCOM_VERSION}"                                   # gentle-recommendation
+	"npm:pi-web-access@${PI_WEB_ACCESS_VERSION}"                               # gentle-recommendation
+	"npm:pi-lens@${PI_LENS_VERSION}"                                           # gentle-recommendation
+	"npm:@juicesharp/rpiv-todo@${RPIV_TODO_VERSION}"                           # gentle-recommendation
+	"npm:@juicesharp/rpiv-ask-user-question@${RPIV_ASK_USER_QUESTION_VERSION}" # gentle-recommendation
+	"npm:@juicesharp/rpiv-btw@${RPIV_BTW_VERSION}"                             # extra
+	"npm:gentle-engram@${GENTLE_ENGRAM_VERSION}"                               # engram-dependency
+	"npm:pi-mcp-adapter@${PI_MCP_ADAPTER_VERSION}"                             # engram-dependency
+	"npm:pi-powerline@${PI_POWERLINE_VERSION}"                                 # extra
+	"npm:pi-terminal-theme@${PI_TERMINAL_THEME_VERSION}"                       # extra
 )
 
 package_name() {
