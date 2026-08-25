@@ -278,19 +278,19 @@ The project uses [BATS](https://github.com/bats-core/bats-core)
 (Bash Automated Testing System) for shell-based tests.
 
 ```bash
-task test:unit         # unit tests for common.sh helpers (36 tests)
-task test:integration  # integration tests for installed tools (24 tests)
+task test:unit         # repository unit tests
+task test:integration  # integration tests for installed tools
 task test:all          # both suites together
 task test:install      # install BATS if not present
 task test:help         # show available test tasks
 ```
 
-Unit tests live in `.devcontainer/test/unit/common.sh.bats` and
-cover the `common.sh` helpers (phase detection, logging, fetching,
-version extraction, version comparison, idempotency). Integration
-tests in `.devcontainer/test/integration/tools.bats` verify that
-the expected tools are present after setup (core, Go, Java, Node,
-AI tools, and environment variables).
+Unit tests live in `.devcontainer/test/unit/`: `common.sh.bats` covers
+`common.sh` helpers (phase detection, logging, fetching, version extraction,
+version comparison, idempotency), while `deps-update.bats` covers the dependency
+policy updater and C4-PlantUML version/checksum behavior. Integration tests in
+`.devcontainer/test/integration/tools.bats` verify that the expected tools are
+present after setup (core, Go, Java, Node, AI tools, and environment variables).
 
 Two integration tests (`GOROOT` and `DEVCONTAINER_PHASE`) skip
 when run outside the devcontainer — this is by design; they need

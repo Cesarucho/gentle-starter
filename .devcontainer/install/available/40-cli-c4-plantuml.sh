@@ -13,11 +13,21 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 devcontainer_load_tool_versions
 
 : "${C4_PLANTUML_VERSION:=${TOOL_C4_PLANTUML_VERSION:-2.13.0}}"
-: "${C4_PLANTUML_SHA256:=1bf4e0061dafc7dea13923a0c5e0456a3702e99b73ef1c01e0871832e15a4e91}"
+: "${C4_PLANTUML_SHA256:=${TOOL_C4_PLANTUML_SHA256:-1bf4e0061dafc7dea13923a0c5e0456a3702e99b73ef1c01e0871832e15a4e91}}"
 : "${C4_PLANTUML_INSTALL_DIR:=/usr/local/share/c4-plantuml}"
 
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf '%s\n' \
+		"C4_PLANTUML_VERSION=${C4_PLANTUML_VERSION}" \
+		"C4_PLANTUML_SHA256=${C4_PLANTUML_SHA256}"
+	exit 0
+fi
+
 VERSION_FILE="${C4_PLANTUML_INSTALL_DIR}/.version"
-if [ -f "${VERSION_FILE}" ] && [ "$(cat "${VERSION_FILE}")" = "${C4_PLANTUML_VERSION}" ]; then
+CHECKSUM_FILE="${C4_PLANTUML_INSTALL_DIR}/.sha256"
+if [ -f "${VERSION_FILE}" ] && [ -f "${CHECKSUM_FILE}" ] &&
+	[ "$(cat "${VERSION_FILE}")" = "${C4_PLANTUML_VERSION}" ] &&
+	[ "$(cat "${CHECKSUM_FILE}")" = "${C4_PLANTUML_SHA256}" ]; then
 	devcontainer_log_info "C4-PlantUML ${C4_PLANTUML_VERSION} already installed at ${C4_PLANTUML_INSTALL_DIR}"
 	exit 0
 fi
@@ -45,6 +55,7 @@ if [ ! -f "${UNPACK_DIR}/C4.puml" ]; then
 fi
 
 printf '%s\n' "${C4_PLANTUML_VERSION}" >"${UNPACK_DIR}/.version"
+printf '%s\n' "${C4_PLANTUML_SHA256}" >"${UNPACK_DIR}/.sha256"
 devcontainer_run_as_root rm -rf "${C4_PLANTUML_INSTALL_DIR}"
 devcontainer_run_as_root mkdir -p "$(dirname "${C4_PLANTUML_INSTALL_DIR}")"
 devcontainer_run_as_root mv "${UNPACK_DIR}" "${C4_PLANTUML_INSTALL_DIR}"

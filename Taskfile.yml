@@ -1,12 +1,12 @@
 version: "3"
 
 includes:
-  ai:
-    taskfile: ./.taskfiles/ai.yml
   clean:
     taskfile: ./.taskfiles/clean.yml
   container:
     taskfile: ./.taskfiles/devcontainer.yml
+  deps:
+    taskfile: ./.taskfiles/deps.yml
   doctor:
     taskfile: ./.taskfiles/doctor.yml
   install:
@@ -52,6 +52,7 @@ tasks:
     desc: Run all tests (unit + integration)
     cmds:
       - bats .devcontainer/test/unit/common.sh.bats
+      - bats .devcontainer/test/unit/deps-update.bats
       - bats .devcontainer/test/integration/tools.bats
 
   help:
@@ -68,9 +69,7 @@ tasks:
           task doctor                     Run doctor checks for the detected context
           task validate                   Run host-safe validation checks, excluding skills
           task validate:full              Run strict validation requiring shell quality tools
-          task ai:update                  Update Pi packages and re-pin selected packages
-          task ai:update-tags             Update package version tags in repo config files
-          task ai:configure-models        Update Gentle AI model/effort configuration with Pi
+          task deps:update                Update approved exact dependency pins
           task clean                      Review, confirm, and remove project identity files
           task clean:identity             Explicit alias for project identity cleanup
 
@@ -121,7 +120,7 @@ tasks:
 
         Testing:
           task test                       Run all tests (unit + integration)
-          task test:unit                  Run unit tests for common.sh helpers
+          task test:unit                  Run repository unit tests
           task test:integration           Run integration tests for installed tools
           task test:install               Install BATS if not present
         EOF

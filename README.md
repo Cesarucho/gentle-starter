@@ -97,7 +97,7 @@ On your PC you need:
 
     # Optionals
     task validate:full        # internal check
-    task ai:update            # update pi, deps and extensions
+    task deps:update          # refresh approved exact dependency pins
 
     # You can also install anything else you need:
     sudo apt update
@@ -158,18 +158,21 @@ task install:disable -- 40-php-lang
 task install:doctor
 ```
 
-### AI tooling
+### Dependency policy
 
 ```bash
-# Update Pi packages and re-pin selected packages with explicit versions
-task ai:update
+# Discover stable releases and update approved exact pins atomically
+task deps:update
 
-# Override the packages that should be re-pinned after update
-task ai:update PINNED_PI_PACKAGES="pi-mcp-adapter another-package"
-
-# Refresh Gentle AI model/effort config using the Markdown model guide
-task ai:configure-models
+# Apply the updated policy to the environment later
+task container:rebuild
 ```
+
+`deps:update` updates the repository policy only. It preserves major channels,
+explicit `latest` policies, and provider-managed or unsupported tools; it never
+rebuilds the container or changes the live environment. Pinned SHA-256 values
+provide reproducible byte integrity, not independent upstream provenance
+attestation; see [ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
 
 Inside Pi, inspect MCP servers, including Context7:
 

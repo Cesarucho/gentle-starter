@@ -23,9 +23,9 @@ Tools receive only the fields they need. The first migration covers Java, Engram
 
 ### Policy and mechanism remain separate
 
-The central file contains no commands, version-check commands, shell fragments, URLs, paths, artifact names, architecture logic, checksums, permissions, recovery, or idempotency mechanisms. Installers retain responsibility for installation, detection, comparison, functional validation, privilege handling, architecture, URLs, artifacts, and recovery.
+The central file contains no commands, version-check commands, shell fragments, URLs, paths, artifact names, architecture logic, permissions, recovery, or idempotency mechanisms. Installers retain responsibility for installation, detection, comparison, functional validation, privilege handling, architecture, URLs, artifacts, and recovery.
 
-Checksums remain next to direct-download logic. In particular, the C4-PlantUML version is central while its checksum stays in `40-cli-c4-plantuml.sh`.
+Checksums normally remain next to direct-download logic. C4-PlantUML is the narrow exception: `TOOL_C4_PLANTUML_VERSION` and `TOOL_C4_PLANTUML_SHA256` are an atomic policy pair because its codeload archive does not publish a separate upstream checksum manifest. `task deps:update` downloads the archive for the selected stable 2.x tag, computes its digest, validates the complete candidate policy, and replaces the policy file atomically. The installer still owns the archive URL and verification mechanism.
 
 ### Assignment-only format and loader security
 
@@ -53,7 +53,7 @@ The Dockerfile copies `tool-versions.conf` into `/home/ubuntu/.devcontainer-inst
 - Major channels, such as NodeSource's Node channel, use `*_MAJOR` when migrated.
 - `latest` remains explicit and non-reproducible; migration must not silently pin it.
 - Multi-tool installers consume multiple keys, as `40-node-contracts.sh` does.
-- Artifacts without a CLI version command may use local markers while centralizing only the version.
+- Artifacts without a CLI version command may use local markers. C4-PlantUML also centralizes its digest as the documented atomic-pair exception.
 - Ubuntu core apt packages receive no invented versions without a real repository or snapshot pinning policy.
 
 ### Provider-managed and deferred tools
@@ -71,6 +71,21 @@ A `TOOL_*` key exists only when its installer enforces the declared policy. Omit
 
 No cosmetic `TOOL_*` declaration is added for an installer that cannot enforce it.
 
+### Automated dependency updates
+
+`task deps:update` updates only an explicit allowlist. Its initial npm-registry
+scope is Pi Coding Agent, Skills, the twelve Gentle Pi packages,
+markdownlint-cli2, Mermaid CLI, Playwright, Spectral, Redocly, and AsyncAPI.
+It queries that registry through pnpm. Its direct-release scope is stable C4
+2.x, Terraform 1.x, Gitleaks 8.x, Pulumi 3.x, OpenTofu 1.x, Terragrunt 1.x,
+kubectl 1.36.x, PlantUML 1.2026.x, and Delve v1.x.
+
+Engram, BATS, and Graphify are intentionally outside the initial updater scope,
+as are provider-managed tools. Java, Node, PHP, PHPUnit, major channels, and
+literal `latest` policies remain unchanged. The command discovers and validates
+all candidates before one atomic policy-file replacement; it does not install
+packages, rebuild the container, commit, push, or publish changes.
+
 ## Consequences
 
 ### Positive
@@ -86,6 +101,7 @@ No cosmetic `TOOL_*` declaration is added for an installer that cannot enforce i
 - Assignment-only parsing is intentionally less expressive than shell.
 - Floating policies remain reproducibility risks, now made explicit rather than silently changed.
 - Version changes still rely on each installer's idempotency behavior.
+- The C4-PlantUML digest records the bytes observed during update discovery; it is not an independent upstream attestation.
 
 ## Migration plan
 

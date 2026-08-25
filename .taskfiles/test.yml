@@ -13,7 +13,7 @@ tasks:
         Testing tasks (BATS)
 
           task test:install      Install BATS if not present
-          task test:unit         Run unit tests for common.sh
+          task test:unit         Run repository unit tests
           task test:integration  Run integration tests for installed tools
           task test:all          Run both unit and integration tests
         ENDHELP
@@ -31,9 +31,10 @@ tasks:
         fi
 
   unit:
-    desc: Run unit tests for common.sh helpers
+    desc: Run repository unit tests
     cmds:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/common.sh.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/deps-update.bats
 
   integration:
     desc: Run integration tests for installed tools
