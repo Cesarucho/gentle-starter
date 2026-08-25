@@ -35,6 +35,7 @@ tasks:
     cmds:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/common.sh.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/deps-update.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/opencode.bats
 
   integration:
     desc: Run integration tests for installed tools

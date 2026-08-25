@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${OPENCODE_INSTALL_DIR:=${HOME}/.local/bin}"
+: "${OPENCODE_INSTALL_DIR:=${HOME}/.opencode/bin}"
 : "${OPENCODE_PROFILE_FILE:=${HOME}/.bashrc}"
 : "${OPENCODE_AUTO_UPDATE:=0}"
 : "${OPENCODE_INSTALL_URL:=https://opencode.ai/install}"
@@ -23,11 +23,7 @@ installed_opencode_version() {
 	binary="$(opencode_binary)"
 
 	if [ ! -x "${binary}" ]; then
-		if devcontainer_has_cmd opencode; then
-			binary="$(command -v opencode)"
-		else
-			return 1
-		fi
+		return 1
 	fi
 
 	"${binary}" --version 2>/dev/null | awk '{print $NF}' | sed 's/^v//'
@@ -81,8 +77,8 @@ install_opencode() {
 	devcontainer_log_info "Installing opencode from ${OPENCODE_INSTALL_URL}"
 	curl -fsSL "${OPENCODE_INSTALL_URL}" | bash
 
-	if ! devcontainer_has_cmd opencode; then
-		devcontainer_log_warn "opencode installation completed but binary is not on PATH (expected ${OPENCODE_INSTALL_DIR})"
+	if [ ! -x "$(opencode_binary)" ]; then
+		devcontainer_log_warn "opencode installation completed but binary was not found at ${OPENCODE_INSTALL_DIR}"
 	fi
 }
 
