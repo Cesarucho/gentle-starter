@@ -130,7 +130,7 @@ EOF
 	grep -q '^TOOL_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
 	grep -q '^TOOL_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
 	! grep -Eq '(^| )(npm|pi)( |$)' "${CALLS_FILE}"
-	[ "$(grep -c '^pnpm view ' "${CALLS_FILE}")" -eq 20 ]
+	[ "$(grep -c '^pnpm view ' "${CALLS_FILE}")" -eq 19 ]
 }
 
 @test "deps:update preserves channels, latest policies, comments, and unsupported exact pins" {

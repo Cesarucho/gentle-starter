@@ -26,7 +26,6 @@ devcontainer_load_tool_versions
 : "${RPIV_BTW_VERSION:=${TOOL_RPIV_BTW_VERSION:-1.20.0}}"
 : "${GENTLE_ENGRAM_VERSION:=${TOOL_GENTLE_ENGRAM_VERSION:-0.1.10}}"
 : "${PI_MCP_ADAPTER_VERSION:=${TOOL_PI_MCP_ADAPTER_VERSION:-2.27.0}}"
-: "${PI_POWERLINE_VERSION:=${TOOL_PI_POWERLINE_VERSION:-0.9.1}}"
 : "${PI_TERMINAL_THEME_VERSION:=${TOOL_PI_TERMINAL_THEME_VERSION:-0.2.0}}"
 
 : "${PI_AUTO_UPDATE:=0}"
@@ -43,7 +42,6 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 		"RPIV_BTW_VERSION=${RPIV_BTW_VERSION}" \
 		"GENTLE_ENGRAM_VERSION=${GENTLE_ENGRAM_VERSION}" \
 		"PI_MCP_ADAPTER_VERSION=${PI_MCP_ADAPTER_VERSION}" \
-		"PI_POWERLINE_VERSION=${PI_POWERLINE_VERSION}" \
 		"PI_TERMINAL_THEME_VERSION=${PI_TERMINAL_THEME_VERSION}"
 	exit 0
 fi
@@ -59,7 +57,6 @@ PACKAGES=(
 	"npm:@juicesharp/rpiv-btw@${RPIV_BTW_VERSION}"                             # extra
 	"npm:gentle-engram@${GENTLE_ENGRAM_VERSION}"                               # engram-dependency
 	"npm:pi-mcp-adapter@${PI_MCP_ADAPTER_VERSION}"                             # engram-dependency
-	"npm:pi-powerline@${PI_POWERLINE_VERSION}"                                 # extra
 	"npm:pi-terminal-theme@${PI_TERMINAL_THEME_VERSION}"                       # extra
 )
 
@@ -122,6 +119,31 @@ if [ "${1:-}" = "--print-package-metadata" ]; then
 	exit 0
 fi
 
+legacy_powerline_is_configured() {
+	local settings_file="${HOME}/.pi/agent/settings.json"
+
+	[ -f "${settings_file}" ] || return 1
+	node - "${settings_file}" <<'NODE'
+const fs = require("fs");
+const settings = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const packages = Array.isArray(settings.packages) ? settings.packages : [];
+const configured = packages.some((entry) => {
+	const source = typeof entry === "string" ? entry : entry?.source;
+	return typeof source === "string" && /^npm:pi-powerline(?:@|$)/.test(source);
+});
+process.exit(configured ? 0 : 1);
+NODE
+}
+
+remove_legacy_powerline() {
+	if ! legacy_powerline_is_configured; then
+		return
+	fi
+
+	devcontainer_log_info "Removing incompatible legacy Pi package: npm:pi-powerline"
+	pi remove "npm:pi-powerline"
+}
+
 # Build phase: skip. The Pi packages are user-scoped and are best
 # installed at runtime when the user's home directory is in scope.
 if devcontainer_is_build; then
@@ -134,6 +156,8 @@ if [ "$(id -u)" -eq 0 ]; then
 	devcontainer_log_error "This script must run as the final non-root user during runtime"
 	exit 1
 fi
+
+remove_legacy_powerline
 
 for source in "${PACKAGES[@]}"; do
 	if is_installed "${source}"; then

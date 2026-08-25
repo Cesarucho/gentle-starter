@@ -642,7 +642,6 @@ TOOL_RPIV_ASK_USER_QUESTION_VERSION="9.9.7"
 TOOL_RPIV_BTW_VERSION="9.9.8"
 TOOL_GENTLE_ENGRAM_VERSION="9.9.9"
 TOOL_PI_MCP_ADAPTER_VERSION="9.9.10"
-TOOL_PI_POWERLINE_VERSION="9.9.11"
 TOOL_PI_TERMINAL_THEME_VERSION="9.9.12"
 EOF
 
@@ -657,7 +656,6 @@ RPIV_ASK_USER_QUESTION_VERSION=9.9.7
 RPIV_BTW_VERSION=9.9.8
 GENTLE_ENGRAM_VERSION=9.9.9
 PI_MCP_ADAPTER_VERSION=9.9.10
-PI_POWERLINE_VERSION=9.9.11
 PI_TERMINAL_THEME_VERSION=9.9.12
 EOF
 )"
@@ -673,7 +671,6 @@ EOF
         -u RPIV_BTW_VERSION \
         -u GENTLE_ENGRAM_VERSION \
         -u PI_MCP_ADAPTER_VERSION \
-        -u PI_POWERLINE_VERSION \
         -u PI_TERMINAL_THEME_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
         bash "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh" --print-version-policy
@@ -697,7 +694,6 @@ RPIV_ASK_USER_QUESTION_VERSION=8.8.7
 RPIV_BTW_VERSION=8.8.8
 GENTLE_ENGRAM_VERSION=8.8.9
 PI_MCP_ADAPTER_VERSION=8.8.10
-PI_POWERLINE_VERSION=8.8.11
 PI_TERMINAL_THEME_VERSION=8.8.12
 EOF
 )"
@@ -714,12 +710,69 @@ EOF
         RPIV_BTW_VERSION="8.8.8" \
         GENTLE_ENGRAM_VERSION="8.8.9" \
         PI_MCP_ADAPTER_VERSION="8.8.10" \
-        PI_POWERLINE_VERSION="8.8.11" \
         PI_TERMINAL_THEME_VERSION="8.8.12" \
         bash "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "${expected_output}" ]
+}
+
+@test "Gentle Pi runtime migration removes legacy powerline state once" {
+    local home_dir="${BATS_TEST_TMPDIR}/pi-powerline-home"
+    local stub_bin="${BATS_TEST_TMPDIR}/pi-powerline-bin"
+    local pi_log="${BATS_TEST_TMPDIR}/pi-powerline.log"
+    local settings_file="${home_dir}/.pi/agent/settings.json"
+    local powerline_dir="${home_dir}/.pi/agent/npm/node_modules/pi-powerline"
+
+    mkdir -p "${stub_bin}" "${powerline_dir}"
+    cat >"${settings_file}" <<'EOF'
+{
+  "packages": [
+    "npm:gentle-pi@2.2.0",
+    "npm:pi-powerline@0.9.1"
+  ],
+  "theme": "terminal-tinted"
+}
+EOF
+    printf '%s\n' '{"name":"pi-powerline","version":"0.9.1"}' >"${powerline_dir}/package.json"
+
+    cat >"${stub_bin}/pi" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${PI_STUB_LOG}"
+if [ "${1:-}" = "remove" ] && [ "${2:-}" = "npm:pi-powerline" ]; then
+    node - "${HOME}/.pi/agent/settings.json" <<'NODE'
+const fs = require("fs");
+const path = process.argv[2];
+const settings = JSON.parse(fs.readFileSync(path, "utf8"));
+settings.packages = settings.packages.filter((entry) => {
+    const source = typeof entry === "string" ? entry : entry.source;
+    return !source.startsWith("npm:pi-powerline@");
+});
+fs.writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
+NODE
+    find "${HOME}/.pi/agent/npm/node_modules/pi-powerline" -depth -delete
+fi
+EOF
+    chmod +x "${stub_bin}/pi"
+
+    run env \
+        HOME="${home_dir}" \
+        PATH="${stub_bin}:${PATH}" \
+        PI_STUB_LOG="${pi_log}" \
+        DEVCONTAINER_PHASE=runtime \
+        bash -c 'bash "$1" && bash "$1"' _ "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^remove npm:pi-powerline$' "${pi_log}")" -eq 1 ]
+    [ ! -e "${powerline_dir}" ]
+    run node -e '
+        const settings = require(process.argv[1]);
+        if (settings.theme !== "terminal-tinted") process.exit(1);
+        if (settings.packages.length !== 1) process.exit(1);
+        if (settings.packages[0] !== "npm:gentle-pi@2.2.0") process.exit(1);
+    ' "${settings_file}"
+    [ "$status" -eq 0 ]
 }
 
 @test "Gentle Pi package metadata resolves an installed unscoped package" {

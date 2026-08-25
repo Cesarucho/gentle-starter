@@ -10,7 +10,6 @@
     "npm:@juicesharp/rpiv-ask-user-question@1.20.0",
     "npm:@juicesharp/rpiv-btw@1.20.0",
     "npm:pi-mcp-adapter",
-    "npm:pi-powerline@0.9.1",
     "npm:pi-terminal-theme@0.2.0"
   ],
   "lastChangelogVersion": "0.80.2",
@@ -82,7 +81,6 @@
       "mcps": true
     }
   },
-  "powerline": true,
   "header-info": true,
   "footer": true,
   "breadcrumb": "inner"
