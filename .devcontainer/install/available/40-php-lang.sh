@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PHP_VERSION:=8.4}"
+devcontainer_load_tool_versions
+
+: "${PHP_VERSION:=${TOOL_PHP_VERSION:-8.4}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'PHP_VERSION=%s\n' "${PHP_VERSION}"
+	exit 0
+fi
 
 if devcontainer_has_cmd php; then
 	devcontainer_log_info "php already installed: $(php --version | head -1)"

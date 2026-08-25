@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${GO_VERSION:=latest}"
+devcontainer_load_tool_versions
+
+: "${GO_VERSION:=${TOOL_GO_VERSION:-latest}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'GO_VERSION=%s\n' "${GO_VERSION}"
+	exit 0
+fi
 
 if devcontainer_has_cmd go; then
 	devcontainer_log_info "go already installed: $(go version)"

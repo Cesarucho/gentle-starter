@@ -359,10 +359,14 @@ EOF
     [ "$output" = "1.17.0" ]
 }
 
-@test "Dockerfile preserves existing Engram and Playwright ARG and ENV overrides" {
+@test "Dockerfile preserves existing Engram, Node, and Playwright ARG and ENV overrides" {
     run grep -F 'ARG ENGRAM_VERSION=' "${SCRIPT_DIR}/Dockerfile"
     [ "$status" -eq 0 ]
     run grep -F 'ENV ENGRAM_VERSION=${ENGRAM_VERSION}' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'ARG NODE_MAJOR=' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'ENV NODE_MAJOR=${NODE_MAJOR}' "${SCRIPT_DIR}/Dockerfile"
     [ "$status" -eq 0 ]
     run grep -F 'ARG PLAYWRIGHT_VERSION=' "${SCRIPT_DIR}/Dockerfile"
     [ "$status" -eq 0 ]
@@ -450,12 +454,16 @@ EOF
 
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name expected_version <<<"${case_entry}"
-        run env -u "${environment_name}" \
+        run env -u "${environment_name}" -u PLAYWRIGHT_CLI_VERSION \
             DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        [ "$output" = "${environment_name}=${expected_version}" ]
+        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+            [ "$output" = "${environment_name}=${expected_version}"$'\n''PLAYWRIGHT_CLI_VERSION=latest' ]
+        else
+            [ "$output" = "${environment_name}=${expected_version}" ]
+        fi
     done
 }
 
@@ -473,13 +481,17 @@ EOF
 
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name <<<"${case_entry}"
-        run env \
+        run env -u PLAYWRIGHT_CLI_VERSION \
             DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
             "${environment_name}=9.9.9" \
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        [ "$output" = "${environment_name}=9.9.9" ]
+        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+            [ "$output" = "${environment_name}=9.9.9"$'\n''PLAYWRIGHT_CLI_VERSION=latest' ]
+        else
+            [ "$output" = "${environment_name}=9.9.9" ]
+        fi
     done
 }
 
@@ -542,6 +554,76 @@ EOF
 
         [ "$status" -eq 0 ]
         [ "$output" = "${environment_name}=${override_version}" ]
+    done
+}
+
+@test "Phase 3C-A installers resolve central semantic and floating policies" {
+    local policy_file="${BATS_TEST_TMPDIR}/phase-3c-a-tool-versions.conf"
+    local case_entry script_name environment_name expected_value
+    local -a cases=(
+        '20-runtime-node.sh|NODE_MAJOR|99'
+        '20-runtime-go.sh|GO_VERSION|go9.9.1'
+        '20-runtime-pnpm.sh|PNPM_VERSION|9.9.2'
+        '40-node-test.sh|VITEST_VERSION|9.9.3'
+        '40-php-lang.sh|PHP_VERSION|9.9'
+        '40-php-test.sh|PHPUNIT_VERSION|99'
+        '50-browser-playwright.sh|PLAYWRIGHT_CLI_VERSION|9.9.4'
+        '20-tool-devcontainer-cli.sh|DEVCONTAINER_CLI_VERSION|9.9.5'
+    )
+
+    cat >"${policy_file}" <<'EOF'
+TOOL_NODE_MAJOR="99"
+TOOL_GO_VERSION="go9.9.1"
+TOOL_PNPM_VERSION="9.9.2"
+TOOL_VITEST_VERSION="9.9.3"
+TOOL_PHP_VERSION="9.9"
+TOOL_PHPUNIT_VERSION="99"
+TOOL_PLAYWRIGHT_CLI_VERSION="9.9.4"
+TOOL_DEVCONTAINER_CLI_VERSION="9.9.5"
+EOF
+
+    for case_entry in "${cases[@]}"; do
+        IFS='|' read -r script_name environment_name expected_value <<<"${case_entry}"
+        run env -u "${environment_name}" -u PLAYWRIGHT_VERSION \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
+
+        [ "$status" -eq 0 ]
+        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+            [ "$output" = "PLAYWRIGHT_VERSION=1.60.0"$'\n'"${environment_name}=${expected_value}" ]
+        else
+            [ "$output" = "${environment_name}=${expected_value}" ]
+        fi
+    done
+}
+
+@test "Phase 3C-A installer environment overrides win over central policies" {
+    local policy_file="${SCRIPT_DIR}/tool-versions.conf"
+    local case_entry script_name environment_name override_value
+    local -a cases=(
+        '20-runtime-node.sh|NODE_MAJOR|88'
+        '20-runtime-go.sh|GO_VERSION|go8.8.1'
+        '20-runtime-pnpm.sh|PNPM_VERSION|8.8.2'
+        '40-node-test.sh|VITEST_VERSION|8.8.3'
+        '40-php-lang.sh|PHP_VERSION|8.8'
+        '40-php-test.sh|PHPUNIT_VERSION|88'
+        '50-browser-playwright.sh|PLAYWRIGHT_CLI_VERSION|8.8.4'
+        '20-tool-devcontainer-cli.sh|DEVCONTAINER_CLI_VERSION|8.8.5'
+    )
+
+    for case_entry in "${cases[@]}"; do
+        IFS='|' read -r script_name environment_name override_value <<<"${case_entry}"
+        run env -u PLAYWRIGHT_VERSION \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            "${environment_name}=${override_value}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
+
+        [ "$status" -eq 0 ]
+        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+            [ "$output" = "PLAYWRIGHT_VERSION=1.60.0"$'\n'"${environment_name}=${override_value}" ]
+        else
+            [ "$output" = "${environment_name}=${override_value}" ]
+        fi
     done
 }
 

@@ -11,7 +11,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PNPM_VERSION:=latest}"
+devcontainer_load_tool_versions
+
+: "${PNPM_VERSION:=${TOOL_PNPM_VERSION:-latest}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'PNPM_VERSION=%s\n' "${PNPM_VERSION}"
+	exit 0
+fi
 
 if devcontainer_has_cmd pnpm; then
 	devcontainer_log_info "pnpm already installed: $(pnpm --version)"

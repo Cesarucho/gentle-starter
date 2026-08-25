@@ -11,7 +11,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${VITEST_VERSION:=latest}"
+devcontainer_load_tool_versions
+
+: "${VITEST_VERSION:=${TOOL_VITEST_VERSION:-latest}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'VITEST_VERSION=%s\n' "${VITEST_VERSION}"
+	exit 0
+fi
 
 # Guard: skip if node is not present (this tool depends on node being installed).
 if ! devcontainer_has_cmd node; then

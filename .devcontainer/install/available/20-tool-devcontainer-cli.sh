@@ -14,13 +14,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
+devcontainer_load_tool_versions
+
+: "${DEVCONTAINER_CLI_VERSION:=${TOOL_DEVCONTAINER_CLI_VERSION:-latest}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'DEVCONTAINER_CLI_VERSION=%s\n' "${DEVCONTAINER_CLI_VERSION}"
+	exit 0
+fi
+
 if devcontainer_has_cmd devcontainer; then
 	devcontainer_log_info "devcontainer CLI already installed: $(devcontainer --version 2>/dev/null || command -v devcontainer)"
 	exit 0
 fi
 
-devcontainer_log_info "Installing @devcontainers/cli globally via npm"
-devcontainer_run_as_root npm install -g @devcontainers/cli
+devcontainer_log_info "Installing @devcontainers/cli@${DEVCONTAINER_CLI_VERSION} globally via npm"
+devcontainer_run_as_root npm install -g "@devcontainers/cli@${DEVCONTAINER_CLI_VERSION}"
 
 if ! devcontainer_has_cmd devcontainer; then
 	devcontainer_log_error "devcontainer CLI install failed: binary not on PATH"

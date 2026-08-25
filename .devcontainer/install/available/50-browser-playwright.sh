@@ -16,10 +16,12 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 devcontainer_load_tool_versions
 
 : "${PLAYWRIGHT_VERSION:=${TOOL_PLAYWRIGHT_VERSION:-1.60.0}}"
+: "${PLAYWRIGHT_CLI_VERSION:=${TOOL_PLAYWRIGHT_CLI_VERSION:-latest}}"
 : "${PLAYWRIGHT_BROWSERS_PATH:=/opt/ms-playwright}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PLAYWRIGHT_VERSION=%s\n' "${PLAYWRIGHT_VERSION}"
+	printf 'PLAYWRIGHT_CLI_VERSION=%s\n' "${PLAYWRIGHT_CLI_VERSION}"
 	exit 0
 fi
 
@@ -43,8 +45,8 @@ PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH}" \
 if devcontainer_has_cmd playwright-cli; then
 	devcontainer_log_info "playwright-cli already installed, skipping CLI"
 else
-	devcontainer_log_info "Installing @playwright/cli"
-	devcontainer_run_as_root npm install -g @playwright/cli@latest
+	devcontainer_log_info "Installing @playwright/cli@${PLAYWRIGHT_CLI_VERSION}"
+	devcontainer_run_as_root npm install -g "@playwright/cli@${PLAYWRIGHT_CLI_VERSION}"
 fi
 
 devcontainer_log_info "Installing playwright-cli skills"

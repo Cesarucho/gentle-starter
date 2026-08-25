@@ -10,7 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${NODE_MAJOR:=26}"
+devcontainer_load_tool_versions
+
+: "${NODE_MAJOR:=${TOOL_NODE_MAJOR:-26}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'NODE_MAJOR=%s\n' "${NODE_MAJOR}"
+	exit 0
+fi
 
 if devcontainer_has_cmd node; then
 	devcontainer_log_info "node already installed: $(node --version)"

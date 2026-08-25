@@ -11,7 +11,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
 
-: "${PHPUNIT_VERSION:=10}"
+devcontainer_load_tool_versions
+
+: "${PHPUNIT_VERSION:=${TOOL_PHPUNIT_VERSION:-10}}"
+
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'PHPUNIT_VERSION=%s\n' "${PHPUNIT_VERSION}"
+	exit 0
+fi
 
 # Guard: skip if php is not present (this tool depends on php being installed).
 if ! devcontainer_has_cmd php; then
