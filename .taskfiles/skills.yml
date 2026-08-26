@@ -9,9 +9,10 @@ tasks:
         cat <<'EOF'
         Skill tasks
 
-        Source of truth:
-          skills-lock.json   Source/update metadata managed by the skills CLI
-          .agents/skills/    Versioned skill content discovered by Pi
+        Sources of truth:
+          skills-lock.json         External source/update metadata managed by the skills CLI
+          .agents/local-skills.txt Project-authored skill names preserved by prune
+          .agents/skills/          Versioned skill content discovered by Pi
 
         Examples:
           task skill:add -- github/awesome-copilot --skill java-docs
@@ -23,8 +24,13 @@ tasks:
           task skill:sync
 
         Typical flows:
-          # Add a new project skill and commit the resulting files
+          # Add an external skill and commit its lock metadata and copied files
           task skill:add -- <package> --skill <skill-name>
+          task skill:validate
+
+          # Add a repository-authored skill
+          mkdir -p .agents/skills/<skill-name>
+          echo '<skill-name>' >> .agents/local-skills.txt
           task skill:validate
 
           # Restore skills after cloning the repo
@@ -32,14 +38,14 @@ tasks:
 
           # Refresh existing skills and review the diff
           task skill:update
-          git diff -- skills-lock.json .agents/skills
+          git diff -- skills-lock.json .agents/local-skills.txt .agents/skills
 
-          # Remove installed skills that are no longer in skills-lock.json
+          # Remove skills absent from both the external lock and local manifest
           task skill:prune
         EOF
 
   add:
-    desc: Add a project skill and update skills-lock.json
+    desc: Add an external skill package and update skills-lock.json
     cmds:
       - skills add {{.CLI_ARGS}} --agent pi --copy -y
 
@@ -59,33 +65,16 @@ tasks:
       - skills list --json
 
   prune:
-    desc: Remove installed skills absent from skills-lock.json
+    desc: Remove skills absent from both the external lock and local manifest
     silent: true
     cmds:
-      - |
-        test -f skills-lock.json
-        test -d .agents/skills || exit 0
-        find .agents/skills -mindepth 1 -maxdepth 1 -type d | sort | while read -r path; do
-          skill="$(basename "$path")"
-          if ! jq -e --arg skill "$skill" '.skills | has($skill)' skills-lock.json >/dev/null; then
-            echo "prune: $path"
-            rm -rf "$path"
-          fi
-        done
+      - ./.taskfiles/scripts/skills.sh prune
 
   validate:
-    desc: Validate skills-lock.json entries exist in .agents/skills
+    desc: Validate externally locked and project-authored skills
     silent: true
     cmds:
-      - |
-        test -f skills-lock.json
-        jq -r '.skills | keys[]' skills-lock.json | while read -r skill; do
-          test -f ".agents/skills/${skill}/SKILL.md" || {
-            echo "missing: .agents/skills/${skill}/SKILL.md" >&2
-            exit 1
-          }
-          echo "ok: ${skill}"
-        done
+      - ./.taskfiles/scripts/skills.sh validate
 
   sync:
     desc: Restore, update, prune, and validate project skills

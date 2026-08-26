@@ -214,7 +214,7 @@ task container:engram       # connect to the Engram TUI
 # Flexible project skills
 task skill:sync
 
-# Optional: only if you want to validate skills-lock.json against .agents/skills
+# Validate external lock entries and project-authored local skills
 task skill:validate
 
 # New-project identity cleanup
@@ -232,6 +232,7 @@ task quality:full
 ```text
 .
 ├── .agents/                        Versioned project skills
+│   └── local-skills.txt            Project-authored skills preserved by prune
 ├── .atl/                           <-- not versioned -->
 ├── CHANGELOG.md
 ├── .devcontainer
@@ -411,8 +412,10 @@ minimum permissions required for your workflow.
 
 ### 🧠 Manage skills
 
-Project skills live in `.agents/skills/` and are controlled from
-`skills-lock.json`.
+Project skills live in `.agents/skills/`. External skills restored by the Skills
+CLI are controlled from `skills-lock.json`; repository-authored skills are listed
+one per line in `.agents/local-skills.txt`. `skill:prune` preserves the union and
+`skill:validate` checks both sources without inventing external lock metadata.
 
 Useful commands:
 
@@ -427,7 +430,7 @@ task skill:sync
 After modifying skills, review and version the relevant changes:
 
 ```bash
-git diff -- skills-lock.json .agents/skills
+git diff -- skills-lock.json .agents/local-skills.txt .agents/skills
 ```
 
 ## 🔐 Security

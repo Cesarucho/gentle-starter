@@ -1,0 +1,12 @@
+# Copy only the declarations the installer enforces.
+# Keep values quoted, non-empty, and data-only. Do not add commands or URLs.
+
+TOOL_EXAMPLE_VERSION="1.2.3"
+TOOL_EXAMPLE_SHA256_AMD64="REPLACE_WITH_64_LOWERCASE_HEX"
+TOOL_EXAMPLE_SHA256_ARM64="REPLACE_WITH_64_LOWERCASE_HEX"
+
+# Alternatives when they describe the real policy:
+# TOOL_EXAMPLE_INSTALL_VERSION="provider-selector"
+# TOOL_EXAMPLE_REQUIRED_VERSION="1.2"
+# TOOL_EXAMPLE_MAJOR="1"
+# TOOL_EXAMPLE_VERSION="latest" # Explicitly non-reproducible; justify it.

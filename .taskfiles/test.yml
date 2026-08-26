@@ -15,7 +15,7 @@ tasks:
           task test:install      Install BATS if not present
           task test:unit         Run repository unit tests
           task test:integration  Run integration tests for installed tools
-          task test:all          Run both unit and integration tests
+          task test              Run both unit and integration tests
         ENDHELP
 
   install:
@@ -37,6 +37,7 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/deps-update.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/gentle-ai.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/opencode.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/skills.bats
 
   integration:
     desc: Run integration tests for installed tools
@@ -46,4 +47,5 @@ tasks:
   test:
     desc: Run all tests (unit + integration)
     cmds:
-      - task: test:all
+      - task: unit
+      - task: integration

@@ -81,6 +81,16 @@ The comprehensive guide (how these systems interact, a worked example
 adding Redis end-to-end, and the FAQ) is in
 [`docs/en/extending.md`](docs/en/extending.md).
 
+## Project skill lifecycle
+
+- External skills restored by the Skills CLI remain declared in
+  `skills-lock.json`.
+- Repository-authored skills live in `.agents/skills/` and must be listed one
+  per line in `.agents/local-skills.txt`.
+- `task skill:prune` preserves the union of both sources;
+  `task skill:validate` checks both and rejects unsafe or duplicate local names.
+- Do not fabricate `skills-lock.json` source metadata for a local skill.
+
 ## The "what NOT to touch" list
 
 These are decisions that are settled. If a future change

@@ -51,10 +51,7 @@ tasks:
   test:
     desc: Run all tests (unit + integration)
     cmds:
-      - bats .devcontainer/test/unit/common.sh.bats
-      - bats .devcontainer/test/unit/deps-update.bats
-      - bats .devcontainer/test/unit/gentle-ai.bats
-      - bats .devcontainer/test/integration/tools.bats
+      - task: test:test
 
   help:
     desc: Show task help
@@ -100,7 +97,7 @@ tasks:
           task skill:help                 Show skill workflow examples
           task skill:list                 List installed project skills
           task skill:sync                 Restore, update, prune, and validate skills
-          task skill:validate             Optional: validate skills-lock against installed skills
+          task skill:validate             Validate locked and project-authored local skills
 
         Container:
           task container:help             Show container workflow examples
