@@ -167,6 +167,27 @@ skip_if_install_disabled() {
     command -v engram >/dev/null
 }
 
+@test "ai: Gentle AI uses the canonical enabled slot" {
+    local enabled_dir="${BATS_TEST_DIRNAME}/../../install/02-enabled"
+    local matching_links
+    matching_links="$(find "${enabled_dir}" -maxdepth 1 -type l -print 2>/dev/null | while read -r link; do
+        if [ "$(basename "$(readlink "${link}")")" = "30-ai-gentle-ai.sh" ]; then
+            basename "${link}"
+        fi
+    done)"
+    if [ -z "${matching_links}" ]; then
+        skip "disabled install (task install:enable -- 30-ai-gentle-ai)"
+    fi
+    [ "${matching_links}" = "81-gentle-ai.sh" ]
+}
+
+@test "ai: Gentle AI is installed" {
+    skip_if_install_disabled "81-gentle-ai.sh" "task install:enable -- 30-ai-gentle-ai"
+    command -v gentle-ai >/dev/null
+    run gentle-ai version
+    [ "$status" -eq 0 ]
+}
+
 @test "ai: skills directory exists" {
     [ -d "${HOME}/.pi/agent/skills" ] || [ -d "${HOME}/.pi/agent/npm/node_modules/gentle-pi/skills" ]
 }

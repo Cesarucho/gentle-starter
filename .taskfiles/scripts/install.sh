@@ -77,6 +77,7 @@ preferred_enabled_name() {
 	30-ai-engram.sh) printf '60-engram.sh\n' ;;
 	30-ai-pi-coding.sh) printf '70-pi-coding.sh\n' ;;
 	30-ai-pi-gentle.sh) printf '80-pi-gentle.sh\n' ;;
+	30-ai-gentle-ai.sh) printf '81-gentle-ai.sh\n' ;;
 	30-ai-skills.sh) printf '90-skills.sh\n' ;;
 	*) printf '%s\n' "${base}" ;;
 	esac

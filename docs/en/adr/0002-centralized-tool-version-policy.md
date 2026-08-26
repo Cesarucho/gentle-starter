@@ -80,8 +80,11 @@ It queries that registry through pnpm. Its direct-release scope is stable C4
 2.x, Terraform 1.x, Gitleaks 8.x, Pulumi 3.x, OpenTofu 1.x, Terragrunt 1.x,
 kubectl 1.36.x, PlantUML 1.2026.x, and Delve v1.x.
 
-Engram, BATS, and Graphify are intentionally outside the initial updater scope,
-as are provider-managed tools. Java, Node, PHP, PHPUnit, major channels, and
+Gentle AI is intentionally manual: its exact version and both Linux architecture
+digests are reviewed and changed together so a dependency update cannot silently
+replace the binary trust anchor with data from the same release boundary.
+Engram, BATS, and Graphify are also outside the initial updater scope, as are
+provider-managed tools. Java, Node, PHP, PHPUnit, major channels, and
 literal `latest` policies remain unchanged. The command discovers and validates
 all candidates before one atomic policy-file replacement; it does not install
 packages, rebuild the container, commit, push, or publish changes.

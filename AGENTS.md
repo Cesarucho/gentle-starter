@@ -237,7 +237,7 @@ docker buildx prune -af
 docker rmi code-img:0.1 2>/dev/null
 docker rmi $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "vsc-code-.*-uid" | head -1) 2>/dev/null
 task container:up > /tmp/rebuild.log 2>&1
-grep "Running: " /tmp/rebuild.log | grep -vE "\\\$script"  # 12 lines expected
+grep "Running: " /tmp/rebuild.log | grep -vE "\\\$script"  # 17 lines expected
 grep "Volume repair" /tmp/rebuild.log                         # 3 lines expected
 ```
 
@@ -245,7 +245,7 @@ The known-good state after the current validation fixes: core + enabled
 validation passes with Go currently disabled by default in
 `02-enabled/`. The expected always-on tools are `curl`, `jq`, `git`,
 `task`, `devcontainer`, `node`, `npm`, `pnpm`, `glow`, `pi`, `engram`,
-and `skills`; Java, Go, and other catalog tools may be enabled or
+`gentle-ai`, and `skills`; Java, Go, and other catalog tools may be enabled or
 disabled per project needs. postCreate should exit 0, the host-sim flow
 should pass, and both `validate:full` and `test` should pass inside the
 active or simulated devcontainer.

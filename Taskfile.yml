@@ -53,6 +53,7 @@ tasks:
     cmds:
       - bats .devcontainer/test/unit/common.sh.bats
       - bats .devcontainer/test/unit/deps-update.bats
+      - bats .devcontainer/test/unit/gentle-ai.bats
       - bats .devcontainer/test/integration/tools.bats
 
   help:

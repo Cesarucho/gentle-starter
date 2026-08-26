@@ -507,6 +507,7 @@ EOF
         '40-cli-kubectl.sh|KUBECTL_VERSION|9.9.6'
         '40-cli-plantuml.sh|PLANTUML_VERSION|9.9.7'
         '40-go-debug.sh|DELVE_VERSION|v9.9.8'
+        '30-ai-gentle-ai.sh|GENTLE_AI_VERSION|9.9.9'
     )
 
     cat >"${policy_file}" <<'EOF'
@@ -518,6 +519,7 @@ TOOL_TERRAGRUNT_VERSION="9.9.5"
 TOOL_KUBECTL_VERSION="9.9.6"
 TOOL_PLANTUML_VERSION="9.9.7"
 TOOL_DELVE_VERSION="v9.9.8"
+TOOL_GENTLE_AI_VERSION="9.9.9"
 EOF
 
     for case_entry in "${cases[@]}"; do
@@ -543,6 +545,7 @@ EOF
         '40-cli-kubectl.sh|KUBECTL_VERSION|8.8.6'
         '40-cli-plantuml.sh|PLANTUML_VERSION|8.8.7'
         '40-go-debug.sh|DELVE_VERSION|v8.8.8'
+        '30-ai-gentle-ai.sh|GENTLE_AI_VERSION|8.8.9'
     )
 
     for case_entry in "${cases[@]}"; do

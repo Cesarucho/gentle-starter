@@ -174,6 +174,7 @@ run_container() {
 	check_command npm
 	check_command pi
 	check_command engram
+	check_command gentle-ai
 	check_command gh optional
 	check_command playwright optional
 

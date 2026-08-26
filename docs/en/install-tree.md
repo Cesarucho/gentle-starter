@@ -75,12 +75,14 @@ Current default order:
 60-engram.sh
 70-pi-coding.sh
 80-pi-gentle.sh
+81-gentle-ai.sh
 90-skills.sh
 ```
 
 The numeric gap is intentional: `20-go.sh` is currently disabled, and a
 missing slot is acceptable when a default-active tool is turned off.
 This ordering is intentional: `bats` runs first, `skills` runs last,
+Gentle AI runs after the Pi packages it can optionally configure,
 Node/npm-dependent tools stay after the Node runtime scripts, and small
 CLI additions such as `glow` can take the next free execution slot without
 renaming the rest of the layer. To disable one, delete the symlink. To

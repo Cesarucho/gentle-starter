@@ -287,8 +287,12 @@ task test:help         # show available test tasks
 
 Unit tests live in `.devcontainer/test/unit/`: `common.sh.bats` covers
 `common.sh` helpers (phase detection, logging, fetching, version extraction,
-version comparison, idempotency), while `deps-update.bats` covers the dependency
-policy updater and C4-PlantUML version/checksum behavior. Integration tests in
+version comparison, idempotency), `deps-update.bats` covers the dependency
+policy updater and C4-PlantUML version/checksum behavior, and `gentle-ai.bats`
+covers Gentle AI's manually pinned architecture digests, bounded download
+retries, canonical enabled slot, rollback, and exact-version idempotency.
+Gentle AI version and digest updates stay outside `task deps:update` so those
+three trust inputs are reviewed together. Integration tests in
 `.devcontainer/test/integration/tools.bats` verify that the expected tools are
 present after setup (core, Go, Java, Node, AI tools, and environment variables).
 
