@@ -68,7 +68,7 @@ version of each.
    runtime path. Targets outside `$HOME` auto-escalate to `sudo`.
    Adding a new tool's baseline config = source tree in
    `<name>-config/` + one `seed_config_tree` call in
-   `setup_versioned_pi_config`. Doc: `docs/en/configs.md`.
+   `setup_versioned_configs`. Doc: `docs/en/configs.md`.
 
 4. **Tool-version policy** (`.devcontainer/tool-versions.conf`) — declarative
    exact versions, provider selectors, observable requirements, major channels,
@@ -266,7 +266,7 @@ active or simulated devcontainer.
 |---|---|
 | Add a new install script | `cp templates/install-script.sh available/NN-categoria-tool.sh`, fill in, then if it is default-active link it from `02-enabled/` as `NN-tool.sh` using the next free execution slot. |
 | Add a new stateful volume | bind mount in `docker-compose.yml` + case in `compose_target_to_install_scripts` + install script in `available/`. |
-| Add a new tool's baseline config (HOME) | create `<name>-config/`, add `seed_config_tree ... "${HOME}/.<name>"` in `setup_versioned_pi_config`. |
+| Add a new tool's baseline config (HOME) | create `<name>-config/`, add `seed_config_tree ... "${HOME}/.<name>"` in `setup_versioned_configs`. |
 | Add a new tool's baseline config (/etc) | same, target is `/etc/<ruta>` — the helper auto-escalates to `sudo`. |
 | Add a personal, non-versioned config | use `<name>-config.local/`, gitignored, add `seed_config_tree ... || true`. |
 

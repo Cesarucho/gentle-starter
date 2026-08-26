@@ -13,6 +13,91 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/setup-volumes.sh"
 
+repair_exact_directory() {
+	local path="$1"
+	local owner_uid="$2"
+	local owner_gid="$3"
+	local mode="$4"
+
+	if [ -L "${path}" ]; then
+		printf '[setup:error] Refusing to repair symlink: %s\n' "${path}" >&2
+		return 1
+	fi
+
+	if [ -e "${path}" ]; then
+		if [ ! -d "${path}" ]; then
+			printf '[setup:error] Refusing to repair non-directory: %s\n' "${path}" >&2
+			return 1
+		fi
+	elif ! mkdir -- "${path}"; then
+		printf '[setup:error] Could not create directory without privileges: %s\n' "${path}" >&2
+		return 1
+	fi
+
+	if [ -L "${path}" ] || [ ! -d "${path}" ]; then
+		printf '[setup:error] Directory changed type before repair: %s\n' "${path}" >&2
+		return 1
+	fi
+
+	if ! sudo python3 - "${path}" "${owner_uid}" "${owner_gid}" "${mode}" <<'PY'; then
+import os
+import stat
+import sys
+
+path = sys.argv[1]
+owner_uid = int(sys.argv[2])
+owner_gid = int(sys.argv[3])
+mode = int(sys.argv[4], 8)
+fd = None
+
+try:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    before = os.fstat(fd)
+    if not stat.S_ISDIR(before.st_mode):
+        raise RuntimeError("opened object is not a directory")
+
+    os.fchown(fd, owner_uid, owner_gid)
+    os.fchmod(fd, mode)
+
+    after = os.fstat(fd)
+    if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+        raise RuntimeError("opened directory identity changed during repair")
+    if not stat.S_ISDIR(after.st_mode):
+        raise RuntimeError("opened object changed type during repair")
+    if (after.st_uid, after.st_gid) != (owner_uid, owner_gid):
+        raise RuntimeError("directory ownership verification failed")
+    if stat.S_IMODE(after.st_mode) != mode:
+        raise RuntimeError("directory mode verification failed")
+except (OSError, RuntimeError, ValueError) as error:
+    print(f"[setup:error] Could not safely repair directory {path}: {error}", file=sys.stderr)
+    sys.exit(1)
+finally:
+    if fd is not None:
+        os.close(fd)
+PY
+		return 1
+	fi
+}
+
+prepare_user_owned_mount_roots() {
+	local runtime_uid
+	local runtime_gid
+
+	runtime_uid="$(id -u)"
+	runtime_gid="$(id -g)"
+
+	# Repair only the exact bind-mount roots. Parent directories precede
+	# their mounted descendants so each path can be opened safely.
+	repair_exact_directory "${HOME}/.pi" "${runtime_uid}" "${runtime_gid}" 0755
+	repair_exact_directory "${HOME}/.engram" "${runtime_uid}" "${runtime_gid}" 0755
+	repair_exact_directory "${HOME}/.gitconfig-volume" "${runtime_uid}" "${runtime_gid}" 0755
+	repair_exact_directory "${HOME}/.local" "${runtime_uid}" "${runtime_gid}" 0755
+	repair_exact_directory "${HOME}/.local/share" "${runtime_uid}" "${runtime_gid}" 0755
+	repair_exact_directory "${HOME}/.local/share/opencode" "${runtime_uid}" "${runtime_gid}" 0755
+}
+
+prepare_user_owned_mount_roots
+
 # sudo chown -R ${UID}:${UID} ${HOME}/.codex
 
 build_gitignore_prune_args() {
@@ -32,8 +117,8 @@ build_gitignore_prune_args() {
 
 # Fix project file permissions to standard privileges, excluding ignored directories.
 gitignore_prune_args=()
-sudo chown -R "${UID}:${UID}" "${WORKSPACE_DIR}"
 build_gitignore_prune_args gitignore_prune_args
+sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-dereference "${UID}:${UID}" -- {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
@@ -100,9 +185,10 @@ seed_config_tree() {
 #      mirrors the tool's runtime config location.
 #   2. Add a seed_config_tree call below with the absolute target.
 # See .devcontainer/README.md for the full convention.
-setup_versioned_pi_config() {
+setup_versioned_configs() {
 	# Pi and Gentle-AI configs land in the user's home (~/.pi/).
 	seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
+	seed_config_tree "${WORKSPACE_DIR}/.devcontainer/opencode-config" "${HOME}/.config/opencode"
 
 	# Add additional tool configs here, one line per source root:
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
@@ -158,8 +244,6 @@ setup_pi_workspace_trust() {
 }
 
 # Setup git files configurations
-sudo chown -R "${UID}:${UID}" "${HOME}/.gitconfig-volume"
-
 touch "${HOME}/.gitconfig-volume/config"
 ln -fs "${HOME}/.gitconfig-volume/config" "${HOME}/.gitconfig"
 sudo chown -R "${UID}:${UID}" "${HOME}/.gitconfig"
@@ -202,12 +286,12 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # ---------------------------------------------------------------------------
 
 # Install/update user-scoped AI tooling after volumes are mounted for ubuntu.
-# setup_versioned_pi_config copies base configs (see above); it is
+# setup_versioned_configs copies base configs (see above); it is
 # idempotent and safe to call once. The legacy implementation used
 # symlinks and had to be called twice (link, then re-link in case
 # any tool broke the symlinks via atomic replace); with copy, there
 # is nothing to re-link, so one call is enough.
-setup_versioned_pi_config
+setup_versioned_configs
 setup_pi_workspace_trust
 # export PATH="${HOME}/.local/bin:${PATH}"
 repair_installed_volumes

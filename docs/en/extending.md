@@ -32,9 +32,9 @@ doc, read this one.
    BUILD PHASE (Dockerfile)                RUNTIME PHASE (setup.sh)
    ──────────────────────                ──────────────────────
    for group in 01-core 02-enabled 03-hooks:
-       find each *.sh in group      ──▶  setup_versioned_pi_config
+       find each *.sh in group      ──▶  setup_versioned_configs
        DEVCONTAINER_PHASE=build            seed_config_tree
-       bash "${script}"                     (pi-config -> ~/.pi)
+       bash "${script}"                     (Pi and OpenCode config)
                                        ──▶ setup_pi_workspace_trust
                                            git config wiring
                                        ──▶ repair_installed_volumes
@@ -103,7 +103,7 @@ Create the versioned source:
 Wire it in `.devcontainer/setup.sh`:
 
 ```bash
-setup_versioned_pi_config() {
+setup_versioned_configs() {
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/redis-config" "/etc/redis"
 }
@@ -160,26 +160,30 @@ the variables, install, and verify sections, and link from
 
 ### How do I add a new stateful volume?
 
-Three things have to agree (in different files, by the way):
+First decide whether the mount is installer-owned or passive. An
+installer-owned target needs three pieces to agree:
 
 1. The bind mount itself: declared in
    `.devcontainer/docker-compose.yml` under `services.container-svc.volumes:`.
 2. The target-to-script mapping: a case in
    `compose_target_to_install_scripts` in
    `.devcontainer/setup-volumes.sh`.
-3. The install script (which also runs at runtime when the volume
-   is empty): in `.devcontainer/install/available/`, optionally
-   linked from `02-enabled/`.
+3. The runtime-safe install script: in
+   `.devcontainer/install/available/`, optionally linked from
+   `02-enabled/`.
 
-Run `task install:volumes` after editing the case to verify the
-contract is in sync. See
-[install-volumes.md](install-volumes.md) for the deep reference.
+A passive state mount, such as OpenCode's `~/.local/share/opencode`,
+needs only the bind mount because no installer owns or populates it.
+Run `task install:volumes` to see whether a target has an installer
+mapping. For an unmapped target, confirm separately whether it is passive
+or missing a required mapping. See [install-volumes.md](install-volumes.md)
+for the deep reference.
 
 ### How do I add a new tool's baseline config?
 
 Create a `.devcontainer/<name>-config/` directory with the file
 tree that mirrors the tool's runtime config location. Add a
-`seed_config_tree` call to `setup_versioned_pi_config` in
+`seed_config_tree` call to `setup_versioned_configs` in
 `setup.sh`. Targets outside `$HOME` are handled automatically (the
 helper escalates to `sudo`). See
 [configs.md](configs.md) for the deep reference.
@@ -194,7 +198,7 @@ Two patterns:
 - **Personal config sources**: use a `<name>-config.local/`
   suffix; the pattern `*-config.local/` is in `.gitignore`. Drop
   your files there, add a `seed_config_tree` call with `|| true`
-  to `setup_versioned_pi_config`, and the line is harmless even
+  to `setup_versioned_configs`, and the line is harmless even
   if the directory doesn't exist yet.
 
 ### Why do my files in `install/` keep getting their mode changed to 0755?
@@ -216,10 +220,10 @@ runs as root inside the image; the script typically uses
 `apt-get install`, downloads tarballs, and writes to `/usr/local/`.
 
 `DEVCONTAINER_PHASE=runtime` is the value `setup.sh` sets when
-it re-runs the install script at postCreate, either via
-`setup_versioned_pi_config` (for config files) or via
-`repair_installed_volumes` (for stateful bind mounts). Runtime
-phase runs as ubuntu; the script typically does user-scoped installs
+it re-runs an install script at postCreate via
+`repair_installed_volumes` or a tool-specific runtime hook. Config
+files are copied separately by `setup_versioned_configs`; that helper
+does not invoke installers. Runtime phase runs as ubuntu; the script typically does user-scoped installs
 (`npm install -g` for ubuntu, `~/.local/bin/` for Engram, etc.)
 or skips itself entirely if the tool is already installed.
 
@@ -240,19 +244,16 @@ this pattern.
 
 ### What happens if I delete `.env.d/` and rebuild?
 
-The volume-repair contract kicks in. With `.env.d/.pi/` empty,
-`repair_installed_volumes` notices the target is empty and re-runs
+The volume-repair contract kicks in for installer-owned targets.
+For `.env.d/.pi/`, `repair_installed_volumes` re-runs
 `30-ai-pi-coding.sh` and `30-ai-pi-gentle.sh` with
-`DEVCONTAINER_PHASE=runtime`. The scripts' idempotency guards
-decide what's actually done (typically "nothing, the binaries
-are already installed, but the npm packages and the trust.json
-might need touching").
+`DEVCONTAINER_PHASE=runtime`; their idempotency guards decide what
+work is needed. Passive mounts are different: OpenCode recreates its
+own mutable share state as it runs, so no repair installer is mapped.
 
-This is the same thing that happens on a fresh clone: the
-volume mounts come up empty, and the postCreate hook populates
-them. The dev environment is "self-healing" with respect to the
-stateful bind mounts, up to the idempotency contract of each
-install script.
+This is the same distinction on a fresh clone: installer-owned mounts
+are repaired by postCreate, while passive mounts start empty and are
+populated by their application.
 
 ### How do I reset to the project's defaults?
 

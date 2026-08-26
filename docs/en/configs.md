@@ -5,6 +5,8 @@
 `.devcontainer/<name>-config/` to their runtime path. It is
 copy-on-first-run (idempotent, preserves user customisations across
 rebuilds) and auto-escalates to `sudo` for targets outside `$HOME`.
+The built-in mappings seed `pi-config/` to `~/.pi/` and
+`opencode-config/` to `~/.config/opencode/`.
 
 For the comprehensive view (how config seeding, install scripts, and
 volume repair interact, plus a worked example), see
@@ -88,10 +90,10 @@ Three steps:
    #   runtime: ~/.kube/config
    ```
 
-2. **Add one line** to `setup_versioned_pi_config` in `setup.sh`:
+2. **Add one line** to `setup_versioned_configs` in `setup.sh`:
 
    ```bash
-   setup_versioned_pi_config() {
+   setup_versioned_configs() {
        seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
        seed_config_tree "${WORKSPACE_DIR}/.devcontainer/kubectl-config" "${HOME}/.kube"
    }
@@ -114,7 +116,7 @@ automatically — no flag, no extra wiring on your part.
 ```
 
 ```bash
-setup_versioned_pi_config() {
+setup_versioned_configs() {
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
 }
@@ -145,7 +147,7 @@ silently handles a missing local source root, so the line can be
 added even before the directory exists.
 
 ```bash
-setup_versioned_pi_config() {
+setup_versioned_configs() {
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
     # Personal: not committed, exists only on this clone.

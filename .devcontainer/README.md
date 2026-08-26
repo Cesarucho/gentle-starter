@@ -17,8 +17,9 @@ links from there.
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
 | `test/` | BATS test suite. Run `task test:all` to verify the environment. |
 | `pi-config/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
-| `setup.sh` | postCreate entry point. Handles workspace permissions, Pi config seeding, Pi workspace trust, gitconfig wiring. |
-| `setup-volumes.sh` | Sourced by `setup.sh`. Owns the bind-mount → install-script repair contract. |
+| `opencode-config/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
+| `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
+| `setup-volumes.sh` | Sourced by `setup.sh`. Owns the bind-mount → install-script repair contract for installer-owned state. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
 
 ## The three systems
@@ -30,8 +31,8 @@ The devcontainer has three extension surfaces:
    Deep dive in [`docs/en/install-tree.md`](../docs/en/install-tree.md).
 
 2. **Stateful volumes** (`docker-compose.yml` + `setup-volumes.sh`)
-   — bind mounts that survive rebuilds, with the postCreate hook
-   re-running the owning install script when the host dir is empty.
+   — bind mounts that survive rebuilds. Installer-owned targets trigger
+   their repair scripts; passive state mounts persist without repair.
    Deep dive in [`docs/en/install-volumes.md`](../docs/en/install-volumes.md).
 
 3. **Config files** (`<name>-config/` + `seed_config_tree` in
@@ -51,7 +52,7 @@ version:
 
 1. Create `.devcontainer/<name>-config/` with the file tree that
    mirrors the tool's runtime config location.
-2. Add a `seed_config_tree` call to `setup_versioned_pi_config()`
+2. Add a `seed_config_tree` call to `setup_versioned_configs()`
    in `setup.sh` with the absolute target. Targets outside `$HOME`
    auto-escalate to `sudo` — no flag needed.
 

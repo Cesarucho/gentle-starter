@@ -8,18 +8,16 @@ services:
       args:
         APP_NAME: ${APP_NAME}
     privileged: true
-    # Bind mounts below are stateful volumes. Each one is parsed by
-    # setup-volumes.sh at container start and re-populated by the
-    # install script(s) that own it (see compose_target_to_install_scripts
-    # in that file). When you add a new bind mount here, also add the
-    # matching case in .devcontainer/setup-volumes.sh, otherwise the
-    # volume will be created empty and stay empty. Run
+    # Bind mounts below persist state. setup-volumes.sh parses each one
+    # at container start. Installer-owned targets map to runtime repair
+    # scripts; passive targets, such as OpenCode share state, intentionally
+    # have no mapping because the application populates them. Run
     # `task install:volumes` to inspect the current contract end-to-end.
     volumes:
       # AI-TOOLS
       - ../.env.d/.pi:/home/ubuntu/.pi
       - ../.env.d/.engram:/home/ubuntu/.engram
-      # - ../.env.d/.opencode:/home/ubuntu/.config/opencode
+      - ../.env.d/.opencode/share:/home/ubuntu/.local/share/opencode
       # GIT-CONFIG
       - ../.env.d/.gitconfig:/home/ubuntu/.gitconfig-volume
       # SSH-AGENT-FORWARDING: share host SSH agent so git push inside the

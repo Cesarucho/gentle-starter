@@ -1,11 +1,11 @@
 # Volumes and the install contract
 
-This document is the deep reference for the stateful-volume contract
-that ties together `docker-compose.yml`, `setup-volumes.sh`, and
-the `install/available/` scripts. The TL;DR lives in the header of
-`setup-volumes.sh` and in the output of `task install:volumes` — this
-file is for the contributor who wants to understand *why* the contract
-looks the way it does, and what to do when it breaks.
+This document is the deep reference for the stateful-volume contract.
+Installer-owned targets tie together `docker-compose.yml`,
+`setup-volumes.sh`, and the `install/available/` scripts. Passive
+state mounts use only Compose because no installer owns or populates
+them. The TL;DR lives in the header of `setup-volumes.sh` and in the
+output of `task install:volumes`.
 
 > **Looking for the comprehensive view?** Start at
 > [`docs/en/extending.md`](./extending.md), which covers install,
@@ -31,7 +31,7 @@ identical to this one (the source tree IS the manifest).
 │   volumes:                   │ ──────▶ │   reads the volumes block,     │
 │     - ../.env.d/.pi:~/pi        │         │   emits source|target pairs    │
 │     - ../.env.d/.engram:~/engram│         │                                 │
-│     - (yours here)           │         │ compose_target_to_install_     │
+│     - .../opencode/share:...    │         │ compose_target_to_install_     │
 └──────────────────────────────┘         │   scripts(target) -> [names]   │
                                          │                                 │
                                          │ repair_installed_volumes        │
@@ -50,10 +50,12 @@ identical to this one (the source tree IS the manifest).
                                          └─────────────────────────────────┘
 ```
 
-The contract is that **all three pieces agree** at any moment in time.
-If you change one, the other two will silently disagree: the bind
-mount gets created but the install script never re-runs, leaving an
-empty volume.
+For an **installer-owned target**, all three pieces must agree at any
+moment in time. If you change one, the other two will silently
+disagree: the bind mount gets created but its install script never
+re-runs. A **passive target** intentionally has no mapping or repair
+script; for example, OpenCode owns and populates
+`~/.local/share/opencode` while it runs.
 
 ## Why bind mounts (and not named volumes)
 
@@ -97,23 +99,30 @@ volumes are managed by Docker and skip that concern.
 ## How the repair fires
 
 The `postCreateCommand` in `.devcontainer/devcontainer.json` runs
-`bash .devcontainer/setup.sh`. The pipeline at the bottom of
-`setup.sh` is:
+`bash .devcontainer/setup.sh`. Its relevant ordering is:
 
 ```bash
-setup_versioned_pi_config    # link config files from pi-config/ to ~/.pi/
-setup_pi_workspace_trust     # mark the workspace as trusted in trust.json
-repair_installed_volumes      # the three functions from setup-volumes.sh
-setup_versioned_pi_config    # re-link in case any tool rewrote config files
+prepare_user_owned_mount_roots # repair exact mount roots before user writes
+setup_versioned_configs         # copy missing Pi and OpenCode baseline configs
+setup_pi_workspace_trust        # mark the workspace as trusted in trust.json
+repair_installed_volumes        # dispatch repair for installer-owned mounts
+run_enabled_opencode_installer
 ```
+
+Docker can create absent bind-mount sources as root-owned directories.
+`prepare_user_owned_mount_roots` repairs only the exact user-owned roots:
+`~/.pi`, `~/.engram`, `~/.gitconfig-volume`, `~/.local`,
+`~/.local/share`, and `~/.local/share/opencode`. Parent paths run before
+mounted descendants. The repair never traverses children and rejects an
+existing symlink or non-directory before config seeding or installer work.
 
 `repair_installed_volumes` iterates the targets from
 `resolve_compose_volume_targets` and, for each one, calls
 `compose_target_to_install_scripts` to find the owning scripts. For
 each owning script, it runs `bash <script>` with
-`DEVCONTAINER_PHASE=runtime`. The script's idempotency guard at the
-top (e.g. `if devcontainer_has_cmd engram; then exit 0; fi`) decides
-whether the call is a no-op or actually does work.
+`DEVCONTAINER_PHASE=runtime`. An empty mapping is an intentional no-op
+for passive mounts. For mapped targets, the script's idempotency guard
+decides whether the call is a no-op or actually does work.
 
 So the actual "populate the empty bind mount" moment is inside the
 runtime-only branches of the install scripts, not in `setup-volumes.sh`
@@ -192,11 +201,11 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
 
 ### "I added a bind mount but the volume is empty after rebuild"
 
-You forgot step 3 (or 2): the bind mount gets created by Docker, but
-no install script ever populates it because `setup-volumes.sh`
-doesn't know about it. Run `task install:volumes` — the new target
-will show `(no mapping yet)`. Add the case to
-`compose_target_to_install_scripts`.
+Run `task install:volumes` first. If the target reports no repair
+mapping and an installer should populate it, add the missing script
+and `compose_target_to_install_scripts` case. If the application owns
+the state itself, the mount is passive and an empty directory before
+the application first runs is expected.
 
 ### "I added the install script but `task install:volumes` doesn't list my volume"
 

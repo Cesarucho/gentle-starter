@@ -3,13 +3,14 @@
 #
 # Sourced by setup.sh during the devcontainer postCreate hook. Parses
 # the bind mounts declared in docker-compose.yml and re-runs the
-# install scripts that own each target with DEVCONTAINER_PHASE=runtime.
+# install scripts that own mapped targets with DEVCONTAINER_PHASE=runtime.
+# Passive mounts intentionally have no mapping and receive no repair.
 # Each install script is idempotent (uses lib/common.sh's
 # devcontainer_has_cmd guard at the top), so a re-run on a populated
 # volume is a no-op.
 #
-# The contract has three pieces, and they all have to agree for the
-# repair to fire:
+# For an installer-owned target, the contract has three pieces, and
+# they all have to agree for the repair to fire:
 #
 #   1. The bind mount itself: declared in
 #      .devcontainer/docker-compose.yml as a string under
@@ -28,12 +29,15 @@
 #      (for default activation) is linked from
 #      .devcontainer/install/02-enabled/.
 #
-# To add a new stateful volume (e.g. PostgreSQL data dir):
+# To add a new installer-owned stateful volume (e.g. PostgreSQL data dir):
 #   a. Add the bind mount in docker-compose.yml.
 #   b. Add a case for the new target path in
 #      compose_target_to_install_scripts() below.
 #   c. Add the install script in install/available/.
 #   d. Link it from install/02-enabled/ if it should run by default.
+#
+# A passive state mount needs only the Compose entry. Leave it unmapped
+# when the application itself owns and populates that state.
 #
 # Note: this file is meant to be sourced by setup.sh. It relies on
 # WORKSPACE_DIR, HOME, and UID being set by the caller. Running it
@@ -72,7 +76,8 @@ resolve_compose_volume_targets() {
 }
 
 # Map a container-side target path to the install script base names
-# (without the .sh extension) that own that volume.
+# (without the .sh extension) that own that volume. Passive targets
+# intentionally return an empty array.
 compose_target_to_install_scripts() {
 	local target="$1"
 	local -n scripts_ref="$2"
@@ -92,10 +97,10 @@ compose_target_to_install_scripts() {
 }
 
 # Iterate over bind-mount volume targets from docker-compose.yml and
-# run the install scripts that own each target, with
-# DEVCONTAINER_PHASE=runtime. Each script is idempotent: it skips
-# itself when the tool is already installed, so a re-run on a
-# populated volume is a no-op.
+# run the install scripts that own each mapped target, with
+# DEVCONTAINER_PHASE=runtime. Passive targets are skipped. Each script
+# is idempotent: it skips itself when the tool is already installed,
+# so a re-run on a populated volume is a no-op.
 repair_installed_volumes() {
 	local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
 	local target_path
