@@ -599,7 +599,8 @@ EOF
 
 @test "Phase 3C-A installer environment overrides win over central policies" {
     local policy_file="${SCRIPT_DIR}/tool-versions.conf"
-    local case_entry script_name environment_name override_value
+    local case_entry script_name environment_name override_value playwright_version
+    playwright_version="$(awk -F '="' '$1 == "TOOL_PLAYWRIGHT_VERSION" { sub(/"$/, "", $2); print $2 }' "${policy_file}")"
     local -a cases=(
         '20-runtime-node.sh|NODE_MAJOR|88'
         '20-runtime-go.sh|GO_VERSION|go8.8.1'
@@ -620,7 +621,7 @@ EOF
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "50-browser-playwright.sh" ]; then
-            [ "$output" = "PLAYWRIGHT_VERSION=1.60.0"$'\n'"${environment_name}=${override_value}" ]
+            [ "$output" = "PLAYWRIGHT_VERSION=${playwright_version}"$'\n'"${environment_name}=${override_value}" ]
         else
             [ "$output" = "${environment_name}=${override_value}" ]
         fi
