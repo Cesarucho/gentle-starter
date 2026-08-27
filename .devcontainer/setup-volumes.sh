@@ -9,7 +9,7 @@
 # devcontainer_has_cmd guard at the top), so a re-run on a populated
 # volume is a no-op.
 #
-# For an installer-owned target, the contract has three pieces, and
+# For an installer-owned target, the contract has four pieces, and
 # they all have to agree for the repair to fire:
 #
 #   1. The bind mount itself: declared in
@@ -25,9 +25,11 @@
 #            ;;
 #
 #   3. The install script itself: lives in
-#      .devcontainer/install/available/40-data-postgresql.sh and
-#      (for default activation) is linked from
-#      .devcontainer/install/02-enabled/.
+#      .devcontainer/install/available/40-data-postgresql.sh.
+#
+#   4. Active status: at least one valid symlink in install/02-enabled/
+#      canonically resolves to that available script. The symlink name is
+#      only an ordering alias and need not match the catalog basename.
 #
 # To add a new installer-owned stateful volume (e.g. PostgreSQL data dir):
 #   a. Add the bind mount in docker-compose.yml.
@@ -96,11 +98,35 @@ compose_target_to_install_scripts() {
 	esac
 }
 
+# Return success when any valid ordering alias in 02-enabled/ canonically
+# resolves to the requested available installer. Broken links and links to
+# other catalog entries do not activate the installer.
+install_script_is_enabled() {
+	local script_path="$1"
+	local enabled_root="${WORKSPACE_DIR}/.devcontainer/install/02-enabled"
+	local canonical_script
+	local link
+	local canonical_link
+
+	[ -f "${script_path}" ] || return 1
+	[ -d "${enabled_root}" ] || return 1
+	canonical_script="$(readlink -f -- "${script_path}")" || return 1
+
+	for link in "${enabled_root}/"*; do
+		[ -L "${link}" ] || continue
+		[ -e "${link}" ] || continue
+		canonical_link="$(readlink -f -- "${link}")" || continue
+		[ "${canonical_link}" = "${canonical_script}" ] && return 0
+	done
+
+	return 1
+}
+
 # Iterate over bind-mount volume targets from docker-compose.yml and
-# run the install scripts that own each mapped target, with
-# DEVCONTAINER_PHASE=runtime. Passive targets are skipped. Each script
-# is idempotent: it skips itself when the tool is already installed,
-# so a re-run on a populated volume is a no-op.
+# run the active install scripts that potentially own each mapped target,
+# with DEVCONTAINER_PHASE=runtime. Passive targets and disabled owners are
+# skipped. Each script is idempotent: it skips itself when the tool is already
+# installed, so a re-run on a populated volume is a no-op.
 repair_installed_volumes() {
 	local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
 	local target_path
@@ -113,7 +139,7 @@ repair_installed_volumes() {
 
 		for script in "${scripts[@]}"; do
 			script_path="${install_root}/${script}.sh"
-			if [ ! -f "${script_path}" ]; then
+			if ! install_script_is_enabled "${script_path}"; then
 				continue
 			fi
 			echo "Volume repair: ${target_path} -> ${script}.sh"

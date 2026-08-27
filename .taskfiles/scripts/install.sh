@@ -74,6 +74,7 @@ preferred_enabled_name() {
 	40-node-markdownlint.sh) printf '45-markdownlint.sh\n' ;;
 	40-cli-glow.sh) printf '46-glow.sh\n' ;;
 	20-tool-devcontainer-cli.sh) printf '50-devcontainer-cli.sh\n' ;;
+	30-ai-opencode.sh) printf '55-opencode.sh\n' ;;
 	30-ai-engram.sh) printf '60-engram.sh\n' ;;
 	30-ai-pi-coding.sh) printf '70-pi-coding.sh\n' ;;
 	30-ai-pi-gentle.sh) printf '80-pi-gentle.sh\n' ;;
@@ -85,13 +86,20 @@ preferred_enabled_name() {
 
 enabled_link_names_for_base() {
 	local base="$1"
+	local available_path="${INSTALL_DIR}/available/${base}"
+	local canonical_available
 	local link
+	local canonical_link
 
+	[ -f "${available_path}" ] || return 0
 	[ -d "${INSTALL_DIR}/02-enabled" ] || return 0
+	canonical_available="$(readlink -f -- "${available_path}")" || return 0
 
 	for link in "${INSTALL_DIR}/02-enabled/"*; do
 		[ -L "${link}" ] || continue
-		if [ "$(basename "$(readlink "${link}")")" = "${base}" ]; then
+		[ -e "${link}" ] || continue
+		canonical_link="$(readlink -f -- "${link}")" || continue
+		if [ "${canonical_link}" = "${canonical_available}" ]; then
 			basename "${link}"
 		fi
 	done
@@ -223,7 +231,7 @@ cmd_disable() {
 
 	echo ""
 	echo "Next step: task container:rebuild"
-	echo "Note: install:disable changes the default tool set for future builds; existing tools in the current container remain until the environment is rebuilt."
+	echo "Note: install:disable changes the active tool set for future builds and postCreate repairs; it does not uninstall packages or remove persisted state."
 }
 
 cmd_doctor() {
@@ -325,9 +333,9 @@ cmd_volumes() {
 	done < <(resolve_compose_volume_targets)
 
 	echo ""
-	echo "When postCreate runs, each target is re-populated by running"
-	echo "the owning install script with DEVCONTAINER_PHASE=runtime. Each"
-	echo "script is idempotent (skips itself when already installed)."
+	echo "The mapping declares potential owners. During postCreate, only owners"
+	echo "with a valid symlink in install/02-enabled are run with"
+	echo "DEVCONTAINER_PHASE=runtime. Each script is idempotent."
 	echo ""
 	echo "To add a new stateful volume (e.g. PostgreSQL data dir):"
 	echo "  1. Add the bind mount to .devcontainer/docker-compose.yml."

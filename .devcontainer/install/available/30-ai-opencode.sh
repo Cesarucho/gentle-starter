@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# 30-ai-opencode.sh — opencode installer (currently not enabled).
+# 30-ai-opencode.sh — OpenCode installer (enabled by default).
 #
-# Opt in by linking from 02-enabled/: cd .devcontainer/install/02-enabled && ln -sfn ../available/30-ai-opencode.sh 30-ai-opencode.sh
+# Its ordered alias lives in 02-enabled/ and can be managed with the install tasks.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -35,9 +35,9 @@ identical to this one (the source tree IS the manifest).
 └──────────────────────────────┘         │   scripts(target) -> [names]   │
                                          │                                 │
                                          │ repair_installed_volumes        │
-                                         │   loops targets, calls each     │
-                                         │   owning script with            │
-                                         │   DEVCONTAINER_PHASE=runtime    │
+                                         │   filters owners through        │
+                                         │   02-enabled, then runs each    │
+                                         │   active owner at runtime       │
                                          └──────────────┬──────────────────┘
                                                         │
                                                         ▼
@@ -50,11 +50,14 @@ identical to this one (the source tree IS the manifest).
                                          └─────────────────────────────────┘
 ```
 
-For an **installer-owned target**, all three pieces must agree at any
-moment in time. If you change one, the other two will silently
-disagree: the bind mount gets created but its install script never
-re-runs. A **passive target** intentionally has no mapping or repair
-script; for example, OpenCode owns and populates
+For an **installer-owned target**, four pieces participate: the bind mount,
+the potential-owner mapping, the available installer, and an active symlink in
+`02-enabled/`. `compose_target_to_install_scripts` deliberately keeps listing
+potential owners even when one is disabled. At dispatch time, an owner runs
+only when a valid symlink—under any ordered alias—canonically resolves to its
+script in `available/`; broken symlinks never activate an owner. A **passive
+target** intentionally has no mapping or repair script; for example, OpenCode
+owns and populates
 `~/.local/share/opencode` while it runs.
 
 ## Why bind mounts (and not named volumes)
@@ -118,11 +121,18 @@ existing symlink or non-directory before config seeding or installer work.
 
 `repair_installed_volumes` iterates the targets from
 `resolve_compose_volume_targets` and, for each one, calls
-`compose_target_to_install_scripts` to find the owning scripts. For
-each owning script, it runs `bash <script>` with
-`DEVCONTAINER_PHASE=runtime`. An empty mapping is an intentional no-op
-for passive mounts. For mapped targets, the script's idempotency guard
-decides whether the call is a no-op or actually does work.
+`compose_target_to_install_scripts` to find the potential owning scripts. It
+then checks `02-enabled/` and runs only active owners with
+`DEVCONTAINER_PHASE=runtime`. An empty mapping is an intentional no-op for
+passive mounts, while a mapped but disabled owner is intentionally skipped.
+For active owners, the script's idempotency guard decides whether the call is a
+no-op or actually does work.
+
+For example, disabling `30-ai-pi-gentle` leaves the `.pi` mapping unchanged but
+removes that owner from future builds and postCreate repairs. The independently
+enabled `30-ai-pi-coding` owner continues repairing the same mount. Disable is
+non-destructive: it does not remove Pi packages already persisted in
+`.env.d/.pi`, and volume repair does not provide a purge operation.
 
 So the actual "populate the empty bind mount" moment is inside the
 runtime-only branches of the install scripts, not in `setup-volumes.sh`
@@ -183,8 +193,9 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
    task install:volumes
    ```
 
-   The output should now show the postgresql target with its owning
-   script.
+   The output should now show the postgresql target with its potential owning
+   script. Its valid `02-enabled/` symlink makes it active for postCreate
+   repair.
 
 6. **Rebuild and validate**:
 

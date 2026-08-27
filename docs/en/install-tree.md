@@ -72,6 +72,7 @@ Current default order:
 46-glow.sh
 50-browser-playwright.sh
 50-devcontainer-cli.sh
+55-opencode.sh
 60-engram.sh
 70-pi-coding.sh
 80-pi-gentle.sh
@@ -85,8 +86,14 @@ This ordering is intentional: `bats` runs first, `skills` runs last,
 Gentle AI runs after the Pi packages it can optionally configure,
 Node/npm-dependent tools stay after the Node runtime scripts, and small
 CLI additions such as `glow` can take the next free execution slot without
-renaming the rest of the layer. To disable one, delete the symlink. To
-enable one, run `task install:enable -- NAME`.
+renaming the rest of the layer. To disable one, run
+`task install:disable -- NAME`; to enable one, run
+`task install:enable -- NAME`.
+
+Disabling changes the active set for future image builds and postCreate
+repairs. It does not uninstall packages from the current container or delete
+mutable state already persisted under `.env.d/`. Re-enabling an installer
+makes its future lifecycle work active again.
 
 ### `03-hooks/` — user extensions (gitignored)
 

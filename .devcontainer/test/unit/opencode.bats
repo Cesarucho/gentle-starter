@@ -136,6 +136,8 @@ esac
 printf 'engram-repair\n' >>"${SETUP_EVENTS_FILE}"
 EOF
 	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-engram.sh"
+	ln -s ../available/30-ai-engram.sh \
+		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/60-engram.sh"
 	: >"${SETUP_CALLS_FILE}"
 	: >"${SETUP_DOWNLOADS_FILE}"
 	write_setup_command_stubs
@@ -310,6 +312,26 @@ path_metadata() {
 	[[ "${output}" == *"already installed; auto-update disabled"* ]]
 	[[ "${output}" != *"binary was not found at"* ]]
 	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 1 ]
+}
+
+@test "install enable repairs a broken alias with a matching textual target basename" {
+	local cli_workspace="${TEST_ROOT}/install-cli-workspace"
+	mkdir -p "${cli_workspace}/.devcontainer/install/available" \
+		"${cli_workspace}/.devcontainer/install/02-enabled" \
+		"${cli_workspace}/.taskfiles/scripts"
+	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
+		"${cli_workspace}/.taskfiles/scripts/install.sh"
+	printf '#!/usr/bin/env bash\n' \
+		>"${cli_workspace}/.devcontainer/install/available/30-ai-pi-gentle.sh"
+	ln -s /does/not/exist/30-ai-pi-gentle.sh \
+		"${cli_workspace}/.devcontainer/install/02-enabled/79-broken-gentle.sh"
+
+	run bash "${cli_workspace}/.taskfiles/scripts/install.sh" enable 30-ai-pi-gentle
+
+	[ "${status}" -eq 0 ]
+	[ -L "${cli_workspace}/.devcontainer/install/02-enabled/80-pi-gentle.sh" ]
+	[ "$(readlink "${cli_workspace}/.devcontainer/install/02-enabled/80-pi-gentle.sh")" = \
+		"../available/30-ai-pi-gentle.sh" ]
 }
 
 @test "setup skips OpenCode when its canonical installer is not enabled" {

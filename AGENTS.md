@@ -57,9 +57,10 @@ version of each.
 
 2. **Volume repair** (`.devcontainer/setup-volumes.sh`,
    sourced by `setup.sh`) — parses the bind mounts in
-   `docker-compose.yml` and re-runs the install scripts that own
-   each target with `DEVCONTAINER_PHASE=runtime`. Adding a new
-   stateful volume = bind mount in compose + case in
+   `docker-compose.yml`, maps potential owner scripts, and re-runs only
+   owners enabled by a valid `02-enabled/` symlink with
+   `DEVCONTAINER_PHASE=runtime`. Adding a new stateful volume = bind mount in
+   compose + case in
    `compose_target_to_install_scripts` + install script in
    `available/`. Doc: `docs/en/install-volumes.md`.
 
@@ -254,8 +255,8 @@ grep "Volume repair" /tmp/rebuild.log                         # 3 lines expected
 The known-good state after the current validation fixes: core + enabled
 validation passes with Go currently disabled by default in
 `02-enabled/`. The expected always-on tools are `curl`, `jq`, `git`,
-`task`, `devcontainer`, `node`, `npm`, `pnpm`, `glow`, `pi`, `engram`,
-`gentle-ai`, and `skills`; Java, Go, and other catalog tools may be enabled or
+`task`, `devcontainer`, `node`, `npm`, `pnpm`, `glow`, `opencode`, `pi`,
+`engram`, `gentle-ai`, and `skills`; Java, Go, and other catalog tools may be enabled or
 disabled per project needs. postCreate should exit 0, the host-sim flow
 should pass, and both `validate:full` and `test` should pass inside the
 active or simulated devcontainer.

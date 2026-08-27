@@ -40,7 +40,7 @@ doc, read this one.
                                        ──▶ repair_installed_volumes
                                            yq docker-compose.yml
                                            for each bind mount target,
-                                              run owning script with
+                                              run each enabled owner with
                                               DEVCONTAINER_PHASE=runtime
 ```
 
@@ -161,16 +161,19 @@ the variables, install, and verify sections, and link from
 ### How do I add a new stateful volume?
 
 First decide whether the mount is installer-owned or passive. An
-installer-owned target needs three pieces to agree:
+installer-owned target needs four pieces to agree:
 
 1. The bind mount itself: declared in
    `.devcontainer/docker-compose.yml` under `services.container-svc.volumes:`.
 2. The target-to-script mapping: a case in
    `compose_target_to_install_scripts` in
    `.devcontainer/setup-volumes.sh`.
-3. The runtime-safe install script: in
-   `.devcontainer/install/available/`, optionally linked from
-   `02-enabled/`.
+3. The runtime-safe install script in `.devcontainer/install/available/`.
+4. A valid symlink in `02-enabled/` when that potential owner should be active.
+
+The mapping remains a declaration of potential owners. Runtime repair follows
+only enabled owners, regardless of their ordered alias name, and ignores broken
+symlinks.
 
 A passive state mount, such as OpenCode's `~/.local/share/opencode`,
 needs only the bind mount because no installer owns or populates it.
@@ -245,10 +248,12 @@ this pattern.
 ### What happens if I delete `.env.d/` and rebuild?
 
 The volume-repair contract kicks in for installer-owned targets.
-For `.env.d/.pi/`, `repair_installed_volumes` re-runs
+For `.env.d/.pi/`, `repair_installed_volumes` can re-run
 `30-ai-pi-coding.sh` and `30-ai-pi-gentle.sh` with
-`DEVCONTAINER_PHASE=runtime`; their idempotency guards decide what
-work is needed. Passive mounts are different: OpenCode recreates its
+`DEVCONTAINER_PHASE=runtime` when each owner is enabled; their idempotency
+guards decide what work is needed. Disabling Pi Gentle leaves Pi Coding active
+and does not uninstall packages already persisted in `.env.d/.pi`. Passive
+mounts are different: OpenCode recreates its
 own mutable share state as it runs, so no repair installer is mapped.
 
 This is the same distinction on a fresh clone: installer-owned mounts
