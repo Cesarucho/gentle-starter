@@ -6,6 +6,8 @@ setup() {
 	PROJECT_ROOT="${TEST_ROOT}/project"
 	mkdir -p "${PROJECT_ROOT}"
 	seed_project
+	LICENSE_SHA256_BEFORE="$(sha256sum "${PROJECT_ROOT}/LICENSE" | awk '{print $1}')"
+	LICENSE_MODE_BEFORE="$(stat -c '%a' "${PROJECT_ROOT}/LICENSE")"
 }
 
 teardown() {
@@ -31,6 +33,7 @@ seed_project() {
 	printf '# Template\n<PROJECT_NAME>\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE"
 	printf '# Changelog\n' >"${PROJECT_ROOT}/CHANGELOG.md"
 	printf 'MIT\n' >"${PROJECT_ROOT}/LICENSE"
+	chmod 0640 "${PROJECT_ROOT}/LICENSE"
 	printf '# Devcontainer\n../docs/en/extending.md\n' \
 		>"${PROJECT_ROOT}/.devcontainer/README.md"
 	for doc in extending.md install-tree.md install-volumes.md configs.md; do
@@ -64,7 +67,9 @@ assert_parentless_root() {
 assert_starter_identity_cleaned() {
 	[ ! -e "${PROJECT_ROOT}/README.md" ]
 	[ ! -e "${PROJECT_ROOT}/docs" ]
-	[ ! -e "${PROJECT_ROOT}/LICENSE" ]
+	[ -f "${PROJECT_ROOT}/LICENSE" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/LICENSE" | awk '{print $1}')" = "${LICENSE_SHA256_BEFORE}" ]
+	[ "$(stat -c '%a' "${PROJECT_ROOT}/LICENSE")" = "${LICENSE_MODE_BEFORE}" ]
 	[ ! -e "${PROJECT_ROOT}/CHANGELOG.md" ]
 	[ -f "${PROJECT_ROOT}/AGENTS.md" ]
 	grep -Fq '<PROJECT_NAME>' "${PROJECT_ROOT}/AGENTS.md"

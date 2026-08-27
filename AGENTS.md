@@ -219,6 +219,8 @@ wiped:
 
 ```bash
 ROOT="$PWD"
+LICENSE_SHA256="$(sha256sum LICENSE | awk '{print $1}')"
+LICENSE_MODE="$(stat -c '%a' LICENSE)"
 CLEAN_BASE="$ROOT/.tmp-clean-sim-$(date +%s)"
 rsync -a --exclude '.env.d' --exclude '.tmp-clean-sim-*' ./ "$CLEAN_BASE/"
 cd "$CLEAN_BASE"
@@ -227,8 +229,10 @@ printf 'y\n' | task clean
 
 Verify that:
 
-- `README.md`, `AGENTS.md`, `docs/`, `LICENSE`, and `CHANGELOG.md` are
-  removed;
+- `README.md`, `AGENTS.md`, `docs/`, and `CHANGELOG.md` are removed;
+- `LICENSE` is kept unchanged as inherited Gentle Starter MIT attribution;
+- `sha256sum LICENSE` still matches `LICENSE_SHA256`, and
+  `stat -c '%a' LICENSE` still matches `LICENSE_MODE`;
 - `AGENTS.md.TEMPLATE` is kept;
 - `AGENTS.md` is recreated from `AGENTS.md.TEMPLATE`;
 - `.devcontainer/docs/` is created with the migrated deep-dive docs;
@@ -243,6 +247,8 @@ history:
 
 ```bash
 ROOT="$PWD"
+LICENSE_SHA256="$(sha256sum LICENSE | awk '{print $1}')"
+LICENSE_MODE="$(stat -c '%a' LICENSE)"
 INIT_BASE="$ROOT/.tmp-project-init-$(date +%s)"
 rsync -a --exclude '.env.d' --exclude '.tmp-project-init-*' ./ "$INIT_BASE/"
 cd "$INIT_BASE"
@@ -259,7 +265,8 @@ Verify that:
 - `git for-each-ref --format='%(refname)'` lists only
   `refs/heads/project-main` (unreachable objects may remain until Git garbage
   collection);
-- identity cleanup and migrated-doc assertions above still hold;
+- identity cleanup, LICENSE checksum/mode preservation, and migrated-doc
+  assertions above still hold;
 - a blank origin preserved `ORIGINAL_ORIGIN`;
 - no upstream exists and no remote received a ref;
 - the working tree is clean.

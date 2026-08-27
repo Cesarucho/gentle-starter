@@ -24,11 +24,11 @@ About clean:identity:
     - README.md
     - AGENTS.md
     - docs/
-    - LICENSE
     - CHANGELOG.md
     - .github/               (if present)
 
   KEPT (structure):
+    - LICENSE                inherited Gentle Starter MIT attribution
     - AGENTS.md.TEMPLATE     reusable AI-facing template
     - .devcontainer/README.md
     - .devcontainer/docs/    local deep-dive docs copied from docs/en/ during clean

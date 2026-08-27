@@ -8,7 +8,7 @@ tasks:
       - ./.taskfiles/scripts/clean.sh help
 
   identity:
-    desc: Remove project identity files (README, docs, LICENSE, CHANGELOG, .github)
+    desc: Remove project identity files while preserving LICENSE and base structure
     silent: true
     cmds:
       - ./.taskfiles/scripts/clean.sh identity

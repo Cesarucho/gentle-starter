@@ -97,6 +97,10 @@ required for the happy path.
     > you want to remove only the starter identity while keeping the existing Git
     > history.
 
+    Both `task clean` and `task project:init` preserve `LICENSE` unchanged as the
+    inherited Gentle Starter MIT attribution. This is the safe default and does
+    not add another interactive choice.
+
 ### Build and enter the environment
 
 1. In your **terminal**, run:
@@ -253,7 +257,7 @@ task skill:sync
 # Validate external lock entries and project-authored local skills
 task skill:validate
 
-# New-project initialization and identity cleanup
+# New-project initialization and identity cleanup (LICENSE is preserved)
 task project:init           # clean identity and create a parentless root commit
 task clean                  # clean identity but preserve Git history
 task clean:identity         # explicit alias for task clean

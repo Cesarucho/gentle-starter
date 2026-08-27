@@ -12,7 +12,6 @@ clean_identity_items() {
 		"README.md"
 		"AGENTS.md"
 		"docs/"
-		"LICENSE"
 		"CHANGELOG.md"
 	)
 
@@ -31,6 +30,7 @@ clean_print_identity_plan() {
 	echo "The following are kept as base structure:"
 	echo
 	cat <<'EOF'
+  - LICENSE (inherited Gentle Starter MIT attribution)
   - AGENTS.md.TEMPLATE
   - .devcontainer/README.md
   - .devcontainer/docs/
