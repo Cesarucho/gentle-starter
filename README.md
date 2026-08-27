@@ -37,8 +37,12 @@ prompt, enabling workflows like these:
 
 ## 📦 What's included?
 
-- **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** as the assisted-development harness.
-- **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** for controlled Pi workflows.
+- **[OpenCode](https://opencode.ai/docs/)** as the default assisted-development
+  interface.
+- **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** as an
+  alternative extensible harness.
+- **[Gentle AI](https://github.com/Gentleman-Programming/gentle-pi#install)** for
+  controlled Pi workflows alongside OpenCode.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** as local persistent memory inside the environment.
 - **[Context7](https://github.com/upstash/context7)** integrated through MCP for current library documentation.
 - **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** based on [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
@@ -46,8 +50,9 @@ prompt, enabling workflows like these:
 - **[Taskfile](https://taskfile.dev/installation/)** to centralize common commands.
 - **Versioned skills**, a base set that you can update and customize.
 - **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** for optional e2e tests.
-- **[Go](https://go.dev/doc/install)**, installed from the latest stable release published by `go.dev`.
-- **[Java 25](https://sdkman.io/jdks#tem)**, installed with [SDKMAN](https://sdkman.io/install) using the Temurin distribution by default.
+- **[Go](https://go.dev/doc/install)** and
+  **[Java 25](https://sdkman.io/jdks#tem)** installers in the opt-in catalog;
+  Java uses [SDKMAN](https://sdkman.io/install) and Temurin by default.
 - **[pnpm](https://pnpm.io/installation)**, installed globally from the latest stable npm release.
 - Separate scripts to install and configure Ubuntu dependencies.
 
@@ -55,13 +60,18 @@ prompt, enabling workflows like these:
 
 On your PC you need:
 
-- **[jq](https://jqlang.org/download/)**
 - **[Git](https://git-scm.com/downloads)**
-- **[Task](https://taskfile.dev/installation/)**.
+- **[Task](https://taskfile.dev/installation/)**
 - **[Docker](https://docs.docker.com/get-started/get-docker/)**
-- **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**.
+- **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**
 
-> Alternatively, you can use your **IDE** if it has support for DevContainers ([VS Code](https://code.visualstudio.com/download), [Cursor](https://cursor.com/downloads), [IntelliJ](https://www.jetbrains.com/idea/download/))
+[jq](https://jqlang.org/download/) is useful for optional diagnostics but is not
+required for the happy path.
+
+> Alternatively, use an IDE with Dev Container support, such as
+> [VS Code](https://code.visualstudio.com/download),
+> [Cursor](https://cursor.com/downloads), or
+> [IntelliJ](https://www.jetbrains.com/idea/download/).
 
 ## 🚀 Quick start
 
@@ -73,9 +83,13 @@ On your PC you need:
     git clone https://github.com/Cesarucho/gentle-starter.git <my-project-name>
     cd <my-project-name>
     cp .env.example .env
-    task clean                # review, confirm, and remove starter identity
+    task clean                # optional: remove the starter identity
     task validate             # optional host-safe check
     ```
+
+    > `task clean` is destructive: after confirmation it removes the starter
+    > identity, documentation, license, and changelog, then recreates
+    > `AGENTS.md` from the project template.
 
 ### Build and enter the environment
 
@@ -93,13 +107,16 @@ On your PC you need:
     ```bash
     git status
     engram tui
+    opencode --version
+
+    # Alternative Gentle AI interface
     pi --version
 
-    # Optionals
-    task validate:full        # internal check
-    task deps:update          # refresh approved exact dependency pins
+    # Optional checks and maintenance
+    task validate:full
+    task deps:update
 
-    # You can also install anything else you need:
+    # Install temporary packages for experiments
     sudo apt update
     sudo apt install {foo}
     ```
@@ -108,20 +125,29 @@ On your PC you need:
     > validated they should be added to `.devcontainer/install/...` as part of
     > the base environment.
 
-3. Connect your AI provider:
+3. Connect your AI provider and start OpenCode:
 
     ```bash
-    pi                        # open the main interface
-    >_ /login                 # choose a provider
+    opencode auth login       # choose and authenticate a provider
+    opencode                  # open the default interface
+    ```
 
-    # ask to complete '@AGENTS' templete:
-    >_ "Read @AGENTS.md as a template and help me fill in the placeholders."
+    Example prompts:
 
-    # start your project from scratch:
-    >_ "Explain to me how Gentle-AI works and how to use it to start a new project."
+    ```text
+    Read AGENTS.md as a template and help me fill in the placeholders.
 
-    # ask AI to install what you need:
-    >_ "Based on the `@.devcontainer/` structure, add an installation for PostgreSQL 16 that includes a version-controlled `pg_hba.conf` file and a volume for data persistence between the host and the container."
+    Explain how this environment works and help me start a new project.
+
+    Based on the `.devcontainer/` structure, add PostgreSQL 16 with a
+    version-controlled `pg_hba.conf` and persistent data volume.
+    ```
+
+    Pi remains available for Gentle AI workflows:
+
+    ```bash
+    pi                        # open Pi
+    # Inside Pi, use /login to choose a provider
     ```
 
 ## 🛠️ Useful commands
@@ -151,7 +177,7 @@ task install:list -- --presets
 # Enable a new tool from .devcontainer/install/available/
 task install:enable -- 40-php-lang
 
-# Disable an enabled tool
+# Disable a tool for future builds and postCreate runs
 task install:disable -- 40-php-lang
 
 # Verify install layout and symlink integrity
@@ -174,19 +200,23 @@ rebuilds the container or changes the live environment. Pinned SHA-256 values
 provide reproducible byte integrity, not independent upstream provenance
 attestation; see [ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
 
-Inside Pi, inspect MCP servers, including Context7:
+Inspect OpenCode MCP servers, including Context7:
 
-```text
-/mcp
+```bash
+opencode mcp list
 ```
+
+Inside Pi, use `/mcp` instead.
 
 ### Language toolchain
 
 ```bash
-# Available inside the devcontainer
+# Available by default
+pnpm --version
+
+# Available after enabling their catalog installers
 go version
 java --version
-pnpm --version
 ```
 
 ### Container lifecycle
@@ -203,7 +233,7 @@ task container:rebuild      # remove, build, and start
 
 ```bash
 # These tasks auto-start the devcontainer if it is not running
-task container:connect      # connect to the terminal
+task container:connect      # open a shell; run `opencode` inside
 task container:pi           # connect to Pi using `pi --continue`
 task container:engram       # connect to the Engram TUI
 ```
@@ -240,15 +270,16 @@ task quality:full
 │   ├── devcontainer-lock.json
 │   ├── docker-compose.yml          Dev Container service
 │   ├── Dockerfile                  Base image for the development environment
-│   ├── install/                    Install layout (numbered groups, available catalog, helpers)
-│   │   ├── 01-core/                Mandatory scripts (run in every build)
-│   │   ├── 02-enabled/             Symlinks to active available/ scripts
-│   │   ├── 03-hooks/               User extensions (gitignored)
-│   │   ├── available/              Opt-in catalog (numbered 00-99)
-│   │   ├── lib/                    Shared helpers (common.sh)
-│   │   └── templates/              install-script.sh template
+│   ├── install/                    Install layout and catalog
+│   │   ├── 01-core/                Mandatory build scripts
+│   │   ├── 02-enabled/             Ordered aliases to active installers
+│   │   ├── 03-hooks/               User extensions, visible to Git
+│   │   ├── available/              Install catalog
+│   │   ├── lib/                    Shared helpers
+│   │   └── templates/              Installer template
+│   ├── opencode-config/            Base OpenCode configuration
 │   ├── pi-config/                  Base Pi, MCP, and Gentle AI configuration
-│   └── setup.sh                    Container post-create script (volume-aware)
+│   └── setup.sh                    Container post-create script
 ├── docs
 │   ├── assets/
 │   ├── en/README.md                Full English documentation
@@ -259,20 +290,19 @@ task quality:full
 ├── .gitignore
 ├── LICENSE
 |
-├── openspec/                       Source of truth for your project and should
-|                                   be versioned by you
+├── openspec/                       Optional project source of truth
 |
 ├── .pi/                            <-- not versioned -->
 ├── README.md                       Main documentation (English)
-├── skills-lock.json                Lock file for restoring skills
+├── skills-lock.json                External skills lock file
 ├── .taskfiles
-│   ├── devcontainer.yml            Tasks to build and operate the Dev Container
-│   ├── doctor.yml                  Host/devcontainer diagnostic tasks
-│   ├── install.yml                 Tasks to manage the install/ layout
-│   ├── scripts                     Diagnostic and install helper scripts
-│   ├── skills.yml                  Tasks for managing project skills
+│   ├── devcontainer.yml            Dev Container tasks
+│   ├── doctor.yml                  Diagnostic tasks
+│   ├── install.yml                 Install-layout tasks
+│   ├── scripts                     Task helper scripts
+│   ├── skills.yml                  Skill-management tasks
 │   └── ssh.yml
-└── Taskfile.yml                    Main project task entry point
+└── Taskfile.yml                    Main task entry point
 ```
 
 ## 💾 Local state and persistence
@@ -296,6 +326,8 @@ be versioned. It is currently used to mount data such as:
 ├── .gitconfig                Local Git configuration inside the container
 │   ├── config
 │   └── .git-credentials
+├── .opencode
+│   └── share/                Local OpenCode application state
 └── .pi                       Local Pi state and configuration
     ├── agent/
     └── gentle-ai/
@@ -309,7 +341,7 @@ be versioned. It is currently used to mount data such as:
 
 ### 📥 Install system packages
 
-Edit `.devcontainer/install/core/10-system.sh` to add packages installed with
+Edit `.devcontainer/install/01-core/10-system.sh` to add packages installed with
 `apt` during the image build.
 
 ### 🌎 Update timezone and locales
@@ -331,9 +363,8 @@ visual-order prefix), the opt-in catalog, and shared infrastructure:
 ├── 01-core/               Mandatory scripts (00-pre-apt, 10-system, 15-task,
 │                          90-post-setup-users, 99-cleanup)
 ├── 02-enabled/            Symlinks to active available/ scripts
-├── 03-hooks/              User extensions (gitignored)
-├── available/             Opt-in catalog (numbered 00-99, .disabled suffix
-│                          for opt-out defaults)
+├── 03-hooks/              User extensions, intentionally visible to Git
+├── available/             Install catalog (numbered 00-99)
 ├── lib/                   Shared helpers (common.sh)
 └── templates/             install-script.sh template for new scripts
 ```
@@ -360,7 +391,7 @@ cp .devcontainer/install/templates/install-script.sh \
 shellcheck .devcontainer/install/available/40-cli-mycli.sh
 bash -n .devcontainer/install/available/40-cli-mycli.sh
 
-# 4. Enable it (creates 02-enabled/40-cli-mycli.sh -> available/40-cli-mycli.sh)
+# 4. Enable it (creates an ordered alias in 02-enabled/)
 task install:enable -- 40-cli-mycli
 
 # 5. Rebuild and verify
@@ -372,10 +403,14 @@ Manage the install layout with these tasks:
 ```bash
 task install:list                # Show install scripts and full catalog status
 task install:list -- --presets   # Legacy alias; same output as install:list
-task install:enable -- NAME      # Enable a script by linking 02-enabled/ -> available/
-task install:disable -- NAME     # Disable a script by removing its enabled/ link
+task install:enable -- NAME      # Enable through an ordered 02-enabled/ alias
+task install:disable -- NAME     # Remove every valid alias for that installer
 task install:doctor              # Verify install/ layout integrity
 ```
+
+Ordered alias names may differ from their `available/` script names. Disabling a
+script changes future builds and postCreate repairs; it does not uninstall state
+already persisted under `.env.d/`.
 
 A few rules for new scripts:
 
@@ -392,6 +427,13 @@ A few rules for new scripts:
   detects broken symlinks and missing helpers.
 
 ### 🔌 Configure optional MCP servers
+
+OpenCode MCP configuration is seeded from `.devcontainer/opencode-config/`.
+Inspect active servers with:
+
+```bash
+opencode mcp list
+```
 
 Active Pi MCP configuration lives in:
 
@@ -436,7 +478,7 @@ git diff -- skills-lock.json .agents/local-skills.txt .agents/skills
 ## 🔐 Security
 
 This starter uses Docker-in-Docker and elevated permissions for some development
-flows. Do not publish `.env`, `env/`, `.pi/`, or `.atl/`.
+flows. Do not publish `.env`, `.env.d/`, `.pi/`, or `.atl/`.
 
 See [security.md](docs/en/security.md).
 
