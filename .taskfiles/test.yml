@@ -37,6 +37,7 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/deps-update.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/gentle-ai.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/opencode.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/skills.bats
 
   integration:

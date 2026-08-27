@@ -1,0 +1,23 @@
+version: "3"
+
+tasks:
+  help:
+    desc: Show project initialization help
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Project initialization
+
+          task project:init
+
+        Removes Gentle Starter identity files, creates a parentless root commit
+        on a new branch, and optionally updates origin. It never contacts or
+        pushes to a remote.
+        EOF
+
+  init:
+    desc: Create a new project with a parentless Git history
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/project-init.sh

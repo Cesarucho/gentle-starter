@@ -83,13 +83,19 @@ required for the happy path.
     git clone https://github.com/Cesarucho/gentle-starter.git <my-project-name>
     cd <my-project-name>
     cp .env.example .env
-    task clean                # optional: remove the starter identity
+    task project:init         # optional: remove identity and start new Git history
     task validate             # optional host-safe check
     ```
 
-    > `task clean` is destructive: after confirmation it removes the starter
-    > identity, documentation, license, and changelog, then recreates
-    > `AGENTS.md` from the project template.
+    > `task project:init` requires a clean worktree. It asks for a new,
+    > non-existing branch and an optional origin URL, shows the complete cleanup
+    > plan, and requires `CREATE ROOT` before changing anything. It then applies
+    > the same identity cleanup as `task clean`, creates one parentless root
+    > commit, and removes previous local branches, tags, and other refs. Unreachable
+    > objects remain until Git garbage collection. A blank origin preserves the
+    > current one; no remote is contacted or pushed. Use `task clean` instead when
+    > you want to remove only the starter identity while keeping the existing Git
+    > history.
 
 ### Build and enter the environment
 
@@ -247,10 +253,10 @@ task skill:sync
 # Validate external lock entries and project-authored local skills
 task skill:validate
 
-# New-project identity cleanup
-# task clean is the main command; clean:identity is the explicit alias
-task clean
-task clean:identity
+# New-project initialization and identity cleanup
+task project:init           # clean identity and create a parentless root commit
+task clean                  # clean identity but preserve Git history
+task clean:identity         # explicit alias for task clean
 
 # Script and Markdown quality checks
 task quality:check
@@ -299,6 +305,7 @@ task quality:full
 │   ├── devcontainer.yml            Dev Container tasks
 │   ├── doctor.yml                  Diagnostic tasks
 │   ├── install.yml                 Install-layout tasks
+│   ├── project.yml                 History-free project initialization task
 │   ├── scripts                     Task helper scripts
 │   ├── skills.yml                  Skill-management tasks
 │   └── ssh.yml

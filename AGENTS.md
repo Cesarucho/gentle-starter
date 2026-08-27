@@ -237,6 +237,33 @@ Verify that:
 - the placeholder warning is printed;
 - `.env.example`, `.taskfiles/`, and `.devcontainer/` remain present.
 
+Test `task project:init` only in a separate temporary repository. It is more
+destructive than `task clean` because it also creates a new parentless Git
+history:
+
+```bash
+ROOT="$PWD"
+INIT_BASE="$ROOT/.tmp-project-init-$(date +%s)"
+rsync -a --exclude '.env.d' --exclude '.tmp-project-init-*' ./ "$INIT_BASE/"
+cd "$INIT_BASE"
+ORIGINAL_ORIGIN="$(git remote get-url origin 2>/dev/null || true)"
+printf 'project-main\n\nCREATE ROOT\n' | task project:init
+```
+
+Verify that:
+
+- the current branch is `project-main`;
+- `git rev-list --count HEAD` prints `1`;
+- `git rev-list --parents -n 1 HEAD` contains only the root commit SHA;
+- the root message is `chore: initialize project`;
+- `git for-each-ref --format='%(refname)'` lists only
+  `refs/heads/project-main` (unreachable objects may remain until Git garbage
+  collection);
+- identity cleanup and migrated-doc assertions above still hold;
+- a blank origin preserved `ORIGINAL_ORIGIN`;
+- no upstream exists and no remote received a ref;
+- the working tree is clean.
+
 ### Full clean rebuild from a real host
 
 Use this only from a real host shell, not from inside a devcontainer

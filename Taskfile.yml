@@ -13,6 +13,8 @@ includes:
     taskfile: ./.taskfiles/install.yml
   quality:
     taskfile: ./.taskfiles/quality.yml
+  project:
+    taskfile: ./.taskfiles/project.yml
   skill:
     taskfile: ./.taskfiles/skills.yml
   ssh:
@@ -70,6 +72,7 @@ tasks:
           task deps:update                Update approved exact dependency pins
           task clean                      Review, confirm, and remove project identity files
           task clean:identity             Explicit alias for project identity cleanup
+          task project:init               Clean identity and create a parentless project root
 
         SSH:
           task ssh:help                   Show SSH workflow help
