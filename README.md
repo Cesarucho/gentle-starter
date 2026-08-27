@@ -244,6 +244,7 @@ task container:rebuild      # remove, build, and start
 ```bash
 # These tasks auto-start the devcontainer if it is not running
 task container:connect      # open a shell; run `opencode` inside
+task container:opencode     # continue OpenCode using `opencode -c`
 task container:pi           # connect to Pi using `pi --continue`
 task container:engram       # connect to the Engram TUI
 ```

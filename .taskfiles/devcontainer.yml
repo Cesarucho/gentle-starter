@@ -17,6 +17,7 @@ tasks:
           task container:build      Build devcontainer
           task container:up         Start devcontainer
           task container:connect    Open bash inside devcontainer
+          task container:opencode   Continue OpenCode inside devcontainer
           task container:pi         Open pi inside devcontainer
           task container:engram     Open Engram TUI inside devcontainer
           task container:rm         Force-remove devcontainer container
@@ -84,7 +85,7 @@ tasks:
 
   # Guards: most container tasks must run on the host.
   # They check for /.dockerenv which only exists inside the container.
-  # connect/pi/engram are fine inside the container (no-op or connect to nested).
+  # connect/opencode/pi/engram are fine inside the container (no-op or connect to nested).
 
   rm:
     desc: Force-remove the devcontainer service container
@@ -158,6 +159,15 @@ tasks:
       - task: run-devcontainer
         vars:
           ARGS: exec --workspace-folder {{.WORKSPACE}} bash
+
+  opencode:
+    desc: Continue OpenCode inside devcontainer
+    interactive: true
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} opencode -c
 
   pi:
     desc: Connect to Pi inside devcontainer

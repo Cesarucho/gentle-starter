@@ -24,8 +24,11 @@ releases start.
   documentation in `.env.example`.
 - `task container:restart` to remove and start the devcontainer without
   rebuilding the image.
-- Auto-start guard for `task container:connect`, `task container:pi`, and
-  `task container:engram` when the devcontainer is not running.
+- Auto-start guard for `task container:connect`, `task container:opencode`,
+  `task container:pi`, and `task container:engram` when the devcontainer is not
+  running.
+- `task container:opencode` to continue OpenCode in the default devcontainer
+  workspace.
 - `.devcontainer/install/` layout with `01-core/`, `02-enabled/`,
   `03-hooks/`, `available/`, `lib/`, and `templates/` directories. The
   `01-` / `02-` / `03-` prefix is a visual hint of execution order

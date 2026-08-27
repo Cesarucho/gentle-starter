@@ -1,5 +1,6 @@
 {
   "agent": {
+    "lsp": true,
     "explore": {
       "description": "Freeform exploration fallback agent",
       "hidden": true,
