@@ -122,6 +122,13 @@ sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-de
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
+while IFS= read -r -d '' tracked_entry; do
+	tracked_mode="${tracked_entry%% *}"
+	tracked_path="${tracked_entry#*$'\t'}"
+	if [ "${tracked_mode}" = "100755" ] && [ -f "${WORKSPACE_DIR}/${tracked_path}" ]; then
+		sudo chmod 755 "${WORKSPACE_DIR}/${tracked_path}"
+	fi
+done < <(git -C "${WORKSPACE_DIR}" ls-files --stage -z)
 
 # Copy the file tree under source_root into target_root, but only
 # for files that do NOT already exist at the target (so the user's

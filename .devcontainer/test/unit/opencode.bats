@@ -253,6 +253,12 @@ if [[ " $* " == *" ls-files "* ]] && [[ " $* " == *" --ignored "* ]]; then
 	fi
 	exit 0
 fi
+if [[ " $* " == *" ls-files "* ]] && [[ " $* " == *" --stage "* ]]; then
+	if [ -f "${SETUP_WORKSPACE}/regression.bats" ]; then
+		printf '100755 %040d 0\tregression.bats\0' 0
+	fi
+	exit 0
+fi
 if [[ " $* " == *" --get-all "* ]]; then
 	exit 1
 fi
@@ -402,6 +408,22 @@ path_metadata() {
 	[ "$(sed -n '2p' "${WORKSPACE_REPAIR_EVENTS_FILE}")" = "workspace-chown" ]
 	grep -Fq "${tracked_file}" "${CHOWN_LOG_FILE}"
 	! grep -Fq "${ignored_dir}" "${CHOWN_LOG_FILE}"
+}
+
+@test "workspace repair keeps tracked executable BATS tests executable and ordinary files non-executable" {
+	prepare_setup_sandbox
+	local bats_file="${SETUP_WORKSPACE}/regression.bats"
+	local ordinary_file="${SETUP_WORKSPACE}/notes.txt"
+	printf '#!/usr/bin/env bats\n' >"${bats_file}"
+	printf 'ordinary payload\n' >"${ordinary_file}"
+	chmod 0700 "${bats_file}"
+	chmod 0600 "${ordinary_file}"
+
+	run_setup
+
+	[ "${status}" -eq 0 ]
+	[ "$(stat -c '%a' "${bats_file}")" = "755" ]
+	[ "$(stat -c '%a' "${ordinary_file}")" = "644" ]
 }
 
 @test "workspace chown builds prune args first and uses no-follow semantics" {

@@ -7,3 +7,4 @@
 .env.d/
 *-config.local/
 .base-backup/
+.vscode/
