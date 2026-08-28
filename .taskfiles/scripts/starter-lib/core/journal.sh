@@ -36,8 +36,11 @@ starter_journal_validate() {
 	expected_file="$(starter_path_existing_file_beneath "${physical_root}" \
 		"${journal_file#"${physical_root}/"}")" || return 1
 	case "${expected_file}" in
-		"${physical_root}/.starter/journals/"*/journal.json) ;;
-		*) starter_journal_error "journal is outside the transaction store"; return 1 ;;
+	"${physical_root}/.starter/journals/"*/journal.json) ;;
+	*)
+		starter_journal_error "journal is outside the transaction store"
+		return 1
+		;;
 	esac
 	jq -e --arg root "${physical_root}" '
 		def sha: type == "string" and test("^[0-9a-f]{64}$");
@@ -190,13 +193,19 @@ starter_transaction_apply() {
 			staged="${transaction_dir}/$(jq -r '.after.staged' <<<"${operation}")"
 			[ "$(sha256sum "${staged}" | cut -d' ' -f1)" = "${after}" ] || return 1
 			temporary="$(mktemp "${parent}/.starter-transaction.XXXXXX")" || return 1
-			cp -p -- "${staged}" "${temporary}" || { rm -f -- "${temporary}"; return 1; }
+			cp -p -- "${staged}" "${temporary}" || {
+				rm -f -- "${temporary}"
+				return 1
+			}
 			[ "$(starter_journal_fingerprint "${resolved}")" = "${expected}" ] || {
 				rm -f -- "${temporary}"
 				starter_journal_error "mutation CAS mismatch: ${target}"
 				return 1
 			}
-			mv -f -- "${temporary}" "${resolved}" || { rm -f -- "${temporary}"; return 1; }
+			mv -f -- "${temporary}" "${resolved}" || {
+				rm -f -- "${temporary}"
+				return 1
+			}
 		fi
 		[ "$(starter_journal_fingerprint "${resolved}")" = "${after}" ] || return 1
 		starter_journal_sync "$(dirname "${resolved}")" || return 1

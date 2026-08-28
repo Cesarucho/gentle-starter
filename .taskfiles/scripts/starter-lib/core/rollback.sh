@@ -20,15 +20,24 @@ starter_rollback_restore() {
 		[ -f "${backup}" ] && [ "$(sha256sum "${backup}" | cut -d' ' -f1)" = "${before}" ] || return 1
 		parent="$(dirname "${resolved}")"
 		temporary="$(mktemp "${parent}/.starter-rollback.XXXXXX")" || return 1
-		cp -p -- "${backup}" "${temporary}" || { rm -f -- "${temporary}"; return 1; }
+		cp -p -- "${backup}" "${temporary}" || {
+			rm -f -- "${temporary}"
+			return 1
+		}
 		[ "$(starter_journal_fingerprint "${resolved}")" = "${expected_current}" ] || {
 			rm -f -- "${temporary}"
 			return 1
 		}
 		if [ "${expected_current}" = null ]; then
-			mv -n -- "${temporary}" "${resolved}" || { rm -f -- "${temporary}"; return 1; }
+			mv -n -- "${temporary}" "${resolved}" || {
+				rm -f -- "${temporary}"
+				return 1
+			}
 		else
-			mv -f -- "${temporary}" "${resolved}" || { rm -f -- "${temporary}"; return 1; }
+			mv -f -- "${temporary}" "${resolved}" || {
+				rm -f -- "${temporary}"
+				return 1
+			}
 		fi
 	fi
 	[ "$(starter_journal_fingerprint "${resolved}")" = "${before}" ] || return 1
@@ -61,10 +70,16 @@ starter_rollback_recover() {
 	for ((index = count - 1; index >= 0; index--)); do
 		operation="$(jq -c --argjson index "${index}" '.operations[$index]' "${journal_file}")"
 		target="$(jq -r '.target' <<<"${operation}")"
-		resolved="$(starter_path_resolve_beneath "${physical_root}" "${target}")" || { ambiguous=1; continue; }
+		resolved="$(starter_path_resolve_beneath "${physical_root}" "${target}")" || {
+			ambiguous=1
+			continue
+		}
 		before="$(jq -r '.before.sha256 // "null"' <<<"${operation}")"
 		after="$(jq -r '.after.sha256 // "null"' <<<"${operation}")"
-		current="$(starter_journal_fingerprint "${resolved}")" || { ambiguous=1; continue; }
+		current="$(starter_journal_fingerprint "${resolved}")" || {
+			ambiguous=1
+			continue
+		}
 		if [ "${current}" = "${before}" ]; then
 			continue
 		fi

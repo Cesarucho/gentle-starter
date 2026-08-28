@@ -3,6 +3,9 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	CONTRACT="${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/source-port.sh"
+	REPOSITORY_STATUS_ADAPTER="${REPO_ROOT}/.taskfiles/scripts/starter-lib/adapters/git-repository-status.sh"
+	STATE_CORE="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/state.sh"
+	QUALITY_CONFIG="${REPO_ROOT}/.taskfiles/quality.yml"
 	TRUST_POLICY="${REPO_ROOT}/.starter/trust/policy.json"
 	TRUST_KEY="${REPO_ROOT}/.starter/trust/release-key.asc"
 	TRUST_FIXTURE="${BATS_TEST_DIRNAME}/../fixtures/starter-trust/policy.json"
@@ -150,6 +153,50 @@ write_valid_payload() {
 	[ "$(jq -r '.envelope_file' <<<"${output}")" = "${envelope}" ]
 	[ "$(jq -r '.payload_root' <<<"${output}")" = "${PAYLOAD_ROOT}" ]
 	[ "$(jq 'keys | length' <<<"${output}")" -eq 2 ]
+}
+
+@test "repository status adapter emits only neutral cleanliness data" {
+	local repository="${TEST_ROOT}/repository"
+	mkdir -p "${repository}"
+	git init -q "${repository}"
+	git -C "${repository}" config user.name "Repository Status Test"
+	git -C "${repository}" config user.email "repository-status@example.invalid"
+	printf '%s\n' clean >"${repository}/tracked.txt"
+	git -C "${repository}" add tracked.txt
+	git -C "${repository}" commit -q -m fixture
+
+	run bash -c "source '${REPOSITORY_STATUS_ADAPTER}'; STARTER_REPOSITORY_STATUS_IMPL=git_repository_status_inspect repository_status_inspect '${repository}'"
+	[ "$status" -eq 0 ]
+	jq -e '. == {schema:"gentle-starter.repository-status/v1",is_repository:true,root_matches:true,clean:true}' <<<"${output}" >/dev/null
+
+	printf '%s\n' dirty >"${repository}/untracked.txt"
+	run bash -c "source '${REPOSITORY_STATUS_ADAPTER}'; STARTER_REPOSITORY_STATUS_IMPL=git_repository_status_inspect repository_status_inspect '${repository}'"
+	[ "$status" -eq 0 ]
+	[ "$(jq -r '.clean' <<<"${output}")" = false ]
+	[ "$(jq 'has("git") or has("index") or has("worktree")' <<<"${output}")" = false ]
+}
+
+@test "state core consumes repository status through the port without invoking Git" {
+	local stubs="${TEST_ROOT}/stubs" sentinel="${TEST_ROOT}/git-invoked" project="${TEST_ROOT}/project"
+	mkdir -p "${stubs}" "${project}"
+	printf '%s\n' '#!/bin/sh' 'touch "${GIT_INVOCATION_SENTINEL:?}"' 'exit 91' >"${stubs}/git"
+	chmod 0700 "${stubs}/git"
+
+	run env PATH="${stubs}:${PATH}" GIT_INVOCATION_SENTINEL="${sentinel}" bash -c '
+		source "$1"
+		fixture_repository_status() {
+			jq -cn '\''{schema:"gentle-starter.repository-status/v1",is_repository:true,root_matches:true,clean:true}'\''
+		}
+		STARTER_REPOSITORY_STATUS_IMPL=fixture_repository_status starter_state_require_clean_workspace "$2"
+	' _ "${STATE_CORE}" "${project}"
+
+	[ "$status" -eq 0 ]
+	[ ! -e "${sentinel}" ]
+}
+
+@test "strict quality configuration covers nested starter production scripts" {
+	run bash -c 'case "$(cat "$1")" in *".taskfiles/scripts/starter-lib/*/*.sh"*) exit 0 ;; *) exit 1 ;; esac' _ "${QUALITY_CONFIG}"
+	[ "$status" -eq 0 ]
 }
 
 @test "signer policy accepts the pinned release key" {

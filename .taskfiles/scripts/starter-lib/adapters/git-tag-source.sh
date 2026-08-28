@@ -22,8 +22,11 @@ git_tag_relative_path() {
 git_tag_remote_url() {
 	local remote="$1"
 	case "${remote}" in
-		https://*|ssh://*|git://*|file:///*) ;;
-		*) git_tag_source_error "remote must be an explicit URL"; return 1 ;;
+	https://* | ssh://* | git://* | file:///*) ;;
+	*)
+		git_tag_source_error "remote must be an explicit URL"
+		return 1
+		;;
 	esac
 	[[ "${remote}" != *[$'\n\r\t ']* ]] || {
 		git_tag_source_error "remote must be an explicit URL"
@@ -156,7 +159,11 @@ git_tag_materialize_payload() {
 		}
 		object_path="payloads/${path}"
 		mode="$(git --git-dir="${repository}" ls-tree "${GTS_COMMIT_OID}" -- "${object_path}" | cut -d' ' -f1)"
-		case "${mode}" in 100644|100755) ;; *) git_tag_source_error "payload entry is not a regular blob"; return 1 ;; esac
+		case "${mode}" in 100644 | 100755) ;; *)
+			git_tag_source_error "payload entry is not a regular blob"
+			return 1
+			;;
+		esac
 		mkdir -p "${destination}/payloads/$(dirname "${path}")"
 		git --git-dir="${repository}" show "${GTS_COMMIT_OID}:${object_path}" >"${destination}/payloads/${path}"
 		sha="$(jq -r ".payload.entries[${index}].sha256" "${manifest}")"
@@ -179,7 +186,11 @@ git_tag_materialize_migrations() {
 		path="$(jq -r ".migrations.entries[${index}].path" "${manifest}")"
 		object_path="migrations/${path}"
 		mode="$(git --git-dir="${repository}" ls-tree "${GTS_COMMIT_OID}" -- "${object_path}" | cut -d' ' -f1)"
-		case "${mode}" in 100644|100755) ;; *) git_tag_source_error "migration descriptor is not a regular blob"; return 1 ;; esac
+		case "${mode}" in 100644 | 100755) ;; *)
+			git_tag_source_error "migration descriptor is not a regular blob"
+			return 1
+			;;
+		esac
 		mkdir -p "${destination}/migrations/$(dirname "${path}")"
 		git --git-dir="${repository}" show "${GTS_COMMIT_OID}:${object_path}" >"${destination}/migrations/${path}"
 		sha="$(jq -r ".migrations.entries[${index}].sha256" "${manifest}")"
@@ -222,32 +233,87 @@ git_tag_write_closure() {
 	rm -f "${output}.oids" "${output}.tsv"
 }
 
+git_tag_pack_bytes() {
+	local repository="$1" pack pack_bytes=0
+	for pack in "${repository}"/objects/pack/*.pack; do
+		[ -f "${pack}" ] || continue
+		pack_bytes=$((pack_bytes + $(wc -c <"${pack}")))
+	done
+	printf '%s\n' "${pack_bytes}"
+}
+
+git_tag_enforce_evidence_limits() {
+	local repository="$1" policy_file="$2" closure_file="$3"
+	local object_count max_object_bytes retained_bytes pack_bytes
+	local object_limit object_bytes_limit pack_limit retained_limit
+	object_count="$(jq 'if type == "array" then length else .closure | length end' "${closure_file}")" || return 1
+	max_object_bytes="$(jq 'if type == "array" then [.[].bytes] else [.closure[].bytes] end | max // 0' "${closure_file}")" || return 1
+	retained_bytes="$(jq 'if type == "array" then [.[].bytes] else [.closure[].bytes] end | add // 0' "${closure_file}")" || return 1
+	pack_bytes="$(git_tag_pack_bytes "${repository}")" || return 1
+	object_limit="$(jq -r '.evidence_limits.max_reachable_objects' "${policy_file}")"
+	object_bytes_limit="$(jq -r '.evidence_limits.max_object_bytes' "${policy_file}")"
+	pack_limit="$(jq -r '.evidence_limits.max_pack_bytes' "${policy_file}")"
+	retained_limit="$(jq -r '.evidence_limits.max_retained_bytes' "${policy_file}")"
+	[ "${object_count}" -le "${object_limit}" ] || {
+		git_tag_source_error "reachable object count exceeds policy limit"
+		return 1
+	}
+	[ "${max_object_bytes}" -le "${object_bytes_limit}" ] || {
+		git_tag_source_error "per-object size exceeds policy limit"
+		return 1
+	}
+	[ "${pack_bytes}" -le "${pack_limit}" ] || {
+		git_tag_source_error "pack size exceeds policy limit"
+		return 1
+	}
+	[ "${retained_bytes}" -le "${retained_limit}" ] || {
+		git_tag_source_error "aggregate retained bytes exceed policy limit"
+		return 1
+	}
+}
+
 git_tag_source_acquire() (
-	local request_file="$1" remote selector output_dir policy_file key_file source_id output_parent temporary
+	local request_file="$1" remote selector output_dir policy_file key_file source_id governance_file output_parent temporary
 	local repository manifest evidence retained_key index_sha source_identity release_identity content_identity envelope_sha
 	trap '[ -z "${temporary:-}" ] || rm -rf "${temporary}"' EXIT
-	jq -e 'type == "object" and (keys | sort) == ["key_file","output_dir","policy_file","remote","schema","selector","source_id"] and
+	jq -e 'type == "object" and
+		((keys | sort) == ["key_file","output_dir","policy_file","remote","schema","selector","source_id"] or
+		 (keys | sort) == ["key_file","output_dir","policy_file","publisher_governance_file","remote","schema","selector","source_id"]) and
 		.schema == "gentle-starter.git-tag-source-request/v1" and
-		all(.remote,.selector,.output_dir,.policy_file,.key_file,.source_id; type == "string" and length > 0)' "${request_file}" >/dev/null || {
+		all(.remote,.selector,.output_dir,.policy_file,.key_file,.source_id; type == "string" and length > 0) and
+		(.publisher_governance_file? | . == null or (type == "string" and length > 0))' "${request_file}" >/dev/null || {
 		git_tag_source_error "acquisition request is invalid"
 		return 1
 	}
-	remote="$(jq -r '.remote' "${request_file}")"; selector="$(jq -r '.selector' "${request_file}")"
-	output_dir="$(jq -r '.output_dir' "${request_file}")"; policy_file="$(jq -r '.policy_file' "${request_file}")"
-	key_file="$(jq -r '.key_file' "${request_file}")"; source_id="$(jq -r '.source_id' "${request_file}")"
+	remote="$(jq -r '.remote' "${request_file}")"
+	selector="$(jq -r '.selector' "${request_file}")"
+	output_dir="$(jq -r '.output_dir' "${request_file}")"
+	policy_file="$(jq -r '.policy_file' "${request_file}")"
+	key_file="$(jq -r '.key_file' "${request_file}")"
+	source_id="$(jq -r '.source_id' "${request_file}")"
+	governance_file="$(jq -r '.publisher_governance_file // empty' "${request_file}")"
 	git_tag_remote_url "${remote}" || return 1
 	[[ "${selector}" =~ ^starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
 		git_tag_source_error "selector must be an exact starter semantic tag"
 		return 1
 	}
-	if [[ "${output_dir}" != /* ]] || [ -e "${output_dir}" ] || [ ! -f "${policy_file}" ] || [ ! -f "${key_file}" ]; then
+	if [[ "${output_dir}" != /* ]] || [ -e "${output_dir}" ] || [ ! -f "${policy_file}" ] || [ ! -f "${key_file}" ] ||
+		{ [ -n "${governance_file}" ] && [ ! -f "${governance_file}" ]; }; then
 		git_tag_source_error "acquisition paths are invalid or output already exists"
 		return 1
 	fi
-	starter_require_command git; starter_require_command gpg; starter_require_command jq
-	output_parent="$(dirname "${output_dir}")"; [ -d "${output_parent}" ] || { git_tag_source_error "output parent is unavailable"; return 1; }
+	starter_require_command git
+	starter_require_command gpg
+	starter_require_command jq
+	output_parent="$(dirname "${output_dir}")"
+	[ -d "${output_parent}" ] || {
+		git_tag_source_error "output parent is unavailable"
+		return 1
+	}
 	temporary="$(mktemp -d "${output_parent}/.git-tag-source.XXXXXX")"
-	repository="${temporary}/evidence/repository.git"; manifest="${temporary}/manifest.json"; evidence="${temporary}/evidence"
+	repository="${temporary}/evidence/repository.git"
+	manifest="${temporary}/manifest.json"
+	evidence="${temporary}/evidence"
 	mkdir -p "${evidence}"
 	git init -q --bare "${repository}"
 	git --git-dir="${repository}" fetch -q --no-tags "${remote}" "+refs/tags/${selector}:refs/tags/${selector}" 2>/dev/null || {
@@ -255,12 +321,24 @@ git_tag_source_acquire() (
 		return 1
 	}
 	git_tag_verify_release "${repository}" "${selector}" "${source_id}" "${policy_file}" "${key_file}" "${manifest}" || return 1
-	git --git-dir="${repository}" fsck --full --strict --no-dangling >/dev/null 2>&1 || { git_tag_source_error "fetched Git closure is incomplete"; return 1; }
+	git --git-dir="${repository}" -c gc.writeCommitGraph=false repack -adq || {
+		git_tag_source_error "fetched Git closure could not be packed"
+		return 1
+	}
+	git --git-dir="${repository}" fsck --full --strict --no-dangling >/dev/null 2>&1 || {
+		git_tag_source_error "fetched Git closure is incomplete"
+		return 1
+	}
 	git_tag_materialize_payload "${repository}" "${manifest}" "${temporary}/materialized" || return 1
 	git_tag_materialize_migrations "${repository}" "${manifest}" "${temporary}/materialized" || return 1
-	git_tag_write_closure "${repository}" "${GTS_TAG_OID}" "${temporary}/closure.json" || { git_tag_source_error "fetched Git closure is incomplete"; return 1; }
+	git_tag_write_closure "${repository}" "${GTS_TAG_OID}" "${temporary}/closure.json" || {
+		git_tag_source_error "fetched Git closure is incomplete"
+		return 1
+	}
+	git_tag_enforce_evidence_limits "${repository}" "${policy_file}" "${temporary}/closure.json" || return 1
 	retained_key="$(basename "${key_file}")"
-	cp "${policy_file}" "${evidence}/policy.json"; cp "${key_file}" "${evidence}/${retained_key}"
+	cp "${policy_file}" "${evidence}/policy.json"
+	cp "${key_file}" "${evidence}/${retained_key}"
 	jq -n --arg source_id "${source_id}" --arg selector "${selector}" --arg tag "${GTS_TAG_OID}" --arg commit "${GTS_COMMIT_OID}" \
 		--arg tree "${GTS_TREE_OID}" --arg blob "${GTS_MANIFEST_BLOB}" --arg manifest_sha "${GTS_MANIFEST_SHA}" \
 		--arg signer "openpgp:${GTS_SIGNER_FINGERPRINT}" --arg policy_sha "$(sha256sum "${evidence}/policy.json" | cut -d' ' -f1)" \
@@ -271,7 +349,8 @@ git_tag_source_acquire() (
 	}' >"${evidence}/index.json"
 	rm "${temporary}/closure.json"
 	index_sha="$(jq -cS . "${evidence}/index.json" | sha256sum | cut -d' ' -f1)"
-	source_identity="$(git_tag_sha256_id source "${source_id}")"; release_identity="$(git_tag_sha256_id release "${GTS_TAG_OID}")"
+	source_identity="$(git_tag_sha256_id source "${source_id}")"
+	release_identity="$(git_tag_sha256_id release "${GTS_TAG_OID}")"
 	content_identity="$(git_tag_sha256_id content "${GTS_TREE_OID}")"
 	jq -n --arg source "${source_identity}" --arg release "${release_identity}" --arg content "${content_identity}" \
 		--arg version "${selector#starter/v}" --argjson predecessor "$(jq '.release.predecessor_id' "${manifest}")" \
@@ -286,40 +365,66 @@ git_tag_source_acquire() (
 	jq --arg sha "${envelope_sha}" '.integrity={canonicalization:"jq-sorted-utf8-v1",envelope_sha256:$sha}' "${temporary}/envelope.json" >"${temporary}/envelope.tmp"
 	mv "${temporary}/envelope.tmp" "${temporary}/envelope.json"
 	verified_payload_validate "${temporary}/envelope.json" "${temporary}/materialized" || return 1
-	mv "${temporary}" "${output_dir}"; temporary=""
+	mv "${temporary}" "${output_dir}"
+	temporary=""
 	jq -cn --arg envelope_file "${output_dir}/envelope.json" --arg payload_root "${output_dir}/materialized" '{envelope_file:$envelope_file,payload_root:$payload_root}'
 )
 
 git_tag_evidence_revalidate() (
 	local evidence="$1" root repository index envelope materialized key_file expected actual temporary count index_position oid type bytes
-	if [[ "${evidence}" != /* ]] || [ ! -d "${evidence}" ]; then git_tag_source_error "evidence reference is invalid"; return 1; fi
-	root="$(dirname "${evidence}")"; repository="${evidence}/repository.git"; index="${evidence}/index.json"
-	envelope="${root}/envelope.json"; materialized="${root}/materialized"
-	if [ ! -f "${index}" ] || [ ! -f "${envelope}" ] || [ ! -d "${repository}" ]; then git_tag_source_error "retained evidence is incomplete"; return 1; fi
-	expected="$(jq -r '.evidence.sha256' "${envelope}")"; actual="$(jq -cS . "${index}" | sha256sum | cut -d' ' -f1)"
-	[ "${actual}" = "${expected}" ] || { git_tag_source_error "evidence digest mismatch"; return 1; }
+	if [[ "${evidence}" != /* ]] || [ ! -d "${evidence}" ]; then
+		git_tag_source_error "evidence reference is invalid"
+		return 1
+	fi
+	root="$(dirname "${evidence}")"
+	repository="${evidence}/repository.git"
+	index="${evidence}/index.json"
+	envelope="${root}/envelope.json"
+	materialized="${root}/materialized"
+	if [ ! -f "${index}" ] || [ ! -f "${envelope}" ] || [ ! -d "${repository}" ]; then
+		git_tag_source_error "retained evidence is incomplete"
+		return 1
+	fi
+	expected="$(jq -r '.evidence.sha256' "${envelope}")"
+	actual="$(jq -cS . "${index}" | sha256sum | cut -d' ' -f1)"
+	[ "${actual}" = "${expected}" ] || {
+		git_tag_source_error "evidence digest mismatch"
+		return 1
+	}
 	key_file="$(jq -r '.key_file' "${index}")"
-	[[ "${key_file}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.asc$ ]] || { git_tag_source_error "retained trust evidence is corrupt"; return 1; }
+	[[ "${key_file}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.asc$ ]] || {
+		git_tag_source_error "retained trust evidence is corrupt"
+		return 1
+	}
 	if [ "$(sha256sum "${evidence}/policy.json" | cut -d' ' -f1)" != "$(jq -r '.policy_sha256' "${index}")" ] ||
 		[ "$(sha256sum "${evidence}/${key_file}" | cut -d' ' -f1)" != "$(jq -r '.key_sha256' "${index}")" ]; then
-		git_tag_source_error "retained trust evidence is corrupt"; return 1;
+		git_tag_source_error "retained trust evidence is corrupt"
+		return 1
 	fi
-	git --git-dir="${repository}" fsck --full --strict --no-dangling >/dev/null 2>&1 || { git_tag_source_error "retained Git closure is corrupt"; return 1; }
+	git_tag_enforce_evidence_limits "${repository}" "${evidence}/policy.json" "${index}" || return 1
+	git --git-dir="${repository}" fsck --full --strict --no-dangling >/dev/null 2>&1 || {
+		git_tag_source_error "retained Git closure is corrupt"
+		return 1
+	}
 	count="$(jq '.closure | length' "${index}")"
 	for ((index_position = 0; index_position < count; index_position++)); do
-		oid="$(jq -r ".closure[${index_position}].oid" "${index}")"; type="$(jq -r ".closure[${index_position}].type" "${index}")"
+		oid="$(jq -r ".closure[${index_position}].oid" "${index}")"
+		type="$(jq -r ".closure[${index_position}].type" "${index}")"
 		bytes="$(jq -r ".closure[${index_position}].bytes" "${index}")"
 		if [ "$(git --git-dir="${repository}" cat-file -t "${oid}" 2>/dev/null)" != "${type}" ] ||
 			[ "$(git --git-dir="${repository}" cat-file -s "${oid}" 2>/dev/null)" != "${bytes}" ]; then
-			git_tag_source_error "retained Git closure index is corrupt"; return 1;
+			git_tag_source_error "retained Git closure index is corrupt"
+			return 1
 		fi
 	done
-	temporary="$(mktemp)"; trap 'rm -f "${temporary}"' EXIT
+	temporary="$(mktemp)"
+	trap 'rm -f "${temporary}"' EXIT
 	git_tag_verify_release "${repository}" "$(jq -r '.selector' "${index}")" "$(jq -r '.source_id' "${index}")" \
 		"${evidence}/policy.json" "${evidence}/${key_file}" "${temporary}" || return 1
 	if [ "${GTS_TAG_OID}" != "$(jq -r '.tag_oid' "${index}")" ] || [ "${GTS_COMMIT_OID}" != "$(jq -r '.commit_oid' "${index}")" ] ||
 		[ "${GTS_TREE_OID}" != "$(jq -r '.tree_oid' "${index}")" ] || [ "${GTS_MANIFEST_BLOB}" != "$(jq -r '.manifest_blob_oid' "${index}")" ]; then
-		git_tag_source_error "retained identity binding mismatch"; return 1;
+		git_tag_source_error "retained identity binding mismatch"
+		return 1
 	fi
 	verified_payload_validate "${envelope}" "${materialized}" || return 1
 	git_tag_validate_materialized_migrations "${temporary}" "${materialized}" || return 1

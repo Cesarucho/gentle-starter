@@ -1,6 +1,12 @@
 {
   "schema": "gentle-starter.signer-policy/v1",
   "policy_id": "starter-trust-fixture/v1",
+  "evidence_limits": {
+    "max_reachable_objects": 100000,
+    "max_object_bytes": 67108864,
+    "max_pack_bytes": 268435456,
+    "max_retained_bytes": 536870912
+  },
   "signers": [
     {
       "subject_id": "openpgp:1111111111111111111111111111111111111111",

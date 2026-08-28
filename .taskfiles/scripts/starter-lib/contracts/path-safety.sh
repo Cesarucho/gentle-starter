@@ -34,8 +34,11 @@ starter_path_resolve_beneath() {
 	physical="$(starter_path_root "${root}")" || return 1
 	resolved="$(realpath -m -- "${physical}/${path}")" || return 1
 	case "${resolved}" in
-		"${physical}"/*) printf '%s\n' "${resolved}" ;;
-		*) starter_path_error "path resolves outside root"; return 1 ;;
+	"${physical}"/*) printf '%s\n' "${resolved}" ;;
+	*)
+		starter_path_error "path resolves outside root"
+		return 1
+		;;
 	esac
 }
 

@@ -3,6 +3,7 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	CONTRACT="${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/source-port.sh"
+	REPOSITORY_STATUS_ADAPTER="${REPO_ROOT}/.taskfiles/scripts/starter-lib/adapters/git-repository-status.sh"
 	MANIFEST_CORE="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/manifest.sh"
 	MIGRATION_CORE="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/migration.sh"
 	PLANNER_CORE="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/planner.sh"
@@ -131,8 +132,9 @@ initialize_state_fixture() {
 run_state_write() {
 	run /usr/bin/bash -c '
 		source "$1"
-		starter_state_write_last "$2" "$(cat "$3")" "$(cat "$4")"
-	' _ "${STATE_CORE}" "${STATE_PROJECT_ROOT}" \
+		source "$2"
+		STARTER_REPOSITORY_STATUS_IMPL=git_repository_status_inspect starter_state_write_last "$3" "$(cat "$4")" "$(cat "$5")"
+	' _ "${REPOSITORY_STATUS_ADAPTER}" "${STATE_CORE}" "${STATE_PROJECT_ROOT}" \
 		"${TEST_ROOT}/state-source-result.json" "${TEST_ROOT}/state-plan.json"
 }
 
@@ -181,8 +183,9 @@ run_transaction() {
 	run env PATH="${TEST_ROOT}/command-stubs:${PATH}" STARTER_TRANSACTION_FAILPOINT="${failpoint}" \
 		/usr/bin/bash -c '
 			source "$1"
-			starter_transaction_run "$2" "$(cat "$3")" "$(cat "$4")"
-		' _ "${JOURNAL_CORE}" "${TRANSACTION_PROJECT_ROOT}" \
+			source "$2"
+			STARTER_REPOSITORY_STATUS_IMPL=git_repository_status_inspect starter_transaction_run "$3" "$(cat "$4")" "$(cat "$5")"
+		' _ "${REPOSITORY_STATUS_ADAPTER}" "${JOURNAL_CORE}" "${TRANSACTION_PROJECT_ROOT}" \
 		"${TEST_ROOT}/transaction-source-result.json" "${TEST_ROOT}/transaction-plan.json"
 }
 
@@ -588,8 +591,9 @@ assert_state_rejection_preserves_git() {
 	initialize_transaction_fixture
 	journal_file="$(/usr/bin/bash -c '
 		source "$1"
-		starter_journal_prepare "$2" "$(cat "$3")" "$(cat "$4")"
-	' _ "${JOURNAL_CORE}" "${TRANSACTION_PROJECT_ROOT}" \
+		source "$2"
+		STARTER_REPOSITORY_STATUS_IMPL=git_repository_status_inspect starter_journal_prepare "$3" "$(cat "$4")" "$(cat "$5")"
+	' _ "${REPOSITORY_STATUS_ADAPTER}" "${JOURNAL_CORE}" "${TRANSACTION_PROJECT_ROOT}" \
 		"${TEST_ROOT}/transaction-source-result.json" "${TEST_ROOT}/transaction-plan.json")"
 	printf '%s\n' 'concurrent project change' >"${TRANSACTION_PROJECT_ROOT}/managed.txt"
 

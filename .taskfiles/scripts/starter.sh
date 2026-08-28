@@ -6,8 +6,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/starter-lib/adapters/git-tag-source.sh"
+source "${SCRIPT_DIR}/starter-lib/adapters/git-repository-status.sh"
 source "${SCRIPT_DIR}/starter-lib/core/planner.sh"
 source "${SCRIPT_DIR}/starter-lib/core/rollback.sh"
+
+STARTER_REPOSITORY_STATUS_IMPL="${STARTER_REPOSITORY_STATUS_IMPL:-git_repository_status_inspect}"
 
 readonly STARTER_USAGE_EXIT=64
 STARTER_BLOCKER_COUNT=0

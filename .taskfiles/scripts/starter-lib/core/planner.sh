@@ -13,8 +13,11 @@ starter_planner_classify_ownership() {
 	local operation="$1" ownership
 	ownership="$(jq -r '.ownership' <<<"${operation}")"
 	case "${ownership}" in
-		managed|fusion|project-owned) printf '%s\n' "${ownership}" ;;
-		*) starter_planner_error "unknown ownership class"; return 1 ;;
+	managed | fusion | project-owned) printf '%s\n' "${ownership}" ;;
+	*)
+		starter_planner_error "unknown ownership class"
+		return 1
+		;;
 	esac
 }
 

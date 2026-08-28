@@ -19,7 +19,10 @@ setup() {
 	jq -n --arg signer "openpgp:${SIGNER}" '{
 		schema:"gentle-starter.signer-policy/v1",policy_id:"facade-fixture/v1",
 		signers:[{subject_id:$signer,key_file:"test-public-key.asc",valid_from:"1.0.0",valid_until:null}],
-		revocations:[],rotations:[]
+		revocations:[],rotations:[],evidence_limits:{
+			max_reachable_objects:100000,max_object_bytes:67108864,
+			max_pack_bytes:268435456,max_retained_bytes:536870912
+		}
 	}' >"${TEST_ROOT}/policy.json"
 	git init -q --bare "${REMOTE}"
 }

@@ -4,28 +4,29 @@
 STARTER_STATE_CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=.taskfiles/scripts/starter-lib/core/manifest.sh
 source "${STARTER_STATE_CORE_DIR}/manifest.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/repository-status-port.sh
+source "${STARTER_STATE_CORE_DIR}/../contracts/repository-status-port.sh"
 
 starter_state_error() {
 	printf 'starter state: %s\n' "$*" >&2
 }
 
 starter_state_require_clean_workspace() {
-	local project_root="$1" physical_root git_root status
+	local project_root="$1" physical_root repository_status
 	physical_root="$(starter_path_root "${project_root}")" || return 1
-	git_root="$(GIT_OPTIONAL_LOCKS=0 git -C "${physical_root}" rev-parse --show-toplevel 2>/dev/null)" || {
-		starter_state_error "project root is not a Git worktree"
-		return 1
-	}
-	git_root="$(cd -P -- "${git_root}" && pwd)" || return 1
-	[ "${git_root}" = "${physical_root}" ] || {
-		starter_state_error "project root must be the Git worktree root"
-		return 1
-	}
-	status="$(GIT_OPTIONAL_LOCKS=0 git -C "${physical_root}" status --porcelain=v1 --untracked-files=all)" || {
+	repository_status="$(repository_status_inspect "${physical_root}")" || {
 		starter_state_error "could not inspect workspace and index"
 		return 1
 	}
-	[ -z "${status}" ] || {
+	[ "$(jq -r '.is_repository' <<<"${repository_status}")" = true ] || {
+		starter_state_error "project root is not a Git worktree"
+		return 1
+	}
+	[ "$(jq -r '.root_matches' <<<"${repository_status}")" = true ] || {
+		starter_state_error "project root must be the Git worktree root"
+		return 1
+	}
+	[ "$(jq -r '.clean' <<<"${repository_status}")" = true ] || {
 		starter_state_error "workspace or index is not clean"
 		return 1
 	}

@@ -22,12 +22,19 @@ teardown() {
 
 write_policy() {
 	local revoked_at="${1:-}"
+	local max_objects="${2:-100000}" max_object_bytes="${3:-67108864}"
+	local max_pack_bytes="${4:-268435456}" max_retained_bytes="${5:-536870912}"
 	local revocations='[]'
 	[ -z "${revoked_at}" ] || revocations="[{\"subject_id\":\"openpgp:${SIGNER}\",\"effective_version\":\"${revoked_at}\",\"reason\":\"fixture revocation\"}]"
-	jq -n --arg signer "openpgp:${SIGNER}" --argjson revocations "${revocations}" '{
+	jq -n --arg signer "openpgp:${SIGNER}" --argjson revocations "${revocations}" \
+		--argjson max_objects "${max_objects}" --argjson max_object_bytes "${max_object_bytes}" \
+		--argjson max_pack_bytes "${max_pack_bytes}" --argjson max_retained_bytes "${max_retained_bytes}" '{
 		schema:"gentle-starter.signer-policy/v1", policy_id:"git-source-fixture/v1",
 		signers:[{subject_id:$signer,key_file:"test-public-key.asc",valid_from:"1.0.0",valid_until:null}],
-		revocations:$revocations, rotations:[]
+		revocations:$revocations, rotations:[], evidence_limits:{
+			max_reachable_objects:$max_objects,max_object_bytes:$max_object_bytes,
+			max_pack_bytes:$max_pack_bytes,max_retained_bytes:$max_retained_bytes
+		}
 	}' >"${TEST_ROOT}/policy.json"
 }
 
@@ -86,12 +93,13 @@ create_remote() {
 }
 
 write_request() {
-	local selector="$1" output="$2" remote="${3:-file://${REMOTE}}"
+	local selector="$1" output="$2" remote="${3:-file://${REMOTE}}" governance_file="${4:-}"
 	jq -n --arg remote "${remote}" --arg selector "${selector}" --arg output "${output}" \
-		--arg policy "${TEST_ROOT}/policy.json" --arg key "${FIXTURES}/test-public-key.asc" '{
+		--arg policy "${TEST_ROOT}/policy.json" --arg key "${FIXTURES}/test-public-key.asc" \
+		--arg governance_file "${governance_file}" '{
 		schema:"gentle-starter.git-tag-source-request/v1",source_id:"gentle-starter",remote:$remote,
 		selector:$selector,output_dir:$output,policy_file:$policy,key_file:$key
-	}' >"${TEST_ROOT}/request.json"
+	} | if $governance_file == "" then . else .publisher_governance_file=$governance_file end' >"${TEST_ROOT}/request.json"
 }
 
 acquire() {
@@ -120,6 +128,7 @@ acquire_from() {
 	[ "$(jq -r '.release.version' "${candidate}/envelope.json")" = "1.2.3" ]
 	[ "$(jq -r '.source.adapter_id' "${candidate}/envelope.json")" = "GitTagSource/v1" ]
 	[ "$(jq 'has("git") or ([paths(scalars) as $p | $p[-1] | strings | test("tag_oid|commit_oid|tree_oid|blob_oid")] | any)' "${candidate}/envelope.json")" = false ]
+	[ "$(jq '([paths(scalars) as $p | $p[-1] | strings | test("max_reachable_objects|max_object_bytes|max_pack_bytes|max_retained_bytes")] | any)' "${candidate}/envelope.json")" = false ]
 	[ "$(jq '.closure | length' "${candidate}/evidence/index.json")" -ge 4 ]
 	[ ! -e "${TEST_ROOT}/executed" ]
 	[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" = "${before_head}" ]
@@ -176,6 +185,79 @@ acquire_from() {
 	run acquire
 	[ "$status" -ne 0 ]
 	[[ "$output" == *"signer is revoked"* ]]
+}
+
+@test "publisher governance context never admits or claims verification for an unsigned tag" {
+	local governance="${TEST_ROOT}/publisher-governance.json"
+	write_policy
+	create_remote 1.2.6 valid unsigned
+	printf '%s\n' '{"protected_release_tags_documented":true,"publication_audit":"publisher-controlled"}' >"${governance}"
+	write_request starter/v1.2.6 "${TEST_ROOT}/governance-rejected" "file://${REMOTE}" "${governance}"
+
+	run acquire
+
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"annotated tag signature is invalid"* ]]
+	[[ ! "$output" =~ ([Hh]osting|[Pp]rotection|[Gg]overnance).*[Vv]erified ]]
+	[ ! -e "${TEST_ROOT}/governance-rejected" ]
+}
+
+@test "GitTagSource rejects every exceeded retained evidence limit before admission" {
+	local metric output expected
+	write_policy
+	create_remote 6.0.0
+	for metric in objects object-bytes pack-bytes retained-bytes; do
+		case "${metric}" in
+		objects)
+			write_policy "" 1 67108864 268435456 536870912
+			expected="reachable object count exceeds policy limit"
+			;;
+		object-bytes)
+			write_policy "" 100000 1 268435456 536870912
+			expected="per-object size exceeds policy limit"
+			;;
+		pack-bytes)
+			write_policy "" 100000 67108864 1 536870912
+			expected="pack size exceeds policy limit"
+			;;
+		retained-bytes)
+			write_policy "" 100000 67108864 268435456 1
+			expected="aggregate retained bytes exceed policy limit"
+			;;
+		esac
+		output="${TEST_ROOT}/limit-${metric}"
+		write_request starter/v6.0.0 "${output}"
+		run acquire
+		[ "$status" -ne 0 ]
+		[[ "$output" == *"${expected}"* ]]
+		[ ! -e "${TEST_ROOT}/limit-${metric}" ]
+	done
+}
+
+@test "GitTagSource accepts retained evidence exactly at every configured boundary" {
+	local baseline="${TEST_ROOT}/boundary-a" boundary="${TEST_ROOT}/boundary-b"
+	local object_count max_object_bytes pack_bytes=0 retained_bytes pack
+	write_policy
+	create_remote 6.0.1
+	write_request starter/v6.0.1 "${baseline}"
+	run acquire
+	[ "$status" -eq 0 ]
+	object_count="$(jq '.closure | length' "${baseline}/evidence/index.json")"
+	max_object_bytes="$(jq '[.closure[].bytes] | max' "${baseline}/evidence/index.json")"
+	retained_bytes="$(jq '[.closure[].bytes] | add' "${baseline}/evidence/index.json")"
+	for pack in "${baseline}"/evidence/repository.git/objects/pack/*.pack; do
+		[ -f "${pack}" ] || continue
+		pack_bytes=$((pack_bytes + $(wc -c <"${pack}")))
+	done
+	[ "${pack_bytes}" -gt 0 ]
+
+	write_policy "" "${object_count}" "${max_object_bytes}" "${pack_bytes}" "${retained_bytes}"
+	write_request starter/v6.0.1 "${boundary}"
+	run acquire
+
+	[ "$status" -eq 0 ]
+	[ -f "${boundary}/evidence/index.json" ]
+	[ "$(jq '.closure | length' "${boundary}/evidence/index.json")" -eq "${object_count}" ]
 }
 
 @test "GitTagSource rejects signed release commit tree and manifest binding mismatches" {

@@ -87,8 +87,12 @@ signer_policy_evaluate() {
 		def semver: type == "string" and test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$");
 		def subject: type == "string" and test("^openpgp:[0-9A-F]{40}$");
 		def key_file: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\.asc$");
-		type == "object" and exact_keys(["schema", "policy_id", "signers", "revocations", "rotations"]) and
+		type == "object" and exact_keys(["schema", "policy_id", "signers", "revocations", "rotations", "evidence_limits"]) and
 		.schema == "gentle-starter.signer-policy/v1" and (.policy_id | type == "string" and length > 0) and
+		(.evidence_limits | type == "object" and
+			exact_keys(["max_reachable_objects", "max_object_bytes", "max_pack_bytes", "max_retained_bytes"]) and
+			all(.max_reachable_objects, .max_object_bytes, .max_pack_bytes, .max_retained_bytes;
+				type == "number" and floor == . and . > 0)) and
 		(.signers | type == "array" and length > 0 and
 			all(type == "object" and exact_keys(["subject_id", "key_file", "valid_from", "valid_until"]) and
 				(.subject_id | subject) and (.key_file | key_file) and (.valid_from | semver) and
