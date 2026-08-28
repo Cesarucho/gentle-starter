@@ -76,6 +76,7 @@ tasks:
           task clean:identity             Explicit alias for project identity cleanup
           task project:init               Clean identity and create a parentless project root
           task starter:release -- X.Y.Z   Create and locally validate a starter release tag
+          task starter:check              Discover and inspect the latest exact starter release
 
         SSH:
           task ssh:help                   Show SSH workflow help

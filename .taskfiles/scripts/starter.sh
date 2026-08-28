@@ -21,7 +21,7 @@ starter_usage() {
 	cat >&2 <<'EOF'
 Usage:
   starter.sh adopt  --release starter/vX.Y.Z [--source URL] [--project-root PATH]
-  starter.sh check  --release starter/vX.Y.Z [--source URL] [--project-root PATH]
+  starter.sh check  [--release starter/vX.Y.Z] [--source URL] [--project-root PATH]
   starter.sh update --release starter/vX.Y.Z --yes [--source URL] [--project-root PATH]
 
 Source defaults to https://github.com/Cesarucho/gentle-starter.git.
@@ -71,11 +71,11 @@ starter_parse_args() {
 			;;
 		esac
 	done
-	if [ -z "${STARTER_RELEASE}" ]; then
+	if [ -z "${STARTER_RELEASE}" ] && [ "${STARTER_COMMAND}" != check ]; then
 		starter_usage
 		return "${STARTER_USAGE_EXIT}"
 	fi
-	[[ "${STARTER_RELEASE}" =~ ^starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+	[ -z "${STARTER_RELEASE}" ] || [[ "${STARTER_RELEASE}" =~ ^starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
 		starter_usage
 		return "${STARTER_USAGE_EXIT}"
 	}
@@ -294,11 +294,13 @@ starter_adopt() {
 
 starter_check() {
 	local marker="${STARTER_PROJECT_ROOT}/.starter/state.json" current_result candidate plan detail current_version
-	local candidate_cache candidate_was_cached=0
+	local candidate_cache="" candidate_was_cached=0 discovered=0
 	STARTER_BLOCKER_COUNT=0
 	if ! detail="$(starter_state_validate_marker "${marker}" 2>&1)"; then
 		starter_blocker state.marker "${detail##*$'\n'}"
 	else
+		current_version="$(jq -r '.release.version' "${marker}")"
+		printf 'starter: current release %s\n' "${current_version}"
 		if ! current_result="$(starter_state_revalidate_evidence "${marker}" 2>&1)"; then
 			starter_blocker evidence.invalid "${current_result##*$'\n'}"
 		fi
@@ -306,25 +308,51 @@ starter_check() {
 			starter_blocker state.drift "managed paths changed: ${detail}"
 		fi
 	fi
+	if [ -z "${STARTER_RELEASE}" ]; then
+		if ! STARTER_RELEASE="$(git_tag_discover_latest_release "${STARTER_SOURCE_URL}" 2>&1)"; then
+			starter_blocker source.discovery "${STARTER_RELEASE##*$'\n'}"
+			STARTER_RELEASE=""
+		else
+			discovered=1
+			printf 'starter: selected latest release %s\n' "${STARTER_RELEASE#starter/v}"
+		fi
+	fi
 	if ! detail="$(starter_state_require_clean_workspace "${STARTER_PROJECT_ROOT}" 2>&1)"; then
 		starter_blocker repository.dirty "${detail##*$'\n'}"
 	fi
-	candidate_cache="$(starter_cache_candidate)"
-	[ ! -d "${candidate_cache}" ] || candidate_was_cached=1
-	if ! candidate="$(starter_acquire_candidate 2>&1)"; then
-		starter_blocker source.invalid "${candidate##*$'\n'}"
-	elif [ -f "${marker}" ] && current_version="$(jq -r '.release.version // empty' "${marker}" 2>/dev/null)" && [ -n "${current_version}" ]; then
-		if ! plan="$(starter_build_plan "${candidate}" "${current_version}" 2>&1)"; then
-			starter_blocker plan.invalid "${plan##*$'\n'}"
+	[ -z "${STARTER_RELEASE}" ] || candidate_cache="$(starter_cache_candidate)"
+	if [ -z "${candidate_cache}" ]; then
+		:
+	else
+		[ ! -d "${candidate_cache}" ] || candidate_was_cached=1
+		if ! candidate="$(starter_acquire_candidate 2>&1)"; then
+			starter_blocker source.invalid "${candidate##*$'\n'}"
+		elif [ -f "${marker}" ] && current_version="$(jq -r '.release.version // empty' "${marker}" 2>/dev/null)" && [ -n "${current_version}" ]; then
+			if { [ "${discovered}" -eq 0 ] || [ "$(printf '%s\n%s\n' "${current_version}" "${STARTER_RELEASE#starter/v}" | sort -V | sed -n '$p')" = "${STARTER_RELEASE#starter/v}" ]; } &&
+				[ "${current_version}" != "${STARTER_RELEASE#starter/v}" ] &&
+				! plan="$(starter_build_plan "${candidate}" "${current_version}" 2>&1)"; then
+				starter_blocker plan.invalid "${plan##*$'\n'}"
+			fi
 		fi
 	fi
-	if [ "${candidate_was_cached}" -eq 0 ]; then
+	if [ -n "${candidate_cache}" ] && [ "${candidate_was_cached}" -eq 0 ]; then
 		rm -rf -- "${candidate_cache}"
 		rmdir -- "$(dirname "${candidate_cache}")" 2>/dev/null || true
 	fi
 	if [ "${STARTER_BLOCKER_COUNT}" -ne 0 ]; then
 		printf 'starter: check blocked (%s blockers)\n' "${STARTER_BLOCKER_COUNT}" >&2
 		return 1
+	fi
+	if [ "${discovered}" -eq 1 ]; then
+		if [ "${current_version}" = "${STARTER_RELEASE#starter/v}" ]; then
+			printf 'starter: project is up to date at release %s\n' "${current_version}"
+			return 0
+		elif [ "$(printf '%s\n%s\n' "${current_version}" "${STARTER_RELEASE#starter/v}" | sort -V | sed -n '$p')" = "${current_version}" ]; then
+			printf 'starter: current release %s is ahead of selected latest %s; no downgrade applies\n' \
+				"${current_version}" "${STARTER_RELEASE#starter/v}"
+			return 0
+		fi
+		printf 'starter: update available %s -> %s\n' "${current_version}" "${STARTER_RELEASE#starter/v}"
 	fi
 	printf 'starter: check passed; release %s is admitted and the migration plan is safe\n' "${STARTER_RELEASE#starter/v}"
 }

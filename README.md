@@ -152,16 +152,19 @@ annotated release. Use this workflow to inspect and apply later releases.
 | Command | Use it to |
 |---|---|
 | `task starter:adopt` | Recover or intentionally adopt an exact baseline in an unmarked project. |
-| `task starter:check` | Inspect an available release and report blockers without changing files. |
+| `task starter:check` | Discover the latest exact release and report blockers without changing files. |
 | `task starter:update` | Apply a verified migration after reviewing the plan. |
 
 ```bash
-# Preview, then apply, a newer release
-task starter:check -- --release starter/v1.1.0
+# Discover and preview the latest release, then apply the selected exact release
+task starter:check
 task starter:update -- --release starter/v1.1.0 --yes
 ```
 
 `--yes` explicitly confirms application after you review the check output.
+Pass `--release starter/vX.Y.Z` to `starter:check` for deterministic inspection
+instead of latest-release discovery. Adoption and update still require an exact
+release.
 Commands use `https://github.com/Cesarucho/gentle-starter.git` by default; pass
 `--source <repository-url>` only to override it.
 

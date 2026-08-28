@@ -114,6 +114,10 @@ adding Redis end-to-end, and the FAQ) is in
   `.starter/distribution/manifest.json` into the canonical annotated-tag
   metadata, re-admits the tag through `GitTagSource/v1`, and leaves remote
   publication pending; it never pushes automatically.
+- `task starter:check` discovers the highest exact stable annotated release by
+  bounded Git ref discovery, then uses normal `GitTagSource/v1` admission and
+  lifecycle planning. Explicit `--release` bypasses discovery; adoption and
+  update continue to require it.
 - `managed` and explicitly declared `fusion` paths require exact fingerprints.
   `project-owned` paths are immutable to starter migrations. Never silently
   overwrite drift or auto-resolve conflicts.

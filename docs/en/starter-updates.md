@@ -38,9 +38,8 @@ The normal clone path admits its originating release during initialization:
 ```bash
 task project:init
 
-# Inspect a later release and every blocker without changing project state.
-task starter:check -- \
-  --release starter/v1.1.0
+# Discover the latest release and inspect every blocker without changing state.
+task starter:check
 
 # Apply only after check passes and the proposed release is understood.
 task starter:update -- \
@@ -63,15 +62,27 @@ container state.
 |---|---|---|
 | `starter:release` | Create and locally admit an exact Gentle Starter release. | Creates one local annotated tag after preflight; never pushes or changes files, commits, branches, or remotes. |
 | `starter:adopt` | Recover or deliberately adopt an unmarked project that exactly matches a selected baseline. | Writes retained evidence and `.starter/state.json` only after integrity, ownership, path, and managed-fingerprint checks pass. |
-| `starter:check` | Revalidate current evidence and report drift, integrity, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
+| `starter:check` | Discover the latest exact release, revalidate current evidence, and report drift, integrity, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
 | `starter:update` | Apply a complete admitted migration chain to an adopted project. | Requires `--yes`, journals before mutation, updates only allowed paths, and writes state last. |
 
-All three commands require an exact `--release`. They acquire releases from
-`https://github.com/Cesarucho/gentle-starter.git` by default. Optional
-`--source URL` overrides that default explicitly; for example,
+`starter:adopt` and `starter:update` require an exact `--release`.
+`starter:check` normally reads the adopted release from `.starter/state.json`,
+discovers exact annotated `starter/vX.Y.Z` tags through Git ref discovery, and
+inspects the highest stable SemVer release. Pass `--release starter/vX.Y.Z` to
+bypass discovery and inspect one selector deterministically.
+
+Commands acquire releases from `https://github.com/Cesarucho/gentle-starter.git`
+by default. Optional `--source URL` overrides that default explicitly; for example,
 `--source https://github.com/Cesarucho/gentle-starter.git`. Optional
 `--project-root` supports explicit project selection. Invalid usage exits before
 acquisition or project writes.
+
+Discovery is bounded and accepts only advertised exact tags that also have the
+corresponding peeled ref, excluding lightweight tags, prerelease-like names,
+branches, and unrelated refs. The selected highest release is then admitted by
+the normal `GitTagSource/v1` path. If that release fails admission, check reports
+the blocker and does not fall back. A current release equal to latest is up to
+date; a current release ahead of latest is not downgraded.
 
 The commands never merge histories, checkout or rebase upstream commits,
 execute fetched files, mutate `origin`, start containers, resolve conflicts,

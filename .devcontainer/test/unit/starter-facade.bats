@@ -134,6 +134,14 @@ assert_git_boundaries_preserved() {
 	[ "$output" = "${override}" ]
 }
 
+@test "starter:check permits omitted release while adopt and update still reject it" {
+	mkdir -p "${PROJECT}"
+	run_facade adopt
+	[ "$status" -eq 64 ]
+	run_facade update --yes
+	[ "$status" -eq 64 ]
+}
+
 @test "explicit --source cannot reuse a candidate cached from the default source" {
 	source_cache_candidate --release starter/v1.0.0 --project-root "${PROJECT}"
 	[ "$status" -eq 0 ]
@@ -194,6 +202,83 @@ assert_git_boundaries_preserved() {
 	[ "$(sha256sum "${PROJECT}/managed.txt" | cut -d' ' -f1)" = "${before_managed}" ]
 	[ "$(sha256sum "${PROJECT}/notes.txt" | cut -d' ' -f1)" = "${before_note}" ]
 	assert_git_boundaries_preserved
+}
+
+@test "starter:check discovers numeric latest and reports update availability read-only" {
+	local baseline='baseline' update='update'
+	publish_release 1.9.0 0.0.0 "${baseline}" null
+	local baseline_sha="${PUBLISHED_SHA}"
+	initialize_project "${baseline}"
+	run_facade adopt --release starter/v1.9.0
+	[ "$status" -eq 0 ]
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	publish_release 1.10.0 1.9.0 "${update}" "${baseline_sha}"
+	snapshot_git_boundaries
+	local before_status
+	before_status="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)"
+
+	run_facade check
+
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'starter: current release 1.9.0'* ]]
+	[[ "$output" == *'starter: selected latest release 1.10.0'* ]]
+	[[ "$output" == *'starter: update available 1.9.0 -> 1.10.0'* ]]
+	[ "$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)" = "${before_status}" ]
+	assert_git_boundaries_preserved
+}
+
+@test "starter:check explicit release bypasses latest discovery" {
+	publish_release 1.0.0 0.0.0 baseline null
+	initialize_project baseline
+	run_facade adopt --release starter/v1.0.0
+	[ "$status" -eq 0 ]
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+
+	run env STARTER_CACHE_DIR="${CACHE}" STARTER_DISCOVERY_LIST_REFS_IMPL=false \
+		"${FACADE}" check --project-root "${PROJECT}" --source "file://${REMOTE}" --release starter/v1.0.0
+
+	[ "$status" -eq 0 ]
+	[[ "$output" != *'selected latest release'* ]]
+}
+
+@test "starter:check reports up to date and never proposes a downgrade" {
+	publish_release 2.0.0 0.0.0 baseline null
+	initialize_project baseline
+	run_facade adopt --release starter/v2.0.0
+	[ "$status" -eq 0 ]
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+
+	run_facade check
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'project is up to date at release 2.0.0'* ]]
+
+	publish_release 1.0.0 0.0.0 older null
+	git --git-dir="${REMOTE}" update-ref -d refs/tags/starter/v2.0.0
+	run_facade check
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'current release 2.0.0 is ahead of selected latest 1.0.0; no downgrade applies'* ]]
+}
+
+@test "starter:check does not fall back when the selected highest release fails admission" {
+	publish_release 1.0.0 0.0.0 baseline null
+	initialize_project baseline
+	run_facade adopt --release starter/v1.0.0
+	[ "$status" -eq 0 ]
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	publish_release 2.0.0 1.0.0 update "${PUBLISHED_SHA}"
+	git -C "${TEST_ROOT}/release-2.0.0" tag -fa starter/v2.0.0 -m 'invalid release metadata'
+	git -C "${TEST_ROOT}/release-2.0.0" push -q --force fixture refs/tags/starter/v2.0.0
+
+	run_facade check
+
+	[ "$status" -eq 1 ]
+	[[ "$output" == *'selected latest release 2.0.0'* ]]
+	[[ "$output" == *'BLOCKER source.invalid: GitTagSource: annotated tag metadata is invalid'* ]]
+	[[ "$output" != *'check passed; release 1.0.0'* ]]
 }
 
 @test "starter:update uses validated planning rollback and state-last semantics without executing payloads" {

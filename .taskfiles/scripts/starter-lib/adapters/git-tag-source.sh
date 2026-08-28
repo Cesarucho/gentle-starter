@@ -5,6 +5,9 @@ GIT_TAG_SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=.taskfiles/scripts/starter-lib/contracts/source-port.sh
 source "${GIT_TAG_SOURCE_DIR}/../contracts/source-port.sh"
 
+readonly GIT_TAG_DISCOVERY_MAX_BYTES_DEFAULT=1048576
+readonly GIT_TAG_DISCOVERY_MAX_REFS_DEFAULT=4096
+
 git_tag_source_error() {
 	printf 'GitTagSource: %s\n' "$*" >&2
 }
@@ -33,6 +36,65 @@ git_tag_remote_url() {
 		return 1
 	}
 }
+
+git_tag_list_remote_refs() {
+	git ls-remote --tags "$1" 'refs/tags/starter/*'
+}
+
+git_tag_discover_latest_release() (
+	local remote="$1" listing bytes line_count line oid ref base version latest file_blocks
+	local max_bytes="${STARTER_DISCOVERY_MAX_BYTES:-${GIT_TAG_DISCOVERY_MAX_BYTES_DEFAULT}}"
+	local max_refs="${STARTER_DISCOVERY_MAX_REFS:-${GIT_TAG_DISCOVERY_MAX_REFS_DEFAULT}}"
+	local list_impl="${STARTER_DISCOVERY_LIST_REFS_IMPL:-git_tag_list_remote_refs}"
+	declare -A advertised=() peeled=() seen=()
+	git_tag_remote_url "${remote}" || return 1
+	[[ "${max_bytes}" =~ ^[1-9][0-9]*$ && "${max_refs}" =~ ^[1-9][0-9]*$ ]] || {
+		git_tag_source_error "discovery limits are invalid"
+		return 1
+	}
+	listing="$(mktemp)" || return 1
+	trap 'rm -f "${listing}"' EXIT
+	file_blocks="$(((max_bytes + 511) / 512))"
+	(ulimit -f "${file_blocks}" && "${list_impl}" "${remote}" >"${listing}") 2>/dev/null || {
+		git_tag_source_error "release refs are unavailable or exceed the discovery limit"
+		return 1
+	}
+	bytes="$(wc -c <"${listing}")"
+	line_count="$(wc -l <"${listing}")"
+	if [ "${bytes}" -gt "${max_bytes}" ] || [ "${line_count}" -gt "${max_refs}" ]; then
+		git_tag_source_error "release ref listing exceeds discovery limit"
+		return 1
+	fi
+	while IFS= read -r line || [ -n "${line}" ]; do
+		[ -n "${line}" ] || continue
+		if [[ ! "${line}" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$'\t'(refs/[^[:space:]]+)$ ]]; then
+			git_tag_source_error "release ref listing is malformed"
+			return 1
+		fi
+		oid="${BASH_REMATCH[1]}"
+		ref="${BASH_REMATCH[2]}"
+		[ -z "${seen[${ref}]+x}" ] || {
+			git_tag_source_error "release ref listing contains duplicate or conflicting identities"
+			return 1
+		}
+		seen["${ref}"]="${oid}"
+		if [[ "${ref}" =~ ^refs/tags/(starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
+			advertised["${BASH_REMATCH[1]}"]="${oid}"
+		elif [[ "${ref}" =~ ^refs/tags/(starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))\^\{\}$ ]]; then
+			peeled["${BASH_REMATCH[1]}"]="${oid}"
+		fi
+	done <"${listing}"
+	for base in "${!advertised[@]}"; do
+		[ -n "${peeled[${base}]+x}" ] || continue
+		version="${base#starter/v}"
+		latest="$(printf '%s\n%s\n' "${latest:-}" "${version}" | awk 'NF' | sort -V | sed -n '$p')"
+	done
+	[ -n "${latest:-}" ] || {
+		git_tag_source_error "source has no valid exact annotated starter releases"
+		return 1
+	}
+	printf 'starter/v%s\n' "${latest}"
+)
 
 git_tag_verify_release() {
 	local repository="$1" selector="$2" source_id="$3" manifest_out="$4"

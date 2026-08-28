@@ -14,7 +14,7 @@ tasks:
       - ./.taskfiles/scripts/starter.sh adopt {{.CLI_ARGS}}
 
   check:
-    desc: Inspect starter integrity, drift, and update blockers without mutation
+    desc: Discover and inspect the latest starter release without mutation
     silent: true
     cmds:
       - ./.taskfiles/scripts/starter.sh check {{.CLI_ARGS}}

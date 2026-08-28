@@ -88,6 +88,64 @@ acquire_from() {
 	bash -c "cd '\$1'; source '${CONTRACT}'; source '${ADAPTER}'; STARTER_SOURCE_ACQUIRE_IMPL=git_tag_source_acquire source_acquire '${TEST_ROOT}/request.json'" _ "${working_directory}"
 }
 
+discover_from_listing() {
+	local listing="$1"
+	bash -c '
+		source "$1"
+		source "$2"
+		FIXTURE_REFS="$3"
+		fixture_refs() { cat "${FIXTURE_REFS}"; }
+		STARTER_DISCOVERY_LIST_REFS_IMPL=fixture_refs git_tag_discover_latest_release file:///fixture.git
+	' _ "${CONTRACT}" "${ADAPTER}" "${listing}"
+}
+
+@test "GitTagSource discovery selects the highest stable annotated semantic release" {
+	local listing="${TEST_ROOT}/refs"
+	cat >"${listing}" <<EOF
+1111111111111111111111111111111111111111	refs/heads/main
+2222222222222222222222222222222222222222	refs/tags/starter/v1.9.0
+3333333333333333333333333333333333333333	refs/tags/starter/v1.9.0^{}
+4444444444444444444444444444444444444444	refs/tags/starter/v1.10.0
+5555555555555555555555555555555555555555	refs/tags/starter/v1.10.0^{}
+6666666666666666666666666666666666666666	refs/tags/starter/v2.0.0-rc.1
+7777777777777777777777777777777777777777	refs/tags/starter/v9.0.0
+EOF
+
+	run discover_from_listing "${listing}"
+
+	[ "$status" -eq 0 ]
+	[ "$output" = starter/v1.10.0 ]
+}
+
+@test "GitTagSource discovery fails closed for missing malformed conflicting and bounded refs" {
+	local listing="${TEST_ROOT}/refs"
+	: >"${listing}"
+	run discover_from_listing "${listing}"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"no valid exact annotated starter releases"* ]]
+
+	printf 'not-a-ref-line\n' >"${listing}"
+	run discover_from_listing "${listing}"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"listing is malformed"* ]]
+
+	printf '1%.0s' {1..40} >"${listing}"
+	printf '\trefs/tags/starter/v1.0.0\n' >>"${listing}"
+	printf '2%.0s' {1..40} >>"${listing}"
+	printf '\trefs/tags/starter/v1.0.0\n' >>"${listing}"
+	run discover_from_listing "${listing}"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"duplicate or conflicting identities"* ]]
+
+	run env STARTER_DISCOVERY_MAX_BYTES=1 bash -c '
+		source "$1"; source "$2"
+		fixture_refs() { printf "%040d\\trefs/tags/starter/v1.0.0\\n" 1; }
+		STARTER_DISCOVERY_LIST_REFS_IMPL=fixture_refs git_tag_discover_latest_release file:///fixture.git
+	' _ "${CONTRACT}" "${ADAPTER}"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"exceeds discovery limit"* ]]
+}
+
 @test "GitTagSource admits an exact annotated semantic tag into a neutral envelope" {
 	local candidate="${TEST_ROOT}/candidate" before_head before_status before_remotes
 	create_remote 1.2.3

@@ -88,15 +88,16 @@ maintainer action.
   `HEAD`, then includes retained evidence and state in its parentless root.
 - `task starter:adopt -- --release starter/vX.Y.Z` remains available for
   recovery and intentionally unmarked projects.
-- `task starter:check -- --release starter/vX.Y.Z` reports integrity, drift,
-  ownership, worktree, and migration blockers without changing project files or
-  Git/container state.
+- `task starter:check` discovers the highest exact stable annotated release and
+  reports integrity, drift, ownership, worktree, and migration blockers without
+  changing project files or Git/container state. Add
+  `-- --release starter/vX.Y.Z` for deterministic inspection.
 - `task starter:update -- --release starter/vX.Y.Z --yes` applies a complete
   admitted chain transactionally, journals before writes, recovers only
   compare-and-swap-provable paths, and writes state last.
 
 The default source is `https://github.com/Cesarucho/gentle-starter.git`. Add
-`--source URL` only to override it explicitly.
+`-- --source URL` to discover against another explicit Git source.
 
 Use a clean Git worktree. Review every result and create commits yourself. The
 commands validate immutable Git and content bindings plus retained evidence.
