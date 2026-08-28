@@ -11,6 +11,7 @@ When in doubt, the English version is canonical.
 | [`install-tree.md`](./install-tree.md) | Deep dive on the `install/` convention: groups, numbering, how to add a new install script. |
 | [`install-volumes.md`](./install-volumes.md) | Deep dive on the volume repair contract: how the bind-mount → owning-script mapping works, how to add a new stateful volume. |
 | [`configs.md`](./configs.md) | Deep dive on `seed_config_tree`: privilege detection, the three cases, idempotency rules, the `*.local` pattern. |
+| [`starter-updates.md`](./starter-updates.md) | Safe adoption and transactional updates from exact signed starter releases, including ownership, trust, and recovery. |
 | [`adr/0001-install-layout-refactor.md`](./adr/0001-install-layout-refactor.md) | Install-tree, ownership, ordering, and config-seeding decision. |
 | [`adr/0002-centralized-tool-version-policy.md`](./adr/0002-centralized-tool-version-policy.md) | Canonical declarative tool-version policy and secure loader decision. |
 | `assets/` | Brand assets (logo, etc.). |
@@ -27,6 +28,8 @@ relevant deep-dive:
 - Adding an install script? → [`install-tree.md`](./install-tree.md)
 - Adding a stateful volume? → [`install-volumes.md`](./install-volumes.md)
 - Adding a baseline config? → [`configs.md`](./configs.md)
+- Adopting or updating from Gentle Starter? →
+  [`starter-updates.md`](./starter-updates.md)
 
 If you have a **specific question** that isn't covered by the above,
 check the FAQ at the bottom of [`extending.md`](./extending.md)

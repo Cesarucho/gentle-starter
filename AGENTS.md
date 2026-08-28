@@ -6,8 +6,9 @@ should be able to read this file and continue from where the last
 session left off, without reconstructing the reasoning from scratch.
 
 For humans, the same information is in
-[`docs/en/extending.md`](docs/en/extending.md) and the deep-dives
-linked from there. This file is a shortcut.
+[`docs/en/extending.md`](docs/en/extending.md),
+[`docs/en/starter-updates.md`](docs/en/starter-updates.md), and the deep-dives
+linked from the documentation index. This file is a shortcut.
 
 ## Project identity
 
@@ -38,11 +39,11 @@ linked from there. This file is a shortcut.
   convention, update this file in the same commit. Do not treat
   it as sacred; the docs/ entry is the long-form reference.
 
-## Architecture summary (four extension surfaces)
+## Architecture summary (five extension surfaces)
 
-The devcontainer has three coordinated extension surfaces. The
-deep-dive is in `docs/en/extending.md`; this is the one-paragraph
-version of each.
+The devcontainer has five coordinated extension surfaces. The deep-dives are
+in `docs/en/extending.md` and `docs/en/starter-updates.md`; this is the
+one-paragraph version of each.
 
 1. **Install tree** (`.devcontainer/install/`) — build-time
    scripts that the Dockerfile iterates in three groups
@@ -78,6 +79,12 @@ version of each.
    URLs, checksums, and idempotency. Doc:
    `docs/en/adr/0002-centralized-tool-version-policy.md`.
 
+5. **Starter update lifecycle** (`.starter/`, `.taskfiles/starter.yml`) — exact
+   signed-tag admission, transport-neutral verified payloads, declarative
+   ownership operations, retained evidence, and transactional recovery for
+   `starter:adopt`, `starter:check`, and `starter:update`. Doc:
+   `docs/en/starter-updates.md`.
+
 The comprehensive guide (how these systems interact, a worked example
 adding Redis end-to-end, and the FAQ) is in
 [`docs/en/extending.md`](docs/en/extending.md).
@@ -91,6 +98,30 @@ adding Redis end-to-end, and the FAQ) is in
 - `task skill:prune` preserves the union of both sources;
   `task skill:validate` checks both and rejects unsafe or duplicate local names.
 - Do not fabricate `skills-lock.json` source metadata for a local skill.
+
+## Starter update guardrails
+
+- Admit only exact signed annotated semantic tags named `starter/vX.Y.Z` from
+  the initial Git-only source. Pinned signer, rotation/revocation policy, and
+  immutable content bindings are client proof; GitHub tag protection is
+  publisher governance only.
+- Keep source adapters outside lifecycle core. Future transports must emit the
+  same versioned verified payload and preserve state, ownership, journal,
+  rollback, and evidence semantics.
+- `managed` and explicitly declared `fusion` paths require exact fingerprints.
+  `project-owned` paths are immutable to starter migrations. Never silently
+  overwrite drift or auto-resolve conflicts.
+- Starter commands require clean-worktree eligibility and never merge history,
+  execute fetched content, mutate `origin`, or create commits. The project owner
+  reviews and commits successful adoption or update results.
+- Retain admitted evidence and ambiguous journals. Recovery restores only
+  compare-and-swap-provable operation-owned paths; state is written last.
+- Production release private keys belong in controlled signing infrastructure,
+  never in this repository. Bootstrap, custody, publication audit, rotation,
+  and emergency revocation must be documented before production tags.
+- `task project:init` removes inherited state/evidence and leaves a derived
+  project unmarked while retaining updater machinery. Adoption of an exact
+  admitted baseline is explicit after initialization.
 
 ## The "what NOT to touch" list
 
@@ -325,6 +356,7 @@ active or simulated devcontainer.
 - [`docs/en/install-tree.md`](docs/en/install-tree.md) — install/ convention deep dive
 - [`docs/en/install-volumes.md`](docs/en/install-volumes.md) — volume repair contract deep dive
 - [`docs/en/configs.md`](docs/en/configs.md) — `seed_config_tree` deep dive
+- [`docs/en/starter-updates.md`](docs/en/starter-updates.md) — signed release adoption, ownership, and recovery contract
 - [`docs/en/adr/0001-install-layout-refactor.md`](docs/en/adr/0001-install-layout-refactor.md) — the ADR for the refactor
 - [`docs/en/adr/0002-centralized-tool-version-policy.md`](docs/en/adr/0002-centralized-tool-version-policy.md) — centralized version-policy ADR
 - [`docs/en/`](docs/en/) — English documentation

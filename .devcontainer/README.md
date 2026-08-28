@@ -20,6 +20,7 @@ links from there.
 | `opencode-config/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
 | `setup-volumes.sh` | Sourced by `setup.sh`. Owns the bind-mount → install-script repair contract for installer-owned state. |
+| `.starter/` (sibling) | Pinned release trust, declarative migrations, retained evidence, and adoption state. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
 
 ## The three systems
@@ -70,3 +71,29 @@ seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgres
 
 For personal, non-versioned additions, use a `<name>-config.local/`
 suffix (gitignored, see the parent `.gitignore`).
+
+## Starter update safety
+
+The long-form guide in the Gentle Starter source is
+`docs/en/starter-updates.md`. This summary remains available after
+`task project:init` removes starter identity documentation.
+
+- `task starter:adopt -- --source URL --release starter/vX.Y.Z` proves an
+  exact signed baseline and writes retained evidence and state only after all
+  checks pass.
+- `task starter:check -- --source URL --release starter/vX.Y.Z` reports trust,
+  drift, ownership, worktree, and migration blockers without changing project
+  files or Git/container state.
+- `task starter:update -- --source URL --release starter/vX.Y.Z --yes` applies
+  a complete admitted chain transactionally, journals before writes, recovers
+  only compare-and-swap-provable paths, and writes state last.
+
+Use a clean Git worktree. Review every result and create commits yourself. The
+commands admit pinned signers under explicit rotation/revocation policy; GitHub
+tag protection is publisher governance, not client admission proof. They never
+merge starter history, execute fetched content, overwrite project-owned paths,
+mutate `origin`, or create commits.
+
+After `task project:init`, the updater, trust policy, and declarative assets are
+retained, but inherited state and evidence are removed. The derived project is
+unmarked until its owner explicitly adopts an exact admitted release.
