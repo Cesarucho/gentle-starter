@@ -33,16 +33,10 @@ maintainer workflow.
 
 ## Quick path
 
-Run these commands from the root of the derived project's clean Git worktree.
-Replace the release with an exact version published by the starter maintainers.
+The normal clone path admits its originating release during initialization:
 
 ```bash
-# First prove that the current files match an admitted baseline.
-task starter:adopt -- \
-  --release starter/v1.0.0
-
-# Commit the retained evidence and state marker after reviewing them.
-git status --short
+task project:init
 
 # Inspect a later release and every blocker without changing project state.
 task starter:check -- \
@@ -68,7 +62,7 @@ container state.
 | Command | Purpose | Mutation contract |
 |---|---|---|
 | `starter:release` | Create and locally admit an exact Gentle Starter release. | Creates one local annotated tag after preflight; never pushes or changes files, commits, branches, or remotes. |
-| `starter:adopt` | Prove that an unmarked project exactly matches a selected admitted baseline. | Writes retained evidence and `.starter/state.json` only after integrity, ownership, path, and managed-fingerprint checks pass. |
+| `starter:adopt` | Recover or deliberately adopt an unmarked project that exactly matches a selected baseline. | Writes retained evidence and `.starter/state.json` only after integrity, ownership, path, and managed-fingerprint checks pass. |
 | `starter:check` | Revalidate current evidence and report drift, integrity, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
 | `starter:update` | Apply a complete admitted migration chain to an adopted project. | Requires `--yes`, journals before mutation, updates only allowed paths, and writes state last. |
 
@@ -159,15 +153,23 @@ automatic commit as rollback.
 
 ## After `task project:init`
 
-`task project:init` creates the derived project's explicitly confirmed,
-parentless root commit, but it does not admit a starter release. It removes
-inherited `.starter/state.json`, baseline, evidence, and journals while keeping
-the updater commands and declarative distribution assets. The
-new project is intentionally unmarked and must run `task starter:adopt` against
-an exact release that matches its managed baseline.
+`task project:init` detects the originating release before rewriting history. It
+prefers the single exact annotated `starter/vX.Y.Z` tag whose peeled commit is
+`HEAD`; `--release starter/vX.Y.Z` resolves unavailable or ambiguous identity.
+The exact release is acquired and admitted through `GitTagSource/v1`, then the
+post-cleanup managed and fusion baseline is proven before any history mutation.
+The parentless root includes `.starter/state.json`, the managed baseline, and
+retained evidence.
 
-The initialization workflow does not merge or import starter history and does
-not contact or push to a remote. A blank origin response preserves the current
+Automatic discovery is intentionally local and bounded. Missing tags, shallow
+clones without the required tag, malformed candidates, and multiple matching
+releases fail closed with explicit `--release` guidance. Explicit selection may
+acquire only that exact tag from the existing origin; it never changes the
+origin URL. `--no-starter-adopt` exists only for deliberately unmarked projects.
+Standalone `starter:adopt` remains an advanced recovery path for those projects.
+
+The initialization workflow does not merge or import starter history and never
+pushes. A blank origin response preserves the current
 origin; any separately confirmed origin replacement belongs to
 `project:init`, not to the starter update commands. After initialization,
 `starter:adopt`, `starter:check`, and `starter:update` still never mutate

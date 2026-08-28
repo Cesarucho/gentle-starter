@@ -84,8 +84,10 @@ validating the committed distribution and then re-admits it through the
 consumer Git adapter. It does not publish the tag; pushing is a separate
 maintainer action.
 
-- `task starter:adopt -- --release starter/vX.Y.Z` proves an exact annotated
-  baseline and writes retained evidence and state only after all checks pass.
+- `task project:init` normally detects and admits the exact annotated release at
+  `HEAD`, then includes retained evidence and state in its parentless root.
+- `task starter:adopt -- --release starter/vX.Y.Z` remains available for
+  recovery and intentionally unmarked projects.
 - `task starter:check -- --release starter/vX.Y.Z` reports integrity, drift,
   ownership, worktree, and migration blockers without changing project files or
   Git/container state.
@@ -102,6 +104,7 @@ This proves integrity and structure, not publisher identity. They never
 merge starter history, execute fetched content, overwrite project-owned paths,
 mutate `origin`, or create commits.
 
-After `task project:init`, the updater and declarative assets are
-retained, but inherited state and evidence are removed. The derived project is
-unmarked until its owner explicitly adopts an exact admitted release.
+`project:init` removes inherited markers before writing newly admitted state and
+evidence. Missing or ambiguous release identity fails before history mutation;
+use explicit `--release starter/vX.Y.Z`. `--no-starter-adopt` is the deliberate
+escape hatch for a project that must remain unmarked.

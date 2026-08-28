@@ -11,13 +11,13 @@ tasks:
 
           task project:init
 
-        Removes Gentle Starter identity files, creates a parentless root commit
-        on a new branch, and optionally updates origin. It never contacts or
-        pushes to a remote.
+        Admits the originating exact starter release, removes Gentle Starter
+        identity files, creates an adopted parentless root commit on a new
+        branch, and optionally updates origin. It never pushes to a remote.
         EOF
 
   init:
     desc: Create a new project with a parentless Git history
     silent: true
     cmds:
-      - ./.taskfiles/scripts/project-init.sh
+      - ./.taskfiles/scripts/project-init.sh {{.CLI_ARGS}}

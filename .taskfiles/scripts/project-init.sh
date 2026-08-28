@@ -21,6 +21,121 @@ abort_without_changes() {
 	exit 0
 }
 
+project_init_usage() {
+	cat >&2 <<'EOF'
+Usage: project-init.sh [--release starter/vX.Y.Z] [--no-starter-adopt]
+
+By default, initialization adopts the exact annotated release at HEAD. Use
+--release when release identity cannot be selected unambiguously. The explicit
+--no-starter-adopt escape hatch is for intentionally unmarked projects only.
+EOF
+}
+
+parse_project_init_args() {
+	REQUESTED_RELEASE=""
+	STARTER_ADOPT_ENABLED=true
+	while [ "$#" -gt 0 ]; do
+		case "$1" in
+		--release)
+			if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+				fail "--release requires starter/vX.Y.Z"
+			fi
+			REQUESTED_RELEASE="$2"
+			shift 2
+			;;
+		--no-starter-adopt)
+			STARTER_ADOPT_ENABLED=false
+			shift
+			;;
+		-h | --help)
+			project_init_usage
+			exit 0
+			;;
+		*)
+			project_init_usage
+			fail "unknown argument"
+			;;
+		esac
+	done
+	[ -z "${REQUESTED_RELEASE}" ] || [[ "${REQUESTED_RELEASE}" =~ ^starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
+		fail "--release must name an exact starter semantic tag"
+}
+
+release_source_url() {
+	local url
+	if git show-ref --verify --quiet "refs/tags/${SELECTED_RELEASE}"; then
+		printf 'file://%s\n' "$(pwd -P)"
+		return
+	fi
+	url="$(git remote get-url origin 2>/dev/null || true)"
+	case "${url}" in
+	https://* | ssh://* | git://* | file:///*) printf '%s\n' "${url}" ;;
+	/*) printf 'file://%s\n' "${url}" ;;
+	*) printf 'file://%s\n' "$(pwd -P)" ;;
+	esac
+}
+
+select_originating_release() {
+	local head tag peeled matches=()
+	if [ -n "${REQUESTED_RELEASE}" ]; then
+		SELECTED_RELEASE="${REQUESTED_RELEASE}"
+		return
+	fi
+	head="$(git rev-parse HEAD)"
+	while IFS= read -r tag; do
+		[ -n "${tag}" ] || continue
+		peeled="$(git rev-parse -q --verify "refs/tags/${tag}^{}" 2>/dev/null || true)"
+		[ "${peeled}" != "${head}" ] || matches+=("${tag}")
+	done < <(git tag --list 'starter/v*' | LC_ALL=C sort)
+	case "${#matches[@]}" in
+	1) SELECTED_RELEASE="${matches[0]}" ;;
+	0) fail "no exact starter release identifies HEAD; fetch the required starter/vX.Y.Z tag or rerun with --release starter/vX.Y.Z" ;;
+	*) fail "multiple starter releases identify HEAD; rerun with --release starter/vX.Y.Z" ;;
+	esac
+}
+
+prepare_adopted_project() {
+	local source_url source_result retained_result plan state operation_count index target source
+	PREPARED_PROJECT="$(mktemp -d "${TMPDIR:-/tmp}/project-init-preflight.XXXXXX")"
+	trap 'rm -rf -- "${PREPARED_PROJECT:-}"' EXIT
+	git archive HEAD | tar -x -C "${PREPARED_PROJECT}"
+	(
+		cd "${PREPARED_PROJECT}"
+		clean_remove_starter_identity >/dev/null
+		clean_remove_project_init_markers >/dev/null
+	)
+	STARTER_PROJECT_ROOT="${PREPARED_PROJECT}"
+	STARTER_RELEASE="${SELECTED_RELEASE}"
+	STARTER_CACHE_DIR="${PREPARED_PROJECT}/.starter-cache"
+	export STARTER_PROJECT_ROOT STARTER_RELEASE STARTER_CACHE_DIR
+	STARTER_SOURCE_URL="$(release_source_url)"
+	source_url="${STARTER_SOURCE_URL}"
+	if ! source_result="$(starter_acquire_candidate 2>&1)"; then
+		fail "release admission failed before initialization: ${source_result##*$'\n'} (source: ${source_url})"
+	fi
+	plan="$(starter_build_plan "${source_result}" 0.0.0)" || fail "release baseline plan is invalid"
+	operation_count="$(jq '.operations | length' <<<"${plan}")"
+	for ((index = 0; index < operation_count; index++)); do
+		target="$(jq -r ".operations[${index}].target" <<<"${plan}")"
+		if [ "${target}" = ".starter/baseline.json" ] &&
+			[ "$(jq -r ".operations[${index}].type" <<<"${plan}")" = copy ]; then
+			source="$(jq -r ".operations[${index}].source" <<<"${plan}")"
+			cp -- "$(jq -r '.payload_root' <<<"${source_result}")/payloads/${source}" "${PREPARED_PROJECT}/${target}"
+		fi
+	done
+	retained_result="$(starter_retain_candidate "${source_result}")" || fail "release evidence could not be retained"
+	state="$(starter_state_build "${PREPARED_PROJECT}" "${retained_result}" "${plan}")" || fail "post-cleanup project does not match release baseline"
+	starter_state_persist "${PREPARED_PROJECT}" "${state}" || fail "adoption state could not be prepared"
+}
+
+preflight_starter_adoption() {
+	[ "${STARTER_ADOPT_ENABLED}" = true ] || return 0
+	# shellcheck source=/dev/null
+	source "${SCRIPT_DIR}/starter.sh"
+	select_originating_release
+	prepare_adopted_project
+}
+
 enter_clean_repository_root() {
 	local repository_root
 
@@ -138,11 +253,15 @@ print_project_plan() {
 	else
 		echo "  - preserve the current origin configuration"
 	fi
-	echo "  - no push, fetch, ls-remote, or remote contact"
+	echo "  - never push; exact-tag admission may contact the existing origin"
 	echo "Starter update plan:"
 	echo "  - retain updater commands and distribution metadata"
-	echo "  - remove inherited state, baseline, evidence, and journals"
-	echo "  - leave the project unmarked until an exact baseline is admitted"
+	if [ "${STARTER_ADOPT_ENABLED}" = true ]; then
+		echo "  - admit and retain exact release: ${SELECTED_RELEASE}"
+		echo "  - include the proven baseline, state, and evidence in the root commit"
+	else
+		echo "  - intentionally leave the project unmarked (--no-starter-adopt)"
+	fi
 	echo
 }
 
@@ -301,6 +420,11 @@ create_parentless_root() {
 
 	clean_remove_starter_identity
 	clean_remove_project_init_markers
+	if [ "${STARTER_ADOPT_ENABLED}" = true ]; then
+		cp -a -- "${PREPARED_PROJECT}/.starter/baseline.json" .starter/baseline.json
+		cp -a -- "${PREPARED_PROJECT}/.starter/state.json" .starter/state.json
+		cp -a -- "${PREPARED_PROJECT}/.starter/evidence" .starter/evidence
+	fi
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git add -A
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git write-tree >"${TRANSACTION_DIR}/tree"
 	read -r tree <"${TRANSACTION_DIR}/tree"
@@ -357,9 +481,12 @@ print_result() {
 	echo "  Root commit: ${ROOT_COMMIT}"
 	echo "  Origin: ${ORIGIN_ACTION}"
 	echo "  Previous local refs removed; unreachable objects remain until Git garbage collection."
-	echo "  No remote was contacted or pushed."
-	echo "  No starter baseline was admitted during initialization."
-	echo "  Run task starter:adopt with an exact verified release before using starter updates."
+	echo "  No remote was pushed or reconfigured by release admission."
+	if [ "${STARTER_ADOPT_ENABLED}" = true ]; then
+		echo "  Starter release ${SELECTED_RELEASE} was admitted into the root commit."
+	else
+		echo "  Starter adoption was explicitly disabled; the project is intentionally unmarked."
+	fi
 	echo
 	if origin_exists; then
 		echo "Next step: review the root commit, then push when you are ready."
@@ -369,7 +496,9 @@ print_result() {
 }
 
 main() {
+	parse_project_init_args "$@"
 	enter_clean_repository_root
+	preflight_starter_adoption
 	prompt_for_inputs
 	print_project_plan
 	confirm_project_initialization

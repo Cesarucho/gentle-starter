@@ -122,12 +122,10 @@ adding Redis end-to-end, and the FAQ) is in
   reviews and commits successful adoption or update results.
 - Retain admitted evidence and ambiguous journals. Recovery restores only
   compare-and-swap-provable operation-owned paths; state is written last.
-- Production release private keys belong in controlled signing infrastructure,
-  never in this repository. Bootstrap, custody, publication audit, rotation,
-  and emergency revocation must be documented before production tags.
-- `task project:init` removes inherited state/evidence and leaves a derived
-  project unmarked while retaining updater machinery. Adoption of an exact
-  admitted baseline is explicit after initialization.
+- `task project:init` detects and admits the originating exact annotated release
+  before history rewrite, proves the post-cleanup baseline, and includes state
+  plus retained evidence in the parentless root. Missing or ambiguous identity
+  fails closed; `--no-starter-adopt` is only for deliberately unmarked projects.
 
 ## The "what NOT to touch" list
 

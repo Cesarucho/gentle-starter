@@ -68,10 +68,27 @@ includes:
 EOF
 }
 
+tag_current_release() {
+	local version="${1:-1.0.0}" commit tree blob sha message
+	commit="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+	tree="$(git -C "${PROJECT_ROOT}" rev-parse 'HEAD^{tree}')"
+	blob="$(git -C "${PROJECT_ROOT}" rev-parse 'HEAD:.starter/distribution/manifest.json')"
+	sha="$(git -C "${PROJECT_ROOT}" show 'HEAD:.starter/distribution/manifest.json' | sha256sum | cut -d' ' -f1)"
+	message="$(jq -cn --arg version "${version}" --arg commit "${commit}" --arg tree "${tree}" --arg blob "${blob}" --arg sha "${sha}" '{schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,commit_oid:$commit,tree_oid:$tree,manifest:{path:".starter/distribution/manifest.json",blob_oid:$blob,sha256:$sha}}')"
+	git -C "${PROJECT_ROOT}" tag -a -m "${message}" "starter/v${version}"
+}
+
 run_project_init() {
 	local input="$1"
-	run bash -c 'cd "$1" && printf "%b" "$2" | ./.taskfiles/scripts/project-init.sh' \
-		_ "${PROJECT_ROOT}" "${input}"
+	shift
+	if [ "${1:-}" = __auto__ ]; then
+		shift
+		set --
+	elif [ "$#" -eq 0 ]; then
+		set -- --no-starter-adopt
+	fi
+	run bash -c 'cd "$1" && shift && input="$1" && shift && printf "%b" "${input}" | ./.taskfiles/scripts/project-init.sh "$@"' \
+		_ "${PROJECT_ROOT}" "${input}" "$@"
 }
 
 assert_parentless_root() {
@@ -100,6 +117,61 @@ assert_only_root_ref_remains() {
 	[ "$(git -C "${PROJECT_ROOT}" for-each-ref --format='%(refname)')" = "${expected_ref}" ]
 }
 
+@test "automatic adoption detects an exact release at HEAD and includes state and evidence in the root" {
+	seed_starter_update_machinery
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "release fixture"
+	tag_current_release
+
+	run_project_init 'project-main\n\nCREATE ROOT\n' __auto__
+
+	[ "${status}" -eq 0 ]
+	assert_parentless_root
+	assert_only_root_ref_remains project-main
+	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
+	[ -f "${PROJECT_ROOT}/.starter/baseline.json" ]
+	[ -f "${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/evidence/index.json" ]
+	git -C "${PROJECT_ROOT}" show --stat --oneline HEAD >/dev/null
+	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
+	[[ "${output}" == *"Starter release starter/v1.0.0 was admitted"* ]]
+}
+
+@test "explicit release succeeds and ambiguous automatic detection fails before mutation" {
+	seed_starter_update_machinery
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "release fixture"
+	tag_current_release
+	git -C "${PROJECT_ROOT}" tag starter/v9.9.9
+	local before
+	before="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+
+	run_project_init 'project-main\n\nCREATE ROOT\n' __auto__
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"multiple starter releases identify HEAD"* ]]
+	[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${before}" ]
+	[ -f "${PROJECT_ROOT}/README.md" ]
+
+	git -C "${PROJECT_ROOT}" tag -d starter/v9.9.9 >/dev/null
+	run_project_init 'project-main\n\nCREATE ROOT\n' --release starter/v1.0.0
+	[ "${status}" -eq 0 ]
+	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
+}
+
+@test "missing release identity fails before destructive mutation with explicit guidance" {
+	seed_starter_update_machinery
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "untagged fixture"
+	local before
+	before="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+
+	run_project_init 'project-main\n\nCREATE ROOT\n' __auto__
+
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"--release starter/vX.Y.Z"* ]]
+	[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${before}" ]
+	[ -f "${PROJECT_ROOT}/README.md" ]
+}
+
 @test "happy path creates one parentless root commit and preserves blank origin" {
 	git -C "${PROJECT_ROOT}" remote add origin https://example.test/starter.git
 
@@ -113,7 +185,7 @@ assert_only_root_ref_remains() {
 	[ -z "$(git -C "${PROJECT_ROOT}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)" ]
 	assert_parentless_root
 	assert_starter_identity_cleaned
-	[[ "${output}" == *"No remote was contacted or pushed."* ]]
+	[[ "${output}" == *"No remote was pushed or reconfigured"* ]]
 	[[ "${output}" != *"https://example.test/starter.git"* ]]
 }
 
@@ -146,8 +218,8 @@ assert_only_root_ref_remains() {
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url origin)" = \
 		"https://example.test/starter.git" ]
 	[ -z "$(git -C "${PROJECT_ROOT}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)" ]
-	[[ "${output}" == *"task starter:adopt"* ]]
-	[[ "${output}" == *"No remote was contacted or pushed."* ]]
+	[[ "${output}" == *"intentionally unmarked"* ]]
+	[[ "${output}" == *"No remote was pushed or reconfigured"* ]]
 	run task --dir "${PROJECT_ROOT}" --list
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"starter:adopt"* ]]
@@ -171,9 +243,8 @@ assert_only_root_ref_remains() {
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url origin)" = "${new_origin}" ]
 	[ -z "$(git -C "${PROJECT_ROOT}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)" ]
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
-	[[ "${output}" == *"No starter baseline was admitted during initialization."* ]]
-	[[ "${output}" == *"task starter:adopt"* ]]
-	[[ "${output}" == *"No remote was contacted or pushed."* ]]
+	[[ "${output}" == *"intentionally unmarked"* ]]
+	[[ "${output}" == *"No remote was pushed or reconfigured"* ]]
 }
 
 @test "successful initialization removes every ref that keeps starter history reachable" {
@@ -267,8 +338,8 @@ assert_only_root_ref_remains() {
 	git -C "${PROJECT_ROOT}" remote add origin https://example.test/old.git
 	git config --file "${isolated_global}" remote.origin.pushurl "${inherited_push}"
 
-	run bash -c 'cd "$1" && printf "%b" "$2" | env GIT_CONFIG_GLOBAL="$3" GIT_CONFIG_NOSYSTEM=1 ./.taskfiles/scripts/project-init.sh' \
-		_ "${PROJECT_ROOT}" 'fresh-main\nhttps://new.example.test/repo.git\nCREATE ROOT\n' "${isolated_global}"
+	run bash -c 'cd "$1" && printf "%b" "$2" | env GIT_CONFIG_GLOBAL="$3" GIT_CONFIG_NOSYSTEM=1 ./.taskfiles/scripts/project-init.sh --no-starter-adopt' \
+		_ "${PROJECT_ROOT}" 'fresh-main\nhttps://new.example.test/repo.git\nCREATE ROOT\n' "${isolated_global}" --no-starter-adopt
 
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"inherited origin push URL"* ]]
@@ -460,9 +531,9 @@ EOF
 		local mode="${fail_spec##*|}"
 		local marker="${TEST_ROOT}/failure-${match//[^A-Za-z0-9]/-}-${mode}"
 
-		run bash -c 'cd "$1" && printf "%b" "$2" | env PATH="$3:$PATH" PROJECT_INIT_REAL_GIT="$4" PROJECT_INIT_FAIL_MATCH="$5" PROJECT_INIT_FAIL_MODE="$6" PROJECT_INIT_FAILURE_MARKER="$7" ./.taskfiles/scripts/project-init.sh' \
+		run bash -c 'cd "$1" && printf "%b" "$2" | env PATH="$3:$PATH" PROJECT_INIT_REAL_GIT="$4" PROJECT_INIT_FAIL_MATCH="$5" PROJECT_INIT_FAIL_MODE="$6" PROJECT_INIT_FAILURE_MARKER="$7" ./.taskfiles/scripts/project-init.sh --no-starter-adopt' \
 			_ "${PROJECT_ROOT}" "fresh-main\nhttps://new.example.test/repo.git\nCREATE ROOT\n" \
-			"${wrapper_dir}" "${real_git}" "${match}" "${mode}" "${marker}"
+			"${wrapper_dir}" "${real_git}" "${match}" "${mode}" "${marker}" --no-starter-adopt
 
 		[ "${status}" -ne 0 ]
 		[ "$(cat "${PROJECT_ROOT}/.git/HEAD")" = "${before_head}" ]
@@ -513,9 +584,9 @@ EOF
 			before_index="$(sha256sum "${PROJECT_ROOT}/.git/index" | cut -d' ' -f1)"
 			marker="${TEST_ROOT}/${replacement}-${mode}.marker"
 
-			run bash -c 'cd "$1" && printf "%b" "$2" | env PATH="$3:$PATH" PROJECT_INIT_REAL_MV="$4" PROJECT_INIT_MV_MATCH="$5" PROJECT_INIT_MV_MODE="$6" PROJECT_INIT_MV_MARKER="$7" ./.taskfiles/scripts/project-init.sh' \
+			run bash -c 'cd "$1" && printf "%b" "$2" | env PATH="$3:$PATH" PROJECT_INIT_REAL_MV="$4" PROJECT_INIT_MV_MATCH="$5" PROJECT_INIT_MV_MODE="$6" PROJECT_INIT_MV_MARKER="$7" ./.taskfiles/scripts/project-init.sh --no-starter-adopt' \
 				_ "${PROJECT_ROOT}" 'fresh-main\nhttps://new.example.test/repo.git\nCREATE ROOT\n' \
-				"${wrapper_dir}" "${real_mv}" "${replacement}" "${mode}" "${marker}"
+				"${wrapper_dir}" "${real_mv}" "${replacement}" "${mode}" "${marker}" --no-starter-adopt
 
 			[ "${status}" -ne 0 ]
 			[ "$(cat "${PROJECT_ROOT}/.git/HEAD")" = "${before_head}" ]
@@ -546,8 +617,8 @@ exec "${PROJECT_INIT_REAL_GIT}" "$@"
 EOF
 	chmod +x "${wrapper_dir}/git"
 
-	run bash -c 'cd "$1" && printf "%b" "$2" | env PATH="$3:$PATH" PROJECT_INIT_REAL_GIT="$4" PROJECT_INIT_FAILURE_MARKER="$5" ./.taskfiles/scripts/project-init.sh' \
-		_ "${PROJECT_ROOT}" 'fresh-main\n\nCREATE ROOT\n' "${wrapper_dir}" "${real_git}" "${marker}"
+	run bash -c 'cd "$1" && printf "%b" "$2" | env PATH="$3:$PATH" PROJECT_INIT_REAL_GIT="$4" PROJECT_INIT_FAILURE_MARKER="$5" ./.taskfiles/scripts/project-init.sh --no-starter-adopt' \
+		_ "${PROJECT_ROOT}" 'fresh-main\n\nCREATE ROOT\n' "${wrapper_dir}" "${real_git}" "${marker}" --no-starter-adopt
 
 	[ "${status}" -ne 0 ]
 	grep -Fq 'CONCURRENT TRACKED EDIT' "${PROJECT_ROOT}/.env.example"
@@ -582,8 +653,8 @@ exec /usr/bin/tar "$@"
 EOF
 	chmod +x "${wrapper_dir}/git" "${wrapper_dir}/tar"
 
-	run bash -c 'cd "$1" && printf "%b" "$2" | env TMPDIR="$3" PATH="$4:$PATH" PROJECT_INIT_REAL_GIT="$5" PROJECT_INIT_FAILURE_MARKER="$6" ./.taskfiles/scripts/project-init.sh' \
-		_ "${PROJECT_ROOT}" 'fresh-main\n\nCREATE ROOT\n' "${TEST_ROOT}" "${wrapper_dir}" "${real_git}" "${marker}"
+	run bash -c 'cd "$1" && printf "%b" "$2" | env TMPDIR="$3" PATH="$4:$PATH" PROJECT_INIT_REAL_GIT="$5" PROJECT_INIT_FAILURE_MARKER="$6" ./.taskfiles/scripts/project-init.sh --no-starter-adopt' \
+		_ "${PROJECT_ROOT}" 'fresh-main\n\nCREATE ROOT\n' "${TEST_ROOT}" "${wrapper_dir}" "${real_git}" "${marker}" --no-starter-adopt
 
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"recovery incomplete"* ]]
@@ -623,7 +694,7 @@ EOF
 	git -C "${PROJECT_ROOT}" add Taskfile.yml .taskfiles .devcontainer
 	git -C "${PROJECT_ROOT}" commit -qm "add task entrypoint"
 
-	run bash -c 'printf "task-root\n\nCREATE ROOT\n" | task --dir "$1" project:init' \
+	run bash -c 'printf "task-root\n\nCREATE ROOT\n" | task --dir "$1" project:init -- --no-starter-adopt' \
 		_ "${PROJECT_ROOT}"
 
 	[ "${status}" -eq 0 ]

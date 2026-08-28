@@ -83,12 +83,14 @@ required for the happy path.
     git clone https://github.com/Cesarucho/gentle-starter.git <my-project-name>
     cd <my-project-name>
     cp .env.example .env
-    task project:init         # optional: remove identity and start new Git history
+    task project:init         # create an adopted, independent project history
     ```
 
     > `task project:init` requires a clean worktree and explicit confirmation to
-    > create independent, parentless Git history without contacting or pushing to
-    > a remote. It preserves `LICENSE`.
+    > create independent, parentless Git history. It admits the exact annotated
+    > release at `HEAD`, includes state and retained evidence in the root commit,
+    > never pushes, and preserves `LICENSE`. If release identity is unavailable or
+    > ambiguous, pass `--release starter/vX.Y.Z` explicitly.
 
 ### Build and enter the environment
 
@@ -144,19 +146,16 @@ action.
 
 ### 🌱 Update from Gentle Starter
 
-After `task project:init`, use this workflow from a clean worktree to adopt an
-exact annotated release, preview a newer release, and then apply it.
+The normal clone → `task project:init` path already adopts the originating exact
+annotated release. Use this workflow to inspect and apply later releases.
 
 | Command | Use it to |
 |---|---|
-| `task starter:adopt` | Connect the project to the exact starter release it currently matches. |
+| `task starter:adopt` | Recover or intentionally adopt an exact baseline in an unmarked project. |
 | `task starter:check` | Inspect an available release and report blockers without changing files. |
 | `task starter:update` | Apply a verified migration after reviewing the plan. |
 
 ```bash
-# Run once after project:init
-task starter:adopt -- --release starter/v1.0.0
-
 # Preview, then apply, a newer release
 task starter:check -- --release starter/v1.1.0
 task starter:update -- --release starter/v1.1.0 --yes
