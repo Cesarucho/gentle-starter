@@ -20,7 +20,7 @@ tasks:
       - ./.taskfiles/scripts/starter.sh check {{.CLI_ARGS}}
 
   update:
-    desc: Apply an exact validated starter release transactionally
+    desc: Discover, confirm, and transactionally apply a starter release
     silent: true
     cmds:
       - ./.taskfiles/scripts/starter.sh update {{.CLI_ARGS}}

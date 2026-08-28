@@ -22,7 +22,7 @@ starter_usage() {
 Usage:
   starter.sh adopt  --release starter/vX.Y.Z [--source URL] [--project-root PATH]
   starter.sh check  [--release starter/vX.Y.Z] [--source URL] [--project-root PATH]
-  starter.sh update --release starter/vX.Y.Z --yes [--source URL] [--project-root PATH]
+  starter.sh update [--release starter/vX.Y.Z] [--yes] [--source URL] [--project-root PATH]
 
 Source defaults to https://github.com/Cesarucho/gentle-starter.git.
 
@@ -71,8 +71,12 @@ starter_parse_args() {
 			;;
 		esac
 	done
-	if [ -z "${STARTER_RELEASE}" ] && [ "${STARTER_COMMAND}" != check ]; then
+	if [ -z "${STARTER_RELEASE}" ] && [ "${STARTER_COMMAND}" = adopt ]; then
 		starter_usage
+		return "${STARTER_USAGE_EXIT}"
+	fi
+	if [ "${STARTER_COMMAND}" = update ] && [ -z "${STARTER_RELEASE}" ] && [ "${STARTER_CONFIRMED}" -eq 1 ]; then
+		printf 'starter: --yes requires an exact --release\n' >&2
 		return "${STARTER_USAGE_EXIT}"
 	fi
 	[ -z "${STARTER_RELEASE}" ] || [[ "${STARTER_RELEASE}" =~ ^starter/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
@@ -241,6 +245,55 @@ starter_build_plan() {
 	(cd "${STARTER_PROJECT_ROOT}" && starter_plan_build "${source_result}" "${current_version}")
 }
 
+starter_version_is_ahead() {
+	[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | sed -n '$p')" = "$1" ] && [ "$1" != "$2" ]
+}
+
+starter_plan_summary() {
+	local plan="$1"
+	printf 'starter: plan has %s migrations and %s operations (managed: %s, fusion: %s)\n' \
+		"$(jq '.migration_ids | length' <<<"${plan}")" \
+		"$(jq '.operations | length' <<<"${plan}")" \
+		"$(jq '.ownership_summary.managed' <<<"${plan}")" \
+		"$(jq '.ownership_summary.fusion' <<<"${plan}")"
+}
+
+starter_freeze_candidate() {
+	local candidate="$1" plan="$2" root evidence
+	root="$(dirname "$(jq -r '.envelope_file' <<<"${candidate}")")"
+	evidence="${root}/evidence/index.json"
+	jq -cn --arg selector "${STARTER_RELEASE}" --arg root "${root}" \
+		--arg tag "$(jq -r '.tag_oid' "${evidence}")" --arg commit "$(jq -r '.commit_oid' "${evidence}")" \
+		--arg tree "$(jq -r '.tree_oid' "${evidence}")" --arg manifest "$(jq -r '.manifest_sha256' "${evidence}")" \
+		--arg envelope "$(jq -cS . "${root}/envelope.json" | sha256sum | cut -d' ' -f1)" \
+		--arg payload "$(jq -cS '.payload.entries' "${root}/envelope.json" | sha256sum | cut -d' ' -f1)" \
+		--arg plan "$(jq -cS . <<<"${plan}" | sha256sum | cut -d' ' -f1)" \
+		'{selector:$selector,candidate_root:$root,tag_oid:$tag,commit_oid:$commit,tree_oid:$tree,
+		manifest_sha256:$manifest,envelope_sha256:$envelope,payload_identity:$payload,plan_sha256:$plan}'
+}
+
+starter_verify_frozen_candidate() {
+	local frozen="$1" candidate="$2" plan="$3" current
+	current="$(starter_freeze_candidate "${candidate}" "${plan}")" || return 1
+	[ "$(jq -cS . <<<"${current}")" = "$(jq -cS . <<<"${frozen}")" ] || {
+		printf 'prepared candidate identity changed' >&2
+		return 1
+	}
+	STARTER_EVIDENCE_REVALIDATE_IMPL=git_tag_evidence_revalidate \
+		evidence_revalidate "$(jq -r '.candidate_root' <<<"${frozen}")/evidence" >/dev/null
+}
+
+starter_confirm_update() {
+	local response target="${STARTER_RELEASE}"
+	printf 'Apply %s? (y/N) ' "${target}" >&2
+	if ! read -r response; then
+		response=""
+	fi
+	case "${response}" in y | Y) return 0 ;; esac
+	printf 'starter: update aborted; no project changes were made\n'
+	return 1
+}
+
 starter_recover_pending() {
 	local journal found=0
 	[ -d "${STARTER_PROJECT_ROOT}/.starter/journals" ] || return 0
@@ -365,11 +418,7 @@ starter_update_signal() {
 
 starter_update() {
 	local marker="${STARTER_PROJECT_ROOT}/.starter/state.json" current_result candidate retained_result plan state detail
-	local current_version journal transaction_status=0
-	[ "${STARTER_CONFIRMED}" -eq 1 ] || {
-		printf 'starter: update requires --yes\n' >&2
-		return "${STARTER_USAGE_EXIT}"
-	}
+	local current_version journal transaction_status=0 discovered=0 frozen
 	starter_recover_pending || {
 		starter_blocker recovery.ambiguous 'pending transaction requires manual recovery'
 		return 1
@@ -390,11 +439,29 @@ starter_update() {
 		starter_blocker repository.dirty "${detail##*$'\n'}"
 		return 1
 	fi
+	current_version="$(jq -r '.release.version' "${marker}")"
+	printf 'starter: current release %s\n' "${current_version}"
+	if [ -z "${STARTER_RELEASE}" ]; then
+		if ! STARTER_RELEASE="$(git_tag_discover_latest_release "${STARTER_SOURCE_URL}" 2>&1)"; then
+			starter_blocker source.discovery "${STARTER_RELEASE##*$'\n'}"
+			return 1
+		fi
+		discovered=1
+	fi
+	printf 'starter: selected target %s\n' "${STARTER_RELEASE}"
+	if [ "${current_version}" = "${STARTER_RELEASE#starter/v}" ]; then
+		printf 'starter: project is up to date at release %s\n' "${current_version}"
+		return 0
+	fi
+	if [ "${discovered}" -eq 1 ] && starter_version_is_ahead "${current_version}" "${STARTER_RELEASE#starter/v}"; then
+		printf 'starter: current release %s is ahead of selected latest %s; no downgrade applies\n' \
+			"${current_version}" "${STARTER_RELEASE#starter/v}"
+		return 0
+	fi
 	if ! candidate="$(starter_acquire_candidate 2>&1)"; then
 		starter_blocker source.invalid "${candidate##*$'\n'}"
 		return 1
 	fi
-	current_version="$(jq -r '.release.version' "${marker}")"
 	if ! plan="$(starter_build_plan "${candidate}" "${current_version}" 2>&1)"; then
 		starter_blocker plan.invalid "${plan##*$'\n'}"
 		return 1
@@ -402,6 +469,24 @@ starter_update() {
 	if [ "$(jq '.operations | length' <<<"${plan}")" -eq 0 ]; then
 		printf 'starter: already at release %s\n' "${current_version}"
 		return 0
+	fi
+	starter_plan_summary "${plan}"
+	frozen="$(starter_freeze_candidate "${candidate}" "${plan}")" || {
+		starter_blocker source.invalid 'candidate identities could not be frozen'
+		return 1
+	}
+	if [ "${STARTER_CONFIRMED}" -ne 1 ]; then
+		"${STARTER_UPDATE_BEFORE_CONFIRM_HOOK:-:}" || {
+			starter_blocker confirmation.hook 'pre-confirmation hook failed'
+			return 1
+		}
+		if ! starter_confirm_update; then
+			return 0
+		fi
+	fi
+	if ! starter_verify_frozen_candidate "${frozen}" "${candidate}" "${plan}"; then
+		starter_blocker source.invalid 'prepared candidate no longer matches its admitted identities'
+		return 1
 	fi
 	STARTER_UPDATE_PROJECT="${STARTER_PROJECT_ROOT}"
 	trap starter_update_signal INT TERM

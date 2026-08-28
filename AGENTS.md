@@ -7,7 +7,8 @@ session left off, without reconstructing the reasoning from scratch.
 
 For humans, the same information is in
 [`docs/en/extending.md`](docs/en/extending.md),
-[`docs/en/starter-updates.md`](docs/en/starter-updates.md), and the deep-dives
+[`docs/en/starter-updates.md`](docs/en/starter-updates.md),
+[`docs/en/starter-releases.md`](docs/en/starter-releases.md), and the deep-dives
 linked from the documentation index. This file is a shortcut.
 
 ## Project identity
@@ -116,8 +117,13 @@ adding Redis end-to-end, and the FAQ) is in
   publication pending; it never pushes automatically.
 - `task starter:check` discovers the highest exact stable annotated release by
   bounded Git ref discovery, then uses normal `GitTagSource/v1` admission and
-  lifecycle planning. Explicit `--release` bypasses discovery; adoption and
-  update continue to require it.
+  lifecycle planning. Explicit `--release` bypasses discovery.
+- `task starter:update` normally discovers, admits, freezes, and displays the
+  exact candidate and plan before an interactive `y`/`Y` confirmation. An
+  explicit `--release` keeps the same prompt; deterministic automation requires
+  both exact `--release` and `--yes`. Never rediscover or reacquire after the
+  prompt, and never accept `--yes` with mutable latest discovery. Adoption
+  continues to require an exact release.
 - `managed` and explicitly declared `fusion` paths require exact fingerprints.
   `project-owned` paths are immutable to starter migrations. Never silently
   overwrite drift or auto-resolve conflicts.
@@ -365,6 +371,7 @@ active or simulated devcontainer.
 - [`docs/en/install-volumes.md`](docs/en/install-volumes.md) — volume repair contract deep dive
 - [`docs/en/configs.md`](docs/en/configs.md) — `seed_config_tree` deep dive
 - [`docs/en/starter-updates.md`](docs/en/starter-updates.md) — release admission, ownership, and recovery contract
+- [`docs/en/starter-releases.md`](docs/en/starter-releases.md) — maintainer release creation and publication guide
 - [`docs/en/adr/0001-install-layout-refactor.md`](docs/en/adr/0001-install-layout-refactor.md) — the ADR for the refactor
 - [`docs/en/adr/0002-centralized-tool-version-policy.md`](docs/en/adr/0002-centralized-tool-version-policy.md) — centralized version-policy ADR
 - [`docs/en/`](docs/en/) — English documentation

@@ -10,26 +10,9 @@ The initial source is Git only. A release is an exact annotated semantic tag
 named `starter/vX.Y.Z`; branches, mutable refs, GitHub Releases, and the GitHub
 API are not release inputs.
 
-## Create a release
-
-Run the release command from the clean root of the Gentle Starter repository,
-not from a derived project:
-
-```bash
-task starter:release -- 1.0.0
-```
-
-The committed `.starter/distribution/manifest.json` must declare the same
-version and bind every payload and migration asset. After preflight checks, the
-command creates the unsigned annotated `starter/v1.0.0` tag with the canonical
-Git metadata bindings and immediately admits it through `GitTagSource/v1`.
-Failure removes only the operation-created tag when its object identity still
-matches.
-
-Release creation and remote publication are deliberately separate. The command
-does not push, change a remote, create a commit, or modify tracked files. Review
-the summary and publish the exact tag explicitly through the repository's
-maintainer workflow.
+Release maintainers should use the separate
+[Gentle Starter release guide](./starter-releases.md). This guide covers only
+derived-project adoption, checks, and updates.
 
 ## Quick path
 
@@ -41,10 +24,14 @@ task project:init
 # Discover the latest release and inspect every blocker without changing state.
 task starter:check
 
-# Apply only after check passes and the proposed release is understood.
-task starter:update -- \
-  --release starter/v1.1.0 \
-  --yes
+# Discover, admit, review, and confirm the latest exact release.
+task starter:update
+
+# Select an exact target but keep interactive confirmation.
+task starter:update -- --release starter/v1.1.0
+
+# Use deterministic noninteractive automation only with an exact target.
+task starter:update -- --release starter/v1.1.0 --yes
 
 # Review and commit the resulting project changes yourself.
 git status --short
@@ -60,16 +47,26 @@ container state.
 
 | Command | Purpose | Mutation contract |
 |---|---|---|
-| `starter:release` | Create and locally admit an exact Gentle Starter release. | Creates one local annotated tag after preflight; never pushes or changes files, commits, branches, or remotes. |
 | `starter:adopt` | Recover or deliberately adopt an unmarked project that exactly matches a selected baseline. | Writes retained evidence and `.starter/state.json` only after integrity, ownership, path, and managed-fingerprint checks pass. |
 | `starter:check` | Discover the latest exact release, revalidate current evidence, and report drift, integrity, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
-| `starter:update` | Apply a complete admitted migration chain to an adopted project. | Requires `--yes`, journals before mutation, updates only allowed paths, and writes state last. |
+| `starter:update` | Discover or select, admit, review, and apply a complete migration chain. | Prompts before mutation unless an exact `--release` is paired with `--yes`; journals before mutation, updates only allowed paths, and writes state last. |
 
-`starter:adopt` and `starter:update` require an exact `--release`.
+`starter:adopt` requires an exact `--release`.
 `starter:check` normally reads the adopted release from `.starter/state.json`,
 discovers exact annotated `starter/vX.Y.Z` tags through Git ref discovery, and
 inspects the highest stable SemVer release. Pass `--release starter/vX.Y.Z` to
 bypass discovery and inspect one selector deterministically.
+
+`starter:update` uses the same bounded discovery for its normal interactive
+path. It validates current evidence, drift, the clean worktree, candidate
+admission, and the complete migration plan before asking
+`Apply starter/vX.Y.Z? (y/N)`. Only `y` or `Y` confirms; Enter, EOF, and every
+other response abort without project mutation. Discovery and acquisition happen
+once before the prompt. The exact selector, candidate directory, evidence, tag,
+commit, tree, manifest, payload, envelope, and plan identities are frozen and
+revalidated for application, so remote changes during the prompt cannot change
+the selected target or bytes. `--yes` is accepted only with an exact
+`--release`; this preserves deterministic unattended automation.
 
 Commands acquire releases from `https://github.com/Cesarucho/gentle-starter.git`
 by default. Optional `--source URL` overrides that default explicitly; for example,

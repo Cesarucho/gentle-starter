@@ -130,49 +130,19 @@ required for the happy path.
 
 ## 🔄 Maintain your project
 
-### 📦 Create a Gentle Starter release
-
-From this repository's clean root, create and locally validate an exact
-annotated release tag:
-
-```bash
-task starter:release -- 1.0.0
-```
-
-The command validates the committed distribution manifest and immutable Git
-bindings, then admits the new tag through the same Git adapter used by
-consumers. It never pushes; remote publication remains a separate maintainer
-action.
-
 ### 🌱 Update from Gentle Starter
 
-The normal clone → `task project:init` path already adopts the originating exact
-annotated release. Use this workflow to inspect and apply later releases.
-
-| Command | Use it to |
-|---|---|
-| `task starter:adopt` | Recover or intentionally adopt an exact baseline in an unmarked project. |
-| `task starter:check` | Discover the latest exact release and report blockers without changing files. |
-| `task starter:update` | Apply a verified migration after reviewing the plan. |
+`task project:init` already adopts the originating exact annotated release.
 
 ```bash
-# Discover and preview the latest release, then apply the selected exact release
 task starter:check
-task starter:update -- --release starter/v1.1.0 --yes
+task starter:update
 ```
 
-`--yes` explicitly confirms application after you review the check output.
-Pass `--release starter/vX.Y.Z` to `starter:check` for deterministic inspection
-instead of latest-release discovery. Adoption and update still require an exact
-release.
-Commands use `https://github.com/Cesarucho/gentle-starter.git` by default; pass
-`--source <repository-url>` only to override it.
-
-The updater validates integrity-bound releases, respects project-owned files, and stops
-on drift or unsafe paths. It never merges starter history, executes fetched
-content, changes `origin`, resolves conflicts automatically, or creates commits.
-See [Safe starter updates](docs/en/starter-updates.md) for the full trust,
-ownership, and recovery model.
+Check is read-only; update shows the exact target and plan, then asks for
+confirmation. See [Safe starter updates](docs/en/starter-updates.md) for explicit
+targets, automation, standalone adoption, ownership, drift, rollback, source
+override, and frozen-candidate details.
 
 ### 📦 Update development tools
 
@@ -307,7 +277,7 @@ task quality:full
 .
 ├── .agents/                        Versioned project skills
 │   └── local-skills.txt            Project-authored skills preserved by prune
-├── .starter/                       Verified starter update assets
+├── .starter/                       Integrity-validated starter update assets
 │   ├── distribution/               Manifests, migrations, and payloads
 ├── .atl/                           <-- not versioned -->
 ├── CHANGELOG.md
@@ -349,7 +319,7 @@ task quality:full
 │   ├── project.yml                 History-free project initialization task
 │   ├── scripts/                    Task helper scripts
 │   │   ├── starter.sh              Starter update command façade
-│   │   └── starter-lib/            Trust, planning, state, and recovery logic
+│   │   └── starter-lib/            Validation, planning, state, and recovery logic
 │   ├── skills.yml                  Skill-management tasks
 │   ├── ssh.yml
 │   ├── starter.yml                 Starter adopt/check/update tasks

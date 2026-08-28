@@ -20,7 +20,7 @@ links from there.
 | `opencode-config/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
 | `setup-volumes.sh` | Sourced by `setup.sh`. Owns the bind-mount → install-script repair contract for installer-owned state. |
-| `.starter/` (sibling) | Pinned release trust, declarative migrations, retained evidence, and adoption state. |
+| `.starter/` (sibling) | Release validation, declarative migrations, retained evidence, and adoption state. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
 
 ## The three systems
@@ -78,12 +78,6 @@ The long-form guide in the Gentle Starter source is
 `docs/en/starter-updates.md`. This summary remains available after
 `task project:init` removes starter identity documentation.
 
-In the Gentle Starter source repository only,
-`task starter:release -- X.Y.Z` creates an unsigned annotated tag after
-validating the committed distribution and then re-admits it through the
-consumer Git adapter. It does not publish the tag; pushing is a separate
-maintainer action.
-
 - `task project:init` normally detects and admits the exact annotated release at
   `HEAD`, then includes retained evidence and state in its parentless root.
 - `task starter:adopt -- --release starter/vX.Y.Z` remains available for
@@ -92,9 +86,12 @@ maintainer action.
   reports integrity, drift, ownership, worktree, and migration blockers without
   changing project files or Git/container state. Add
   `-- --release starter/vX.Y.Z` for deterministic inspection.
-- `task starter:update -- --release starter/vX.Y.Z --yes` applies a complete
-  admitted chain transactionally, journals before writes, recovers only
-  compare-and-swap-provable paths, and writes state last.
+- `task starter:update` discovers and admits the latest exact release, displays
+  its plan, and asks `Apply starter/vX.Y.Z? (y/N)` before mutation. Use
+  `-- --release starter/vX.Y.Z` for an explicit interactive target, or add
+  `--yes` to that exact selector for deterministic automation. It journals
+  before writes, recovers only compare-and-swap-provable paths, and writes state
+  last.
 
 The default source is `https://github.com/Cesarucho/gentle-starter.git`. Add
 `-- --source URL` to discover against another explicit Git source.

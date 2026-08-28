@@ -81,6 +81,14 @@ run_facade() {
 		"$@"
 }
 
+run_facade_with_input() {
+	local input="$1" command="$2"
+	shift 2
+	run bash -c 'printf "%s" "$1" | env STARTER_CACHE_DIR="$2" STARTER_EXECUTION_SENTINEL="$3" \
+		"$4" "$5" --project-root "$6" --source "file://$7" "${@:8}"' \
+		_ "${input}" "${CACHE}" "${SENTINEL}" "${FACADE}" "${command}" "${PROJECT}" "${REMOTE}" "$@"
+}
+
 parse_source_url() {
 	mkdir -p "${PROJECT}"
 	run bash -c '
@@ -134,12 +142,13 @@ assert_git_boundaries_preserved() {
 	[ "$output" = "${override}" ]
 }
 
-@test "starter:check permits omitted release while adopt and update still reject it" {
+@test "starter:check and interactive update permit omitted release while adopt rejects it" {
 	mkdir -p "${PROJECT}"
 	run_facade adopt
 	[ "$status" -eq 64 ]
 	run_facade update --yes
 	[ "$status" -eq 64 ]
+	[[ "$output" == *'--yes requires an exact --release'* ]]
 }
 
 @test "explicit --source cannot reuse a candidate cached from the default source" {
@@ -311,16 +320,98 @@ assert_git_boundaries_preserved() {
 	assert_git_boundaries_preserved
 }
 
-@test "starter:update requires explicit confirmation before acquisition or writes" {
+@test "starter:update discovers freezes confirms and applies the exact candidate" {
+	publish_release 1.0.0 0.0.0 baseline null
+	local baseline_sha="${PUBLISHED_SHA}"
+	initialize_project baseline
+	run_facade adopt --release starter/v1.0.0
+	[ "$status" -eq 0 ]
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	publish_release 2.0.0 1.0.0 update "${baseline_sha}"
+
+	run_facade_with_input $'y\n' update
+
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'starter: selected target starter/v2.0.0'* ]]
+	[[ "$output" == *'starter: plan has 1 migrations and 1 operations'* ]]
+	[[ "$output" == *'Apply starter/v2.0.0? (y/N)'* ]]
+	[ "$(jq -r '.release.version' "${PROJECT}/.starter/state.json")" = 2.0.0 ]
+	[ "$(cat "${PROJECT}/managed.txt")" = update ]
+}
+
+@test "starter:update default invalid and EOF responses abort without mutation" {
+	publish_release 1.0.0 0.0.0 baseline null
+	local baseline_sha="${PUBLISHED_SHA}"
+	initialize_project baseline
+	run_facade adopt --release starter/v1.0.0
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	publish_release 2.0.0 1.0.0 update "${baseline_sha}"
+	snapshot_git_boundaries
+	local before_status="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)"
+	local response
+	for response in $'\n' $'no\n' $'YES\n' ''; do
+		run_facade_with_input "${response}" update --release starter/v2.0.0
+		[ "$status" -eq 0 ]
+		[[ "$output" == *'update aborted; no project changes were made'* ]]
+		[ "$(jq -r '.release.version' "${PROJECT}/.starter/state.json")" = 1.0.0 ]
+		[ "$(cat "${PROJECT}/managed.txt")" = baseline ]
+		[ "$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)" = "${before_status}" ]
+		assert_git_boundaries_preserved
+	done
+}
+
+@test "starter:update explicit target supports interactive confirmation" {
+	publish_release 1.0.0 0.0.0 baseline null
+	local baseline_sha="${PUBLISHED_SHA}"
+	initialize_project baseline
+	run_facade adopt --release starter/v1.0.0
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	publish_release 2.0.0 1.0.0 update "${baseline_sha}"
+
+	run_facade_with_input $'Y\n' update --release starter/v2.0.0
+
+	[ "$status" -eq 0 ]
+	[ "$(jq -r '.release.version' "${PROJECT}/.starter/state.json")" = 2.0.0 ]
+}
+
+@test "starter:update applies the frozen candidate when the selected remote tag disappears during confirmation" {
+	publish_release 1.0.0 0.0.0 baseline null
+	local baseline_sha="${PUBLISHED_SHA}"
+	initialize_project baseline
+	run_facade adopt --release starter/v1.0.0
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	publish_release 2.0.0 1.0.0 frozen-update "${baseline_sha}"
+	local hook="${TEST_ROOT}/move-selected-tag.sh"
+	printf '#!/usr/bin/env bash\ngit --git-dir=%q update-ref -d refs/tags/starter/v2.0.0\n' "${REMOTE}" >"${hook}"
+	chmod +x "${hook}"
+
+	run bash -c 'printf "y\n" | env STARTER_CACHE_DIR="$1" STARTER_UPDATE_BEFORE_CONFIRM_HOOK="$2" \
+		"$3" update --project-root "$4" --source "file://$5"' \
+		_ "${CACHE}" "${hook}" "${FACADE}" "${PROJECT}" "${REMOTE}"
+
+	[ "$status" -eq 0 ]
+	[ "$(jq -r '.release.version' "${PROJECT}/.starter/state.json")" = 2.0.0 ]
+	[ "$(cat "${PROJECT}/managed.txt")" = frozen-update ]
+}
+
+@test "starter:update up-to-date latest returns without prompting or mutation" {
 	publish_release 1.0.0 0.0.0 baseline null
 	initialize_project baseline
-	local before_status
-	before_status="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)"
+	run_facade adopt --release starter/v1.0.0
+	git -C "${PROJECT}" add .starter/state.json .starter/evidence
+	git -C "${PROJECT}" commit -q -m "adopt starter baseline"
+	snapshot_git_boundaries
+	local before_status="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)"
 
-	run_facade update --release starter/v1.0.0
+	run_facade update
 
-	[ "$status" -eq 64 ]
-	[[ "$output" == *'starter: update requires --yes'* ]]
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'project is up to date at release 1.0.0'* ]]
+	[[ "$output" != *'Apply starter/'* ]]
 	[ "$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)" = "${before_status}" ]
-	[ ! -e "${PROJECT}/.starter/state.json" ]
+	assert_git_boundaries_preserved
 }

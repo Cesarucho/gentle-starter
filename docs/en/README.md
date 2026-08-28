@@ -12,6 +12,7 @@ When in doubt, the English version is canonical.
 | [`install-volumes.md`](./install-volumes.md) | Deep dive on the volume repair contract: how the bind-mount → owning-script mapping works, how to add a new stateful volume. |
 | [`configs.md`](./configs.md) | Deep dive on `seed_config_tree`: privilege detection, the three cases, idempotency rules, the `*.local` pattern. |
 | [`starter-updates.md`](./starter-updates.md) | Safe adoption and transactional updates from exact integrity-bound starter releases, including ownership and recovery. |
+| [`starter-releases.md`](./starter-releases.md) | Maintainer guide for creating, verifying, and explicitly publishing an exact Gentle Starter release. |
 | [`adr/0001-install-layout-refactor.md`](./adr/0001-install-layout-refactor.md) | Install-tree, ownership, ordering, and config-seeding decision. |
 | [`adr/0002-centralized-tool-version-policy.md`](./adr/0002-centralized-tool-version-policy.md) | Canonical declarative tool-version policy and secure loader decision. |
 | `assets/` | Brand assets (logo, etc.). |
@@ -30,6 +31,8 @@ relevant deep-dive:
 - Adding a baseline config? → [`configs.md`](./configs.md)
 - Adopting or updating from Gentle Starter? →
   [`starter-updates.md`](./starter-updates.md)
+- Publishing a Gentle Starter release? →
+  [`starter-releases.md`](./starter-releases.md)
 
 If you have a **specific question** that isn't covered by the above,
 check the FAQ at the bottom of [`extending.md`](./extending.md)
