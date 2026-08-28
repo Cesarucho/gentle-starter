@@ -30,9 +30,9 @@ The project is designed to provide a clean base structure before launching any
 prompt, enabling workflows like these:
 
 ```shell
-1. git clone repo  --> rename project-foo --> prompt "create ..."
-2. git clone repo  --> rename project-bar --> prompt "design ..."
-3. copy/paste repo --> rename project-baz --> prompt "research ..."
+1. git clone repo  --> rename project-foo --> docker-steps --> prompt "create ..."
+2. git clone repo  --> rename project-bar --> docker-steps --> prompt "design ..."
+3. copy/paste repo --> rename project-baz --> docker-steps --> prompt "research ..."
 ```
 
 ## 📦 What's included?
@@ -84,22 +84,11 @@ required for the happy path.
     cd <my-project-name>
     cp .env.example .env
     task project:init         # optional: remove identity and start new Git history
-    task validate             # optional host-safe check
     ```
 
-    > `task project:init` requires a clean worktree. It asks for a new,
-    > non-existing branch and an optional origin URL, shows the complete cleanup
-    > plan, and requires `CREATE ROOT` before changing anything. It then applies
-    > the same identity cleanup as `task clean`, creates one parentless root
-    > commit, and removes previous local branches, tags, and other refs. Unreachable
-    > objects remain until Git garbage collection. A blank origin preserves the
-    > current one; no remote is contacted or pushed. Use `task clean` instead when
-    > you want to remove only the starter identity while keeping the existing Git
-    > history.
-
-    Both `task clean` and `task project:init` preserve `LICENSE` unchanged as the
-    inherited Gentle Starter MIT attribution. This is the safe default and does
-    not add another interactive choice.
+    > `task project:init` requires a clean worktree and explicit confirmation to
+    > create independent, parentless Git history without contacting or pushing to
+    > a remote. It preserves `LICENSE`.
 
 ### Build and enter the environment
 
@@ -116,24 +105,10 @@ required for the happy path.
 
     ```bash
     git status
-    engram tui
+    engram --version
+    gentle-ai --version
     opencode --version
-
-    # Alternative Gentle AI interface
-    pi --version
-
-    # Optional checks and maintenance
-    task validate:full
-    task deps:update
-
-    # Install temporary packages for experiments
-    sudo apt update
-    sudo apt install {foo}
     ```
-
-    > Note: installing tools on the fly is useful for experiments, but once
-    > validated they should be added to `.devcontainer/install/...` as part of
-    > the base environment.
 
 3. Connect your AI provider and start OpenCode:
 
@@ -145,20 +120,58 @@ required for the happy path.
     Example prompts:
 
     ```text
-    Read AGENTS.md as a template and help me fill in the placeholders.
+    >_ Read @AGENTS.md.TEMPLATE and help me fill in the placeholders.
 
-    Explain how this environment works and help me start a new project.
-
-    Based on the `.devcontainer/` structure, add PostgreSQL 16 with a
-    version-controlled `pg_hba.conf` and persistent data volume.
+    >_ Read skill add-tool add PostgreSQL 16 with a version-controlled
+       `pg_hba.conf` and persistent data volume.
     ```
 
-    Pi remains available for Gentle AI workflows:
+## 🔄 Maintain your project
 
-    ```bash
-    pi                        # open Pi
-    # Inside Pi, use /login to choose a provider
-    ```
+### 🌱 Update from Gentle Starter
+
+After `task project:init`, use this workflow from a clean worktree to adopt an
+exact signed release, preview a newer release, and then apply it.
+
+| Command | Use it to |
+|---|---|
+| `task starter:adopt` | Connect the project to the exact starter release it currently matches. |
+| `task starter:check` | Inspect an available release and report blockers without changing files. |
+| `task starter:update` | Apply a verified migration after reviewing the plan. |
+
+```bash
+# Run once after project:init
+task starter:adopt -- --release starter/v1.0.0
+
+# Preview, then apply, a newer release
+task starter:check -- --release starter/v1.1.0
+task starter:update -- --release starter/v1.1.0 --yes
+```
+
+`--yes` explicitly confirms application after you review the check output.
+Commands use `https://github.com/Cesarucho/gentle-starter.git` by default; pass
+`--source <repository-url>` only to override it.
+
+The updater verifies signed releases, respects project-owned files, and stops
+on drift or unsafe paths. It never merges starter history, executes fetched
+content, changes `origin`, resolves conflicts automatically, or creates commits.
+See [Safe starter updates](docs/en/starter-updates.md) for the full trust,
+ownership, and recovery model.
+
+### 📦 Update development tools
+
+```bash
+task deps:update          # From inside container, update the repository's approved version policy
+task container:rebuild    # From host, apply that policy to the development environment
+```
+
+### ✅ Validate after maintenance
+
+```bash
+task validate             # run host-safe repository checks
+task validate:full        # run strict validation inside the container
+task test                 # run the complete BATS test suite
+```
 
 ## 🛠️ Useful commands
 
@@ -278,6 +291,9 @@ task quality:full
 .
 ├── .agents/                        Versioned project skills
 │   └── local-skills.txt            Project-authored skills preserved by prune
+├── .starter/                       Verified starter update assets
+│   ├── distribution/               Manifests, migrations, and payloads
+│   └── trust/                      Pinned signer policy and public key
 ├── .atl/                           <-- not versioned -->
 ├── CHANGELOG.md
 ├── .devcontainer
@@ -298,7 +314,8 @@ task quality:full
 ├── docs
 │   ├── assets/
 │   ├── en/README.md                Full English documentation
-│   └── en/security.md              English security guide
+│   ├── en/security.md              English security guide
+│   └── en/starter-updates.md       Safe adoption and migration guide
 ├── .env                            <-- not versioned -->
 ├── .env.d/                         Persistent local state, <-- not versioned -->
 ├── .env.example                    Example local variables for `.env`
@@ -315,11 +332,19 @@ task quality:full
 │   ├── doctor.yml                  Diagnostic tasks
 │   ├── install.yml                 Install-layout tasks
 │   ├── project.yml                 History-free project initialization task
-│   ├── scripts                     Task helper scripts
+│   ├── scripts/                    Task helper scripts
+│   │   ├── starter.sh              Starter update command façade
+│   │   └── starter-lib/            Trust, planning, state, and recovery logic
 │   ├── skills.yml                  Skill-management tasks
-│   └── ssh.yml
+│   ├── ssh.yml
+│   ├── starter.yml                 Starter adopt/check/update tasks
+│   └── test.yml                    Test-suite orchestration
 └── Taskfile.yml                    Main task entry point
 ```
+
+After a derived project adopts or updates a release, runtime state may appear
+under `.starter/`, including `state.json`, retained `evidence/`, and recovery
+`journals/`. These paths are not part of the initial versioned tree above.
 
 ## 💾 Local state and persistence
 
@@ -342,8 +367,12 @@ be versioned. It is currently used to mount data such as:
 ├── .gitconfig                Local Git configuration inside the container
 │   ├── config
 │   └── .git-credentials
-├── .opencode
-│   └── share/                Local OpenCode application state
+├── .opencode                 Local OpenCode application state
+│   └── share/
+├── .gentle-ai                Local Gentle-AI state
+│   ├── backups/
+│   ├── cache/
+│   └── state.json
 └── .pi                       Local Pi state and configuration
     ├── agent/
     └── gentle-ai/
@@ -369,78 +398,29 @@ ARG LOCALE=es_MX.UTF-8
 ARG TZ=America/Mexico_City
 ```
 
-### 🧩 Add installation scripts
+### 🧩 Add development tools
 
-The install layout is organized into three runtime groups (with a
-visual-order prefix), the opt-in catalog, and shared infrastructure:
+Ask OpenCode to use the project `add-tool` skill. Describe the tool, version,
+whether it should be enabled by default, and any configuration or persistent
+state it needs.
 
 ```text
-.devcontainer/install/
-├── 01-core/               Mandatory scripts (00-pre-apt, 10-system, 15-task,
-│                          90-post-setup-users, 99-cleanup)
-├── 02-enabled/            Symlinks to active available/ scripts
-├── 03-hooks/              User extensions, intentionally visible to Git
-├── available/             Install catalog (numbered 00-99)
-├── lib/                   Shared helpers (common.sh)
-└── templates/             install-script.sh template for new scripts
+Use the `add-tool` skill to add PostgreSQL 16.
+
+Enable it by default, persist its data, add a version-controlled `pg_hba.conf`,
+run the applicable tests, and do not commit or rebuild without my approval.
 ```
 
-The Docker build runs scripts in the order `01-core` → `02-enabled` →
-`03-hooks` (the `for group in` loop in the Dockerfile). Within each
-group, scripts are sorted by filename, so the numeric prefix inside
-the filename (e.g. `20-runtime-…`, `30-ai-…`) controls the in-group
-order. Scripts in `available/` are dormant until you link them into
-`02-enabled/`.
-
-To add a new opt-in tool:
+Manage the install catalog with:
 
 ```bash
-# 1. Copy the template
-cp .devcontainer/install/templates/install-script.sh \
-   .devcontainer/install/available/40-cli-mycli.sh
-
-# 2. Fill in the variables, idempotency check, install, and verify
-#    sections. Source lib/common.sh for shared helpers (logging, arch
-#    detection, devcontainer_run_as_root, devcontainer_has_cmd, etc.).
-
-# 3. Validate locally
-shellcheck .devcontainer/install/available/40-cli-mycli.sh
-bash -n .devcontainer/install/available/40-cli-mycli.sh
-
-# 4. Enable it (creates an ordered alias in 02-enabled/)
-task install:enable -- 40-cli-mycli
-
-# 5. Rebuild and verify
-task container:rebuild
+task install:list
+task install:enable -- NAME
+task install:disable -- NAME
+task install:doctor
 ```
 
-Manage the install layout with these tasks:
-
-```bash
-task install:list                # Show install scripts and full catalog status
-task install:list -- --presets   # Legacy alias; same output as install:list
-task install:enable -- NAME      # Enable through an ordered 02-enabled/ alias
-task install:disable -- NAME     # Remove every valid alias for that installer
-task install:doctor              # Verify install/ layout integrity
-```
-
-Ordered alias names may differ from their `available/` script names. Disabling a
-script changes future builds and postCreate repairs; it does not uninstall state
-already persisted under `.env.d/`.
-
-A few rules for new scripts:
-
-- Drop `-u` (nounset) only inside the subshell that sources SDKMAN.
-  `lib/common.sh` runs under `set -euo pipefail`, but the Java carve-out
-  uses `set -eo pipefail` inside the sudo heredoc to avoid
-  `SDKMAN_CANDIDATES_API: unbound variable`.
-- Use `devcontainer_run_as_root` instead of raw `sudo` so the script works
-  in both build (root) and runtime (non-root) contexts.
-- Use `devcontainer_has_cmd` for idempotency at the top of the script so
-  re-runs are no-ops.
-- Source files in `.devcontainer/install/` are mode 0755 to match the
-  bind-mount and Dockerfile `chmod 0755` contract; the doctor task
-  detects broken symlinks and missing helpers.
+See [Extending Gentle Starter](docs/en/extending.md) for the manual architecture.
 
 ### 🔌 Configure optional MCP servers
 

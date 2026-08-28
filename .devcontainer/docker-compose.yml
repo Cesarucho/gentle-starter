@@ -18,6 +18,7 @@ services:
       - ../.env.d/.pi:/home/ubuntu/.pi
       - ../.env.d/.engram:/home/ubuntu/.engram
       - ../.env.d/.opencode/share:/home/ubuntu/.local/share/opencode
+      - ../.env.d/.gentle-ai:/home/ubuntu/.gentle-ai
       # GIT-CONFIG
       - ../.env.d/.gitconfig:/home/ubuntu/.gitconfig-volume
       # SSH-AGENT-FORWARDING: share host SSH agent so git push inside the

@@ -13,15 +13,18 @@ source "${SCRIPT_DIR}/starter-lib/core/rollback.sh"
 STARTER_REPOSITORY_STATUS_IMPL="${STARTER_REPOSITORY_STATUS_IMPL:-git_repository_status_inspect}"
 
 readonly STARTER_USAGE_EXIT=64
+readonly STARTER_OFFICIAL_SOURCE_URL='https://github.com/Cesarucho/gentle-starter.git'
 STARTER_BLOCKER_COUNT=0
 STARTER_UPDATE_PROJECT=""
 
 starter_usage() {
 	cat >&2 <<'EOF'
 Usage:
-  starter.sh adopt  --source URL --release starter/vX.Y.Z [--project-root PATH] [--policy FILE] [--key FILE]
-  starter.sh check  --source URL --release starter/vX.Y.Z [--project-root PATH] [--policy FILE] [--key FILE]
-  starter.sh update --source URL --release starter/vX.Y.Z --yes [--project-root PATH] [--policy FILE] [--key FILE]
+  starter.sh adopt  --release starter/vX.Y.Z [--source URL] [--project-root PATH] [--policy FILE] [--key FILE]
+  starter.sh check  --release starter/vX.Y.Z [--source URL] [--project-root PATH] [--policy FILE] [--key FILE]
+  starter.sh update --release starter/vX.Y.Z --yes [--source URL] [--project-root PATH] [--policy FILE] [--key FILE]
+
+Source defaults to https://github.com/Cesarucho/gentle-starter.git.
 
 Exit status: 0 success, 1 blocked or failed, 64 invalid command usage.
 EOF
@@ -36,7 +39,7 @@ starter_parse_args() {
 	STARTER_COMMAND="${1:-}"
 	shift || true
 	STARTER_PROJECT_ROOT="$(pwd -P)"
-	STARTER_SOURCE_URL=""
+	STARTER_SOURCE_URL="${STARTER_OFFICIAL_SOURCE_URL}"
 	STARTER_RELEASE=""
 	STARTER_POLICY="${SCRIPT_DIR}/../../.starter/trust/policy.json"
 	STARTER_KEY="${SCRIPT_DIR}/../../.starter/trust/release-key.asc"
@@ -72,7 +75,7 @@ starter_parse_args() {
 			;;
 		esac
 	done
-	if [ -z "${STARTER_SOURCE_URL}" ] || [ -z "${STARTER_RELEASE}" ]; then
+	if [ -z "${STARTER_RELEASE}" ]; then
 		starter_usage
 		return "${STARTER_USAGE_EXIT}"
 	fi
@@ -84,11 +87,12 @@ starter_parse_args() {
 }
 
 starter_cache_candidate() {
-	local project_id release_id cache_root
+	local project_id source_id release_id cache_root
 	project_id="$(printf '%s' "${STARTER_PROJECT_ROOT}" | sha256sum | cut -d' ' -f1)"
+	source_id="$(printf '%s' "${STARTER_SOURCE_URL}" | sha256sum | cut -d' ' -f1)"
 	release_id="${STARTER_RELEASE#starter/v}"
 	cache_root="${STARTER_CACHE_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/gentle-starter}"
-	printf '%s/%s/%s\n' "${cache_root}" "${project_id}" "${release_id}"
+	printf '%s/%s/%s/%s\n' "${cache_root}" "${project_id}" "${source_id}" "${release_id}"
 }
 
 starter_retained_candidate() {
@@ -415,4 +419,6 @@ main() {
 	esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+	main "$@"
+fi

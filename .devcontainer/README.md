@@ -78,15 +78,17 @@ The long-form guide in the Gentle Starter source is
 `docs/en/starter-updates.md`. This summary remains available after
 `task project:init` removes starter identity documentation.
 
-- `task starter:adopt -- --source URL --release starter/vX.Y.Z` proves an
-  exact signed baseline and writes retained evidence and state only after all
-  checks pass.
-- `task starter:check -- --source URL --release starter/vX.Y.Z` reports trust,
-  drift, ownership, worktree, and migration blockers without changing project
-  files or Git/container state.
-- `task starter:update -- --source URL --release starter/vX.Y.Z --yes` applies
-  a complete admitted chain transactionally, journals before writes, recovers
-  only compare-and-swap-provable paths, and writes state last.
+- `task starter:adopt -- --release starter/vX.Y.Z` proves an exact signed
+  baseline and writes retained evidence and state only after all checks pass.
+- `task starter:check -- --release starter/vX.Y.Z` reports trust, drift,
+  ownership, worktree, and migration blockers without changing project files or
+  Git/container state.
+- `task starter:update -- --release starter/vX.Y.Z --yes` applies a complete
+  admitted chain transactionally, journals before writes, recovers only
+  compare-and-swap-provable paths, and writes state last.
+
+The default source is `https://github.com/Cesarucho/gentle-starter.git`. Add
+`--source URL` only to override it explicitly.
 
 Use a clean Git worktree. Review every result and create commits yourself. The
 commands admit pinned signers under explicit rotation/revocation policy; GitHub

@@ -10,6 +10,7 @@ setup() {
 	SIGN_HOME="${TEST_ROOT}/sign-home"
 	CACHE="${TEST_ROOT}/cache"
 	SENTINEL="${TEST_ROOT}/payload-executed"
+	OFFICIAL_SOURCE="https://github.com/Cesarucho/gentle-starter.git"
 	mkdir -m 700 "${SIGN_HOME}"
 	GNUPGHOME="${SIGN_HOME}" gpg --batch --quiet --import "${FIXTURES}/test-private-key.asc"
 	SIGNER="06069EE0F0389C909090BF9D045AEADB4E22686A"
@@ -98,6 +99,24 @@ run_facade() {
 		--policy "${TEST_ROOT}/policy.json" --key "${FIXTURES}/test-public-key.asc" "$@"
 }
 
+parse_source_url() {
+	mkdir -p "${PROJECT}"
+	run bash -c '
+		source "$1"
+		starter_parse_args check "${@:2}" || exit $?
+		printf "%s\n" "${STARTER_SOURCE_URL}"
+	' _ "${FACADE}" "$@"
+}
+
+source_cache_candidate() {
+	mkdir -p "${PROJECT}"
+	run bash -c '
+		source "$1"
+		starter_parse_args check "${@:2}" || exit $?
+		starter_cache_candidate
+	' _ "${FACADE}" "$@"
+}
+
 snapshot_git_boundaries() {
 	SNAPSHOT_HEAD="$(git -C "${PROJECT}" rev-parse HEAD)"
 	SNAPSHOT_HISTORY="$(git -C "${PROJECT}" rev-list --all --objects)"
@@ -115,6 +134,33 @@ assert_git_boundaries_preserved() {
 	[ "$(sha256sum "${PROJECT}/.git/index" | cut -d' ' -f1)" = "${SNAPSHOT_INDEX}" ]
 	[ "$(sha256sum "${PROJECT}/owned.txt" | cut -d' ' -f1)" = "${SNAPSHOT_OWNED}" ]
 	[ ! -e "${SENTINEL}" ]
+}
+
+@test "starter commands use the official source when --source is omitted" {
+	parse_source_url --release starter/v1.0.0 --project-root "${PROJECT}"
+
+	[ "$status" -eq 0 ]
+	[ "$output" = "${OFFICIAL_SOURCE}" ]
+}
+
+@test "starter commands prefer explicit --source over the official default" {
+	local override="file://${REMOTE}"
+
+	parse_source_url --release starter/v1.0.0 --project-root "${PROJECT}" --source "${override}"
+
+	[ "$status" -eq 0 ]
+	[ "$output" = "${override}" ]
+}
+
+@test "explicit --source cannot reuse a candidate cached from the default source" {
+	source_cache_candidate --release starter/v1.0.0 --project-root "${PROJECT}"
+	[ "$status" -eq 0 ]
+	local default_candidate="${output}"
+
+	source_cache_candidate --release starter/v1.0.0 --project-root "${PROJECT}" --source "file://${REMOTE}"
+
+	[ "$status" -eq 0 ]
+	[ "$output" != "${default_candidate}" ]
 }
 
 @test "starter:adopt rejects managed drift without creating a marker or mutating Git" {

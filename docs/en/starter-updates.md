@@ -12,13 +12,11 @@ API are not release inputs.
 ## Quick path
 
 Run these commands from the root of the derived project's clean Git worktree.
-Replace the source and release with values published by the starter
-maintainers.
+Replace the release with an exact version published by the starter maintainers.
 
 ```bash
 # First prove that the current files match an admitted baseline.
 task starter:adopt -- \
-  --source https://github.com/gentleman-programming/gentle-starter.git \
   --release starter/v1.0.0
 
 # Commit the retained evidence and state marker after reviewing them.
@@ -26,12 +24,10 @@ git status --short
 
 # Inspect a later release and every blocker without changing project state.
 task starter:check -- \
-  --source https://github.com/gentleman-programming/gentle-starter.git \
   --release starter/v1.1.0
 
 # Apply only after check passes and the proposed release is understood.
 task starter:update -- \
-  --source https://github.com/gentleman-programming/gentle-starter.git \
   --release starter/v1.1.0 \
   --yes
 
@@ -53,9 +49,12 @@ container state.
 | `starter:check` | Revalidate current evidence and report drift, trust, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
 | `starter:update` | Apply a complete admitted migration chain to an adopted project. | Requires `--yes`, journals before mutation, updates only allowed paths, and writes state last. |
 
-All three commands require `--source` and an exact `--release`. Optional
-`--project-root`, `--policy`, and `--key` arguments support explicit repository
-and trust-material selection. Invalid usage exits before acquisition or project
+All three commands require an exact `--release`. They acquire releases from
+`https://github.com/Cesarucho/gentle-starter.git` by default. Optional
+`--source URL` overrides that default explicitly; for example,
+`--source https://github.com/Cesarucho/gentle-starter.git`. Optional
+`--project-root`, `--policy`, and `--key` arguments support explicit project and
+trust-material selection. Invalid usage exits before acquisition or project
 writes.
 
 The commands never merge histories, checkout or rebase upstream commits,
