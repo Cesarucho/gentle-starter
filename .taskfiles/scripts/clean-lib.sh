@@ -7,6 +7,13 @@ readonly CLEAN_MIGRATED_DOCS=(
 	"configs.md"
 )
 
+readonly CLEAN_PROJECT_INIT_MARKERS=(
+	".starter/state.json"
+	".starter/baseline.json"
+	".starter/evidence"
+	".starter/journals"
+)
+
 clean_identity_items() {
 	CLEAN_IDENTITY_ITEMS=(
 		"README.md"
@@ -85,6 +92,26 @@ clean_validate_identity_cleanup() {
 		clean_reject_symlink_or_unexpected_type ".devcontainer/docs/${doc}" file
 	done
 	clean_reject_symlink_or_unexpected_type ".devcontainer/docs/README.md" file
+}
+
+clean_validate_project_init_markers() {
+	clean_reject_symlink_or_unexpected_type ".starter" directory
+	clean_reject_symlink_or_unexpected_type ".starter/state.json" file
+	clean_reject_symlink_or_unexpected_type ".starter/baseline.json" file
+	clean_reject_symlink_or_unexpected_type ".starter/evidence" directory
+	clean_reject_symlink_or_unexpected_type ".starter/journals" directory
+}
+
+clean_remove_project_init_markers() {
+	local marker
+
+	clean_validate_project_init_markers
+	for marker in "${CLEAN_PROJECT_INIT_MARKERS[@]}"; do
+		if [ -e "${marker}" ]; then
+			rm -rf -- "${marker}"
+			echo "Removed unadmitted starter marker: ${marker}"
+		fi
+	done
 }
 
 clean_migrate_devcontainer_docs() {

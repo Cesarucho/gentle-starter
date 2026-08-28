@@ -50,6 +50,25 @@ seed_project() {
 	git -C "${PROJECT_ROOT}" commit -qm "starter history"
 }
 
+seed_starter_update_machinery() {
+	mkdir -p "${PROJECT_ROOT}/.starter"
+	cp -R "${REPO_ROOT}/.starter/trust" "${PROJECT_ROOT}/.starter/trust"
+	cp -R "${REPO_ROOT}/.starter/distribution" "${PROJECT_ROOT}/.starter/distribution"
+	cp -R "${REPO_ROOT}/.taskfiles/scripts/starter-lib" \
+		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib"
+	cp "${REPO_ROOT}/.taskfiles/scripts/starter.sh" \
+		"${PROJECT_ROOT}/.taskfiles/scripts/starter.sh"
+	cp "${REPO_ROOT}/.taskfiles/starter.yml" "${PROJECT_ROOT}/.taskfiles/starter.yml"
+	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/starter.sh"
+	cat >"${PROJECT_ROOT}/Taskfile.yml" <<'EOF'
+version: "3"
+
+includes:
+  starter:
+    taskfile: ./.taskfiles/starter.yml
+EOF
+}
+
 run_project_init() {
 	local input="$1"
 	run bash -c 'cd "$1" && printf "%b" "$2" | ./.taskfiles/scripts/project-init.sh' \
@@ -97,6 +116,66 @@ assert_only_root_ref_remains() {
 	assert_starter_identity_cleaned
 	[[ "${output}" == *"No remote was contacted or pushed."* ]]
 	[[ "${output}" != *"https://example.test/starter.git"* ]]
+}
+
+@test "initialization removes unverified inherited markers while retaining updater machinery" {
+	seed_starter_update_machinery
+	mkdir -p \
+		"${PROJECT_ROOT}/.starter/evidence/releases/1.0.0" \
+		"${PROJECT_ROOT}/.starter/journals/interrupted"
+	printf '%s\n' '{"schema":"unverified-template-state"}' >"${PROJECT_ROOT}/.starter/state.json"
+	printf '%s\n' '{"schema":"unverified-template-baseline"}' >"${PROJECT_ROOT}/.starter/baseline.json"
+	printf 'unverified evidence\n' >"${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/proof"
+	printf '%s\n' '{"schema":"unverified-template-journal"}' \
+		>"${PROJECT_ROOT}/.starter/journals/interrupted/journal.json"
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "seed updater with unverified markers"
+	git -C "${PROJECT_ROOT}" remote add origin https://example.test/starter.git
+
+	run_project_init 'fresh-main\n\nCREATE ROOT\n'
+
+	[ "${status}" -eq 0 ]
+	assert_parentless_root
+	assert_starter_identity_cleaned
+	[ -f "${PROJECT_ROOT}/.starter/trust/policy.json" ]
+	[ -f "${PROJECT_ROOT}/.starter/distribution/manifest.json" ]
+	[ -f "${PROJECT_ROOT}/.taskfiles/scripts/starter.sh" ]
+	[ -f "${PROJECT_ROOT}/.taskfiles/starter.yml" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/state.json" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/baseline.json" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/evidence" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/journals" ]
+	[ "$(git -C "${PROJECT_ROOT}" remote get-url origin)" = \
+		"https://example.test/starter.git" ]
+	[ -z "$(git -C "${PROJECT_ROOT}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)" ]
+	[[ "${output}" == *"task starter:adopt"* ]]
+	[[ "${output}" == *"No remote was contacted or pushed."* ]]
+	run task --dir "${PROJECT_ROOT}" --list
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"starter:adopt"* ]]
+}
+
+@test "marker-free initialization remains unmarked and directs explicit adoption" {
+	seed_starter_update_machinery
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "seed updater machinery"
+	local new_origin="https://new.example.test/org/project.git"
+
+	run_project_init "project-main\n${new_origin}\nCREATE ROOT\n"
+
+	[ "${status}" -eq 0 ]
+	assert_parentless_root
+	assert_starter_identity_cleaned
+	[ ! -e "${PROJECT_ROOT}/.starter/state.json" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/baseline.json" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/evidence" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/journals" ]
+	[ "$(git -C "${PROJECT_ROOT}" remote get-url origin)" = "${new_origin}" ]
+	[ -z "$(git -C "${PROJECT_ROOT}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)" ]
+	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
+	[[ "${output}" == *"No verified starter baseline was admitted during initialization."* ]]
+	[[ "${output}" == *"task starter:adopt"* ]]
+	[[ "${output}" == *"No remote was contacted or pushed."* ]]
 }
 
 @test "successful initialization removes every ref that keeps starter history reachable" {

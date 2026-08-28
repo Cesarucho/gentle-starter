@@ -45,6 +45,7 @@ enter_clean_repository_root() {
 		fail "project:init refuses repositories with linked worktrees"
 
 	clean_validate_identity_cleanup || fail "identity cleanup contains unsafe paths"
+	clean_validate_project_init_markers || fail "starter marker cleanup contains unsafe paths"
 }
 
 prompt_for_inputs() {
@@ -138,6 +139,10 @@ print_project_plan() {
 		echo "  - preserve the current origin configuration"
 	fi
 	echo "  - no push, fetch, ls-remote, or remote contact"
+	echo "Starter update plan:"
+	echo "  - retain updater commands, trust policy, and distribution metadata"
+	echo "  - remove inherited state, baseline, evidence, and journals"
+	echo "  - leave the project unmarked until an exact baseline is admitted"
 	echo
 }
 
@@ -183,7 +188,12 @@ begin_project_transaction() {
 	git for-each-ref --format='%(objectname) %(refname)' >"${TRANSACTION_DIR}/refs"
 
 	clean_identity_items
-	ROLLBACK_MUTATED_PATHS=("${CLEAN_IDENTITY_ITEMS[@]}" ".devcontainer/README.md" ".devcontainer/docs")
+	ROLLBACK_MUTATED_PATHS=(
+		"${CLEAN_IDENTITY_ITEMS[@]}"
+		"${CLEAN_PROJECT_INIT_MARKERS[@]}"
+		".devcontainer/README.md"
+		".devcontainer/docs"
+	)
 	ROLLBACK_EXISTING_PATHS=()
 	local path
 	for path in "${ROLLBACK_MUTATED_PATHS[@]}"; do
@@ -290,6 +300,7 @@ create_parentless_root() {
 	local root_commit
 
 	clean_remove_starter_identity
+	clean_remove_project_init_markers
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git add -A
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git write-tree >"${TRANSACTION_DIR}/tree"
 	read -r tree <"${TRANSACTION_DIR}/tree"
@@ -347,6 +358,8 @@ print_result() {
 	echo "  Origin: ${ORIGIN_ACTION}"
 	echo "  Previous local refs removed; unreachable objects remain until Git garbage collection."
 	echo "  No remote was contacted or pushed."
+	echo "  No verified starter baseline was admitted during initialization."
+	echo "  Run task starter:adopt with an exact verified release before using starter updates."
 	echo
 	if origin_exists; then
 		echo "Next step: review the root commit, then push when you are ready."
