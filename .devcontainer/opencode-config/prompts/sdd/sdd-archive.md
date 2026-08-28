@@ -79,6 +79,7 @@ Before any task reconciliation, spec sync, or archive move, require structured s
   - **the kill switch is off**: receipt-driven development does not exist for this candidate, so zero review code ran and there is nothing to read or block on.
   - **the kill switch is on, verify has passed, and no review was ever started for this candidate**: the post-verify offer (`reviewOffer`) is present in the SAME status output — an invitation, never a gate. Declining is proceeding to archive without acting on it, not a verb; nothing about the decline is recorded, and `dependencies.archive: ready` here means proceed, not "investigate why the gate is missing".
 - **`reviewGate` present with `result: allow`** (a discovered receipt that governs this candidate and validates): proceed. Read the exact transaction, frozen ledger, approved terminal receipt, and post-apply gate context referenced by status; the receipt must match final candidate tree, paths digest, policy, ledger, fix delta, current independent verification evidence, mode counters, and base relationship.
+- **Post-review final verification report delta**: SDD archive status may project `allow` only when native final-verify settlement attests the exact canonical passing report bytes and resulting candidate tree, the receipt-to-current delta is that report path alone, and restoring its receipt blob reconstructs the receipt candidate. This archive-status exception never changes generic review or delivery gates.
 - **`reviewGate` present with any other result** (pending, malformed, `scope-changed`, `invalidated`, or `escalated` — a review was actually discovered and failed validation): blocks archive with no override and no automatic reviewer launch. The gate never manufactures `allow`, and re-enabling a disabled switch revalidates from the current state.
 
 Do not treat `reviewGate`'s absence itself as a defect to investigate or as grounds to demand a receipt — only a present, non-`allow` value blocks.
@@ -322,3 +323,11 @@ Ready for the next change.
 - If `openspec/changes/archive/` doesn't exist, create it
 - Apply any `rules.archive` from `openspec/config.yaml`
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+
+<!-- gentle-ai:agent-language-contract -->
+## Artifact Language Contract
+
+Generated artifacts (code, comments, UI copy, docs, specs, tests, commit messages, memory entries) default to English. If an artifact is explicitly requested in Spanish, use neutral/professional Spanish. Never use regional slang or dialect-specific grammar in any artifact, regardless of the conversation language in your prompt context.
+
+Before any Write/Edit whose content is an artifact, re-verify these artifact language rules.
+<!-- /gentle-ai:agent-language-contract -->

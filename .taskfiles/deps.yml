@@ -2,6 +2,6 @@ version: "3"
 
 tasks:
   update:
-    desc: Update approved exact dependency pins in the central version policy
+    desc: Update approved pins and report deliberately excluded dependency policies
     cmds:
       - ./.taskfiles/scripts/deps-update.sh

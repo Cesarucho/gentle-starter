@@ -82,12 +82,26 @@ kubectl 1.36.x, PlantUML 1.2026.x, and Delve v1.x.
 
 Gentle AI is intentionally manual: its exact version and both Linux architecture
 digests are reviewed and changed together so a dependency update cannot silently
-replace the binary trust anchor with data from the same release boundary.
-Engram, BATS, and Graphify are also outside the initial updater scope, as are
-provider-managed tools. Java, Node, PHP, PHPUnit, major channels, and
-literal `latest` policies remain unchanged. The command discovers and validates
-all candidates before one atomic policy-file replacement; it does not install
-packages, rebuild the container, commit, push, or publish changes.
+replace the binary trust anchor with data from the same release boundary. The
+updater checks the latest stable Gentle AI release and reports whether the pin is
+current or a newer version needs review, but never mutates those three values.
+For a newer release it prints the release URL, checksum-manifest URL, a command
+that filters the manifest to the Linux amd64 and arm64 archives, and the three
+policy keys that must be updated together. Manual approval still requires pinned
+architecture digests for reproducible installer integrity. The manifest shares
+the upstream release trust boundary and is not independent signature or
+provenance verification; the updater never imports its values into policy.
+
+The updater maintains an explicit exclusion inventory and reports every omitted
+policy with a concise reason. This includes Engram, BATS, Graphify,
+provider-managed selectors, major channels, and literal `latest` policies. It does
+not claim that an update exists where deterministic discovery is unsupported or
+would not represent the policy semantics. Gentle AI advisory lookup failure is
+warning-only: advisory data never enters the candidate, so failing a safe managed
+update would reduce availability without protecting policy integrity. Managed
+discovery and validation failures remain fatal. The command discovers and
+validates all managed candidates before one atomic policy-file replacement; it
+does not install packages, rebuild the container, commit, push, or publish changes.
 
 ## Consequences
 

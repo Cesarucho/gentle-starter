@@ -46,6 +46,24 @@ MANAGED_KEYS=(
 	TOOL_SPECTRAL_VERSION TOOL_REDOCLY_VERSION TOOL_ASYNCAPI_VERSION
 )
 
+# Every policy key not managed above must be classified here deliberately.
+# Format: comma-separated keys|category|reason
+EXCLUDED_SPECS=(
+	"TOOL_GENTLE_AI_VERSION,TOOL_GENTLE_AI_SHA256_AMD64,TOOL_GENTLE_AI_SHA256_ARM64|manual trust review|manual review of the version and both architecture digests/trust inputs"
+	"TOOL_JAVA_INSTALL_VERSION,TOOL_JAVA_REQUIRED_VERSION|provider-managed installer|SDKMAN selects the distribution while the required version is only an observable check"
+	"TOOL_NODE_MAJOR|major channel|policy intentionally follows Node major 26"
+	"TOOL_GO_VERSION|explicit latest|policy explicitly delegates selection to the latest Go release"
+	"TOOL_PNPM_VERSION|explicit latest|policy explicitly delegates selection to Corepack"
+	"TOOL_BATS_VERSION|unsupported exact pin|deterministic BATS discovery is not implemented by this updater"
+	"TOOL_ENGRAM_VERSION|no trustworthy deterministic discovery|release discovery is not yet coupled to candidate artifact validation"
+	"TOOL_GRAPHIFY_VERSION|unsupported exact pin|PyPI discovery is not implemented by this updater"
+	"TOOL_PLAYWRIGHT_CLI_VERSION|explicit latest|policy intentionally installs the current Playwright CLI"
+	"TOOL_DEVCONTAINER_CLI_VERSION|explicit latest|policy intentionally installs the current Dev Container CLI"
+	"TOOL_VITEST_VERSION|explicit latest|policy intentionally installs the current Vitest release"
+	"TOOL_PHP_VERSION|major channel|policy intentionally follows PHP 8.4"
+	"TOOL_PHPUNIT_VERSION|major channel|policy intentionally follows PHPUnit 10"
+)
+
 declare -A CANDIDATES=()
 TEMP_DIR=""
 CANDIDATE_FILE=""
@@ -121,6 +139,70 @@ latest_kubectl_version() {
 	version="${version//$'\n'/}"
 	[[ "${version}" =~ ^v1\.36\.[0-9]+$ ]] || fail "kubectl channel returned invalid version '${version}'"
 	printf '%s\n' "${version#v}"
+}
+
+policy_value() {
+	local key="$1"
+	sed -nE "s/^${key}=\"([^\"]+)\"$/\1/p" "${POLICY_FILE}"
+}
+
+validate_inventory() {
+	local key spec keys category reason
+	local -a excluded_keys=()
+	declare -A inventory=()
+
+	for key in "${MANAGED_KEYS[@]}"; do
+		inventory["${key}"]=$((${inventory["${key}"]:-0} + 1))
+	done
+	for spec in "${EXCLUDED_SPECS[@]}"; do
+		IFS='|' read -r keys category reason <<<"${spec}"
+		IFS=',' read -ra excluded_keys <<<"${keys}"
+		for key in "${excluded_keys[@]}"; do
+			inventory["${key}"]=$((${inventory["${key}"]:-0} + 1))
+		done
+	done
+
+	while IFS= read -r key; do
+		[ "${inventory[${key}]:-0}" -eq 1 ] || fail "policy key ${key} must appear exactly once in the managed or excluded inventory"
+		unset 'inventory['"${key}"']'
+	done < <(sed -nE 's/^(TOOL_[A-Z0-9_]+)=.*/\1/p' "${POLICY_FILE}")
+
+	for key in "${!inventory[@]}"; do
+		[ "${inventory[${key}]}" -eq 1 ] || fail "inventory key ${key} is classified more than once"
+		grep -q "^${key}=" "${POLICY_FILE}" || fail "inventory key ${key} is absent from the policy"
+	done
+}
+
+report_exclusions() {
+	local spec keys category reason
+	printf '\nDeliberately excluded policy:\n'
+	for spec in "${EXCLUDED_SPECS[@]}"; do
+		IFS='|' read -r keys category reason <<<"${spec}"
+		[ "${keys}" = "TOOL_GENTLE_AI_VERSION,TOOL_GENTLE_AI_SHA256_AMD64,TOOL_GENTLE_AI_SHA256_ARM64" ] && continue
+		printf '  %s — %s: %s\n' "${keys}" "${category}" "${reason}"
+	done
+}
+
+report_gentle_ai_advisory() {
+	local current latest lookup_output reason keys
+	current="$(policy_value TOOL_GENTLE_AI_VERSION)"
+	keys="TOOL_GENTLE_AI_VERSION,TOOL_GENTLE_AI_SHA256_AMD64,TOOL_GENTLE_AI_SHA256_ARM64"
+	reason="manual review of the version and both architecture digests/trust inputs"
+
+	if lookup_output="$(latest_github_release 'Gentleman-Programming/gentle-ai' '^v[0-9]+\.[0-9]+\.[0-9]+$' no 2>&1)"; then
+		latest="${lookup_output}"
+		if [ "$(printf '%s\n%s\n' "${current}" "${latest}" | sort -V | tail -n 1)" = "${latest}" ] && [ "${latest}" != "${current}" ]; then
+			printf '  Gentle AI: %s available (pinned: %s); omitted — %s — %s\n' "${latest}" "${current}" "${keys}" "${reason}"
+			printf '    Release: https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v%s\n' "${latest}"
+			printf '    Checksums: https://github.com/Gentleman-Programming/gentle-ai/releases/download/v%s/checksums.txt\n' "${latest}"
+			printf "    Inspect Linux checksums: curl -fsSL 'https://github.com/Gentleman-Programming/gentle-ai/releases/download/v%s/checksums.txt' | grep -E '  gentle-ai_%s_linux_(amd64|arm64)\\.tar\\.gz$'\n" "${latest}" "${latest//./\\.}"
+			printf '    Update TOOL_GENTLE_AI_VERSION, TOOL_GENTLE_AI_SHA256_AMD64, and TOOL_GENTLE_AI_SHA256_ARM64 together.\n'
+		else
+			printf '  Gentle AI: current at %s; omitted — %s — %s\n' "${current}" "${keys}" "${reason}"
+		fi
+	else
+		printf '  WARNING: Gentle AI advisory lookup failed; omitted — %s — %s. Managed updates continue because advisory discovery cannot affect their validated candidate.\n' "${keys}" "${reason}" >&2
+	fi
 }
 
 discover_candidates() {
@@ -225,10 +307,13 @@ main() {
 	require_command "${CURL_BIN}"
 	require_command "${JQ_BIN}"
 	require_command sha256sum
+	validate_inventory
 
 	TEMP_DIR="$(mktemp -d)"
 	discover_candidates
 	publish_policy
+	report_exclusions
+	report_gentle_ai_advisory
 	printf "\nRun 'task container:rebuild' to apply these versions.\n"
 }
 

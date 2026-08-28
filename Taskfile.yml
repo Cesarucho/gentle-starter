@@ -69,7 +69,7 @@ tasks:
           task doctor                     Run doctor checks for the detected context
           task validate                   Run host-safe validation checks, excluding skills
           task validate:full              Run strict validation requiring shell quality tools
-          task deps:update                Update approved exact dependency pins
+          task deps:update                Update approved pins and report deliberate exclusions
           task clean                      Review, confirm, and remove project identity files
           task clean:identity             Explicit alias for project identity cleanup
           task project:init               Clean identity and create a parentless project root

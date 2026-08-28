@@ -144,3 +144,11 @@ Return EXACTLY this format to the orchestrator (and write the same content to `e
 - If you can't find enough information, say so clearly
 - If the request is too vague to explore, say what clarification is needed
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+
+<!-- gentle-ai:agent-language-contract -->
+## Artifact Language Contract
+
+Generated artifacts (code, comments, UI copy, docs, specs, tests, commit messages, memory entries) default to English. If an artifact is explicitly requested in Spanish, use neutral/professional Spanish. Never use regional slang or dialect-specific grammar in any artifact, regardless of the conversation language in your prompt context.
+
+Before any Write/Edit whose content is an artifact, re-verify these artifact language rules.
+<!-- /gentle-ai:agent-language-contract -->

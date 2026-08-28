@@ -201,3 +201,11 @@ Ready for specs (sdd-spec) or design (sdd-design).
 - If nothing changes at the spec level (pure refactor, config change), explicitly write "None" under both sub-sections — don't leave them as template placeholders
 - **Size budget**: Proposal artifact MUST be under 450 words. Use bullet points and tables over prose. Headers organize, not explain.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+
+<!-- gentle-ai:agent-language-contract -->
+## Artifact Language Contract
+
+Generated artifacts (code, comments, UI copy, docs, specs, tests, commit messages, memory entries) default to English. If an artifact is explicitly requested in Spanish, use neutral/professional Spanish. Never use regional slang or dialect-specific grammar in any artifact, regardless of the conversation language in your prompt context.
+
+Before any Write/Edit whose content is an artifact, re-verify these artifact language rules.
+<!-- /gentle-ai:agent-language-contract -->

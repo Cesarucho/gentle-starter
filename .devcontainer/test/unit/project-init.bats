@@ -526,14 +526,24 @@ EOF
 
 @test "task project:init entrypoint executes the isolated lifecycle" {
 	cp "${REPO_ROOT}/.taskfiles/project.yml" "${PROJECT_ROOT}/.taskfiles/project.yml"
+	cp "${REPO_ROOT}/.taskfiles/deps.yml" "${PROJECT_ROOT}/.taskfiles/deps.yml"
+	cp "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" \
+		"${PROJECT_ROOT}/.taskfiles/scripts/deps-update.sh"
+	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" \
+		"${PROJECT_ROOT}/.devcontainer/tool-versions.conf"
+	mkdir -p "${PROJECT_ROOT}/.devcontainer/install/lib"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" \
+		"${PROJECT_ROOT}/.devcontainer/install/lib/common.sh"
 	cat >"${PROJECT_ROOT}/Taskfile.yml" <<'EOF'
 version: "3"
 
 includes:
+  deps:
+    taskfile: ./.taskfiles/deps.yml
   project:
     taskfile: ./.taskfiles/project.yml
 EOF
-	git -C "${PROJECT_ROOT}" add Taskfile.yml .taskfiles/project.yml
+	git -C "${PROJECT_ROOT}" add Taskfile.yml .taskfiles .devcontainer
 	git -C "${PROJECT_ROOT}" commit -qm "add task entrypoint"
 
 	run bash -c 'printf "task-root\n\nCREATE ROOT\n" | task --dir "$1" project:init' \
@@ -543,6 +553,15 @@ EOF
 	[ "$(git -C "${PROJECT_ROOT}" branch --show-current)" = "task-root" ]
 	assert_parentless_root
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
+	[ -f "${PROJECT_ROOT}/.taskfiles/scripts/deps-update.sh" ]
+	[ -f "${PROJECT_ROOT}/.devcontainer/tool-versions.conf" ]
+	[ -f "${PROJECT_ROOT}/.devcontainer/install/lib/common.sh" ]
+	run task --dir "${PROJECT_ROOT}" --list
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"deps:update"* ]]
+	run task --dir "${PROJECT_ROOT}" --dry deps:update
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *".taskfiles/scripts/deps-update.sh"* ]]
 }
 
 @test "task surface and unit runner register project init without remote commands" {

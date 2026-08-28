@@ -197,18 +197,22 @@ task install:doctor
 ### Dependency policy
 
 ```bash
-# Discover stable releases and update approved exact pins atomically
+# Update approved pins atomically and report deliberate exclusions
 task deps:update
 
 # Apply the updated policy to the environment later
 task container:rebuild
 ```
 
-`deps:update` updates the repository policy only. It preserves major channels,
-explicit `latest` policies, and provider-managed or unsupported tools; it never
-rebuilds the container or changes the live environment. Pinned SHA-256 values
-provide reproducible byte integrity, not independent upstream provenance
-attestation; see [ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
+`deps:update` updates the repository policy only. It also prints every
+deliberately excluded policy with its reason. For Gentle AI, it checks the latest
+stable release and reports when a newer version is available, but it never changes
+the version or either architecture digest. Manual approval keeps those three trust
+inputs pinned and reviewed together for installer integrity. Failure of this
+advisory check is warning-only and cannot block or partially publish an otherwise
+validated managed update. The command never rebuilds the container or changes the
+live environment. See
+[ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
 
 Inspect OpenCode MCP servers, including Context7:
 

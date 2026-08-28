@@ -79,6 +79,9 @@ done
 if [ "${mode}" = fail ] && [[ "\${url}" == *releases.hashicorp.com* ]]; then
   exit 22
 fi
+if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-ai* ]]; then
+  exit 22
+fi
 case "\${url}" in
   *releases.hashicorp.com/terraform/index.json)
     body='{"versions":{"1.98.0":{},"1.99.0":{},"2.0.0-beta.1":{}}}' ;;
@@ -104,6 +107,12 @@ case "\${url}" in
     body='[{"tag_name":"v1.2027.1","draft":false,"prerelease":false},{"tag_name":"v1.2026.99","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/go-delve/delve/releases*)
     body='[{"tag_name":"v2.0.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
+  *api.github.com/repos/Gentleman-Programming/gentle-ai/releases*)
+    if [ "${mode}" = gentle_current ]; then
+      body='[{"tag_name":"v2.3.0","draft":false,"prerelease":false}]'
+    else
+      body='[{"tag_name":"v2.5.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v2.4.0","draft":false,"prerelease":false}]'
+    fi ;;
   *) echo "unexpected URL: \${url}" >&2; exit 64 ;;
 esac
 if [ -n "\${output}" ]; then
@@ -130,11 +139,65 @@ EOF
 	grep -q '^TOOL_GENTLE_AI_VERSION="2.3.0"$' "${POLICY_FILE}"
 	grep -q '^TOOL_GENTLE_AI_SHA256_AMD64="899d3382c39c4095d7830def523e27a78aa94c410e63e36a7aa702a186f43f99"$' "${POLICY_FILE}"
 	grep -q '^TOOL_GENTLE_AI_SHA256_ARM64="d3385c41094b7a53cc4d96132b86822bcacd0cd06bb5b58ab2a592c45bb827d8"$' "${POLICY_FILE}"
-	! grep -q 'Gentleman-Programming/gentle-ai' "${CALLS_FILE}"
+	grep -q 'Gentleman-Programming/gentle-ai' "${CALLS_FILE}"
 	grep -q '^TOOL_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
 	grep -q '^TOOL_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
 	! grep -Eq '(^| )(npm|pi)( |$)' "${CALLS_FILE}"
 	[ "$(grep -c '^pnpm view ' "${CALLS_FILE}")" -eq 19 ]
+}
+
+@test "deps:update reports a newer Gentle AI release without changing its coupled pins" {
+	before_gentle="$(grep '^TOOL_GENTLE_AI_' "${POLICY_FILE}")"
+
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"Gentle AI: 2.4.0 available (pinned: 2.3.0); omitted"* ]]
+	[[ "${output}" == *"manual review of the version and both architecture digests/trust inputs"* ]]
+	[[ "${output}" == *"Release: https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v2.4.0"* ]]
+	[[ "${output}" == *"Checksums: https://github.com/Gentleman-Programming/gentle-ai/releases/download/v2.4.0/checksums.txt"* ]]
+	[[ "${output}" == *"curl -fsSL 'https://github.com/Gentleman-Programming/gentle-ai/releases/download/v2.4.0/checksums.txt' | grep -E '  gentle-ai_2\\.4\\.0_linux_(amd64|arm64)\\.tar\\.gz$'"* ]]
+	[[ "${output}" == *"Update TOOL_GENTLE_AI_VERSION, TOOL_GENTLE_AI_SHA256_AMD64, and TOOL_GENTLE_AI_SHA256_ARM64 together."* ]]
+	[ "$(grep '^TOOL_GENTLE_AI_' "${POLICY_FILE}")" = "${before_gentle}" ]
+}
+
+@test "deps:update reports Gentle AI as current without claiming an update" {
+	write_curl_stub gentle_current
+
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"Gentle AI: current at 2.3.0; omitted"* ]]
+	[[ "${output}" != *"Gentle AI: 2.3.0 available"* ]]
+}
+
+@test "deps:update treats Gentle AI advisory discovery failure as warning-only" {
+	write_curl_stub gentle_fail
+
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"WARNING: Gentle AI advisory lookup failed"* ]]
+	grep -q '^TOOL_PI_CODING_AGENT_VERSION="9.9.9"$' "${POLICY_FILE}"
+}
+
+@test "deps:update explicitly reports every excluded policy key" {
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+	[ "${status}" -eq 0 ]
+	for key in \
+		TOOL_JAVA_INSTALL_VERSION TOOL_JAVA_REQUIRED_VERSION TOOL_NODE_MAJOR \
+		TOOL_GO_VERSION TOOL_PNPM_VERSION TOOL_BATS_VERSION TOOL_ENGRAM_VERSION \
+		TOOL_GENTLE_AI_VERSION TOOL_GENTLE_AI_SHA256_AMD64 TOOL_GENTLE_AI_SHA256_ARM64 \
+		TOOL_GRAPHIFY_VERSION TOOL_PLAYWRIGHT_CLI_VERSION TOOL_DEVCONTAINER_CLI_VERSION \
+		TOOL_VITEST_VERSION TOOL_PHP_VERSION TOOL_PHPUNIT_VERSION; do
+		[[ "${output}" == *"${key}"* ]]
+	done
+	[[ "${output}" == *"major channel"* ]]
+	[[ "${output}" == *"explicit latest"* ]]
+	[[ "${output}" == *"provider-managed installer"* ]]
+	[[ "${output}" == *"unsupported exact pin"* ]]
+	[[ "${output}" == *"no trustworthy deterministic discovery"* ]]
 }
 
 @test "deps:update preserves channels, latest policies, comments, and unsupported exact pins" {
@@ -175,11 +238,12 @@ EOF
 
 @test "C4 installer resolves the central version and checksum with environment precedence" {
 	sed -i 's/^TOOL_C4_PLANTUML_SHA256=.*/TOOL_C4_PLANTUML_SHA256="0000000000000000000000000000000000000000000000000000000000000001"/' "${POLICY_FILE}"
+	configured_version="$(sed -n 's/^TOOL_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
 		"${REPO_ROOT}/.devcontainer/install/available/40-cli-c4-plantuml.sh" --print-version-policy
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"C4_PLANTUML_VERSION=2.13.0"* ]]
+	[[ "${output}" == *"C4_PLANTUML_VERSION=${configured_version}"* ]]
 	[[ "${output}" == *"C4_PLANTUML_SHA256=$(printf '%064d' 1)"* ]]
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
@@ -214,9 +278,10 @@ EOF
 
 @test "C4 installer treats matching version and checksum as installed" {
 	install_dir="${TEST_ROOT}/c4-plantuml"
+	expected_version="$(sed -n 's/^TOOL_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	expected_checksum="$(sed -n 's/^TOOL_C4_PLANTUML_SHA256="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	mkdir -p "${install_dir}"
-	printf '%s\n' '2.13.0' >"${install_dir}/.version"
+	printf '%s\n' "${expected_version}" >"${install_dir}/.version"
 	printf '%s\n' "${expected_checksum}" >"${install_dir}/.sha256"
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
