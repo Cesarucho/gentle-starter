@@ -109,9 +109,9 @@ case "\${url}" in
     body='[{"tag_name":"v2.0.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/Gentleman-Programming/gentle-ai/releases*)
     if [ "${mode}" = gentle_current ]; then
-      body='[{"tag_name":"v2.3.0","draft":false,"prerelease":false}]'
+      body='[{"tag_name":"v2.4.0","draft":false,"prerelease":false}]'
     else
-      body='[{"tag_name":"v2.5.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v2.4.0","draft":false,"prerelease":false}]'
+      body='[{"tag_name":"v2.6.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v2.5.0","draft":false,"prerelease":false}]'
     fi ;;
   *) echo "unexpected URL: \${url}" >&2; exit 64 ;;
 esac
@@ -136,9 +136,9 @@ EOF
 	grep -q "^TOOL_C4_PLANTUML_SHA256=\"${expected_c4_sha}\"$" "${POLICY_FILE}"
 	grep -q '^TOOL_TERRAFORM_VERSION="1.99.0"$' "${POLICY_FILE}"
 	grep -q '^TOOL_GITLEAKS_VERSION="8.99.0"$' "${POLICY_FILE}"
-	grep -q '^TOOL_GENTLE_AI_VERSION="2.3.0"$' "${POLICY_FILE}"
-	grep -q '^TOOL_GENTLE_AI_SHA256_AMD64="899d3382c39c4095d7830def523e27a78aa94c410e63e36a7aa702a186f43f99"$' "${POLICY_FILE}"
-	grep -q '^TOOL_GENTLE_AI_SHA256_ARM64="d3385c41094b7a53cc4d96132b86822bcacd0cd06bb5b58ab2a592c45bb827d8"$' "${POLICY_FILE}"
+	grep -q '^TOOL_GENTLE_AI_VERSION="2.4.0"$' "${POLICY_FILE}"
+	grep -q '^TOOL_GENTLE_AI_SHA256_AMD64="517eb8420cf966b74be1413a7ea1036119a5ccbb376e0778aa9f4d4d283e2e9a"$' "${POLICY_FILE}"
+	grep -q '^TOOL_GENTLE_AI_SHA256_ARM64="1badec9cad1f2bbeb22b5c6804c3a88c601d844abae231264e416e8095f2a15f"$' "${POLICY_FILE}"
 	grep -q 'Gentleman-Programming/gentle-ai' "${CALLS_FILE}"
 	grep -q '^TOOL_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
 	grep -q '^TOOL_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
@@ -152,11 +152,11 @@ EOF
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"Gentle AI: 2.4.0 available (pinned: 2.3.0); omitted"* ]]
+	[[ "${output}" == *"Gentle AI: 2.5.0 available (pinned: 2.4.0); omitted"* ]]
 	[[ "${output}" == *"manual review of the version and both architecture digests/trust inputs"* ]]
-	[[ "${output}" == *"Release: https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v2.4.0"* ]]
-	[[ "${output}" == *"Checksums: https://github.com/Gentleman-Programming/gentle-ai/releases/download/v2.4.0/checksums.txt"* ]]
-	[[ "${output}" == *"curl -fsSL 'https://github.com/Gentleman-Programming/gentle-ai/releases/download/v2.4.0/checksums.txt' | grep -E '  gentle-ai_2\\.4\\.0_linux_(amd64|arm64)\\.tar\\.gz$'"* ]]
+	[[ "${output}" == *"Release: https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v2.5.0"* ]]
+	[[ "${output}" == *"Checksums: https://github.com/Gentleman-Programming/gentle-ai/releases/download/v2.5.0/checksums.txt"* ]]
+	[[ "${output}" == *"curl -fsSL 'https://github.com/Gentleman-Programming/gentle-ai/releases/download/v2.5.0/checksums.txt' | grep -E '  gentle-ai_2\\.5\\.0_linux_(amd64|arm64)\\.tar\\.gz$'"* ]]
 	[[ "${output}" == *"Update TOOL_GENTLE_AI_VERSION, TOOL_GENTLE_AI_SHA256_AMD64, and TOOL_GENTLE_AI_SHA256_ARM64 together."* ]]
 	[ "$(grep '^TOOL_GENTLE_AI_' "${POLICY_FILE}")" = "${before_gentle}" ]
 }
@@ -167,8 +167,8 @@ EOF
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"Gentle AI: current at 2.3.0; omitted"* ]]
-	[[ "${output}" != *"Gentle AI: 2.3.0 available"* ]]
+	[[ "${output}" == *"Gentle AI: current at 2.4.0; omitted"* ]]
+	[[ "${output}" != *"Gentle AI: 2.4.0 available"* ]]
 }
 
 @test "deps:update treats Gentle AI advisory discovery failure as warning-only" {
