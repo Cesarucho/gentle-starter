@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared lexical and filesystem path safety for verified payload consumers.
+# Shared lexical and filesystem path safety for release payload consumers.
 
 starter_path_error() {
 	printf 'starter path: %s\n' "$*" >&2

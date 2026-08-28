@@ -131,7 +131,7 @@ required for the happy path.
 ### 🌱 Update from Gentle Starter
 
 After `task project:init`, use this workflow from a clean worktree to adopt an
-exact signed release, preview a newer release, and then apply it.
+exact annotated release, preview a newer release, and then apply it.
 
 | Command | Use it to |
 |---|---|
@@ -152,7 +152,7 @@ task starter:update -- --release starter/v1.1.0 --yes
 Commands use `https://github.com/Cesarucho/gentle-starter.git` by default; pass
 `--source <repository-url>` only to override it.
 
-The updater verifies signed releases, respects project-owned files, and stops
+The updater validates integrity-bound releases, respects project-owned files, and stops
 on drift or unsafe paths. It never merges starter history, executes fetched
 content, changes `origin`, resolves conflicts automatically, or creates commits.
 See [Safe starter updates](docs/en/starter-updates.md) for the full trust,
@@ -293,7 +293,6 @@ task quality:full
 │   └── local-skills.txt            Project-authored skills preserved by prune
 ├── .starter/                       Verified starter update assets
 │   ├── distribution/               Manifests, migrations, and payloads
-│   └── trust/                      Pinned signer policy and public key
 ├── .atl/                           <-- not versioned -->
 ├── CHANGELOG.md
 ├── .devcontainer

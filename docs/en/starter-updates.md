@@ -2,7 +2,8 @@
 
 Derived projects can adopt and apply Gentle Starter releases without joining
 Git histories or surrendering ownership of project files. The workflow admits
-an exact signed release, plans declarative file operations, and leaves every
+an exact annotated release, validates its integrity bindings, plans declarative
+file operations, and leaves every
 commit to the project owner.
 
 The initial source is Git only. A release is an exact annotated semantic tag
@@ -45,17 +46,16 @@ container state.
 
 | Command | Purpose | Mutation contract |
 |---|---|---|
-| `starter:adopt` | Prove that an unmarked project exactly matches a selected admitted baseline. | Writes retained evidence and `.starter/state.json` only after trust, ownership, path, and managed-fingerprint checks pass. |
-| `starter:check` | Revalidate current evidence and report drift, trust, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
+| `starter:adopt` | Prove that an unmarked project exactly matches a selected admitted baseline. | Writes retained evidence and `.starter/state.json` only after integrity, ownership, path, and managed-fingerprint checks pass. |
+| `starter:check` | Revalidate current evidence and report drift, integrity, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
 | `starter:update` | Apply a complete admitted migration chain to an adopted project. | Requires `--yes`, journals before mutation, updates only allowed paths, and writes state last. |
 
 All three commands require an exact `--release`. They acquire releases from
 `https://github.com/Cesarucho/gentle-starter.git` by default. Optional
 `--source URL` overrides that default explicitly; for example,
 `--source https://github.com/Cesarucho/gentle-starter.git`. Optional
-`--project-root`, `--policy`, and `--key` arguments support explicit project and
-trust-material selection. Invalid usage exits before acquisition or project
-writes.
+`--project-root` supports explicit project selection. Invalid usage exits before
+acquisition or project writes.
 
 The commands never merge histories, checkout or rebase upstream commits,
 execute fetched files, mutate `origin`, start containers, resolve conflicts,
@@ -63,61 +63,33 @@ silently overwrite drift, or create commits. Executable bits, filenames such
 as `requirements.txt`, and script-like Markdown do not make payload content
 executable; fetched content remains data.
 
-## Release admission and governance
+## Release admission
 
 ### Client admission proof
 
 The Git source adapter admits a release only when all required bindings agree:
 
 - the selector is exactly `starter/vX.Y.Z` and names an annotated tag;
-- the tag signature resolves to a signer allowed by the pinned public-key
-  policy for that release version;
-- revocation and rotation rules allow that signer;
 - the tag object, peeled commit, tree, manifest object, and declared digests
   agree; and
 - the manifest and retained object closure can be revalidated.
 
-Unsigned, malformed, revoked, unpinned, mutable, or mismatched candidates fail
-closed before project state is created or advanced.
+Malformed, lightweight, mutable, oversized, incomplete, or mismatched
+candidates fail closed before project state is created or advanced. This is an
+integrity and structural admission contract; it does not authenticate a
+publisher.
 
-### Governance is not admission proof
+## Release payload boundary
 
-Maintainers should protect the `starter/v*` tag namespace in GitHub, restrict
-tag creation and deletion, require reviewed publication, and audit each
-release. Those controls reduce publisher mistakes and account compromise.
-
-They are governance, NOT client admission proof. A client cannot prove from
-fetched Git objects that a GitHub ruleset was active when a tag was published.
-The client therefore verifies the signature, pinned signer policy, immutable
-Git identities, and content bindings independently. A protected but invalid tag
-is still rejected, and client output must not claim that tag protection was
-verified.
-
-### Pinned signer, rotation, and revocation
-
-`.starter/trust/policy.json` and `.starter/trust/release-key.asc` are the local
-trust root. The policy identifies allowed signer fingerprints and their release
-windows; rotations and revocations are explicit policy data, not network
-discovery or unattended key replacement.
-
-For a planned rotation, publish and review policy that introduces the new
-public signer through an already trusted release before using the new signer.
-Bound old and new signer validity to deliberate release windows. For a
-revocation, update the pinned policy through the normal reviewed project trust
-path and stop admitting the revoked signer. Never accept a key merely because
-it is attached to a GitHub account or returned by a keyserver.
-
-## Verified payload boundary
-
-After Git-specific verification, the adapter emits a versioned,
-transport-neutral verified payload. Lifecycle code consumes that payload rather
-than Git tags, commits, trees, packs, or keyrings directly. It carries neutral
-source and release identities, the verified manifest and payload references,
-the signer-policy result, and opaque retained-evidence references.
+After Git-specific validation, the adapter emits a versioned,
+transport-neutral release payload. Lifecycle code consumes that payload rather
+than Git tags, commits, trees, or packs directly. It carries neutral source and
+release identities, manifest and payload references, and opaque retained
+evidence references.
 
 This boundary keeps admission separate from state, manifest parsing, planning,
 migration, journaling, and rollback. A future source adapter may acquire bytes
-differently, but it must produce the same verified contract and cannot weaken
+differently, but it must produce the same release contract and cannot weaken
 ownership, clean-worktree, evidence, recovery, or state-last rules. The current
 implementation remains Git only; no future adapter is implied to be available.
 
@@ -163,40 +135,12 @@ the current fingerprint differs. Retry only after recovery is complete and the
 worktree is clean. The updater does not use Git reset, history rewriting, or an
 automatic commit as rollback.
 
-## Production signer bootstrap
-
-The first production release establishes a long-lived trust boundary. Complete
-this checklist before publishing its tag:
-
-1. Create and hold the signing private key in controlled signing infrastructure,
-   preferably an offline system, hardware token, or HSM with documented backup
-   and recovery. Never commit or distribute the private key with the starter.
-2. Independently verify that the committed public key and fingerprint policy
-   are the intended production trust root. Replace pre-production material
-   before publication when necessary.
-3. Define signer access, release approval, audit retention, emergency
-   revocation, and planned rotation responsibilities. Test recovery without
-   exposing private key material.
-4. Build the manifest and immutable Git object bindings, then create the exact
-   signed annotated `starter/vX.Y.Z` tag with the controlled signer.
-5. Verify the tag through the same client admission path before publication.
-   Record the tag, peeled commit, manifest digest, signer fingerprint, and
-   approval evidence.
-6. Configure GitHub tag protection as an additional publisher control and
-   audit the final publication. Do not substitute that control for client
-   cryptographic admission.
-
-Signer rotation is a release process, not an automatic client feature. If the
-current key is suspected to be compromised, stop publication and distribute a
-reviewed revocation/trust update through a channel that does not depend on a
-new signature from the compromised key.
-
 ## After `task project:init`
 
 `task project:init` creates the derived project's explicitly confirmed,
 parentless root commit, but it does not admit a starter release. It removes
 inherited `.starter/state.json`, baseline, evidence, and journals while keeping
-the updater commands, trust policy, and declarative distribution assets. The
+the updater commands and declarative distribution assets. The
 new project is intentionally unmarked and must run `task starter:adopt` against
 an exact release that matches its managed baseline.
 
@@ -210,6 +154,6 @@ origin; any separately confirmed origin replacement belongs to
 Identity cleanup removes the starter's top-level `docs/` and regenerates
 `AGENTS.md` from the project template. `.devcontainer/README.md` remains in the
 derived project and carries the short safety contract. Project maintainers
-should document their selected starter source, release cadence, signer policy,
-and ownership exceptions in their own durable docs without weakening these
+should document their selected starter source, release cadence, and ownership
+exceptions in their own durable docs without weakening these
 boundaries.

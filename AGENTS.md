@@ -80,7 +80,7 @@ one-paragraph version of each.
    `docs/en/adr/0002-centralized-tool-version-policy.md`.
 
 5. **Starter update lifecycle** (`.starter/`, `.taskfiles/starter.yml`) — exact
-   signed-tag admission, transport-neutral verified payloads, declarative
+   exact annotated-tag admission, transport-neutral release payloads, declarative
    ownership operations, retained evidence, and transactional recovery for
    `starter:adopt`, `starter:check`, and `starter:update`. Doc:
    `docs/en/starter-updates.md`.
@@ -101,12 +101,12 @@ adding Redis end-to-end, and the FAQ) is in
 
 ## Starter update guardrails
 
-- Admit only exact signed annotated semantic tags named `starter/vX.Y.Z` from
-  the initial Git-only source. Pinned signer, rotation/revocation policy, and
-  immutable content bindings are client proof; GitHub tag protection is
-  publisher governance only.
+- Admit only exact annotated semantic tags named `starter/vX.Y.Z` from the
+  initial Git-only source. Immutable tag, commit, tree, manifest, payload, and
+  evidence bindings provide structural and integrity validation, not publisher
+  authentication.
 - Keep source adapters outside lifecycle core. Future transports must emit the
-  same versioned verified payload and preserve state, ownership, journal,
+  same versioned release payload and preserve state, ownership, journal,
   rollback, and evidence semantics.
 - `managed` and explicitly declared `fusion` paths require exact fingerprints.
   `project-owned` paths are immutable to starter migrations. Never silently
@@ -356,7 +356,7 @@ active or simulated devcontainer.
 - [`docs/en/install-tree.md`](docs/en/install-tree.md) — install/ convention deep dive
 - [`docs/en/install-volumes.md`](docs/en/install-volumes.md) — volume repair contract deep dive
 - [`docs/en/configs.md`](docs/en/configs.md) — `seed_config_tree` deep dive
-- [`docs/en/starter-updates.md`](docs/en/starter-updates.md) — signed release adoption, ownership, and recovery contract
+- [`docs/en/starter-updates.md`](docs/en/starter-updates.md) — release admission, ownership, and recovery contract
 - [`docs/en/adr/0001-install-layout-refactor.md`](docs/en/adr/0001-install-layout-refactor.md) — the ADR for the refactor
 - [`docs/en/adr/0002-centralized-tool-version-policy.md`](docs/en/adr/0002-centralized-tool-version-policy.md) — centralized version-policy ADR
 - [`docs/en/`](docs/en/) — English documentation

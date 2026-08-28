@@ -6,9 +6,6 @@ setup() {
 	REPOSITORY_STATUS_ADAPTER="${REPO_ROOT}/.taskfiles/scripts/starter-lib/adapters/git-repository-status.sh"
 	STATE_CORE="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/state.sh"
 	QUALITY_CONFIG="${REPO_ROOT}/.taskfiles/quality.yml"
-	TRUST_POLICY="${REPO_ROOT}/.starter/trust/policy.json"
-	TRUST_KEY="${REPO_ROOT}/.starter/trust/release-key.asc"
-	TRUST_FIXTURE="${BATS_TEST_DIRNAME}/../fixtures/starter-trust/policy.json"
 	TEST_ROOT="$(mktemp -d)"
 	PAYLOAD_ROOT="${TEST_ROOT}/candidate"
 	mkdir -p "${PAYLOAD_ROOT}"
@@ -48,7 +45,7 @@ write_valid_payload() {
 		--arg payload_sha "${payload_sha}" \
 		--argjson payload_bytes "${payload_bytes}" \
 		'{
-			schema: "gentle-starter.verified-payload/v1",
+			schema: "gentle-starter.release-payload/v1",
 			source: {adapter_id: "FixtureSource/v1", source_id: ("sha256:" + ("1" * 64))},
 			release: {id: ("sha256:" + ("2" * 64)), version: "1.2.3", predecessor_id: null},
 			immutable_identities: [
@@ -60,12 +57,6 @@ write_valid_payload() {
 				root: "payloads",
 				entries: [{path: "config/starter.conf", sha256: $payload_sha, bytes: $payload_bytes}]
 			},
-			verification: {
-				result: "accepted",
-				policy_id: "starter-release-signers/v1",
-				policy_sha256: ("4" * 64),
-				signer_subject_id: ("openpgp:" + ("A" * 40))
-			},
 			evidence: {
 				adapter_id: "FixtureSource/v1",
 				ref: "fixture-evidence:release-1.2.3",
@@ -75,21 +66,21 @@ write_valid_payload() {
 	seal_envelope "${envelope}"
 }
 
-@test "verified payload rejects an unknown schema without writes" {
+@test "release payload rejects an unknown schema without writes" {
 	local envelope="${TEST_ROOT}/unknown-schema.json"
 	local before after
-	printf '%s\n' '{"schema":"gentle-starter.verified-payload/v2"}' >"${envelope}"
+	printf '%s\n' '{"schema":"gentle-starter.release-payload/v2"}' >"${envelope}"
 	before="$(snapshot_tree "${PAYLOAD_ROOT}")"
 
-	run bash -c "source '${CONTRACT}'; verified_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
+	run bash -c "source '${CONTRACT}'; release_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
 
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"unsupported verified payload schema"* ]]
+	[[ "$output" == *"unsupported release payload schema"* ]]
 	after="$(snapshot_tree "${PAYLOAD_ROOT}")"
 	[ "${after}" = "${before}" ]
 }
 
-@test "verified payload rejects Git-shaped core fields without writes" {
+@test "release payload rejects Git-shaped core fields without writes" {
 	local envelope="${TEST_ROOT}/git-shaped.json"
 	local before after
 	write_valid_payload "${envelope}"
@@ -98,40 +89,25 @@ write_valid_payload() {
 	seal_envelope "${envelope}"
 	before="$(snapshot_tree "${PAYLOAD_ROOT}")"
 
-	run bash -c "source '${CONTRACT}'; verified_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
+	run bash -c "source '${CONTRACT}'; release_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
 
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"invalid verified payload envelope"* ]]
+	[[ "$output" == *"invalid release payload envelope"* ]]
 	after="$(snapshot_tree "${PAYLOAD_ROOT}")"
 	[ "${after}" = "${before}" ]
 }
 
-@test "verified payload accepts neutral identities and validates materialized bytes" {
+@test "release payload accepts neutral identities and validates materialized bytes" {
 	local envelope="${TEST_ROOT}/valid.json"
 	write_valid_payload "${envelope}"
 
-	run bash -c "source '${CONTRACT}'; verified_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
+	run bash -c "source '${CONTRACT}'; release_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
 	[ "$status" -eq 0 ]
 
 	printf '%s\n' 'tampered=true' >"${PAYLOAD_ROOT}/payloads/config/starter.conf"
-	run bash -c "source '${CONTRACT}'; verified_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
+	run bash -c "source '${CONTRACT}'; release_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"verified payload entry digest mismatch"* ]]
-}
-
-@test "missing GPG fails preflight without writes" {
-	local empty_path="${TEST_ROOT}/empty-path"
-	local before after
-	mkdir -p "${empty_path}"
-	printf '%s\n' 'preserve' >"${PAYLOAD_ROOT}/SENTINEL"
-	before="$(snapshot_tree "${PAYLOAD_ROOT}")"
-
-	run bash -c "source '${CONTRACT}'; PATH='${empty_path}'; starter_require_command gpg"
-
-	[ "$status" -ne 0 ]
-	[[ "$output" == *"required command unavailable: gpg"* ]]
-	after="$(snapshot_tree "${PAYLOAD_ROOT}")"
-	[ "${after}" = "${before}" ]
+	[[ "$output" == *"release payload entry digest mismatch"* ]]
 }
 
 @test "source acquisition port returns only a validated neutral result" {
@@ -196,53 +172,5 @@ write_valid_payload() {
 
 @test "strict quality configuration covers nested starter production scripts" {
 	run bash -c 'case "$(cat "$1")" in *".taskfiles/scripts/starter-lib/*/*.sh"*) exit 0 ;; *) exit 1 ;; esac' _ "${QUALITY_CONFIG}"
-	[ "$status" -eq 0 ]
-}
-
-@test "signer policy accepts the pinned release key" {
-	local fingerprint
-	fingerprint="$(gpg --batch --show-keys --with-colons "${TRUST_KEY}" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')"
-
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_POLICY}' 'openpgp:${fingerprint}' 1.0.0"
-
-	[ "$status" -eq 0 ]
-	[ "$(jq -r '.result' <<<"${output}")" = "accepted" ]
-	[ "$(jq -r '.policy_id' <<<"${output}")" = "starter-release-signers/v1" ]
-	[ "$(jq -r '.signer_subject_id' <<<"${output}")" != "openpgp:" ]
-}
-
-@test "signer policy rejects an unpinned signer" {
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' 'openpgp:9999999999999999999999999999999999999999' 1.4.0"
-
-	[ "$status" -ne 0 ]
-	[[ "$output" == *"signer is not pinned by policy"* ]]
-	[[ "$output" != *"Could not open file"* ]]
-}
-
-@test "signer policy rejects a revoked signer at and after revocation" {
-	local revoked="openpgp:3333333333333333333333333333333333333333"
-
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' '${revoked}' 1.4.9"
-	[ "$status" -eq 0 ]
-
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' '${revoked}' 1.5.0"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *"signer is revoked for release version 1.5.0"* ]]
-}
-
-@test "signer rotation enforces the version boundary deterministically" {
-	local previous="openpgp:1111111111111111111111111111111111111111"
-	local rotated="openpgp:2222222222222222222222222222222222222222"
-
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' '${previous}' 1.9.9"
-	[ "$status" -eq 0 ]
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' '${previous}' 2.0.0"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *"signer is outside its allowed release window"* ]]
-
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' '${rotated}' 1.9.9"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *"signer is outside its allowed release window"* ]]
-	run bash -c "source '${CONTRACT}'; signer_policy_evaluate '${TRUST_FIXTURE}' '${rotated}' 2.0.0"
 	[ "$status" -eq 0 ]
 }

@@ -140,7 +140,7 @@ print_project_plan() {
 	fi
 	echo "  - no push, fetch, ls-remote, or remote contact"
 	echo "Starter update plan:"
-	echo "  - retain updater commands, trust policy, and distribution metadata"
+	echo "  - retain updater commands and distribution metadata"
 	echo "  - remove inherited state, baseline, evidence, and journals"
 	echo "  - leave the project unmarked until an exact baseline is admitted"
 	echo
@@ -358,7 +358,7 @@ print_result() {
 	echo "  Origin: ${ORIGIN_ACTION}"
 	echo "  Previous local refs removed; unreachable objects remain until Git garbage collection."
 	echo "  No remote was contacted or pushed."
-	echo "  No verified starter baseline was admitted during initialization."
+	echo "  No starter baseline was admitted during initialization."
 	echo "  Run task starter:adopt with an exact verified release before using starter updates."
 	echo
 	if origin_exists; then

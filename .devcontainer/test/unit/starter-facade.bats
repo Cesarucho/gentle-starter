@@ -3,28 +3,12 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	FACADE="${REPO_ROOT}/.taskfiles/scripts/starter.sh"
-	FIXTURES="${BATS_TEST_DIRNAME}/../fixtures/starter-trust"
 	TEST_ROOT="$(mktemp -d)"
 	PROJECT="${TEST_ROOT}/project"
 	REMOTE="${TEST_ROOT}/starter.git"
-	SIGN_HOME="${TEST_ROOT}/sign-home"
 	CACHE="${TEST_ROOT}/cache"
 	SENTINEL="${TEST_ROOT}/payload-executed"
 	OFFICIAL_SOURCE="https://github.com/Cesarucho/gentle-starter.git"
-	mkdir -m 700 "${SIGN_HOME}"
-	GNUPGHOME="${SIGN_HOME}" gpg --batch --quiet --import "${FIXTURES}/test-private-key.asc"
-	SIGNER="06069EE0F0389C909090BF9D045AEADB4E22686A"
-	SIGN_PROGRAM="${TEST_ROOT}/fixed-gpg"
-	printf '%s\n' '#!/bin/sh' 'exec gpg --faked-system-time 1704153600 "$@"' >"${SIGN_PROGRAM}"
-	chmod 0700 "${SIGN_PROGRAM}"
-	jq -n --arg signer "openpgp:${SIGNER}" '{
-		schema:"gentle-starter.signer-policy/v1",policy_id:"facade-fixture/v1",
-		signers:[{subject_id:$signer,key_file:"test-public-key.asc",valid_from:"1.0.0",valid_until:null}],
-		revocations:[],rotations:[],evidence_limits:{
-			max_reachable_objects:100000,max_object_bytes:67108864,
-			max_pack_bytes:268435456,max_retained_bytes:536870912
-		}
-	}' >"${TEST_ROOT}/policy.json"
 	git init -q --bare "${REMOTE}"
 }
 
@@ -40,8 +24,6 @@ publish_release() {
 	git init -q "${work}"
 	git -C "${work}" config user.name "Starter Facade Test"
 	git -C "${work}" config user.email "starter-facade@example.invalid"
-	git -C "${work}" config user.signingkey "${SIGNER}"
-	git -C "${work}" config gpg.program "${SIGN_PROGRAM}"
 	printf '%s\n' "${content}" >"${work}/payloads/managed.txt"
 	chmod 0755 "${work}/payloads/managed.txt"
 	payload_sha="$(sha256sum "${work}/payloads/managed.txt" | cut -d' ' -f1)"
@@ -69,8 +51,7 @@ publish_release() {
 		--arg blob "${manifest_blob}" --arg sha "${manifest_sha}" '{
 		schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,
 		commit_oid:$commit,tree_oid:$tree,manifest:{path:"manifest.json",blob_oid:$blob,sha256:$sha}}')"
-	GNUPGHOME="${SIGN_HOME}" GIT_COMMITTER_DATE=1704153600 \
-		git -C "${work}" tag -s -m "${message}" "starter/v${version}"
+	GIT_COMMITTER_DATE=1704153600 git -C "${work}" tag -a -m "${message}" "starter/v${version}"
 	git -C "${work}" remote add fixture "${REMOTE}"
 	git -C "${work}" push -q fixture "HEAD:refs/heads/release-${version}" "refs/tags/starter/v${version}"
 	PUBLISHED_SHA="${payload_sha}"
@@ -96,7 +77,7 @@ run_facade() {
 	run env STARTER_CACHE_DIR="${CACHE}" STARTER_EXECUTION_SENTINEL="${SENTINEL}" \
 		STARTER_TRANSACTION_FAILPOINT="${STARTER_TRANSACTION_FAILPOINT:-}" \
 		"${FACADE}" "${command}" --project-root "${PROJECT}" --source "file://${REMOTE}" \
-		--policy "${TEST_ROOT}/policy.json" --key "${FIXTURES}/test-public-key.asc" "$@"
+		"$@"
 }
 
 parse_source_url() {
@@ -214,7 +195,7 @@ assert_git_boundaries_preserved() {
 	assert_git_boundaries_preserved
 }
 
-@test "starter:update uses verified planning rollback and state-last semantics without executing payloads" {
+@test "starter:update uses validated planning rollback and state-last semantics without executing payloads" {
 	local baseline='#!/bin/sh; touch "${STARTER_EXECUTION_SENTINEL:?}"; baseline'
 	local update='#!/bin/sh; touch "${STARTER_EXECUTION_SENTINEL:?}"; update'
 	publish_release 1.0.0 0.0.0 "${baseline}" null

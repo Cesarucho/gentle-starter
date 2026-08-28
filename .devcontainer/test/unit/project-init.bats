@@ -52,7 +52,6 @@ seed_project() {
 
 seed_starter_update_machinery() {
 	mkdir -p "${PROJECT_ROOT}/.starter"
-	cp -R "${REPO_ROOT}/.starter/trust" "${PROJECT_ROOT}/.starter/trust"
 	cp -R "${REPO_ROOT}/.starter/distribution" "${PROJECT_ROOT}/.starter/distribution"
 	cp -R "${REPO_ROOT}/.taskfiles/scripts/starter-lib" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib"
@@ -118,15 +117,15 @@ assert_only_root_ref_remains() {
 	[[ "${output}" != *"https://example.test/starter.git"* ]]
 }
 
-@test "initialization removes unverified inherited markers while retaining updater machinery" {
+@test "initialization removes unadmitted inherited markers while retaining updater machinery" {
 	seed_starter_update_machinery
 	mkdir -p \
 		"${PROJECT_ROOT}/.starter/evidence/releases/1.0.0" \
 		"${PROJECT_ROOT}/.starter/journals/interrupted"
-	printf '%s\n' '{"schema":"unverified-template-state"}' >"${PROJECT_ROOT}/.starter/state.json"
-	printf '%s\n' '{"schema":"unverified-template-baseline"}' >"${PROJECT_ROOT}/.starter/baseline.json"
-	printf 'unverified evidence\n' >"${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/proof"
-	printf '%s\n' '{"schema":"unverified-template-journal"}' \
+	printf '%s\n' '{"schema":"unadmitted-template-state"}' >"${PROJECT_ROOT}/.starter/state.json"
+	printf '%s\n' '{"schema":"unadmitted-template-baseline"}' >"${PROJECT_ROOT}/.starter/baseline.json"
+	printf 'unadmitted evidence\n' >"${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/proof"
+	printf '%s\n' '{"schema":"unadmitted-template-journal"}' \
 		>"${PROJECT_ROOT}/.starter/journals/interrupted/journal.json"
 	git -C "${PROJECT_ROOT}" add -A
 	git -C "${PROJECT_ROOT}" commit -qm "seed updater with unverified markers"
@@ -137,7 +136,6 @@ assert_only_root_ref_remains() {
 	[ "${status}" -eq 0 ]
 	assert_parentless_root
 	assert_starter_identity_cleaned
-	[ -f "${PROJECT_ROOT}/.starter/trust/policy.json" ]
 	[ -f "${PROJECT_ROOT}/.starter/distribution/manifest.json" ]
 	[ -f "${PROJECT_ROOT}/.taskfiles/scripts/starter.sh" ]
 	[ -f "${PROJECT_ROOT}/.taskfiles/starter.yml" ]
@@ -173,7 +171,7 @@ assert_only_root_ref_remains() {
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url origin)" = "${new_origin}" ]
 	[ -z "$(git -C "${PROJECT_ROOT}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)" ]
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
-	[[ "${output}" == *"No verified starter baseline was admitted during initialization."* ]]
+	[[ "${output}" == *"No starter baseline was admitted during initialization."* ]]
 	[[ "${output}" == *"task starter:adopt"* ]]
 	[[ "${output}" == *"No remote was contacted or pushed."* ]]
 }

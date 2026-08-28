@@ -95,7 +95,7 @@ starter_manifest_payload_digest() {
 	local digest
 	starter_path_existing_file_beneath \
 		"$(jq -r '.payload_root + "/" + .manifest.payload.root' <<<"${context}")" "${source_path}" >/dev/null || {
-		starter_manifest_error "operation source escapes verified payload root"
+		starter_manifest_error "operation source escapes release payload root"
 		return 1
 	}
 	digest="$(jq -r --arg path "${source_path}" '.manifest.payload.entries[] | select(.path == $path) | .sha256' <<<"${context}")"

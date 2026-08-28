@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Public composition root for verified starter adoption, inspection, and updates.
+# Public composition root for starter adoption, inspection, and updates.
 # ShellCheck cannot follow SCRIPT_DIR-based repository sources without -x.
 # shellcheck disable=SC1091
 set -uo pipefail
@@ -20,9 +20,9 @@ STARTER_UPDATE_PROJECT=""
 starter_usage() {
 	cat >&2 <<'EOF'
 Usage:
-  starter.sh adopt  --release starter/vX.Y.Z [--source URL] [--project-root PATH] [--policy FILE] [--key FILE]
-  starter.sh check  --release starter/vX.Y.Z [--source URL] [--project-root PATH] [--policy FILE] [--key FILE]
-  starter.sh update --release starter/vX.Y.Z --yes [--source URL] [--project-root PATH] [--policy FILE] [--key FILE]
+  starter.sh adopt  --release starter/vX.Y.Z [--source URL] [--project-root PATH]
+  starter.sh check  --release starter/vX.Y.Z [--source URL] [--project-root PATH]
+  starter.sh update --release starter/vX.Y.Z --yes [--source URL] [--project-root PATH]
 
 Source defaults to https://github.com/Cesarucho/gentle-starter.git.
 
@@ -41,8 +41,6 @@ starter_parse_args() {
 	STARTER_PROJECT_ROOT="$(pwd -P)"
 	STARTER_SOURCE_URL="${STARTER_OFFICIAL_SOURCE_URL}"
 	STARTER_RELEASE=""
-	STARTER_POLICY="${SCRIPT_DIR}/../../.starter/trust/policy.json"
-	STARTER_KEY="${SCRIPT_DIR}/../../.starter/trust/release-key.asc"
 	STARTER_CONFIRMED=0
 	case "${STARTER_COMMAND}" in adopt | check | update) ;; *)
 		starter_usage
@@ -51,7 +49,7 @@ starter_parse_args() {
 	esac
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
-		--project-root | --source | --release | --policy | --key)
+		--project-root | --source | --release)
 			if [ "$#" -lt 2 ] || [ -z "$2" ]; then
 				starter_usage
 				return "${STARTER_USAGE_EXIT}"
@@ -60,8 +58,6 @@ starter_parse_args() {
 			--project-root) STARTER_PROJECT_ROOT="$2" ;;
 			--source) STARTER_SOURCE_URL="$2" ;;
 			--release) STARTER_RELEASE="$2" ;;
-			--policy) STARTER_POLICY="$2" ;;
-			--key) STARTER_KEY="$2" ;;
 			esac
 			shift 2
 			;;
@@ -108,7 +104,7 @@ starter_bind_candidate_evidence() {
 		'.evidence.ref=$ref | .integrity={canonicalization:"jq-sorted-utf8-v1",envelope_sha256:$sha}' \
 		"${candidate}/envelope.json" >"${candidate}/envelope.tmp" || return 1
 	mv -f -- "${candidate}/envelope.tmp" "${candidate}/envelope.json" || return 1
-	verified_payload_validate "${candidate}/envelope.json" "${candidate}/materialized"
+	release_payload_validate "${candidate}/envelope.json" "${candidate}/materialized"
 }
 
 starter_acquire_candidate() (
@@ -133,9 +129,9 @@ starter_acquire_candidate() (
 	temporary="${candidate}.candidate.$$"
 	trap 'rm -f -- "${request:-}"; rm -rf -- "${temporary:-}"' EXIT
 	jq -n --arg remote "${STARTER_SOURCE_URL}" --arg selector "${STARTER_RELEASE}" \
-		--arg output "${temporary}" --arg policy "${STARTER_POLICY}" --arg key "${STARTER_KEY}" '{
+		--arg output "${temporary}" '{
 		schema:"gentle-starter.git-tag-source-request/v1",source_id:"gentle-starter",
-		remote:$remote,selector:$selector,output_dir:$output,policy_file:$policy,key_file:$key
+		remote:$remote,selector:$selector,output_dir:$output
 	}' >"${request}" || return 1
 	result="$(STARTER_SOURCE_ACQUIRE_IMPL=git_tag_source_acquire source_acquire "${request}")" || return 1
 	[ "$(jq -r '.envelope_file' <<<"${result}")" = "${temporary}/envelope.json" ] || return 1

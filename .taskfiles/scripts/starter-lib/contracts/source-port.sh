@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Transport-neutral source and verified-payload contracts.
+# Transport-neutral source and release-payload contracts.
 
 STARTER_CONTRACT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STARTER_VERIFIED_PAYLOAD_SCHEMA="${STARTER_CONTRACT_DIR}/verified-payload-v1.schema.json"
+STARTER_RELEASE_PAYLOAD_SCHEMA="${STARTER_CONTRACT_DIR}/release-payload-v1.schema.json"
 # shellcheck source=.taskfiles/scripts/starter-lib/contracts/path-safety.sh
 source "${STARTER_CONTRACT_DIR}/path-safety.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/evidence-limits.sh
+source "${STARTER_CONTRACT_DIR}/evidence-limits.sh"
 
 starter_contract_error() {
 	printf 'starter contract: %s\n' "$*" >&2
@@ -33,7 +35,7 @@ starter_source_result_validate() {
 	}
 	envelope_file="$(jq -r '.envelope_file' <<<"${result}")"
 	payload_root="$(jq -r '.payload_root' <<<"${result}")"
-	verified_payload_validate "${envelope_file}" "${payload_root}" || return 1
+	release_payload_validate "${envelope_file}" "${payload_root}" || return 1
 	printf '%s\n' "$(jq -cS . <<<"${result}")"
 }
 
@@ -68,101 +70,23 @@ evidence_revalidate() {
 	starter_source_port_invoke "${STARTER_EVIDENCE_REVALIDATE_IMPL:-}" "${opaque_ref}"
 }
 
-signer_policy_evaluate() {
-	local policy_file="$1"
-	local signer_subject_id="$2"
-	local release_version="$3"
-	local policy_id policy_sha signer valid_from valid_until revoked_at
-
-	[ -f "${policy_file}" ] || {
-		starter_contract_error "signer policy is not a file"
-		return 1
-	}
-	[[ "${release_version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
-		starter_contract_error "release version is not semantic"
-		return 1
-	}
-	jq -e '
-		def exact_keys($expected): (keys | sort) == ($expected | sort);
-		def semver: type == "string" and test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$");
-		def subject: type == "string" and test("^openpgp:[0-9A-F]{40}$");
-		def key_file: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*\\.asc$");
-		type == "object" and exact_keys(["schema", "policy_id", "signers", "revocations", "rotations", "evidence_limits"]) and
-		.schema == "gentle-starter.signer-policy/v1" and (.policy_id | type == "string" and length > 0) and
-		(.evidence_limits | type == "object" and
-			exact_keys(["max_reachable_objects", "max_object_bytes", "max_pack_bytes", "max_retained_bytes"]) and
-			all(.max_reachable_objects, .max_object_bytes, .max_pack_bytes, .max_retained_bytes;
-				type == "number" and floor == . and . > 0)) and
-		(.signers | type == "array" and length > 0 and
-			all(type == "object" and exact_keys(["subject_id", "key_file", "valid_from", "valid_until"]) and
-				(.subject_id | subject) and (.key_file | key_file) and (.valid_from | semver) and
-				(.valid_until == null or (.valid_until | semver))) and
-			(map(.subject_id) as $subjects | ($subjects | length) == ($subjects | unique | length))) and
-		(.revocations | type == "array" and
-			all(type == "object" and exact_keys(["subject_id", "effective_version", "reason"]) and
-				(.subject_id | subject) and (.effective_version | semver) and (.reason | type == "string" and length > 0)) and
-			(map(.subject_id) as $revoked | ($revoked | length) == ($revoked | unique | length))) and
-		(.rotations | type == "array" and
-			all(type == "object" and exact_keys(["from_subject_id", "to_subject_id", "effective_version"]) and
-				(.from_subject_id | subject) and (.to_subject_id | subject) and
-				.from_subject_id != .to_subject_id and (.effective_version | semver))) and
-		((.signers | map(.subject_id)) as $subjects |
-			(.revocations | all(.subject_id as $id | $subjects | index($id) != null)) and
-			(.rotations | all(.from_subject_id as $from | .to_subject_id as $to |
-				($subjects | index($from) != null) and ($subjects | index($to) != null))))
-	' "${policy_file}" >/dev/null || {
-		starter_contract_error "invalid signer policy"
-		return 1
-	}
-	signer="$(jq -c --arg signer "${signer_subject_id}" '.signers[] | select(.subject_id == $signer)' "${policy_file}")"
-	[ -n "${signer}" ] || {
-		starter_contract_error "signer is not pinned by policy"
-		return 1
-	}
-	valid_from="$(jq -r '.valid_from' <<<"${signer}")"
-	valid_until="$(jq -r '.valid_until // empty' <<<"${signer}")"
-	jq -en --arg release "${release_version}" --arg boundary "${valid_from}" \
-		'def version: split(".") | map(tonumber); ($release | version) >= ($boundary | version)' >/dev/null || {
-		starter_contract_error "signer is outside its allowed release window"
-		return 1
-	}
-	if [ -n "${valid_until}" ] && jq -en --arg release "${release_version}" --arg boundary "${valid_until}" \
-		'def version: split(".") | map(tonumber); ($release | version) >= ($boundary | version)' >/dev/null; then
-		starter_contract_error "signer is outside its allowed release window"
-		return 1
-	fi
-	revoked_at="$(jq -r --arg signer "${signer_subject_id}" '.revocations[] | select(.subject_id == $signer) | .effective_version' "${policy_file}")"
-	if [ -n "${revoked_at}" ] && jq -en --arg release "${release_version}" --arg boundary "${revoked_at}" \
-		'def version: split(".") | map(tonumber); ($release | version) >= ($boundary | version)' >/dev/null; then
-		starter_contract_error "signer is revoked for release version ${release_version}"
-		return 1
-	fi
-	policy_id="$(jq -r '.policy_id' "${policy_file}")"
-	policy_sha="$(sha256sum "${policy_file}" | cut -d' ' -f1)"
-	jq -cn \
-		--arg policy_id "${policy_id}" \
-		--arg policy_sha256 "${policy_sha}" \
-		--arg signer_subject_id "${signer_subject_id}" \
-		'{result: "accepted", policy_id: $policy_id, policy_sha256: $policy_sha256, signer_subject_id: $signer_subject_id}'
-}
-
-verified_payload_validate() {
+release_payload_validate() {
 	local envelope_file="$1"
 	local payload_root="$2"
 	local expected_integrity actual_integrity manifest_path manifest_sha
 	local payload_dir entry_count index entry_path entry_sha entry_bytes
 
 	[ -f "${envelope_file}" ] || {
-		starter_contract_error "verified payload envelope is not a file"
+		starter_contract_error "release payload envelope is not a file"
 		return 1
 	}
 	[ -d "${payload_root}" ] || {
-		starter_contract_error "verified payload root is not a directory"
+		starter_contract_error "release payload root is not a directory"
 		return 1
 	}
-	jq -e --arg schema "$(jq -r '.properties.schema.const' "${STARTER_VERIFIED_PAYLOAD_SCHEMA}")" \
+	jq -e --arg schema "$(jq -r '.properties.schema.const' "${STARTER_RELEASE_PAYLOAD_SCHEMA}")" \
 		'.schema == $schema' "${envelope_file}" >/dev/null || {
-		starter_contract_error "unsupported verified payload schema"
+		starter_contract_error "unsupported release payload schema"
 		return 1
 	}
 	jq -e '
@@ -175,7 +99,7 @@ verified_payload_validate() {
 			(startswith("/") | not) and
 			(split("/") | all(. != "" and . != "." and . != ".."));
 		type == "object" and
-		exact_keys(["schema", "source", "release", "immutable_identities", "manifest", "payload", "verification", "evidence", "integrity"]) and
+		exact_keys(["schema", "source", "release", "immutable_identities", "manifest", "payload", "evidence", "integrity"]) and
 		(.source | type == "object" and exact_keys(["adapter_id", "source_id"]) and (.adapter_id | adapter_id) and (.source_id | sha256_id)) and
 		(.release | type == "object" and exact_keys(["id", "version", "predecessor_id"]) and (.id | sha256_id) and
 			(.version | type == "string" and test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")) and
@@ -190,53 +114,50 @@ verified_payload_validate() {
 				all(type == "object" and exact_keys(["path", "sha256", "bytes"]) and
 					(.path | relative_path) and (.sha256 | sha256) and (.bytes | type == "number" and . >= 0 and floor == .)) and
 				(map(.path) as $paths | ($paths | length) == ($paths | unique | length)))) and
-		(.verification | type == "object" and exact_keys(["result", "policy_id", "policy_sha256", "signer_subject_id"]) and
-			.result == "accepted" and (.policy_id | type == "string" and length > 0) and
-			(.policy_sha256 | sha256) and (.signer_subject_id | type == "string" and length > 0)) and
 		(.evidence | type == "object" and exact_keys(["adapter_id", "ref", "sha256"]) and
 			(.adapter_id | adapter_id) and (.ref | type == "string" and length > 0) and (.sha256 | sha256)) and
 		(.integrity | type == "object" and exact_keys(["canonicalization", "envelope_sha256"]) and
 			.canonicalization == "jq-sorted-utf8-v1" and (.envelope_sha256 | sha256))
 	' "${envelope_file}" >/dev/null || {
-		starter_contract_error "invalid verified payload envelope"
+		starter_contract_error "invalid release payload envelope"
 		return 1
 	}
 
 	expected_integrity="$(jq -r '.integrity.envelope_sha256' "${envelope_file}")"
 	actual_integrity="$(jq -cS 'del(.integrity)' "${envelope_file}" | sha256sum | cut -d' ' -f1)"
 	[ "${actual_integrity}" = "${expected_integrity}" ] || {
-		starter_contract_error "verified payload envelope digest mismatch"
+		starter_contract_error "release payload envelope digest mismatch"
 		return 1
 	}
 
 	manifest_path="$(starter_path_existing_file_beneath "${payload_root}" "$(jq -r '.manifest.path' "${envelope_file}")")" || {
-		starter_contract_error "verified manifest is missing"
+		starter_contract_error "release manifest is missing"
 		return 1
 	}
 	manifest_sha="$(jq -r '.manifest.sha256' "${envelope_file}")"
 	[ "$(sha256sum "${manifest_path}" | cut -d' ' -f1)" = "${manifest_sha}" ] || {
-		starter_contract_error "verified manifest digest mismatch"
+		starter_contract_error "release manifest digest mismatch"
 		return 1
 	}
 
 	payload_dir="$(starter_path_existing_directory_beneath "${payload_root}" "$(jq -r '.payload.root' "${envelope_file}")")" || {
-		starter_contract_error "verified payload directory is unsafe"
+		starter_contract_error "release payload directory is unsafe"
 		return 1
 	}
 	entry_count="$(jq '.payload.entries | length' "${envelope_file}")"
 	for ((index = 0; index < entry_count; index++)); do
 		entry_path="$(starter_path_existing_file_beneath "${payload_dir}" "$(jq -r ".payload.entries[${index}].path" "${envelope_file}")")" || {
-			starter_contract_error "verified payload entry is missing or unsafe"
+			starter_contract_error "release payload entry is missing or unsafe"
 			return 1
 		}
 		entry_sha="$(jq -r ".payload.entries[${index}].sha256" "${envelope_file}")"
 		entry_bytes="$(jq -r ".payload.entries[${index}].bytes" "${envelope_file}")"
 		[ "$(sha256sum "${entry_path}" | cut -d' ' -f1)" = "${entry_sha}" ] || {
-			starter_contract_error "verified payload entry digest mismatch"
+			starter_contract_error "release payload entry digest mismatch"
 			return 1
 		}
 		[ "$(wc -c <"${entry_path}")" -eq "${entry_bytes}" ] || {
-			starter_contract_error "verified payload entry size mismatch"
+			starter_contract_error "release payload entry size mismatch"
 			return 1
 		}
 	done

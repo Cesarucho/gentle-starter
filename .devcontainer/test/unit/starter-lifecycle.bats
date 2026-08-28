@@ -27,7 +27,7 @@ write_envelope() {
 		--arg manifest_sha "${manifest_sha}" \
 		--argjson entries "$(jq '.payload.entries' "${root}/manifest.json")" \
 		'{
-			schema:"gentle-starter.verified-payload/v1",
+			schema:"gentle-starter.release-payload/v1",
 			source:{adapter_id:"FixtureSource/v1",source_id:("sha256:"+("1"*64))},
 			release:{id:("sha256:"+("2"*64)),version:$version,predecessor_id:$predecessor},
 			immutable_identities:[
@@ -36,7 +36,6 @@ write_envelope() {
 			],
 			manifest:{schema:"starter-manifest/v1",path:"manifest.json",sha256:$manifest_sha},
 			payload:{root:"payloads",entries:$entries},
-			verification:{result:"accepted",policy_id:"fixture/v1",policy_sha256:("4"*64),signer_subject_id:"fixture:signer"},
 			evidence:{adapter_id:"FixtureSource/v1",ref:"fixture:evidence",sha256:("5"*64)}
 		}' >"${root}/envelope.json"
 	envelope_sha="$(jq -cS 'del(.integrity)' "${root}/envelope.json" | sha256sum | cut -d' ' -f1)"

@@ -78,9 +78,9 @@ The long-form guide in the Gentle Starter source is
 `docs/en/starter-updates.md`. This summary remains available after
 `task project:init` removes starter identity documentation.
 
-- `task starter:adopt -- --release starter/vX.Y.Z` proves an exact signed
+- `task starter:adopt -- --release starter/vX.Y.Z` proves an exact annotated
   baseline and writes retained evidence and state only after all checks pass.
-- `task starter:check -- --release starter/vX.Y.Z` reports trust, drift,
+- `task starter:check -- --release starter/vX.Y.Z` reports integrity, drift,
   ownership, worktree, and migration blockers without changing project files or
   Git/container state.
 - `task starter:update -- --release starter/vX.Y.Z --yes` applies a complete
@@ -91,11 +91,11 @@ The default source is `https://github.com/Cesarucho/gentle-starter.git`. Add
 `--source URL` only to override it explicitly.
 
 Use a clean Git worktree. Review every result and create commits yourself. The
-commands admit pinned signers under explicit rotation/revocation policy; GitHub
-tag protection is publisher governance, not client admission proof. They never
+commands validate immutable Git and content bindings plus retained evidence.
+This proves integrity and structure, not publisher identity. They never
 merge starter history, execute fetched content, overwrite project-owned paths,
 mutate `origin`, or create commits.
 
-After `task project:init`, the updater, trust policy, and declarative assets are
+After `task project:init`, the updater and declarative assets are
 retained, but inherited state and evidence are removed. The derived project is
 unmarked until its owner explicitly adopts an exact admitted release.
