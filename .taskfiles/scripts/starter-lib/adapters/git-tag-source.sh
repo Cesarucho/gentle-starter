@@ -55,7 +55,7 @@ git_tag_verify_release() {
 		(.version | test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")) and
 		(.commit_oid | oid) and (.tree_oid | oid) and
 		(.manifest | type == "object" and (keys | sort) == ["blob_oid","path","sha256"] and
-			(.blob_oid | oid) and (.path == "manifest.json") and (.sha256 | sha))' <<<"${metadata}" >/dev/null || {
+			(.blob_oid | oid) and (.path == ".starter/distribution/manifest.json") and (.sha256 | sha))' <<<"${metadata}" >/dev/null || {
 		git_tag_source_error "annotated tag metadata is invalid"
 		return 1
 	}
@@ -74,7 +74,7 @@ git_tag_verify_release() {
 		git_tag_source_error "tree binding mismatch"
 		return 1
 	}
-	manifest_blob="$(git --git-dir="${repository}" rev-parse "${GTS_COMMIT_OID}:manifest.json" 2>/dev/null)" || {
+	manifest_blob="$(git --git-dir="${repository}" rev-parse "${GTS_COMMIT_OID}:.starter/distribution/manifest.json" 2>/dev/null)" || {
 		git_tag_source_error "manifest binding mismatch"
 		return 1
 	}
@@ -127,7 +127,7 @@ git_tag_materialize_payload() {
 			git_tag_source_error "manifest payload path is unsafe"
 			return 1
 		}
-		object_path="payloads/${path}"
+		object_path=".starter/distribution/payloads/${path}"
 		mode="$(git --git-dir="${repository}" ls-tree "${GTS_COMMIT_OID}" -- "${object_path}" | cut -d' ' -f1)"
 		case "${mode}" in 100644 | 100755) ;; *)
 			git_tag_source_error "payload entry is not a regular blob"
@@ -154,7 +154,7 @@ git_tag_materialize_migrations() {
 	count="$(jq '.migrations.entries | length' "${manifest}")"
 	for ((index = 0; index < count; index++)); do
 		path="$(jq -r ".migrations.entries[${index}].path" "${manifest}")"
-		object_path="migrations/${path}"
+		object_path=".starter/distribution/migrations/${path}"
 		mode="$(git --git-dir="${repository}" ls-tree "${GTS_COMMIT_OID}" -- "${object_path}" | cut -d' ' -f1)"
 		case "${mode}" in 100644 | 100755) ;; *)
 			git_tag_source_error "migration descriptor is not a regular blob"

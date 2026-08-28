@@ -18,39 +18,40 @@ teardown() {
 
 publish_release() {
 	local version="$1" from_version="$2" content="$3" expected_before="$4"
-	local work="${TEST_ROOT}/release-${version}" payload_sha payload_bytes migration_sha
+	local work="${TEST_ROOT}/release-${version}" distribution payload_sha payload_bytes migration_sha
 	local commit_oid tree_oid manifest_blob manifest_sha message
-	mkdir -p "${work}/payloads" "${work}/migrations"
+	distribution="${work}/.starter/distribution"
+	mkdir -p "${distribution}/payloads" "${distribution}/migrations"
 	git init -q "${work}"
 	git -C "${work}" config user.name "Starter Facade Test"
 	git -C "${work}" config user.email "starter-facade@example.invalid"
-	printf '%s\n' "${content}" >"${work}/payloads/managed.txt"
-	chmod 0755 "${work}/payloads/managed.txt"
-	payload_sha="$(sha256sum "${work}/payloads/managed.txt" | cut -d' ' -f1)"
-	payload_bytes="$(wc -c <"${work}/payloads/managed.txt")"
+	printf '%s\n' "${content}" >"${distribution}/payloads/managed.txt"
+	chmod 0755 "${distribution}/payloads/managed.txt"
+	payload_sha="$(sha256sum "${distribution}/payloads/managed.txt" | cut -d' ' -f1)"
+	payload_bytes="$(wc -c <"${distribution}/payloads/managed.txt")"
 	jq -n --arg from "${from_version}" --arg to "${version}" --arg expected "${expected_before}" '{
 		schema:"starter-migration/v1",id:("release-"+$to),from_version:$from,to_version:$to,
 		operations:[{type:"copy",ownership:"managed",source:"managed.txt",target:"managed.txt",
 			expected_before_sha256:(if $expected == "null" then null else $expected end)}]
-	}' >"${work}/migrations/release.json"
-	migration_sha="$(sha256sum "${work}/migrations/release.json" | cut -d' ' -f1)"
+	}' >"${distribution}/migrations/release.json"
+	migration_sha="$(sha256sum "${distribution}/migrations/release.json" | cut -d' ' -f1)"
 	jq -n --arg version "${version}" --arg payload_sha "${payload_sha}" --argjson bytes "${payload_bytes}" \
 		--arg migration_sha "${migration_sha}" '{
 		schema:"starter-manifest/v1",source:{id:"gentle-starter",release:("starter/v"+$version)},
 		release:{version:$version,predecessor_id:null},
 		payload:{root:"payloads",entries:[{path:"managed.txt",sha256:$payload_sha,bytes:$bytes}]},
 		migrations:{root:"migrations",entries:[{id:("release-"+$version),path:"release.json",sha256:$migration_sha}]}
-	}' >"${work}/manifest.json"
-	git -C "${work}" add manifest.json migrations payloads
+	}' >"${distribution}/manifest.json"
+	git -C "${work}" add .starter
 	GIT_AUTHOR_DATE=1704067200 GIT_COMMITTER_DATE=1704067200 git -C "${work}" commit -q -m "release ${version}"
 	commit_oid="$(git -C "${work}" rev-parse HEAD)"
 	tree_oid="$(git -C "${work}" rev-parse 'HEAD^{tree}')"
-	manifest_blob="$(git -C "${work}" rev-parse 'HEAD:manifest.json')"
-	manifest_sha="$(sha256sum "${work}/manifest.json" | cut -d' ' -f1)"
+	manifest_blob="$(git -C "${work}" rev-parse 'HEAD:.starter/distribution/manifest.json')"
+	manifest_sha="$(sha256sum "${distribution}/manifest.json" | cut -d' ' -f1)"
 	message="$(jq -cn --arg version "${version}" --arg commit "${commit_oid}" --arg tree "${tree_oid}" \
 		--arg blob "${manifest_blob}" --arg sha "${manifest_sha}" '{
 		schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,
-		commit_oid:$commit,tree_oid:$tree,manifest:{path:"manifest.json",blob_oid:$blob,sha256:$sha}}')"
+		commit_oid:$commit,tree_oid:$tree,manifest:{path:".starter/distribution/manifest.json",blob_oid:$blob,sha256:$sha}}')"
 	GIT_COMMITTER_DATE=1704153600 git -C "${work}" tag -a -m "${message}" "starter/v${version}"
 	git -C "${work}" remote add fixture "${REMOTE}"
 	git -C "${work}" push -q fixture "HEAD:refs/heads/release-${version}" "refs/tags/starter/v${version}"

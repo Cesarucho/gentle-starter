@@ -108,6 +108,12 @@ adding Redis end-to-end, and the FAQ) is in
 - Keep source adapters outside lifecycle core. Future transports must emit the
   same versioned release payload and preserve state, ownership, journal,
   rollback, and evidence semantics.
+
+- Release maintainers create a local release with
+  `task starter:release -- X.Y.Z`. The command binds the committed
+  `.starter/distribution/manifest.json` into the canonical annotated-tag
+  metadata, re-admits the tag through `GitTagSource/v1`, and leaves remote
+  publication pending; it never pushes automatically.
 - `managed` and explicitly declared `fusion` paths require exact fingerprints.
   `project-owned` paths are immutable to starter migrations. Never silently
   overwrite drift or auto-resolve conflicts.

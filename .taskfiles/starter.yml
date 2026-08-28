@@ -1,6 +1,12 @@
 version: "3"
 
 tasks:
+  release:
+    desc: Create and locally validate an exact annotated starter release
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/starter-release.sh {{.CLI_ARGS}}
+
   adopt:
     desc: Adopt an exact integrity-bound starter baseline
     silent: true

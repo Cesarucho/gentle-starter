@@ -15,44 +15,50 @@ teardown() {
 create_remote() {
 	local version="$1" mode="${2:-valid}" tag_type="${3:-annotated}" layout="${4:-payload-only}"
 	local work="${TEST_ROOT}/work-${version}" remote="${TEST_ROOT}/remote-${version}.git"
+	local distribution="${work}/.starter/distribution" manifest_path=.starter/distribution/manifest.json
 	local payload_sha payload_bytes migration_sha commit_oid tree_oid manifest_blob manifest_sha message
-	mkdir -p "${work}/payloads/bin"
+	mkdir -p "${distribution}/payloads/bin"
 	git init -q "${work}"
 	git -C "${work}" config user.name "Starter Test"
 	git -C "${work}" config user.email "starter-test@example.invalid"
-	printf '%s\n' '#!/bin/sh' 'touch "${STARTER_EXECUTION_SENTINEL:?}"' >"${work}/payloads/bin/README.sh"
-	chmod 0755 "${work}/payloads/bin/README.sh"
-	payload_sha="$(sha256sum "${work}/payloads/bin/README.sh" | cut -d' ' -f1)"
-	payload_bytes="$(wc -c <"${work}/payloads/bin/README.sh")"
+	printf '%s\n' '#!/bin/sh' 'touch "${STARTER_EXECUTION_SENTINEL:?}"' >"${distribution}/payloads/bin/README.sh"
+	chmod 0755 "${distribution}/payloads/bin/README.sh"
+	payload_sha="$(sha256sum "${distribution}/payloads/bin/README.sh" | cut -d' ' -f1)"
+	payload_bytes="$(wc -c <"${distribution}/payloads/bin/README.sh")"
 	jq -n --arg version "${version}" --arg sha "${payload_sha}" --argjson bytes "${payload_bytes}" '{
 		schema:"starter-manifest/v1", source:{id:"gentle-starter",release:("starter/v"+$version)},
 		release:{version:$version,predecessor_id:null}, payload:{root:"payloads",entries:[{path:"bin/README.sh",sha256:$sha,bytes:$bytes}]}
-	}' >"${work}/manifest.json"
+	}' >"${distribution}/manifest.json"
 	if [ "${layout}" = lifecycle ]; then
-		mkdir -p "${work}/migrations"
+		mkdir -p "${distribution}/migrations"
 		jq -n --arg from "${version%.*}.$((${version##*.} - 1))" --arg to "${version}" '{
 			schema:"starter-migration/v1",id:"lifecycle",from_version:$from,to_version:$to,operations:[
 				{type:"copy",ownership:"managed",source:"bin/README.sh",target:"bin/README.sh",expected_before_sha256:null}
 			]
-		}' >"${work}/migrations/010-lifecycle.json"
-		migration_sha="$(sha256sum "${work}/migrations/010-lifecycle.json" | cut -d' ' -f1)"
+		}' >"${distribution}/migrations/010-lifecycle.json"
+		migration_sha="$(sha256sum "${distribution}/migrations/010-lifecycle.json" | cut -d' ' -f1)"
 		jq --arg sha "${migration_sha}" '.migrations={root:"migrations",entries:[{id:"lifecycle",path:"010-lifecycle.json",sha256:$sha}]}' \
-			"${work}/manifest.json" >"${work}/manifest.tmp"
-		mv "${work}/manifest.tmp" "${work}/manifest.json"
+			"${distribution}/manifest.json" >"${distribution}/manifest.tmp"
+		mv "${distribution}/manifest.tmp" "${distribution}/manifest.json"
 	fi
-	git -C "${work}" add manifest.json payloads migrations 2>/dev/null || git -C "${work}" add manifest.json payloads
+	if [ "${mode}" = path ]; then
+		mkdir -p "${work}/another"
+		cp "${distribution}/manifest.json" "${work}/another/manifest.json"
+		manifest_path=another/manifest.json
+	fi
+	git -C "${work}" add .starter another 2>/dev/null || git -C "${work}" add .starter
 	GIT_AUTHOR_DATE=1704067200 GIT_COMMITTER_DATE=1704067200 git -C "${work}" commit -q -m "fixture ${version}"
 	commit_oid="$(git -C "${work}" rev-parse HEAD)"
 	tree_oid="$(git -C "${work}" rev-parse 'HEAD^{tree}')"
-	manifest_blob="$(git -C "${work}" rev-parse 'HEAD:manifest.json')"
-	manifest_sha="$(sha256sum "${work}/manifest.json" | cut -d' ' -f1)"
+	manifest_blob="$(git -C "${work}" rev-parse "HEAD:${manifest_path}")"
+	manifest_sha="$(sha256sum "${work}/${manifest_path}" | cut -d' ' -f1)"
 	case "${mode}" in
-		release) version="9.9.9" ;;
-		commit) commit_oid="$(printf '0%.0s' {1..40})" ;;
-		tree) tree_oid="$(printf '1%.0s' {1..40})" ;;
-		manifest) manifest_sha="$(printf '2%.0s' {1..64})" ;;
+	release) version="9.9.9" ;;
+	commit) commit_oid="$(printf '0%.0s' {1..40})" ;;
+	tree) tree_oid="$(printf '1%.0s' {1..40})" ;;
+	manifest) manifest_sha="$(printf '2%.0s' {1..64})" ;;
 	esac
-	message="$(jq -cn --arg version "${version}" --arg commit "${commit_oid}" --arg tree "${tree_oid}" --arg blob "${manifest_blob}" --arg sha "${manifest_sha}" '{schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,commit_oid:$commit,tree_oid:$tree,manifest:{path:"manifest.json",blob_oid:$blob,sha256:$sha}}')"
+	message="$(jq -cn --arg version "${version}" --arg commit "${commit_oid}" --arg tree "${tree_oid}" --arg path "${manifest_path}" --arg blob "${manifest_blob}" --arg sha "${manifest_sha}" '{schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,commit_oid:$commit,tree_oid:$tree,manifest:{path:$path,blob_oid:$blob,sha256:$sha}}')"
 	if [ "${tag_type}" = annotated ]; then
 		GIT_COMMITTER_DATE=1704153600 git -C "${work}" tag -a -m "${message}" "starter/v$1"
 	else
@@ -148,6 +154,15 @@ acquire_from() {
 	[ "$status" -ne 0 ]
 	[[ "$output" == *"selected ref is not an annotated tag"* ]]
 	[ ! -e "${TEST_ROOT}/lightweight" ]
+}
+
+@test "GitTagSource rejects metadata that binds a noncanonical relative manifest path" {
+	create_remote 1.2.5 path
+	write_request starter/v1.2.5 "${TEST_ROOT}/noncanonical"
+	run acquire
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"annotated tag metadata is invalid"* ]]
+	[ ! -e "${TEST_ROOT}/noncanonical" ]
 }
 
 @test "GitTagSource rejects every exceeded retained evidence limit before admission" {

@@ -10,6 +10,27 @@ The initial source is Git only. A release is an exact annotated semantic tag
 named `starter/vX.Y.Z`; branches, mutable refs, GitHub Releases, and the GitHub
 API are not release inputs.
 
+## Create a release
+
+Run the release command from the clean root of the Gentle Starter repository,
+not from a derived project:
+
+```bash
+task starter:release -- 1.0.0
+```
+
+The committed `.starter/distribution/manifest.json` must declare the same
+version and bind every payload and migration asset. After preflight checks, the
+command creates the unsigned annotated `starter/v1.0.0` tag with the canonical
+Git metadata bindings and immediately admits it through `GitTagSource/v1`.
+Failure removes only the operation-created tag when its object identity still
+matches.
+
+Release creation and remote publication are deliberately separate. The command
+does not push, change a remote, create a commit, or modify tracked files. Review
+the summary and publish the exact tag explicitly through the repository's
+maintainer workflow.
+
 ## Quick path
 
 Run these commands from the root of the derived project's clean Git worktree.
@@ -46,6 +67,7 @@ container state.
 
 | Command | Purpose | Mutation contract |
 |---|---|---|
+| `starter:release` | Create and locally admit an exact Gentle Starter release. | Creates one local annotated tag after preflight; never pushes or changes files, commits, branches, or remotes. |
 | `starter:adopt` | Prove that an unmarked project exactly matches a selected admitted baseline. | Writes retained evidence and `.starter/state.json` only after integrity, ownership, path, and managed-fingerprint checks pass. |
 | `starter:check` | Revalidate current evidence and report drift, integrity, worktree, ownership, path, and migration-chain blockers. | Does not change project files or Git/container state. Reports all blockers it can evaluate. |
 | `starter:update` | Apply a complete admitted migration chain to an adopted project. | Requires `--yes`, journals before mutation, updates only allowed paths, and writes state last. |

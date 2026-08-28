@@ -78,6 +78,12 @@ The long-form guide in the Gentle Starter source is
 `docs/en/starter-updates.md`. This summary remains available after
 `task project:init` removes starter identity documentation.
 
+In the Gentle Starter source repository only,
+`task starter:release -- X.Y.Z` creates an unsigned annotated tag after
+validating the committed distribution and then re-admits it through the
+consumer Git adapter. It does not publish the tag; pushing is a separate
+maintainer action.
+
 - `task starter:adopt -- --release starter/vX.Y.Z` proves an exact annotated
   baseline and writes retained evidence and state only after all checks pass.
 - `task starter:check -- --release starter/vX.Y.Z` reports integrity, drift,

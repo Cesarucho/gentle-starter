@@ -128,6 +128,20 @@ required for the happy path.
 
 ## 🔄 Maintain your project
 
+### 📦 Create a Gentle Starter release
+
+From this repository's clean root, create and locally validate an exact
+annotated release tag:
+
+```bash
+task starter:release -- 1.0.0
+```
+
+The command validates the committed distribution manifest and immutable Git
+bindings, then admits the new tag through the same Git adapter used by
+consumers. It never pushes; remote publication remains a separate maintainer
+action.
+
 ### 🌱 Update from Gentle Starter
 
 After `task project:init`, use this workflow from a clean worktree to adopt an

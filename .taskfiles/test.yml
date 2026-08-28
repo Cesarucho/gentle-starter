@@ -44,6 +44,7 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-facade.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-git-source.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-lifecycle.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats
 
   integration:
     desc: Run integration tests for installed tools
