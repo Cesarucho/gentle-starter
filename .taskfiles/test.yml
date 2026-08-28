@@ -40,6 +40,10 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/opencode.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/skills.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-contract.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-facade.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-git-source.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-lifecycle.bats
 
   integration:
     desc: Run integration tests for installed tools

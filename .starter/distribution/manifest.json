@@ -1,0 +1,31 @@
+{
+  "schema": "starter-manifest/v1",
+  "source": {
+    "id": "gentle-starter",
+    "release": "starter/v1.0.0"
+  },
+  "release": {
+    "version": "1.0.0",
+    "predecessor_id": null
+  },
+  "payload": {
+    "root": "payloads",
+    "entries": [
+      {
+        "path": "baseline.json",
+        "sha256": "e31f045f8327fc1f4ddb8599b087b9a426c9aece6430fe981335a4c3a945d9da",
+        "bytes": 71
+      }
+    ]
+  },
+  "migrations": {
+    "root": "migrations",
+    "entries": [
+      {
+        "id": "baseline-1.0.0",
+        "path": "001-baseline.json",
+        "sha256": "5008a2e590d778c1232144bb2cf243298eb0e169465238f78834e393121f1686"
+      }
+    ]
+  }
+}

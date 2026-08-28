@@ -1,0 +1,14 @@
+{
+  "schema": "gentle-starter.signer-policy/v1",
+  "policy_id": "starter-release-signers/v1",
+  "signers": [
+    {
+      "subject_id": "openpgp:090D0044B59DACA04191D2E7B501067AF50B8DD7",
+      "key_file": "release-key.asc",
+      "valid_from": "1.0.0",
+      "valid_until": null
+    }
+  ],
+  "revocations": [],
+  "rotations": []
+}

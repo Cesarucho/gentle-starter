@@ -26,6 +26,7 @@ devcontainer_run_as_root apt-get install -y --no-install-recommends \
 	git \
 	git-delta \
 	git-lfs \
+	gnupg \
 	hyperfine \
 	jq \
 	less \

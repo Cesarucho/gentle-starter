@@ -19,6 +19,8 @@ includes:
     taskfile: ./.taskfiles/skills.yml
   ssh:
     taskfile: ./.taskfiles/ssh.yml
+  starter:
+    taskfile: ./.taskfiles/starter.yml
   test:
     taskfile: ./.taskfiles/test.yml
 

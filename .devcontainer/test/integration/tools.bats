@@ -47,6 +47,16 @@ skip_if_install_disabled() {
     command -v git >/dev/null
 }
 
+@test "core: GnuPG is installed by the always-on system layer" {
+    local system_installer="${BATS_TEST_DIRNAME}/../../install/01-core/10-system.sh"
+
+    command -v gpg >/dev/null
+    run gpg --version
+    [ "$status" -eq 0 ]
+    [[ "$output" == gpg* ]]
+    grep -Eq '^[[:space:]]*gnupg[[:space:]]*\\$' "${system_installer}"
+}
+
 @test "core: task (Taskfile) is installed" {
     command -v task >/dev/null
 }
