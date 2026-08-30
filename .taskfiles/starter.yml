@@ -1,6 +1,12 @@
 version: "3"
 
 tasks:
+  prepare-release:
+    desc: Build a reviewable deterministic derived release tree
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/starter-prepare-release.sh {{.CLI_ARGS}}
+
   release:
     desc: Create and locally validate an exact annotated starter release
     silent: true

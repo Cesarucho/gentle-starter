@@ -4,6 +4,8 @@
 STARTER_MANIFEST_CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=.taskfiles/scripts/starter-lib/contracts/source-port.sh
 source "${STARTER_MANIFEST_CORE_DIR}/../contracts/source-port.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/ownership.sh
+source "${STARTER_MANIFEST_CORE_DIR}/../contracts/ownership.sh"
 
 starter_manifest_error() {
 	printf 'starter manifest: %s\n' "$*" >&2
@@ -11,7 +13,7 @@ starter_manifest_error() {
 
 starter_manifest_load() {
 	local source_result="$1"
-	local normalized envelope_file payload_root manifest_file migration_root
+	local normalized envelope_file payload_root manifest_file migration_root ownership_file ownership_sha
 	local migration_count index migration_path expected_sha
 
 	normalized="$(starter_source_result_validate "${source_result}")" || return 1
@@ -40,26 +42,25 @@ starter_manifest_load() {
 		def sha256: type == "string" and test("^[0-9a-f]{64}$");
 		def relative: type == "string" and length > 0 and (startswith("/") | not) and
 			(split("/") | all(. != "" and . != "." and . != ".."));
-		type == "object" and exact_keys(["schema","source","release","payload","migrations"]) and
-		.schema == "starter-manifest/v1" and
-		(.source | type == "object" and exact_keys(["id","release"]) and
-			(.id | type == "string" and length > 0) and (.release == ("starter/v" + $envelope[0].release.version))) and
-		(.release | type == "object" and exact_keys(["version","predecessor_id"]) and
-			(.version | semver) and .version == $envelope[0].release.version and
-			.predecessor_id == $envelope[0].release.predecessor_id) and
-		(.payload == $envelope[0].payload) and
-		(.migrations | type == "object" and exact_keys(["root","entries"]) and
-			(.root | relative) and
-			(.entries | type == "array" and length > 0 and
-				all(type == "object" and exact_keys(["id","path","sha256"]) and
-					(.id | type == "string" and length > 0) and
-					(.path | relative) and (.sha256 | sha256)) and
-				(map(.id) | length == (unique | length)) and
-				(map(.path) | length == (unique | length))))
+		type == "object" and exact_keys(["schema","source","release","identities","transformation","ownership","payload","migrations"]) and
+			.schema == "starter-manifest/v2" and
+			.source.release == ("starter/v" + $envelope[0].release.version) and .release.version == $envelope[0].release.version and
+			.ownership.schema == "gentle-starter.ownership-inventory/v2" and .payload.closure == "exact" and
+			.transformation.schema == "gentle-starter.derived-tree-transformation/v1"
 	' "${manifest_file}" >/dev/null || {
 		starter_manifest_error "invalid lifecycle manifest"
 		return 1
 	}
+	ownership_file="$(starter_path_existing_file_beneath "${payload_root}" "$(jq -r '.ownership.path' "${manifest_file}")")" || {
+		starter_manifest_error "unsafe ownership inventory path"
+		return 1
+	}
+	ownership_sha="$(jq -r '.ownership.sha256' "${manifest_file}")"
+	[ "$(sha256sum "${ownership_file}" | cut -d' ' -f1)" = "${ownership_sha}" ] || {
+		starter_manifest_error "ownership inventory binding mismatch"
+		return 1
+	}
+	starter_ownership_validate_file "${ownership_file}" || return 1
 
 	migration_root="$(starter_path_existing_directory_beneath "${payload_root}" "$(jq -r '.migrations.root' "${manifest_file}")")" || {
 		starter_manifest_error "unsafe migration path"
@@ -83,11 +84,12 @@ starter_manifest_load() {
 		--arg payload_root "${payload_root}" \
 		--arg manifest_file "${manifest_file}" \
 		--arg migration_root "${migration_root}" \
+		--arg ownership_file "${ownership_file}" \
 		--arg release_id "$(jq -r '.release.id' "${envelope_file}")" \
 		--arg version "$(jq -r '.release.version' "${envelope_file}")" \
 		--slurpfile manifest "${manifest_file}" \
 		'{envelope_file:$envelope_file,payload_root:$payload_root,manifest_file:$manifest_file,
-			migration_root:$migration_root,target_release:{id:$release_id,version:$version},manifest:$manifest[0]}'
+			migration_root:$migration_root,ownership_file:$ownership_file,target_release:{id:$release_id,version:$version},manifest:$manifest[0]}'
 }
 
 starter_manifest_payload_digest() {

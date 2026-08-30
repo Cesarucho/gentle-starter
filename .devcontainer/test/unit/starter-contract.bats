@@ -32,30 +32,34 @@ seal_envelope() {
 
 write_valid_payload() {
 	local envelope="$1"
-	local manifest_sha payload_sha payload_bytes
+	local manifest_sha ownership_sha payload_sha payload_bytes
 	mkdir -p "${PAYLOAD_ROOT}/payloads/config"
-	printf '%s\n' '{"schema":"starter-manifest/v1","operations":[]}' >"${PAYLOAD_ROOT}/manifest.json"
+	printf '%s\n' '{"schema":"starter-manifest/v2","operations":[]}' >"${PAYLOAD_ROOT}/manifest.json"
+	printf '%s\n' '{"schema":"gentle-starter.ownership-inventory/v2","default_ownership":"project-owned","managed":[],"fusion":[]}' >"${PAYLOAD_ROOT}/ownership.json"
 	printf '%s\n' 'managed=true' >"${PAYLOAD_ROOT}/payloads/config/starter.conf"
 	manifest_sha="$(sha256sum "${PAYLOAD_ROOT}/manifest.json" | cut -d' ' -f1)"
+	ownership_sha="$(sha256sum "${PAYLOAD_ROOT}/ownership.json" | cut -d' ' -f1)"
 	payload_sha="$(sha256sum "${PAYLOAD_ROOT}/payloads/config/starter.conf" | cut -d' ' -f1)"
 	payload_bytes="$(wc -c <"${PAYLOAD_ROOT}/payloads/config/starter.conf")"
 
 	jq -n \
 		--arg manifest_sha "${manifest_sha}" \
+		--arg ownership_sha "${ownership_sha}" \
 		--arg payload_sha "${payload_sha}" \
 		--argjson payload_bytes "${payload_bytes}" \
 		'{
-			schema: "gentle-starter.release-payload/v1",
+			schema: "gentle-starter.release-payload/v2",
 			source: {adapter_id: "FixtureSource/v1", source_id: ("sha256:" + ("1" * 64))},
 			release: {id: ("sha256:" + ("2" * 64)), version: "1.2.3", predecessor_id: null},
 			immutable_identities: [
 				{role: "release", id: ("sha256:" + ("2" * 64))},
 				{role: "content", id: ("sha256:" + ("3" * 64))}
 			],
-			manifest: {schema: "starter-manifest/v1", path: "manifest.json", sha256: $manifest_sha},
+			manifest: {schema: "starter-manifest/v2", path: "manifest.json", sha256: $manifest_sha},
+			ownership: {schema: "gentle-starter.ownership-inventory/v2", path: "ownership.json", sha256: $ownership_sha},
 			payload: {
 				root: "payloads",
-				entries: [{path: "config/starter.conf", sha256: $payload_sha, bytes: $payload_bytes}]
+				entries: [{path: "config/starter.conf", sha256: $payload_sha, bytes: $payload_bytes, mode:"644", presence:"present"}]
 			},
 			evidence: {
 				adapter_id: "FixtureSource/v1",
@@ -69,7 +73,7 @@ write_valid_payload() {
 @test "release payload rejects an unknown schema without writes" {
 	local envelope="${TEST_ROOT}/unknown-schema.json"
 	local before after
-	printf '%s\n' '{"schema":"gentle-starter.release-payload/v2"}' >"${envelope}"
+	printf '%s\n' '{"schema":"gentle-starter.release-payload/v99"}' >"${envelope}"
 	before="$(snapshot_tree "${PAYLOAD_ROOT}")"
 
 	run bash -c "source '${CONTRACT}'; release_payload_validate '${envelope}' '${PAYLOAD_ROOT}'"

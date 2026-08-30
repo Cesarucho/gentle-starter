@@ -98,9 +98,10 @@ git_tag_discover_latest_release() (
 
 git_tag_verify_release() {
 	local repository="$1" selector="$2" source_id="$3" manifest_out="$4"
-	local selected_version tag_type metadata manifest_blob manifest_sha
+	local selected_version tag_type metadata manifest_blob manifest_sha ownership_path ownership_blob ownership_sha release_ref
 	selected_version="${selector#starter/v}"
-	GTS_TAG_OID="$(git --git-dir="${repository}" rev-parse --verify "refs/tags/${selector}^{tag}" 2>/dev/null)" || {
+	release_ref="${GTS_RELEASE_REF:-refs/tags/${selector}}"
+	GTS_TAG_OID="$(git --git-dir="${repository}" rev-parse --verify "${release_ref}^{tag}" 2>/dev/null)" || {
 		git_tag_source_error "selected ref is not an annotated tag"
 		return 1
 	}
@@ -109,7 +110,7 @@ git_tag_verify_release() {
 		git_tag_source_error "selected ref is not an annotated tag"
 		return 1
 	}
-	metadata="$(git --git-dir="${repository}" for-each-ref --format='%(contents:subject)' "refs/tags/${selector}")"
+	metadata="$(git --git-dir="${repository}" for-each-ref --format='%(contents:subject)' "${release_ref}")"
 	jq -e 'def oid: type == "string" and test("^[0-9a-f]{40,64}$");
 		def sha: type == "string" and test("^[0-9a-f]{64}$");
 		type == "object" and (keys | sort) == ["commit_oid","manifest","schema","source_id","tree_oid","version"] and
@@ -117,7 +118,7 @@ git_tag_verify_release() {
 		(.version | test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")) and
 		(.commit_oid | oid) and (.tree_oid | oid) and
 		(.manifest | type == "object" and (keys | sort) == ["blob_oid","path","sha256"] and
-			(.blob_oid | oid) and (.path == ".starter/distribution/manifest.json") and (.sha256 | sha))' <<<"${metadata}" >/dev/null || {
+			(.blob_oid | oid) and (.path | test("^\\.starter/distribution/(manifest\\.json|prepared/[0-9]+\\.[0-9]+\\.[0-9]+/manifest\\.json)$")) and (.sha256 | sha))' <<<"${metadata}" >/dev/null || {
 		git_tag_source_error "annotated tag metadata is invalid"
 		return 1
 	}
@@ -136,7 +137,9 @@ git_tag_verify_release() {
 		git_tag_source_error "tree binding mismatch"
 		return 1
 	}
-	manifest_blob="$(git --git-dir="${repository}" rev-parse "${GTS_COMMIT_OID}:.starter/distribution/manifest.json" 2>/dev/null)" || {
+	GTS_MANIFEST_PATH="$(jq -r '.manifest.path' <<<"${metadata}")"
+	GTS_DISTRIBUTION_ROOT="$(dirname "${GTS_MANIFEST_PATH}")"
+	manifest_blob="$(git --git-dir="${repository}" rev-parse "${GTS_COMMIT_OID}:${GTS_MANIFEST_PATH}" 2>/dev/null)" || {
 		git_tag_source_error "manifest binding mismatch"
 		return 1
 	}
@@ -151,37 +154,37 @@ git_tag_verify_release() {
 		def relative: type == "string" and length > 0 and (startswith("/") | not) and
 			(split("/") | all(. != "" and . != "." and . != ".."));
 		def sha: type == "string" and test("^[0-9a-f]{64}$");
-		type == "object" and ((keys | sort) == ["payload","release","schema","source"] or
-			(keys | sort) == ["migrations","payload","release","schema","source"]) and
-		.schema == "starter-manifest/v1" and
-		(.source == {id:$source,release:$release}) and
-		(.release | type == "object" and (keys | sort) == ["predecessor_id","version"] and .version == $version and
-			(.predecessor_id == null or (.predecessor_id | type == "string" and test("^sha256:[0-9a-f]{64}$")))) and
-		(.payload | type == "object" and (keys | sort) == ["entries","root"] and .root == "payloads" and
-			(.entries | type == "array" and length > 0 and all(type == "object" and
-				(keys | sort) == ["bytes","path","sha256"] and (.path | relative) and (.sha256 | sha) and
-				(.bytes | type == "number" and . >= 0 and floor == .)) and
-				(map(.path) as $paths | ($paths | length) == ($paths | unique | length)))) and
-		(if has("migrations") then
-			(.migrations | type == "object" and (keys | sort) == ["entries","root"] and .root == "migrations" and
-				(.entries | type == "array" and length > 0 and all(type == "object" and
-					(keys | sort) == ["id","path","sha256"] and (.id | type == "string" and length > 0) and
-					(.path | relative) and (.sha256 | sha)) and
-					(map(.id) as $ids | ($ids | length) == ($ids | unique | length)) and
-					(map(.path) as $paths | ($paths | length) == ($paths | unique | length))))
-		 else true end)
+		type == "object" and (keys | sort) == ["identities","migrations","ownership","payload","release","schema","source","transformation"] and
+			.schema == "starter-manifest/v2" and
+			.source == {id:$source,release:$release} and .release.version == $version and
+			.ownership.schema == "gentle-starter.ownership-inventory/v2" and .payload.closure == "exact" and
+			.transformation.schema == "gentle-starter.derived-tree-transformation/v1"
 	' "${manifest_out}" >/dev/null || {
 		git_tag_source_error "release binding mismatch"
 		return 1
 	}
+	ownership_path="$(jq -r '.ownership.path' "${manifest_out}")"
+	ownership_blob="$(git --git-dir="${repository}" rev-parse "${GTS_COMMIT_OID}:${GTS_DISTRIBUTION_ROOT}/${ownership_path}" 2>/dev/null)" || {
+		git_tag_source_error "ownership inventory binding mismatch"
+		return 1
+	}
+	ownership_sha="$(git --git-dir="${repository}" show "${GTS_COMMIT_OID}:${GTS_DISTRIBUTION_ROOT}/${ownership_path}" | sha256sum | cut -d' ' -f1)"
+	[ "${ownership_sha}" = "$(jq -r '.ownership.sha256' "${manifest_out}")" ] || {
+		git_tag_source_error "ownership inventory binding mismatch"
+		return 1
+	}
 	GTS_MANIFEST_BLOB="${manifest_blob}"
 	GTS_MANIFEST_SHA="${manifest_sha}"
+	GTS_OWNERSHIP_PATH="${ownership_path}"
+	GTS_OWNERSHIP_BLOB="${ownership_blob}"
+	GTS_OWNERSHIP_SHA="${ownership_sha}"
 }
 
 git_tag_materialize_payload() {
 	local repository="$1" manifest="$2" destination="$3" count index path object_path mode sha bytes
 	mkdir -p "${destination}/payloads"
 	cp "${manifest}" "${destination}/manifest.json"
+	git --git-dir="${repository}" show "${GTS_COMMIT_OID}:${GTS_DISTRIBUTION_ROOT}/${GTS_OWNERSHIP_PATH}" >"${destination}/${GTS_OWNERSHIP_PATH}"
 	count="$(jq '.payload.entries | length' "${manifest}")"
 	for ((index = 0; index < count; index++)); do
 		path="$(jq -r ".payload.entries[${index}].path" "${manifest}")"
@@ -189,7 +192,7 @@ git_tag_materialize_payload() {
 			git_tag_source_error "manifest payload path is unsafe"
 			return 1
 		}
-		object_path=".starter/distribution/payloads/${path}"
+		object_path="${GTS_DISTRIBUTION_ROOT}/payloads/${path}"
 		mode="$(git --git-dir="${repository}" ls-tree "${GTS_COMMIT_OID}" -- "${object_path}" | cut -d' ' -f1)"
 		case "${mode}" in 100644 | 100755) ;; *)
 			git_tag_source_error "payload entry is not a regular blob"
@@ -198,6 +201,7 @@ git_tag_materialize_payload() {
 		esac
 		mkdir -p "${destination}/payloads/$(dirname "${path}")"
 		git --git-dir="${repository}" show "${GTS_COMMIT_OID}:${object_path}" >"${destination}/payloads/${path}"
+		chmod "$(jq -r ".payload.entries[${index}].mode" "${manifest}")" "${destination}/payloads/${path}"
 		sha="$(jq -r ".payload.entries[${index}].sha256" "${manifest}")"
 		bytes="$(jq -r ".payload.entries[${index}].bytes" "${manifest}")"
 		if [ "$(sha256sum "${destination}/payloads/${path}" | cut -d' ' -f1)" != "${sha}" ] ||
@@ -216,7 +220,7 @@ git_tag_materialize_migrations() {
 	count="$(jq '.migrations.entries | length' "${manifest}")"
 	for ((index = 0; index < count; index++)); do
 		path="$(jq -r ".migrations.entries[${index}].path" "${manifest}")"
-		object_path=".starter/distribution/migrations/${path}"
+		object_path="${GTS_DISTRIBUTION_ROOT}/migrations/${path}"
 		mode="$(git --git-dir="${repository}" ls-tree "${GTS_COMMIT_OID}" -- "${object_path}" | cut -d' ' -f1)"
 		case "${mode}" in 100644 | 100755) ;; *)
 			git_tag_source_error "migration descriptor is not a regular blob"
@@ -347,11 +351,14 @@ git_tag_source_acquire() (
 	evidence="${temporary}/evidence"
 	mkdir -p "${evidence}"
 	git init -q --bare "${repository}"
-	git --git-dir="${repository}" fetch -q --no-tags "${remote}" "+refs/tags/${selector}:refs/tags/${selector}" 2>/dev/null || {
+	local release_ref="refs/gentle-starter/releases/${selector#starter/v}"
+	git --git-dir="${repository}" fetch -q --no-tags "${remote}" "+refs/tags/${selector}:${release_ref}" 2>/dev/null || {
 		git_tag_source_error "exact tag is unavailable"
 		return 1
 	}
+	GTS_RELEASE_REF="${release_ref}"
 	git_tag_verify_release "${repository}" "${selector}" "${source_id}" "${manifest}" || return 1
+	unset GTS_RELEASE_REF
 	git --git-dir="${repository}" -c gc.writeCommitGraph=false repack -adq || {
 		git_tag_source_error "fetched Git closure could not be packed"
 		return 1
@@ -369,22 +376,28 @@ git_tag_source_acquire() (
 	git_tag_enforce_evidence_limits "${repository}" "${limits}" "${temporary}/closure.json" || return 1
 	jq -n --arg source_id "${source_id}" --arg selector "${selector}" --arg tag "${GTS_TAG_OID}" --arg commit "${GTS_COMMIT_OID}" \
 		--arg tree "${GTS_TREE_OID}" --arg blob "${GTS_MANIFEST_BLOB}" --arg manifest_sha "${GTS_MANIFEST_SHA}" \
+		--arg ownership_path "${GTS_OWNERSHIP_PATH}" --arg ownership_blob "${GTS_OWNERSHIP_BLOB}" --arg ownership_sha "${GTS_OWNERSHIP_SHA}" \
 		--argjson limits "${limits}" --slurpfile closure "${temporary}/closure.json" '{
 		schema:"gentle-starter.git-evidence/v1",source_id:$source_id,selector:$selector,tag_oid:$tag,commit_oid:$commit,
-		tree_oid:$tree,manifest_blob_oid:$blob,manifest_sha256:$manifest_sha,evidence_limits:$limits,closure:$closure[0]
+		tree_oid:$tree,manifest_blob_oid:$blob,manifest_sha256:$manifest_sha,
+		ownership:{path:$ownership_path,blob_oid:$ownership_blob,sha256:$ownership_sha},evidence_limits:$limits,closure:$closure[0]
 	}' >"${evidence}/index.json"
 	rm "${temporary}/closure.json"
 	index_sha="$(jq -cS . "${evidence}/index.json" | sha256sum | cut -d' ' -f1)"
 	source_identity="$(git_tag_sha256_id source "${source_id}")"
 	release_identity="$(git_tag_sha256_id release "${GTS_TAG_OID}")"
 	content_identity="$(git_tag_sha256_id content "${GTS_TREE_OID}")"
+	content_identity="$(jq -r '.identities.derived_tree' "${manifest}")"
 	jq -n --arg source "${source_identity}" --arg release "${release_identity}" --arg content "${content_identity}" \
 		--arg version "${selector#starter/v}" --argjson predecessor "$(jq '.release.predecessor_id' "${manifest}")" \
-		--arg manifest_sha "${GTS_MANIFEST_SHA}" --argjson entries "$(jq '.payload.entries' "${manifest}")" \
+		--arg manifest_sha "${GTS_MANIFEST_SHA}" --arg ownership_path "${GTS_OWNERSHIP_PATH}" --arg ownership_sha "${GTS_OWNERSHIP_SHA}" \
+		--arg manifest_schema "$(jq -r '.schema' "${manifest}")" --arg ownership_schema "$(jq -r '.ownership.schema' "${manifest}")" \
+		--argjson entries "$(jq '.payload.entries' "${manifest}")" \
 		--arg evidence_ref "${output_dir}/evidence" --arg evidence_sha "${index_sha}" '{
-		schema:"gentle-starter.release-payload/v1",source:{adapter_id:"GitTagSource/v1",source_id:$source},
+		schema:"gentle-starter.release-payload/v2",source:{adapter_id:"GitTagSource/v1",source_id:$source},
 		release:{id:$release,version:$version,predecessor_id:$predecessor},immutable_identities:[{role:"release",id:$release},{role:"content",id:$content}],
-		manifest:{schema:"starter-manifest/v1",path:"manifest.json",sha256:$manifest_sha},payload:{root:"payloads",entries:$entries},
+		manifest:{schema:$manifest_schema,path:"manifest.json",sha256:$manifest_sha},
+		ownership:{schema:$ownership_schema,path:$ownership_path,sha256:$ownership_sha},payload:{root:"payloads",entries:$entries},
 		evidence:{adapter_id:"GitTagSource/v1",ref:$evidence_ref,sha256:$evidence_sha}
 	}' >"${temporary}/envelope.json"
 	envelope_sha="$(jq -cS 'del(.integrity)' "${temporary}/envelope.json" | sha256sum | cut -d' ' -f1)"
@@ -436,11 +449,19 @@ git_tag_evidence_revalidate() (
 	done
 	temporary="$(mktemp)"
 	trap 'rm -f "${temporary}"' EXIT
+	GTS_RELEASE_REF="refs/gentle-starter/releases/$(jq -r '.selector' "${index}" | sed 's|^starter/v||')"
 	git_tag_verify_release "${repository}" "$(jq -r '.selector' "${index}")" "$(jq -r '.source_id' "${index}")" \
 		"${temporary}" || return 1
+	unset GTS_RELEASE_REF
 	if [ "${GTS_TAG_OID}" != "$(jq -r '.tag_oid' "${index}")" ] || [ "${GTS_COMMIT_OID}" != "$(jq -r '.commit_oid' "${index}")" ] ||
 		[ "${GTS_TREE_OID}" != "$(jq -r '.tree_oid' "${index}")" ] || [ "${GTS_MANIFEST_BLOB}" != "$(jq -r '.manifest_blob_oid' "${index}")" ]; then
 		git_tag_source_error "retained identity binding mismatch"
+		return 1
+	fi
+	if [ "${GTS_OWNERSHIP_PATH}" != "$(jq -r '.ownership.path' "${index}")" ] ||
+		[ "${GTS_OWNERSHIP_BLOB}" != "$(jq -r '.ownership.blob_oid' "${index}")" ] ||
+		[ "${GTS_OWNERSHIP_SHA}" != "$(jq -r '.ownership.sha256' "${index}")" ]; then
+		git_tag_source_error "retained ownership binding mismatch"
 		return 1
 	fi
 	release_payload_validate "${envelope}" "${materialized}" || return 1

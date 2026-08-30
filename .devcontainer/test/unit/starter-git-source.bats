@@ -4,7 +4,7 @@ setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	CONTRACT="${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/source-port.sh"
 	ADAPTER="${REPO_ROOT}/.taskfiles/scripts/starter-lib/adapters/git-tag-source.sh"
-	PLANNER="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/planner.sh"
+	PLANNER="${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/planner-v2.sh"
 	TEST_ROOT="$(mktemp -d)"
 }
 
@@ -16,7 +16,7 @@ create_remote() {
 	local version="$1" mode="${2:-valid}" tag_type="${3:-annotated}" layout="${4:-payload-only}"
 	local work="${TEST_ROOT}/work-${version}" remote="${TEST_ROOT}/remote-${version}.git"
 	local distribution="${work}/.starter/distribution" manifest_path=.starter/distribution/manifest.json
-	local payload_sha payload_bytes migration_sha commit_oid tree_oid manifest_blob manifest_sha message
+	local payload_sha payload_bytes migration_sha ownership_sha commit_oid tree_oid manifest_blob manifest_sha message
 	mkdir -p "${distribution}/payloads/bin"
 	git init -q "${work}"
 	git -C "${work}" config user.name "Starter Test"
@@ -25,15 +25,26 @@ create_remote() {
 	chmod 0755 "${distribution}/payloads/bin/README.sh"
 	payload_sha="$(sha256sum "${distribution}/payloads/bin/README.sh" | cut -d' ' -f1)"
 	payload_bytes="$(wc -c <"${distribution}/payloads/bin/README.sh")"
-	jq -n --arg version "${version}" --arg sha "${payload_sha}" --argjson bytes "${payload_bytes}" '{
-		schema:"starter-manifest/v1", source:{id:"gentle-starter",release:("starter/v"+$version)},
-		release:{version:$version,predecessor_id:null}, payload:{root:"payloads",entries:[{path:"bin/README.sh",sha256:$sha,bytes:$bytes}]}
+	jq -n '{schema:"gentle-starter.ownership-inventory/v2",default_ownership:"project-owned",
+		managed:[{match:"exact",path:"bin/README.sh"}],fusion:[
+		{match:"exact",path:".devcontainer/devcontainer.json",contract:"F-manual/v1"},
+		{match:"exact",path:".devcontainer/docker-compose.yml",contract:"F-manual/v1"}]}' >"${distribution}/ownership.json"
+	ownership_sha="$(sha256sum "${distribution}/ownership.json" | cut -d' ' -f1)"
+	jq -n --arg version "${version}" --arg sha "${payload_sha}" --argjson bytes "${payload_bytes}" --arg ownership_sha "${ownership_sha}" '{
+		schema:"starter-manifest/v2", source:{id:"gentle-starter",release:("starter/v"+$version)},
+		release:{version:$version,predecessor_version:"0.0.0",predecessor_id:null},
+		identities:{official_tree:("sha256:"+("a"*64)),derived_tree:("sha256:"+("b"*64))},
+		transformation:{schema:"gentle-starter.derived-tree-transformation/v1"},
+		ownership:{schema:"gentle-starter.ownership-inventory/v2",path:"ownership.json",sha256:$ownership_sha},
+		payload:{root:"payloads",closure:"exact",entries:[{path:"bin/README.sh",sha256:$sha,bytes:$bytes,mode:"755",presence:"present"}]},
+		migrations:{root:"migrations",entries:[]}
 	}' >"${distribution}/manifest.json"
 	if [ "${layout}" = lifecycle ]; then
 		mkdir -p "${distribution}/migrations"
-		jq -n --arg from "${version%.*}.$((${version##*.} - 1))" --arg to "${version}" '{
-			schema:"starter-migration/v1",id:"lifecycle",from_version:$from,to_version:$to,operations:[
-				{type:"copy",ownership:"managed",source:"bin/README.sh",target:"bin/README.sh",expected_before_sha256:null}
+		jq -n --arg from "${version%.*}.$((${version##*.} - 1))" --arg to "${version}" --arg sha "${payload_sha}" '{
+			schema:"starter-migration/v2",id:"lifecycle",from_version:$from,to_version:$to,operations:[
+				{type:"copy",ownership:"managed",source:"bin/README.sh",target:"bin/README.sh",
+				expected_before:{presence:"any",sha256:null,mode:null},after:{presence:"present",sha256:$sha,mode:"755"}}
 			]
 		}' >"${distribution}/migrations/010-lifecycle.json"
 		migration_sha="$(sha256sum "${distribution}/migrations/010-lifecycle.json" | cut -d' ' -f1)"
@@ -158,13 +169,15 @@ EOF
 	run acquire
 
 	[ "$status" -eq 0 ]
-	[ "$(jq -r '.schema' "${candidate}/envelope.json")" = "gentle-starter.release-payload/v1" ]
+	[ "$(jq -r '.schema' "${candidate}/envelope.json")" = "gentle-starter.release-payload/v2" ]
 	[ "$(jq 'has("verification")' "${candidate}/envelope.json")" = false ]
 	[ "$(jq -r '.release.version' "${candidate}/envelope.json")" = "1.2.3" ]
 	[ "$(jq -r '.source.adapter_id' "${candidate}/envelope.json")" = "GitTagSource/v1" ]
 	[ "$(jq 'has("git") or ([paths(scalars) as $p | $p[-1] | strings | test("tag_oid|commit_oid|tree_oid|blob_oid")] | any)' "${candidate}/envelope.json")" = false ]
 	[ "$(jq '([paths(scalars) as $p | $p[-1] | strings | test("max_reachable_objects|max_object_bytes|max_pack_bytes|max_retained_bytes")] | any)' "${candidate}/envelope.json")" = false ]
 	[ "$(jq '.closure | length' "${candidate}/evidence/index.json")" -ge 4 ]
+	git --git-dir="${candidate}/evidence/repository.git" show-ref --verify --quiet refs/gentle-starter/releases/1.2.3
+	! git --git-dir="${candidate}/evidence/repository.git" show-ref --verify --quiet refs/tags/starter/v1.2.3
 	[ ! -e "${TEST_ROOT}/executed" ]
 	[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" = "${before_head}" ]
 	[ "$(git -C "${REPO_ROOT}" status --porcelain=v1)" = "${before_status}" ]
@@ -334,8 +347,11 @@ EOF
 
 	[ "$status" -eq 0 ]
 	[ -f "${candidate}/materialized/migrations/010-lifecycle.json" ]
-	run /usr/bin/bash -c "source '${PLANNER}'; starter_plan_build \"\$1\" 5.0.0" _ "${output}"
-	[ "$status" -eq 0 ]
+	run /usr/bin/bash -c "source '${PLANNER}'; starter_plan_v2_build \"\$1\" 5.0.0" _ "${output}"
+	[ "$status" -eq 0 ] || {
+		printf '%s\n' "${output}" >&3
+		false
+	}
 	[ "$(jq -r '.operations[0].source' <<<"${output}")" = "bin/README.sh" ]
 	[ ! -e "${STARTER_EXECUTION_SENTINEL}" ]
 }

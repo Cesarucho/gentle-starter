@@ -4,6 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=.taskfiles/scripts/starter-lib/adapters/git-tag-source.sh
 source "${SCRIPT_DIR}/starter-lib/adapters/git-tag-source.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/ownership.sh
+source "${SCRIPT_DIR}/starter-lib/contracts/ownership.sh"
+# shellcheck source=.taskfiles/scripts/starter-prepare-release.sh
+source "${SCRIPT_DIR}/starter-prepare-release.sh"
 
 release_error() {
 	printf 'starter release: %s\n' "$*" >&2
@@ -37,48 +41,13 @@ require_clean_repository() {
 }
 
 validate_distribution() {
-	local version="$1" manifest="$2" root count index path expected bytes
+	local version="$1" manifest="$2" root predecessor
 	root="$(dirname "${manifest}")"
-	jq -e --arg version "${version}" '
-		def relative: type == "string" and length > 0 and (startswith("/") | not) and
-			(split("/") | all(. != "" and . != "." and . != ".."));
-		def sha: type == "string" and test("^[0-9a-f]{64}$");
-		type == "object" and ((keys | sort) == ["payload","release","schema","source"] or
-			(keys | sort) == ["migrations","payload","release","schema","source"]) and
-		.schema == "starter-manifest/v1" and .source == {id:"gentle-starter",release:("starter/v"+$version)} and
-		.release.version == $version and
-		(.payload.root == "payloads") and (.payload.entries | type == "array" and length > 0 and
-			all((keys | sort) == ["bytes","path","sha256"] and (.path | relative) and (.sha256 | sha) and
-			(.bytes | type == "number" and . >= 0 and floor == .))) and
-		(if has("migrations") then .migrations.root == "migrations" and
-			(.migrations.entries | type == "array" and length > 0 and all((keys | sort) == ["id","path","sha256"] and
-			(.id | type == "string" and length > 0) and (.path | relative) and (.sha256 | sha))) else true end)
-	' "${manifest}" >/dev/null || {
-		release_error "distribution manifest is malformed or does not match version ${version}"
+	predecessor="$(jq -r '.release.predecessor_version // empty' "${manifest}" 2>/dev/null)"
+	if [ -z "${predecessor}" ] || ! starter_prepare_validate "${root}" "${version}" "${predecessor}"; then
+		release_error "prepared v2 release is invalid"
 		return 1
-	}
-	count="$(jq '.payload.entries | length' "${manifest}")"
-	for ((index = 0; index < count; index++)); do
-		path="$(jq -r ".payload.entries[${index}].path" "${manifest}")"
-		expected="$(jq -r ".payload.entries[${index}].sha256" "${manifest}")"
-		bytes="$(jq -r ".payload.entries[${index}].bytes" "${manifest}")"
-		if [ ! -f "${root}/payloads/${path}" ] || [ -L "${root}/payloads/${path}" ] ||
-			[ "$(sha256sum "${root}/payloads/${path}" | cut -d' ' -f1)" != "${expected}" ] ||
-			[ "$(wc -c <"${root}/payloads/${path}")" -ne "${bytes}" ]; then
-			release_error "distribution payload binding mismatch: ${path}"
-			return 1
-		fi
-	done
-	count="$(jq 'if has("migrations") then .migrations.entries | length else 0 end' "${manifest}")"
-	for ((index = 0; index < count; index++)); do
-		path="$(jq -r ".migrations.entries[${index}].path" "${manifest}")"
-		expected="$(jq -r ".migrations.entries[${index}].sha256" "${manifest}")"
-		if [ ! -f "${root}/migrations/${path}" ] || [ -L "${root}/migrations/${path}" ] ||
-			[ "$(sha256sum "${root}/migrations/${path}" | cut -d' ' -f1)" != "${expected}" ]; then
-			release_error "distribution migration binding mismatch: ${path}"
-			return 1
-		fi
-	done
+	fi
 }
 
 remote_has_tag() {
@@ -99,13 +68,14 @@ rollback_created_tag() {
 }
 
 main() {
-	local version="${1:-}" manifest=.starter/distribution/manifest.json commit tree blob manifest_sha metadata
+	local version="${1:-}" manifest commit tree blob manifest_sha metadata
 	local temporary request result
 	if [ "$#" -ne 1 ] || [[ ! "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
 		release_error "usage: task starter:release -- <X.Y.Z>"
 		return 1
 	fi
 	TAG="starter/v${version}"
+	manifest=".starter/distribution/prepared/${version}/manifest.json"
 	require_clean_repository
 	git show-ref --verify --quiet "refs/tags/${TAG}" && {
 		release_error "local tag already exists: ${TAG}"
@@ -120,7 +90,7 @@ main() {
 		return 1
 	fi
 	validate_distribution "${version}" "${manifest}"
-	if ! git diff --quiet HEAD -- .starter/distribution || ! git diff --cached --quiet HEAD -- .starter/distribution; then
+	if ! git diff --quiet HEAD -- "$(dirname "${manifest}")" || ! git diff --cached --quiet HEAD -- "$(dirname "${manifest}")"; then
 		release_error "distribution assets must match committed HEAD"
 		return 1
 	fi

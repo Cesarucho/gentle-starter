@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gentle-ai.dev/schemas/starter-lifecycle-v2.json",
+  "title": "Gentle Starter lifecycle v2 contract families",
+  "description": "Normative schema identifiers for explicit v2 dispatch.",
+  "type": "string",
+  "enum": [
+    "gentle-starter.ownership-inventory/v2",
+    "starter-manifest/v2",
+    "gentle-starter.release-payload/v2",
+    "starter-migration/v2",
+    "gentle-starter.plan/v2",
+    "gentle-starter.state/v2",
+    "gentle-starter.journal/v2",
+    "gentle-starter.derived-tree-transformation/v1",
+    "F-manual/v1"
+  ]
+}

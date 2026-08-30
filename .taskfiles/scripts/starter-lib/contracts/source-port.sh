@@ -2,7 +2,6 @@
 # Transport-neutral source and release-payload contracts.
 
 STARTER_CONTRACT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STARTER_RELEASE_PAYLOAD_SCHEMA="${STARTER_CONTRACT_DIR}/release-payload-v1.schema.json"
 # shellcheck source=.taskfiles/scripts/starter-lib/contracts/path-safety.sh
 source "${STARTER_CONTRACT_DIR}/path-safety.sh"
 # shellcheck source=.taskfiles/scripts/starter-lib/contracts/evidence-limits.sh
@@ -73,7 +72,7 @@ evidence_revalidate() {
 release_payload_validate() {
 	local envelope_file="$1"
 	local payload_root="$2"
-	local expected_integrity actual_integrity manifest_path manifest_sha
+	local expected_integrity actual_integrity manifest_path manifest_sha ownership_path ownership_sha
 	local payload_dir entry_count index entry_path entry_sha entry_bytes
 
 	[ -f "${envelope_file}" ] || {
@@ -84,8 +83,7 @@ release_payload_validate() {
 		starter_contract_error "release payload root is not a directory"
 		return 1
 	}
-	jq -e --arg schema "$(jq -r '.properties.schema.const' "${STARTER_RELEASE_PAYLOAD_SCHEMA}")" \
-		'.schema == $schema' "${envelope_file}" >/dev/null || {
+	jq -e '.schema == "gentle-starter.release-payload/v2"' "${envelope_file}" >/dev/null || {
 		starter_contract_error "unsupported release payload schema"
 		return 1
 	}
@@ -99,7 +97,7 @@ release_payload_validate() {
 			(startswith("/") | not) and
 			(split("/") | all(. != "" and . != "." and . != ".."));
 		type == "object" and
-		exact_keys(["schema", "source", "release", "immutable_identities", "manifest", "payload", "evidence", "integrity"]) and
+		exact_keys(["schema", "source", "release", "immutable_identities", "manifest", "ownership", "payload", "evidence", "integrity"]) and
 		(.source | type == "object" and exact_keys(["adapter_id", "source_id"]) and (.adapter_id | adapter_id) and (.source_id | sha256_id)) and
 		(.release | type == "object" and exact_keys(["id", "version", "predecessor_id"]) and (.id | sha256_id) and
 			(.version | type == "string" and test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")) and
@@ -108,10 +106,12 @@ release_payload_validate() {
 			all(type == "object" and exact_keys(["role", "id"]) and (.role == "release" or .role == "content") and (.id | sha256_id)) and
 			(map(.role) | sort) == ["content", "release"]) and
 		(.manifest | type == "object" and exact_keys(["schema", "path", "sha256"]) and
-			.schema == "starter-manifest/v1" and (.path | relative_path) and (.sha256 | sha256)) and
+			.schema == "starter-manifest/v2" and (.path | relative_path) and (.sha256 | sha256)) and
+		(.ownership | type == "object" and exact_keys(["schema", "path", "sha256"]) and
+			.schema == "gentle-starter.ownership-inventory/v2" and (.path | relative_path) and (.sha256 | sha256)) and
 		(.payload | type == "object" and exact_keys(["root", "entries"]) and (.root | relative_path) and
 			(.entries | type == "array" and length > 0 and
-				all(type == "object" and exact_keys(["path", "sha256", "bytes"]) and
+				all(type == "object" and (keys | sort) == ["bytes","mode","path","presence","sha256"] and
 					(.path | relative_path) and (.sha256 | sha256) and (.bytes | type == "number" and . >= 0 and floor == .)) and
 				(map(.path) as $paths | ($paths | length) == ($paths | unique | length)))) and
 		(.evidence | type == "object" and exact_keys(["adapter_id", "ref", "sha256"]) and
@@ -139,6 +139,15 @@ release_payload_validate() {
 		starter_contract_error "release manifest digest mismatch"
 		return 1
 	}
+	ownership_path="$(starter_path_existing_file_beneath "${payload_root}" "$(jq -r '.ownership.path' "${envelope_file}")")" || {
+		starter_contract_error "release ownership inventory is missing"
+		return 1
+	}
+	ownership_sha="$(jq -r '.ownership.sha256' "${envelope_file}")"
+	[ "$(sha256sum "${ownership_path}" | cut -d' ' -f1)" = "${ownership_sha}" ] || {
+		starter_contract_error "release ownership inventory digest mismatch"
+		return 1
+	}
 
 	payload_dir="$(starter_path_existing_directory_beneath "${payload_root}" "$(jq -r '.payload.root' "${envelope_file}")")" || {
 		starter_contract_error "release payload directory is unsafe"
@@ -158,6 +167,10 @@ release_payload_validate() {
 		}
 		[ "$(wc -c <"${entry_path}")" -eq "${entry_bytes}" ] || {
 			starter_contract_error "release payload entry size mismatch"
+			return 1
+		}
+		[ "$(stat -c '%a' "${entry_path}")" = "$(jq -r ".payload.entries[${index}].mode" "${envelope_file}")" ] || {
+			starter_contract_error "release payload entry mode mismatch"
 			return 1
 		}
 	done

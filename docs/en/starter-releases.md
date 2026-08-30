@@ -18,10 +18,51 @@ the release command pushes automatically.
 
 ## Prepare the committed distribution
 
-The canonical release manifest is
-`.starter/distribution/manifest.json`. Set its release version and selector to
-the intended `X.Y.Z` and `starter/vX.Y.Z`, then ensure its payload and migration
-entries bind the committed files under `.starter/distribution/`.
+Build and inspect the deterministic consumer tree first:
+
+```bash
+task starter:prepare-release -- X.Y.Z
+```
+
+Preparation writes reviewable artifacts only. It removes bootstrap, clean, and
+publisher surfaces; rejects generated operational paths; and records the
+`derived-tree-transformation/v1` output identity. It never commits, tags, or
+pushes. Preparation validates every local prepared release, ignores its own
+dot-prefixed staging directories, and selects the highest valid release below
+`X.Y.Z`. If none exists, it selects `0.0.0` only as the bootstrap edge for the
+first prepared v2 release. The selected predecessor is printed before building.
+Malformed, ambiguous, colliding, descending, or broken local chains fail closed;
+inference never reads a remote or uses the network.
+
+For an intentional hotfix or branch edge, override inference explicitly:
+
+```bash
+task starter:prepare-release -- X.Y.Z --predecessor A.B.C
+```
+
+Preparation carries the selected predecessor's migration graph and adds the new
+edge, so consumers can prove one ordered v2 chain from their installed version
+to the target.
+
+Before carrying that graph, preparation re-admits the complete prepared
+predecessor: strict manifest and identity bindings, ownership digest, exact
+payload and migration closures, file hashes, sizes, modes, presence, migration
+IDs, and unambiguous ascending topology must all validate. Missing, extra, or
+tampered predecessor artifacts fail closed; preparation never replaces a stale
+binding by hashing the untrusted bytes into the successor.
+
+Preparation builds and validates the complete artifact set in an
+operation-owned sibling staging directory beneath
+`.starter/distribution/prepared/`, then atomically renames it to `X.Y.Z`.
+Failures remove only that staging directory and leave no partial release, so a
+retry is safe. A pre-existing final path is ambiguous and is never replaced or
+cleaned automatically.
+
+The prepared manifest and all bound assets are written below
+`.starter/distribution/prepared/X.Y.Z/`. The manifest binds the exact ownership
+inventory, payload closure, migration graph, official source identity, and
+derived consumer-tree identity. Unlisted paths remain `project-owned`; the two
+declared `fusion` paths use the supported `F-manual/v1` contract.
 
 Commit the complete distribution before creating the release. The command
 rejects uncommitted or untracked changes and any distribution asset that does
@@ -35,8 +76,10 @@ task starter:release -- X.Y.Z
 
 The command:
 
-1. validates the repository, clean-worktree, version, manifest, payload, and
-   migration preconditions;
+1. invokes the same authoritative prepared-release validator used during
+   preparation, proving exact artifacts, identities, ownership and payload
+   closure, migration hashes and descriptor semantics, safe owned operation
+   paths, and one ascending predecessor-to-target topology;
 2. rejects an existing exact local or publication-remote tag;
 3. creates the annotated tag `starter/vX.Y.Z` at `HEAD` with canonical commit,
    tree, and manifest bindings; and
