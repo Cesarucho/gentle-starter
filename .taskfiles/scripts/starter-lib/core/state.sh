@@ -40,9 +40,11 @@ starter_state_validate_plan() {
 		def relative: type == "string" and length > 0 and (startswith("/") | not) and
 			(split("/") | all(. != "" and . != "." and . != ".."));
 		type == "object" and
-		exact_keys(["schema","target_release","migration_ids","operations","ownership_summary"]) and
-		.schema == "gentle-starter.plan/v1" and .target_release == $target_release and
+		.schema == "gentle-starter.plan/v2" and
+		exact_keys(["schema","target_release","migration_ids","operations","ownership_summary","fusion"]) and
+		.target_release == $target_release and
 		(.migration_ids | type == "array" and all(type == "string" and length > 0)) and
+		.fusion.contract == "F-manual/v1" and (.fusion.pending | type == "array") and
 		(.operations | type == "array" and all(
 			type == "object" and
 			exact_keys(["migration_id","type","ownership","source","target","content_sha256","expected_before_sha256"]) and
@@ -116,15 +118,43 @@ starter_state_managed_fingerprints() {
 	printf '%s\n' "${fingerprints}"
 }
 
+starter_state_v2_managed_fingerprints() {
+	local project_root="$1" context="$2" inventory manifest fingerprints='[]' path expected actual
+	inventory="$(jq -r '.ownership_file' <<<"${context}")"
+	manifest="$(jq -r '.manifest_file' <<<"${context}")"
+	while IFS= read -r path; do
+		expected="$(jq -r --arg path "${path}" '.payload.entries[] | select(.path == $path) | .sha256' "${manifest}")"
+		[ -n "${expected}" ] || {
+			starter_state_error "managed path is absent from exact payload: ${path}"
+			return 1
+		}
+		[ -f "${project_root}/${path}" ] && [ ! -L "${project_root}/${path}" ] || return 1
+		actual="$(sha256sum "${project_root}/${path}" | cut -d' ' -f1)"
+		[ "${actual}" = "${expected}" ] || {
+			starter_state_error "managed fingerprint mismatch: ${path}"
+			return 1
+		}
+		fingerprints="$(jq -cn --argjson fingerprints "${fingerprints}" --arg path "${path}" --arg sha "${actual}" \
+			'$fingerprints + [{path:$path,ownership:"managed",sha256:$sha}]')"
+	done < <(jq -r '.managed[].path' "${inventory}")
+	printf '%s\n' "${fingerprints}"
+}
+
 starter_state_build() {
 	local project_root="$1" source_result="$2" plan="$3"
-	local context envelope_file target_release migrations fingerprints state state_sha
+	local context envelope_file target_release migrations fingerprints state state_sha fusion='[]' path
 	context="$(starter_manifest_load "${source_result}")" || return 1
 	envelope_file="$(jq -r '.envelope_file' <<<"${context}")"
 	target_release="$(jq -c '.target_release' <<<"${context}")"
 	starter_state_validate_plan "${plan}" "${target_release}" || return 1
 	migrations="$(starter_state_migration_bindings "${context}" "${plan}")" || return 1
-	fingerprints="$(starter_state_managed_fingerprints "${project_root}" "${plan}")" || return 1
+	fingerprints="$(starter_state_v2_managed_fingerprints "${project_root}" "${context}")" || return 1
+	for path in .devcontainer/devcontainer.json .devcontainer/docker-compose.yml; do
+		[ -f "${project_root}/${path}" ] && [ ! -L "${project_root}/${path}" ] || return 1
+		fusion="$(jq -cn --argjson accepted "${fusion}" --arg path "${path}" \
+			--arg sha "$(sha256sum "${project_root}/${path}" | cut -d' ' -f1)" --arg mode "$(stat -c '%a' "${project_root}/${path}")" \
+			'$accepted + [{path:$path,presence:"present",sha256:$sha,mode:$mode}]')"
+	done
 	state="$(jq -cn \
 		--argjson source "$(jq '.source' "${envelope_file}")" \
 		--argjson release "$(jq '.release' "${envelope_file}")" \
@@ -135,9 +165,10 @@ starter_state_build() {
 		--arg manifest_sha "$(jq -r '.manifest.sha256' "${envelope_file}")" \
 		--argjson migrations "${migrations}" \
 		--argjson fingerprints "${fingerprints}" \
+		--argjson fusion "${fusion}" \
 		--argjson evidence "$(jq '.evidence' "${envelope_file}")" '
 		{
-			schema:"gentle-starter.state/v1",
+			schema:"gentle-starter.state/v2",
 			source:$source,
 			release:$release,
 			immutable_identities:$immutable_identities,
@@ -145,6 +176,7 @@ starter_state_build() {
 			manifest:{schema:$manifest_schema,sha256:$manifest_sha},
 			migrations:$migrations,
 			managed_fingerprints:$fingerprints,
+			fusion:{contract:"F-manual/v1",accepted:$fusion},
 			evidence:$evidence
 		}')" || return 1
 	state_sha="$(jq -cS . <<<"${state}" | sha256sum | cut -d' ' -f1)"

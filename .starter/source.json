@@ -1,0 +1,7 @@
+{
+  "schema": "gentle-starter.source/v1",
+  "remote": "gentle-starter",
+  "url": "https://github.com/Cesarucho/gentle-starter.git",
+  "branch_refspec": "+refs/heads/*:refs/remotes/gentle-starter/*",
+  "release_ref_namespace": "refs/gentle-starter/releases"
+}

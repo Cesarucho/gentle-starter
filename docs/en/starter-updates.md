@@ -119,8 +119,19 @@ implementation remains Git only; no future adapter is implied to be available.
 
 ## Ownership classes
 
+The canonical lifecycle-v2 inventory is
+`.starter/distribution/ownership.json`. The shared prepared-release validator
+enforces its exact schema and supported ownership declarations. The release manifest,
+admitted payload, and retained Git evidence bind the inventory path and digest
+(and Git evidence also records its blob identity). Offline revalidation
+therefore uses the exact policy admitted with the release, never mutable live
+workspace policy.
+
 Every declarative `copy`, `delete`, or `fusion` operation has an ownership
-class and an expected pre-change fingerprint.
+class and an expected pre-change fingerprint. **Every unlisted path is
+`project-owned`.** V2 inventories admit exact entries only; future descendants
+remain project-owned until a release enumerates them. Duplicates, overlaps, and
+ancestor ambiguity are invalid.
 
 | Class | Meaning | Update behavior |
 |---|---|---|
@@ -128,10 +139,47 @@ class and an expected pre-change fingerprint.
 | `fusion` | The path has an explicitly declared starter-managed composition contract. | May change only through the declared fusion operation and exact fingerprint checks. It is not automatic conflict resolution. |
 | `project-owned` | The derived project owns the path. | Planning rejects any attempted starter write or deletion. The user resolves changes manually. |
 
-Unknown ownership classes, duplicate or colliding targets, incomplete migration
-chains, absolute paths, traversal, and symlink escapes all fail before writes.
-The updater never treats a convenient destination as permission to overwrite
-it.
+Unknown ownership classes, duplicate or colliding targets, incomplete or
+ambiguous migration chains, duplicate edges, cycles, downgrades, target
+mismatches, absolute paths, traversal, and symlink escapes all fail before
+writes. A prepared v2 release carries the ordered predecessor graph needed to
+prove reachability from the installed version. Its final edge carries the
+complete target-snapshot operation set; earlier selected edges establish the
+admissible lineage and are retained in the plan's ordered migration IDs. The
+updater never treats a convenient destination as permission to overwrite it.
+
+The v2 inventory enumerates the baseline and ownership markers, updater
+implementation, approved devcontainer runtime files, derived documentation,
+every approved installer in that release, and isolated updater tests. It uses
+no managed prefixes. `Taskfile.yml`, enabled-install links, hooks, local tool
+configuration, other task infrastructure, agent configuration, project
+identity, application files, and every unlisted path remain project-owned.
+
+The two initial shared-configuration candidates are
+`.devcontainer/devcontainer.json` and `.devcontainer/docker-compose.yml` under
+`F-manual/v1`. They use exact BASE/OURS/THEIRS equality rules and never perform
+an automatic textual or structured merge. Concurrent changes on both sides
+produce an immutable proposal and require explicit acceptance. Resolution is
+all-or-nothing across pending F paths through `--take-starter`,
+`--keep-project`, `--continue`, or `--abort`; these choices never authorize a
+write to project-owned or generated paths, and managed drift remains blocking.
+
+Derived projects use the canonical `gentle-starter` remote from
+`.starter/source.json`. `origin` remains independent. A URL mismatch fails
+closed and is never overwritten. Inspection, parsing, planning, and confirmation
+only validate metadata and read an existing matching remote; an absent remote is
+not created. `project:init` is the authorized creation boundary: it adds the
+canonical remote to the staged Git configuration that is committed by its
+rollback-capable initialization transaction. Release acquisition uses isolated
+refs rather than project tags, pulls, merges, or rebases. Once an update
+candidate is frozen, the updater does not fetch or rediscover it.
+
+Consumer lifecycle contracts are v2-only. Release payloads, manifests,
+migrations, plans, journals, and state markers using v1 or unknown schemas are
+rejected rather than migrated. Development consumers created before lifecycle
+v2 must be recreated with the current `task project:init`. The v2 state marker
+is persisted last, after content and retained evidence; crash recovery uses the
+same compare-and-swap rules as every other transaction-owned path.
 
 ## Recovery and rollback
 
@@ -166,8 +214,8 @@ prefers the single exact annotated `starter/vX.Y.Z` tag whose peeled commit is
 `HEAD`; `--release starter/vX.Y.Z` resolves unavailable or ambiguous identity.
 The exact release is acquired and admitted through `GitTagSource/v1`, then the
 post-cleanup managed and fusion baseline is proven before any history mutation.
-The parentless root includes `.starter/state.json`, the managed baseline, and
-retained evidence.
+The parentless root includes `.starter/state.json`, the managed baseline,
+canonical ownership inventory, updater machinery, and retained evidence.
 
 Automatic discovery is intentionally local and bounded. Missing tags, shallow
 clones without the required tag, malformed candidates, and multiple matching

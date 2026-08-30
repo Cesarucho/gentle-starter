@@ -7,8 +7,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/starter-lib/adapters/git-tag-source.sh"
 source "${SCRIPT_DIR}/starter-lib/adapters/git-repository-status.sh"
-source "${SCRIPT_DIR}/starter-lib/core/planner.sh"
+source "${SCRIPT_DIR}/starter-lib/adapters/canonical-remote.sh"
+source "${SCRIPT_DIR}/starter-lib/core/planner-v2.sh"
 source "${SCRIPT_DIR}/starter-lib/core/rollback.sh"
+source "${SCRIPT_DIR}/starter-lib/core/fusion-transaction.sh"
 
 STARTER_REPOSITORY_STATUS_IMPL="${STARTER_REPOSITORY_STATUS_IMPL:-git_repository_status_inspect}"
 
@@ -40,8 +42,10 @@ starter_parse_args() {
 	shift || true
 	STARTER_PROJECT_ROOT="$(pwd -P)"
 	STARTER_SOURCE_URL="${STARTER_OFFICIAL_SOURCE_URL}"
+	STARTER_SOURCE_EXPLICIT=0
 	STARTER_RELEASE=""
 	STARTER_CONFIRMED=0
+	STARTER_F_ACTION=""
 	case "${STARTER_COMMAND}" in adopt | check | update) ;; *)
 		starter_usage
 		return "${STARTER_USAGE_EXIT}"
@@ -56,13 +60,24 @@ starter_parse_args() {
 			fi
 			case "$1" in
 			--project-root) STARTER_PROJECT_ROOT="$2" ;;
-			--source) STARTER_SOURCE_URL="$2" ;;
+			--source)
+				STARTER_SOURCE_URL="$2"
+				STARTER_SOURCE_EXPLICIT=1
+				;;
 			--release) STARTER_RELEASE="$2" ;;
 			esac
 			shift 2
 			;;
 		--yes)
 			STARTER_CONFIRMED=1
+			shift
+			;;
+		--take-starter | --keep-project | --continue | --abort)
+			[ -z "${STARTER_F_ACTION}" ] || {
+				printf 'starter: F-manual resolution flags are mutually exclusive\n' >&2
+				return "${STARTER_USAGE_EXIT}"
+			}
+			STARTER_F_ACTION="${1#--}"
 			shift
 			;;
 		*)
@@ -75,6 +90,7 @@ starter_parse_args() {
 		starter_usage
 		return "${STARTER_USAGE_EXIT}"
 	fi
+	[ -z "${STARTER_F_ACTION}" ] || [ "${STARTER_COMMAND}" = update ] || return "${STARTER_USAGE_EXIT}"
 	if [ "${STARTER_COMMAND}" = update ] && [ -z "${STARTER_RELEASE}" ] && [ "${STARTER_CONFIRMED}" -eq 1 ]; then
 		printf 'starter: --yes requires an exact --release\n' >&2
 		return "${STARTER_USAGE_EXIT}"
@@ -84,6 +100,9 @@ starter_parse_args() {
 		return "${STARTER_USAGE_EXIT}"
 	}
 	STARTER_PROJECT_ROOT="$(starter_path_root "${STARTER_PROJECT_ROOT}")" || return "${STARTER_USAGE_EXIT}"
+	if [ "${STARTER_SOURCE_EXPLICIT}" -eq 0 ] && [ -f "${STARTER_PROJECT_ROOT}/.starter/source.json" ]; then
+		STARTER_SOURCE_URL="$(starter_canonical_remote_query "${STARTER_PROJECT_ROOT}")" || return 1
+	fi
 }
 
 starter_cache_candidate() {
@@ -182,7 +201,7 @@ starter_state_validate_marker() {
 		return 1
 	}
 	jq -e '
-		type == "object" and .schema == "gentle-starter.state/v1" and
+		type == "object" and .schema == "gentle-starter.state/v2" and
 		(.source.adapter_id | type == "string") and (.release.version | type == "string") and
 		(.managed_fingerprints | type == "array") and (.evidence.ref | type == "string" and length > 0) and
 		(.integrity == {canonicalization:"jq-sorted-utf8-v1",state_sha256:.integrity.state_sha256}) and
@@ -225,6 +244,7 @@ starter_state_drift() {
 	local marker="$1" count index path expected resolved actual drift=''
 	count="$(jq '.managed_fingerprints | length' "${marker}")"
 	for ((index = 0; index < count; index++)); do
+		[ "$(jq -r ".managed_fingerprints[${index}].ownership" "${marker}")" = managed ] || continue
 		path="$(jq -r ".managed_fingerprints[${index}].path" "${marker}")"
 		expected="$(jq -r ".managed_fingerprints[${index}].sha256 // \"null\"" "${marker}")"
 		resolved="$(starter_path_resolve_beneath "${STARTER_PROJECT_ROOT}" "${path}" 2>/dev/null)" || {
@@ -242,7 +262,7 @@ starter_state_drift() {
 
 starter_build_plan() {
 	local source_result="$1" current_version="$2"
-	(cd "${STARTER_PROJECT_ROOT}" && starter_plan_build "${source_result}" "${current_version}")
+	(cd "${STARTER_PROJECT_ROOT}" && starter_plan_v2_build "${source_result}" "${current_version}")
 }
 
 starter_version_is_ahead() {
@@ -300,6 +320,10 @@ starter_recover_pending() {
 	while IFS= read -r journal; do
 		[ -n "${journal}" ] || continue
 		found=1
+		if jq -e '.schema == "gentle-starter.journal/v2" and .fusion.status == "pending"' "${journal}" >/dev/null 2>&1; then
+			printf 'starter: pending F-manual transaction requires --take-starter, --keep-project, --continue, or --abort\n' >&2
+			return 1
+		fi
 		starter_rollback_recover "${STARTER_PROJECT_ROOT}" "${journal}" || return 1
 	done < <(find "${STARTER_PROJECT_ROOT}/.starter/journals" -name journal.json -type f -print)
 	[ "${found}" -eq 0 ] || printf 'starter: recovered pending transaction\n' >&2
@@ -419,6 +443,10 @@ starter_update_signal() {
 starter_update() {
 	local marker="${STARTER_PROJECT_ROOT}/.starter/state.json" current_result candidate retained_result plan state detail
 	local current_version journal transaction_status=0 discovered=0 frozen
+	if [ -n "${STARTER_F_ACTION}" ]; then
+		starter_f_transaction_resume "${STARTER_PROJECT_ROOT}" "${STARTER_F_ACTION}"
+		return
+	fi
 	starter_recover_pending || {
 		starter_blocker recovery.ambiguous 'pending transaction requires manual recovery'
 		return 1
@@ -490,13 +518,37 @@ starter_update() {
 	fi
 	STARTER_UPDATE_PROJECT="${STARTER_PROJECT_ROOT}"
 	trap starter_update_signal INT TERM
-	journal="$(starter_journal_prepare "${STARTER_PROJECT_ROOT}" "${candidate}" "${plan}")" || transaction_status=$?
+	if [ "$(jq '.fusion.pending | length // 0' <<<"${plan}")" -gt 0 ]; then
+		journal="$(starter_journal_prepare "${STARTER_PROJECT_ROOT}" "${candidate}" "${plan}")" || transaction_status=$?
+		if [ "${transaction_status}" -eq 0 ]; then retained_result="$(starter_retain_candidate "${candidate}")" || {
+			starter_blocker evidence.write 'candidate evidence could not be retained for pending F-manual resolution'
+			return 1
+		}; fi
+		if [ "${transaction_status}" -eq 0 ]; then
+			jq --argjson source_result "${retained_result}" '.source_result=$source_result | del(.integrity)' "${journal}" >"${journal}.next" &&
+				mv -f -- "${journal}.next" "${journal}" && starter_f_seal_journal "${journal}" || transaction_status=$?
+		fi
+		if [ "${transaction_status}" -eq 0 ] && starter_f_promote_combined_journal "${journal}"; then
+			trap - INT TERM
+			STARTER_UPDATE_PROJECT=""
+			while IFS= read -r detail; do printf 'starter: F-manual conflict: live=%s proposed=%s\n' \
+				"${STARTER_PROJECT_ROOT}/${detail}" "$(dirname "${journal}")/$(jq -r --arg path "${detail}" '.fusion.pending[] | select(.path == $path) | .proposal' "${journal}")"; done \
+				< <(jq -r '.fusion.pending[].path' "${journal}")
+			starter_blocker fusion.pending 'resolve all F-manual conflicts explicitly'
+			return 1
+		elif [ "${transaction_status}" -eq 0 ]; then
+			transaction_status=1
+		fi
+	else
+		journal="$(starter_journal_prepare "${STARTER_PROJECT_ROOT}" "${candidate}" "${plan}")" || transaction_status=$?
+	fi
 	[ "${transaction_status}" -ne 0 ] || starter_transaction_failpoint after-journal || transaction_status=$?
 	[ "${transaction_status}" -ne 0 ] || starter_transaction_apply "${STARTER_PROJECT_ROOT}" "${journal}" || transaction_status=$?
 	[ "${transaction_status}" -ne 0 ] || starter_transaction_failpoint before-state || transaction_status=$?
 	if [ "${transaction_status}" -eq 0 ]; then
 		retained_result="$(starter_retain_candidate "${candidate}")" || transaction_status=$?
 	fi
+	[ "${transaction_status}" -ne 0 ] || starter_journal_replace_source_result "${journal}" "${retained_result}" || transaction_status=$?
 	if [ "${transaction_status}" -eq 0 ]; then
 		state="$(starter_state_build "${STARTER_PROJECT_ROOT}" "${retained_result}" "${plan}")" || transaction_status=$?
 	fi

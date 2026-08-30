@@ -41,10 +41,16 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/skills.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-contract.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-facade.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-derived.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-fusion.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-git-source.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-lifecycle.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-journey.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-planner-v2.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-prepare-release.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-public-v2-safety.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-ownership.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-transaction-v2-safety.bats
 
   integration:
     desc: Run integration tests for installed tools

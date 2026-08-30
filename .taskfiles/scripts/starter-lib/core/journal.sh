@@ -44,13 +44,14 @@ starter_journal_validate() {
 	esac
 	jq -e --arg root "${physical_root}" '
 		def sha: type == "string" and test("^[0-9a-f]{64}$");
-		type == "object" and .schema == "gentle-starter.journal/v1" and
+		type == "object" and .schema == "gentle-starter.journal/v2" and .fusion.contract == "F-manual/v1" and
+		(.fusion.status == "pending" or .fusion.status == "applying") and (.progress.applied | type == "number") and
 		.project_root == $root and (.source_result | type == "object") and
-		(.plan.schema == "gentle-starter.plan/v1") and
+		.plan.schema == "gentle-starter.plan/v2" and
 		(.state_before_sha256 == null or (.state_before_sha256 | sha)) and
 		(.integrity == {canonicalization:"jq-sorted-utf8-v1",journal_sha256:.integrity.journal_sha256}) and
 		(.integrity.journal_sha256 | sha) and
-		(.operations | type == "array" and length > 0 and all(
+		(.operations | type == "array" and all(
 			(.index | type == "number") and (.type == "copy" or .type == "delete" or .type == "fusion") and
 			(.ownership == "managed" or .ownership == "fusion") and
 			(.target | type == "string" and length > 0) and
@@ -145,9 +146,10 @@ starter_journal_prepare() {
 	temporary="${journal_file}.tmp"
 	jq -n --arg root "${physical_root}" --argjson source_result "${source_result}" --argjson plan "${plan}" \
 		--arg state_before "${state_before}" --argjson operations "${operations}" \
-		'{schema:"gentle-starter.journal/v1",project_root:$root,
+		'{schema:"gentle-starter.journal/v2",project_root:$root,
 			state_before_sha256:(if $state_before == "null" then null else $state_before end),
-			source_result:$source_result,plan:$plan,operations:$operations}' >"${temporary}" || return 1
+			source_result:$source_result,plan:$plan,operations:$operations,
+			fusion:{contract:"F-manual/v1",status:"applying",pending:[]},progress:{applied:0}}' >"${temporary}" || return 1
 	journal_sha="$(jq -cS . "${temporary}" | sha256sum | cut -d' ' -f1)"
 	jq --arg sha "${journal_sha}" '.integrity={canonicalization:"jq-sorted-utf8-v1",journal_sha256:$sha}' \
 		"${temporary}" >"${temporary}.integrity" || return 1
@@ -163,9 +165,21 @@ starter_transaction_failpoint() {
 	[ "${STARTER_TRANSACTION_FAILPOINT:-}" != "$1" ] || return 97
 }
 
+starter_journal_replace_source_result() {
+	local journal_file="$1" source_result="$2" temporary journal_sha
+	temporary="${journal_file}.next"
+	jq --argjson source_result "${source_result}" '.source_result=$source_result | del(.integrity)' \
+		"${journal_file}" >"${temporary}" || return 1
+	journal_sha="$(jq -cS . "${temporary}" | sha256sum | cut -d' ' -f1)"
+	jq --arg sha "${journal_sha}" '.integrity={canonicalization:"jq-sorted-utf8-v1",journal_sha256:$sha}' \
+		"${temporary}" >"${temporary}.sealed" || return 1
+	mv -f -- "${temporary}.sealed" "${journal_file}" && rm -f -- "${temporary}" || return 1
+	starter_journal_sync "${journal_file}" && starter_journal_sync "$(dirname "${journal_file}")"
+}
+
 starter_transaction_apply() {
 	local project_root="$1" journal_file="$2" physical_root transaction_dir count index operation target resolved
-	local expected current after staged parent temporary
+	local expected current after staged parent temporary journal_sha
 	physical_root="$(starter_path_root "${project_root}")" || return 1
 	journal_file="$(starter_journal_validate "${physical_root}" "${journal_file}")" || return 1
 	transaction_dir="$(dirname "${journal_file}")"
@@ -209,6 +223,17 @@ starter_transaction_apply() {
 		fi
 		[ "$(starter_journal_fingerprint "${resolved}")" = "${after}" ] || return 1
 		starter_journal_sync "$(dirname "${resolved}")" || return 1
+		if [ "$(jq -r '.schema' "${journal_file}")" = gentle-starter.journal/v2 ]; then
+			jq --argjson applied "$((index + 1))" '.progress.applied=$applied | del(.integrity)' "${journal_file}" >"${journal_file}.next" || return 1
+			journal_sha="$(jq -cS . "${journal_file}.next" | sha256sum | cut -d' ' -f1)"
+			jq --arg sha "${journal_sha}" '.integrity={canonicalization:"jq-sorted-utf8-v1",journal_sha256:$sha}' \
+				"${journal_file}.next" >"${journal_file}.sealed" || return 1
+			mv -f -- "${journal_file}.sealed" "${journal_file}" && rm -f -- "${journal_file}.next" || return 1
+			starter_journal_sync "${journal_file}" || return 1
+		fi
+		if [ -n "${STARTER_TRANSACTION_AFTER_OPERATION_HOOK:-}" ]; then
+			"${STARTER_TRANSACTION_AFTER_OPERATION_HOOK}" "${index}" "${resolved}" || return $?
+		fi
 		starter_transaction_failpoint "after-operation-$((index + 1))" || return $?
 	done
 }

@@ -85,6 +85,10 @@ one-paragraph version of each.
    ownership operations, retained evidence, and transactional recovery for
    `starter:adopt`, `starter:check`, and `starter:update`. Doc:
    `docs/en/starter-updates.md`.
+   `.starter/distribution/ownership.json` is the canonical release-bound
+   ownership policy: managed paths are enumerated exactly, the two supported
+   fusion paths declare `F-manual/v1`, and every unlisted current or future
+   descendant is `project-owned`.
 
 The comprehensive guide (how these systems interact, a worked example
 adding Redis end-to-end, and the FAQ) is in
@@ -112,9 +116,17 @@ adding Redis end-to-end, and the FAQ) is in
 
 - Release maintainers create a local release with
   `task starter:release -- X.Y.Z`. The command binds the committed
-  `.starter/distribution/manifest.json` into the canonical annotated-tag
+  `.starter/distribution/prepared/X.Y.Z/manifest.json` into the canonical annotated-tag
   metadata, re-admits the tag through `GitTagSource/v1`, and leaves remote
   publication pending; it never pushes automatically.
+- `task starter:prepare-release -- X.Y.Z` validates all local prepared
+  candidates and infers the highest valid lower predecessor. The first v2
+  release alone bootstraps from `0.0.0`; `--predecessor A.B.C` is the explicit
+  hotfix/branch override. Inference is deterministic, local-only, and fails
+  closed on malformed, ambiguous, colliding, descending, or broken chains.
+- Consumer release payload, manifest, migration, plan, journal, and state
+  contracts are lifecycle v2 only. Recreate development consumers through the
+  current `project:init`; do not restore a v1 compatibility bridge.
 - `task starter:check` discovers the highest exact stable annotated release by
   bounded Git ref discovery, then uses normal `GitTagSource/v1` admission and
   lifecycle planning. Explicit `--release` bypasses discovery.
@@ -375,3 +387,6 @@ active or simulated devcontainer.
 - [`docs/en/adr/0001-install-layout-refactor.md`](docs/en/adr/0001-install-layout-refactor.md) — the ADR for the refactor
 - [`docs/en/adr/0002-centralized-tool-version-policy.md`](docs/en/adr/0002-centralized-tool-version-policy.md) — centralized version-policy ADR
 - [`docs/en/`](docs/en/) — English documentation
+- Bind every release manifest and retained evidence record to the exact
+  canonical ownership inventory. Planning must reject unlisted targets and
+  ownership mismatches; it must never infer ownership from Git changes.
