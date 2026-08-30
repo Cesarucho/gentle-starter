@@ -17,9 +17,9 @@ linked from the documentation index. This file is a shortcut.
   AI ecosystem. The devcontainer builds an Ubuntu 24.04 image with
   Pi, Gentle-AI, Engram, Go, Java 25, pnpm, and a curated set of
   CLI tools.
-- **Active branch**: `refactor` (post-refactor of the install-layout
-  work; ready to push when the user gives the go-ahead).
-- **Last commit at session start**: `5f2b083 refactor(core): move devcontainer CLI from core to available/02-enabled`.
+- **Repository reality**: at session start, inspect the current branch, `HEAD`,
+  worktree, and relevant release artifacts. Never rely on branch or commit
+  metadata copied into this file.
 
 ## AI session contract
 
@@ -105,6 +105,32 @@ adding Redis end-to-end, and the FAQ) is in
 - Do not fabricate `skills-lock.json` source metadata for a local skill.
 
 ## Starter update guardrails
+
+### Mandatory producer change-classification gate
+
+Before completing any producer change, classify every added, removed, moved,
+renamed, mode-changed, or materially modified path that can affect the derived
+distribution as `managed` (M), `project-owned` (P), `F-manual/v1` (F),
+`generated` (G), or producer-only `removed`. Classification is exact-path only:
+never infer ownership from a directory, Git diff, rename detection, or a
+migration operation. Unlisted paths remain P.
+
+Completion requires all of the following:
+
+- update the exact ownership inventory when M or F membership changes;
+- update the producer-to-derived transformation for `removed` paths, and keep G
+  paths excluded from ownership, payloads, and the derived tree;
+- encode complete migration operations and before/after fingerprints for every
+  affected M or F path, including content, presence, and mode;
+- update lifecycle/derived-tree tests and user-facing docs when behavior or the
+  distributed surface changes; and
+- review the prepared tree, payload, migration, inventory, and manifest before
+  release preparation is considered complete.
+
+Use the [producer procedure](docs/en/starter-releases.md#classify-producer-changes)
+for the completion checklist and the
+[normative lifecycle semantics](docs/en/starter-updates.md#producer-change-semantics)
+for M/P/F/G/remove behavior and transaction consequences.
 
 - Admit only exact annotated semantic tags named `starter/vX.Y.Z` from the
   initial Git-only source. Immutable tag, commit, tree, manifest, payload, and

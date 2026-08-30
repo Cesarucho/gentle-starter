@@ -18,6 +18,50 @@ the release command pushes automatically.
 
 ## Prepare the committed distribution
 
+### Classify producer changes
+
+Before running preparation, evaluate every path changed since the selected
+predecessor. Include creations, content modifications, deletions, moves or
+renames, and executable or other mode changes. Use the
+[normative producer change semantics](./starter-updates.md#producer-change-semantics)
+for class behavior; this section defines the maintainer procedure.
+
+For each changed path:
+
+1. Classify it as `managed` (M), `project-owned` (P), `F-manual/v1` (F),
+   `generated` (G), or producer-only `removed`.
+2. Treat P as the default. Add every M or F path as an exact entry in
+   `.starter/distribution/ownership.json`; never infer ownership from a parent
+   directory, a Git diff, or an operation in a migration.
+3. For `removed`, update the deterministic producer-to-derived transformation.
+   This class removes producer-only surfaces while building the consumer tree;
+   it is not a consumer `delete` operation.
+4. Keep G paths out of the ownership inventory, release payload, migration
+   targets, and derived tree. Generated runtime state is never distributable.
+5. Use F only when the path and supported composition contract are declared
+   completely. `F-manual/v1` requires exact BASE/OURS/THEIRS fingerprints,
+   payload content, and an explicit fusion operation; it never implies a merge.
+6. Encode every affected M or F target in the migration with its operation,
+   ownership, expected pre-change presence/digest/mode, and resulting
+   presence/digest/mode. Creation, deletion, and mode-only changes are explicit
+   state transitions.
+7. Update derived-tree and lifecycle tests, plus maintainer or consumer docs,
+   whenever the distributed surface or behavior changes.
+
+A Git rename is only diff presentation. It grants no lifecycle rename authority.
+Model a move as the independently classified old and new paths, with an
+authorized deletion and creation only where their classes permit them. A P path
+cannot be deleted or replaced by describing it as a rename.
+
+Before preparation, confirm:
+
+- [ ] every changed path and both sides of every move are classified;
+- [ ] the exact inventory and producer-only removal transformation are current;
+- [ ] G paths are absent from all distributable artifacts;
+- [ ] all M/F operations and fingerprints cover content, presence, and mode;
+- [ ] F declarations, payloads, and operations are complete and consistent;
+- [ ] affected tests and documentation describe the resulting consumer tree.
+
 Build and inspect the deterministic consumer tree first:
 
 ```bash
@@ -63,6 +107,12 @@ The prepared manifest and all bound assets are written below
 inventory, payload closure, migration graph, official source identity, and
 derived consumer-tree identity. Unlisted paths remain `project-owned`; the two
 declared `fusion` paths use the supported `F-manual/v1` contract.
+
+Review the generated tree, exact ownership inventory, payload closure, final
+migration edge, carried migration graph, and manifest together. Confirm that
+every classified path has the intended consumer result and that no P, G, or
+producer-only removed path became an update target. Preparation validation is a
+fail-closed guard, not a substitute for this path-by-path review.
 
 Commit the complete distribution before creating the release. The command
 rejects uncommitted or untracked changes and any distribution asset that does

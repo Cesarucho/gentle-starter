@@ -139,6 +139,34 @@ ancestor ambiguity are invalid.
 | `fusion` | The path has an explicitly declared starter-managed composition contract. | May change only through the declared fusion operation and exact fingerprint checks. It is not automatic conflict resolution. |
 | `project-owned` | The derived project owns the path. | Planning rejects any attempted starter write or deletion. The user resolves changes manually. |
 
+### Producer change semantics
+
+The following classes are the normative interpretation of producer changes.
+Only M and F are ownership entries; P is the exact-inventory default, while G
+and `removed` describe exclusion and producer-to-derived transformation.
+
+| Producer classification | Create or modify | Delete | Move or rename | Mode-only change |
+|---|---|---|---|---|
+| M (`managed`) | Requires an exact inventory entry, payload bytes, and a `copy` operation with exact before/after state. | Requires an exact inventory entry and `delete` operation with an exact precondition. | Classify both paths; authorize deletion of the old target and creation of the new target independently. | Requires a `copy` operation whose fingerprints record the old and new modes. |
+| P (`project-owned`) | Remains outside starter payload and operations; the project decides whether to adopt the producer change. | Starter deletion is forbidden. | Neither side gains authority from Git rename detection; starter operations remain forbidden. | Starter mode changes are forbidden. |
+| F (`F-manual/v1`) | Requires an exact F declaration, payload, BASE/OURS/THEIRS fingerprints, and a complete `fusion` operation. | Unsupported unless a future declared composition contract defines deletion semantics. | No implicit rename authority; each side needs independently valid lifecycle semantics. | Must be represented completely by the supported F contract and exact fingerprints; otherwise it is unsupported. |
+| G (`generated`) | Must not appear in ownership, payloads, migrations, or the derived release tree. Runtime lifecycle code may create it only in its defined transaction role. | Not distributed; recovery owns only transaction-proven generated state. | Never converts into a distributable path. | Not a release operation. |
+| `removed` (producer-only) | Not applicable in the derived tree. | The deterministic derived-tree transformation removes the producer-only surface; it does not authorize deletion from an existing consumer. | Classify the destination separately; Git rename detection grants no authority. | Not distributed. |
+
+Inventory membership is exact and release-bound. There are no managed or fusion
+prefixes, and migration descriptors cannot authorize their own targets. Any
+path absent from the exact M/F entries is P, including future descendants of a
+listed directory. Content, presence, and mode are all fingerprinted lifecycle
+state; a change in any one of them must be represented explicitly.
+
+P is immutable to starter transactions. G is excluded from consumer release
+artifacts. F is all-or-nothing: its declaration, supported contract, payload,
+operation, and fingerprints must agree before planning. M and F writes begin
+only after a durable journal exists, use compare-and-swap checks during apply
+and rollback, retain ambiguous journals for inspection, and write the new state
+marker last. Producer-only removal changes the prepared consumer snapshot but
+does not bypass those transaction rules for already-derived projects.
+
 Unknown ownership classes, duplicate or colliding targets, incomplete or
 ambiguous migration chains, duplicate edges, cycles, downgrades, target
 mismatches, absolute paths, traversal, and symlink escapes all fail before
