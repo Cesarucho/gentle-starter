@@ -52,13 +52,28 @@ seed_project() {
 
 seed_starter_update_machinery() {
 	mkdir -p "${PROJECT_ROOT}/.starter"
+	cp "${REPO_ROOT}/.starter/source.json" "${PROJECT_ROOT}/.starter/source.json"
 	cp -R "${REPO_ROOT}/.starter/distribution" "${PROJECT_ROOT}/.starter/distribution"
+	jq -n '{schema:"gentle-starter.ownership-inventory/v2",default_ownership:"project-owned",managed:[
+		{match:"exact",path:".starter/baseline.json"},{match:"exact",path:".starter/distribution/ownership.json"},
+		{match:"exact",path:".starter/source.json"},{match:"exact",path:".taskfiles/starter.yml"},
+		{match:"exact",path:".taskfiles/scripts/starter.sh"}],fusion:[
+		{match:"exact",path:".devcontainer/devcontainer.json",contract:"F-manual/v1"},
+		{match:"exact",path:".devcontainer/docker-compose.yml",contract:"F-manual/v1"}]}' \
+		>"${PROJECT_ROOT}/.starter/distribution/ownership.json"
+	cp "${REPO_ROOT}/.starter/baseline.json" "${PROJECT_ROOT}/.starter/baseline.json"
 	cp -R "${REPO_ROOT}/.taskfiles/scripts/starter-lib" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib"
 	cp "${REPO_ROOT}/.taskfiles/scripts/starter.sh" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/starter.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/starter-prepare-release.sh" \
+		"${PROJECT_ROOT}/.taskfiles/scripts/starter-prepare-release.sh"
 	cp "${REPO_ROOT}/.taskfiles/starter.yml" "${PROJECT_ROOT}/.taskfiles/starter.yml"
 	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/starter.sh"
+	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/starter-prepare-release.sh"
+	printf '{"name":"fixture"}\n' >"${PROJECT_ROOT}/.devcontainer/devcontainer.json"
+	printf 'services: {}\n' >"${PROJECT_ROOT}/.devcontainer/docker-compose.yml"
+	(cd "${PROJECT_ROOT}" && ./.taskfiles/scripts/starter-prepare-release.sh 1.0.0 >/dev/null)
 	cat >"${PROJECT_ROOT}/Taskfile.yml" <<'EOF'
 version: "3"
 
@@ -72,9 +87,9 @@ tag_current_release() {
 	local version="${1:-1.0.0}" commit tree blob sha message
 	commit="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
 	tree="$(git -C "${PROJECT_ROOT}" rev-parse 'HEAD^{tree}')"
-	blob="$(git -C "${PROJECT_ROOT}" rev-parse 'HEAD:.starter/distribution/manifest.json')"
-	sha="$(git -C "${PROJECT_ROOT}" show 'HEAD:.starter/distribution/manifest.json' | sha256sum | cut -d' ' -f1)"
-	message="$(jq -cn --arg version "${version}" --arg commit "${commit}" --arg tree "${tree}" --arg blob "${blob}" --arg sha "${sha}" '{schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,commit_oid:$commit,tree_oid:$tree,manifest:{path:".starter/distribution/manifest.json",blob_oid:$blob,sha256:$sha}}')"
+	blob="$(git -C "${PROJECT_ROOT}" rev-parse "HEAD:.starter/distribution/prepared/${version}/manifest.json")"
+	sha="$(git -C "${PROJECT_ROOT}" show "HEAD:.starter/distribution/prepared/${version}/manifest.json" | sha256sum | cut -d' ' -f1)"
+	message="$(jq -cn --arg version "${version}" --arg commit "${commit}" --arg tree "${tree}" --arg blob "${blob}" --arg sha "${sha}" '{schema:"gentle-starter.git-tag/v1",source_id:"gentle-starter",version:$version,commit_oid:$commit,tree_oid:$tree,manifest:{path:(".starter/distribution/prepared/"+$version+"/manifest.json"),blob_oid:$blob,sha256:$sha}}')"
 	git -C "${PROJECT_ROOT}" tag -a -m "${message}" "starter/v${version}"
 }
 
@@ -125,12 +140,16 @@ assert_only_root_ref_remains() {
 
 	run_project_init 'project-main\n\nCREATE ROOT\n' __auto__
 
-	[ "${status}" -eq 0 ]
+	[ "${status}" -eq 0 ] || {
+		printf '%s\n' "${output}" >&3
+		false
+	}
 	assert_parentless_root
 	assert_only_root_ref_remains project-main
 	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
 	[ -f "${PROJECT_ROOT}/.starter/baseline.json" ]
 	[ -f "${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/evidence/index.json" ]
+	[ "$(git -C "${PROJECT_ROOT}" remote get-url gentle-starter)" = "$(jq -r '.url' "${PROJECT_ROOT}/.starter/source.json")" ]
 	git -C "${PROJECT_ROOT}" show --stat --oneline HEAD >/dev/null
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
 	[[ "${output}" == *"Starter release starter/v1.0.0 was admitted"* ]]
@@ -208,9 +227,13 @@ assert_only_root_ref_remains() {
 	[ "${status}" -eq 0 ]
 	assert_parentless_root
 	assert_starter_identity_cleaned
-	[ -f "${PROJECT_ROOT}/.starter/distribution/manifest.json" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/distribution/manifest.json" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/distribution/migrations" ]
+	[ ! -e "${PROJECT_ROOT}/.starter/distribution/payloads" ]
+	[ ! -e "${PROJECT_ROOT}/.taskfiles/scripts/starter-release.sh" ]
 	[ -f "${PROJECT_ROOT}/.taskfiles/scripts/starter.sh" ]
 	[ -f "${PROJECT_ROOT}/.taskfiles/starter.yml" ]
+	! task --dir "${PROJECT_ROOT}" --list | grep -Fq 'starter:release'
 	[ ! -e "${PROJECT_ROOT}/.starter/state.json" ]
 	[ ! -e "${PROJECT_ROOT}/.starter/baseline.json" ]
 	[ ! -e "${PROJECT_ROOT}/.starter/evidence" ]

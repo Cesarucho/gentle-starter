@@ -4,6 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/clean-lib.sh"
+if [ -f "${SCRIPT_DIR}/starter-lib/core/derived-tree.sh" ]; then
+	# shellcheck source=.taskfiles/scripts/starter-lib/core/derived-tree.sh
+	source "${SCRIPT_DIR}/starter-lib/core/derived-tree.sh"
+else
+	STARTER_DERIVED_REMOVALS=()
+	starter_derived_apply_removals() { :; }
+fi
 
 readonly ROOT_COMMIT_MESSAGE="chore: initialize project"
 readonly CONFIRMATION_PHRASE="CREATE ROOT"
@@ -95,15 +102,13 @@ select_originating_release() {
 }
 
 prepare_adopted_project() {
-	local source_url source_result retained_result plan state operation_count index target source
+	local source_url source_result retained_result plan state operation_count index target source official_project
 	PREPARED_PROJECT="$(mktemp -d "${TMPDIR:-/tmp}/project-init-preflight.XXXXXX")"
-	trap 'rm -rf -- "${PREPARED_PROJECT:-}"' EXIT
+	trap 'rm -rf -- "${PREPARED_PROJECT:-}" "${official_project:-}"' EXIT
 	git archive HEAD | tar -x -C "${PREPARED_PROJECT}"
-	(
-		cd "${PREPARED_PROJECT}"
-		clean_remove_starter_identity >/dev/null
-		clean_remove_project_init_markers >/dev/null
-	)
+	official_project="${PREPARED_PROJECT}"
+	PREPARED_PROJECT="${official_project}.derived"
+	starter_derived_transform "${official_project}" "${PREPARED_PROJECT}" || fail "derived project tree could not be materialized"
 	STARTER_PROJECT_ROOT="${PREPARED_PROJECT}"
 	STARTER_RELEASE="${SELECTED_RELEASE}"
 	STARTER_CACHE_DIR="${PREPARED_PROJECT}/.starter-cache"
@@ -114,6 +119,7 @@ prepare_adopted_project() {
 		fail "release admission failed before initialization: ${source_result##*$'\n'} (source: ${source_url})"
 	fi
 	plan="$(starter_build_plan "${source_result}" 0.0.0)" || fail "release baseline plan is invalid"
+	PREPARED_PLAN="${plan}"
 	operation_count="$(jq '.operations | length' <<<"${plan}")"
 	for ((index = 0; index < operation_count; index++)); do
 		target="$(jq -r ".operations[${index}].target" <<<"${plan}")"
@@ -305,11 +311,13 @@ begin_project_transaction() {
 	CONFIG_REPLACED=false
 	INDEX_REPLACED=false
 	git for-each-ref --format='%(objectname) %(refname)' >"${TRANSACTION_DIR}/refs"
+	git for-each-ref --format='%(refname) %(symref)' | awk '$2 != ""' >"${TRANSACTION_DIR}/symbolic-refs"
 
 	clean_identity_items
 	ROLLBACK_MUTATED_PATHS=(
 		"${CLEAN_IDENTITY_ITEMS[@]}"
 		"${CLEAN_PROJECT_INIT_MARKERS[@]}"
+		"${STARTER_DERIVED_REMOVALS[@]}"
 		".devcontainer/README.md"
 		".devcontainer/docs"
 	)
@@ -415,15 +423,24 @@ commit_project_transaction() {
 }
 
 create_parentless_root() {
-	local tree
+	local tree operation_count operation_index operation_target
 	local root_commit
 
 	clean_remove_starter_identity
 	clean_remove_project_init_markers
+	starter_derived_apply_removals "$(pwd -P)"
 	if [ "${STARTER_ADOPT_ENABLED}" = true ]; then
+		operation_count="$(jq '.operations | length' <<<"${PREPARED_PLAN}")"
+		for ((operation_index = 0; operation_index < operation_count; operation_index++)); do
+			[ "$(jq -r ".operations[${operation_index}].ownership" <<<"${PREPARED_PLAN}")" = managed ] || continue
+			operation_target="$(jq -r ".operations[${operation_index}].target" <<<"${PREPARED_PLAN}")"
+			mkdir -p -- "$(dirname "${operation_target}")"
+			cp -p -- "${PREPARED_PROJECT}/${operation_target}" "${operation_target}"
+		done
 		cp -a -- "${PREPARED_PROJECT}/.starter/baseline.json" .starter/baseline.json
 		cp -a -- "${PREPARED_PROJECT}/.starter/state.json" .starter/state.json
 		cp -a -- "${PREPARED_PROJECT}/.starter/evidence" .starter/evidence
+		rebind_adopted_evidence_paths
 	fi
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git add -A
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git write-tree >"${TRANSACTION_DIR}/tree"
@@ -438,8 +455,26 @@ create_parentless_root() {
 	ROOT_COMMIT="${root_commit}"
 }
 
+rebind_adopted_evidence_paths() {
+	local version envelope evidence_ref envelope_sha state_sha
+	version="$(jq -r '.release.version' .starter/state.json)"
+	envelope=".starter/evidence/releases/${version}/envelope.json"
+	evidence_ref="$(pwd -P)/.starter/evidence/releases/${version}/evidence"
+	envelope_sha="$(jq -cS --arg ref "${evidence_ref}" '.evidence.ref=$ref | del(.integrity)' "${envelope}" | sha256sum | cut -d' ' -f1)"
+	jq --arg ref "${evidence_ref}" --arg sha "${envelope_sha}" \
+		'.evidence.ref=$ref | .integrity.envelope_sha256=$sha' "${envelope}" >"${envelope}.tmp"
+	mv -f -- "${envelope}.tmp" "${envelope}"
+	jq --slurpfile envelope "${envelope}" '
+		.evidence=$envelope[0].evidence | .envelope.sha256=$envelope[0].integrity.envelope_sha256 | del(.integrity)' \
+		.starter/state.json >.starter/state.json.tmp
+	state_sha="$(jq -cS . .starter/state.json.tmp | sha256sum | cut -d' ' -f1)"
+	jq --arg sha "${state_sha}" '.integrity={canonicalization:"jq-sorted-utf8-v1",state_sha256:$sha}' \
+		.starter/state.json.tmp >.starter/state.json
+	rm .starter/state.json.tmp
+}
+
 remove_previous_history_refs() {
-	local object ref original_object
+	local object ref original_object symbolic_target original_symbolic_target
 
 	while read -r object ref; do
 		[ -n "${ref}" ] || continue
@@ -449,7 +484,17 @@ remove_previous_history_refs() {
 			echo "[error] repository refs changed concurrently; recovery required" >&2
 			return 1
 		fi
-		git update-ref -d "${ref}" "${original_object}"
+		symbolic_target="$(git symbolic-ref -q "${ref}" 2>/dev/null || true)"
+		if [ -n "${symbolic_target}" ]; then
+			original_symbolic_target="$(awk -v wanted="${ref}" '$1 == wanted { print $2; exit }' "${TRANSACTION_DIR}/symbolic-refs")"
+			if [ -z "${original_symbolic_target}" ] || [ "${symbolic_target}" != "${original_symbolic_target}" ]; then
+				echo "[error] symbolic ref changed concurrently; recovery required: ${ref}" >&2
+				return 1
+			fi
+			git symbolic-ref -d "${ref}"
+		else
+			git update-ref -d "${ref}" "${original_object}"
+		fi
 	done < <(git for-each-ref --format='%(objectname) %(refname)')
 
 	if [ "$(git for-each-ref --format='%(refname)')" != "refs/heads/${TARGET_BRANCH}" ]; then
@@ -472,6 +517,20 @@ configure_origin() {
 	git config --file "${TEMP_CONFIG_PATH}" --add remote.origin.fetch \
 		'+refs/heads/*:refs/remotes/origin/*'
 	git config --file "${TEMP_CONFIG_PATH}" --add remote.origin.pushurl "${NEW_ORIGIN}"
+}
+
+configure_canonical_starter_remote() {
+	local metadata=.starter/source.json name url refspec existing
+	[ -f "${metadata}" ] || return 0
+	name="$(jq -r '.remote' "${metadata}")"
+	url="$(jq -r '.url' "${metadata}")"
+	refspec="$(jq -r '.branch_refspec' "${metadata}")"
+	existing="$(git config --file "${TEMP_CONFIG_PATH}" --get "remote.${name}.url" 2>/dev/null || true)"
+	[ -z "${existing}" ] || [ "${existing%/}" = "${url%/}" ] || fail "canonical starter remote URL mismatch"
+	if [ -z "${existing}" ]; then
+		git config --file "${TEMP_CONFIG_PATH}" --add "remote.${name}.url" "${url}"
+		git config --file "${TEMP_CONFIG_PATH}" --add "remote.${name}.fetch" "${refspec}"
+	fi
 }
 
 print_result() {
@@ -505,6 +564,7 @@ main() {
 	begin_project_transaction
 	create_parentless_root
 	configure_origin
+	configure_canonical_starter_remote
 	remove_previous_history_refs
 	commit_project_transaction
 	print_result
