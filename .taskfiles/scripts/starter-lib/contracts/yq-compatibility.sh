@@ -37,12 +37,12 @@ yq_compatibility_require() {
 	yq_compatibility_detect
 }
 
-yq_compatibility_yaml() {
+yq_compatibility_json() {
 	local expression="$1" input="$2"
 	yq_compatibility_require || return 1
 	case "${YQ_COMPATIBILITY_DIALECT}" in
-	mike-farah-v4) yq -o=yaml "${expression}" "${input}" ;;
-	kislyuk) yq -y "${expression}" "${input}" ;;
+	mike-farah-v4) yq -o=json -I=0 "${expression}" "${input}" ;;
+	kislyuk) yq -c "${expression}" "${input}" ;;
 	*)
 		yq_compatibility_error "unsupported detected yq dialect: ${YQ_COMPATIBILITY_DIALECT}"
 		return 1
@@ -50,17 +50,35 @@ yq_compatibility_yaml() {
 	esac
 }
 
-yq_compatibility_yaml_in_place() {
-	local expression="$1" input="$2"
-	yq_compatibility_require || return 1
-	case "${YQ_COMPATIBILITY_DIALECT}" in
-	mike-farah-v4) yq -o=yaml -i "${expression}" "${input}" ;;
-	kislyuk) yq -y -i "${expression}" "${input}" ;;
-	*)
-		yq_compatibility_error "unsupported detected yq dialect: ${YQ_COMPATIBILITY_DIALECT}"
+yq_compatibility_yaml() {
+	local expression="$1" input="$2" json_file
+	command -v jq >/dev/null 2>&1 || {
+		yq_compatibility_error 'jq is required for canonical YAML-compatible output'
 		return 1
-		;;
-	esac
+	}
+	json_file="$(mktemp "${TMPDIR:-/tmp}/yq-compatibility-json.XXXXXX")" || return 1
+	if ! yq_compatibility_json "${expression}" "${input}" >"${json_file}" ||
+		! jq -S . "${json_file}"; then
+		rm -f -- "${json_file}"
+		return 1
+	fi
+	rm -f -- "${json_file}"
+}
+
+yq_compatibility_yaml_in_place() {
+	local expression="$1" input="$2" directory temporary
+	if [ ! -f "${input}" ] || [ -L "${input}" ]; then
+		yq_compatibility_error "in-place input must be a regular non-symlink file: ${input}"
+		return 1
+	fi
+	directory="$(dirname -- "${input}")" || return 1
+	temporary="$(mktemp "${directory}/.yq-compatibility.XXXXXX")" || return 1
+	if ! yq_compatibility_yaml "${expression}" "${input}" >"${temporary}" ||
+		! chmod --reference="${input}" "${temporary}" ||
+		! mv -f -- "${temporary}" "${input}"; then
+		rm -f -- "${temporary}"
+		return 1
+	fi
 }
 
 yq_compatibility_raw() {

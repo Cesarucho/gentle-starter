@@ -26,10 +26,15 @@ starter_derived_transform() {
 	starter_derived_write_docs "${source_root}" "${destination}"
 	yq_compatibility_yaml 'del(.tasks.release, .tasks["prepare-release"])' "${source_root}/.taskfiles/starter.yml" >"${destination}/.taskfiles/starter.yml"
 	jq empty "${destination}/.starter/distribution/ownership.json"
-	if [ -f "${destination}/Taskfile.yml" ]; then
-		yq_compatibility_yaml_in_place 'del(.includes.clean, .includes.project, .tasks.clean)' "${destination}/Taskfile.yml"
-	fi
+	starter_derived_transform_taskfile "${destination}"
 	starter_derived_reject_generated "${destination}"
+}
+
+starter_derived_transform_taskfile() {
+	local root="$1"
+	if [ -f "${root}/Taskfile.yml" ]; then
+		yq_compatibility_yaml_in_place 'del(.includes.clean, .includes.project, .tasks.clean)' "${root}/Taskfile.yml"
+	fi
 }
 
 starter_derived_write_docs() {

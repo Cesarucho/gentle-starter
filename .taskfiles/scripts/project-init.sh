@@ -436,6 +436,9 @@ create_parentless_root() {
 	clean_remove_starter_identity
 	clean_remove_project_init_markers
 	starter_derived_apply_removals "$(pwd -P)"
+	if declare -F starter_derived_transform_taskfile >/dev/null; then
+		starter_derived_transform_taskfile "$(pwd -P)"
+	fi
 	if [ "${STARTER_ADOPT_ENABLED}" = true ]; then
 		operation_count="$(jq '.operations | length' <<<"${PREPARED_PLAN}")"
 		for ((operation_index = 0; operation_index < operation_count; operation_index++)); do

@@ -132,7 +132,6 @@ seed_starter_update_machinery() {
 	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/starter-prepare-release.sh"
 	printf '{"name":"fixture"}\n' >"${PROJECT_ROOT}/.devcontainer/devcontainer.json"
 	printf 'services: {}\n' >"${PROJECT_ROOT}/.devcontainer/docker-compose.yml"
-	(cd "${PROJECT_ROOT}" && ./.taskfiles/scripts/starter-prepare-release.sh 1.0.0 >/dev/null)
 	cat >"${PROJECT_ROOT}/Taskfile.yml" <<'EOF'
 version: "3"
 
@@ -140,6 +139,7 @@ includes:
   starter:
     taskfile: ./.taskfiles/starter.yml
 EOF
+	(cd "${PROJECT_ROOT}" && ./.taskfiles/scripts/starter-prepare-release.sh 1.0.0 >/dev/null)
 }
 
 tag_current_release() {
@@ -212,6 +212,52 @@ assert_only_root_ref_remains() {
 	git -C "${PROJECT_ROOT}" show --stat --oneline HEAD >/dev/null
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
 	[[ "${output}" == *"Starter release starter/v1.0.0 was admitted"* ]]
+}
+
+@test "Kislyuk-prepared release initializes under real Mike Farah v4 with exact managed fingerprints" {
+	[ -x "${MIKE_YQ:-}" ] || skip "MIKE_YQ does not name a real Mike Farah v4 binary"
+	seed_starter_update_machinery
+	local prepared="${PROJECT_ROOT}/.starter/distribution/prepared/1.0.0"
+	local expected_fingerprints expected_starter_sha expected_taskfile_sha
+	expected_fingerprints="$(jq -cn \
+		--slurpfile ownership "${prepared}/ownership.json" \
+		--slurpfile manifest "${prepared}/manifest.json" '
+		($manifest[0].payload.entries | INDEX(.path)) as $payload |
+		$ownership[0].managed | map(.path) |
+		map(. as $path | $payload[$path] |
+			select(. != null) | {path:$path,ownership:"managed",sha256:.sha256}) |
+		sort_by(.path)
+	')"
+	[ "$(jq 'length' <<<"${expected_fingerprints}")" -eq \
+		"$(jq '.managed | length' "${prepared}/ownership.json")" ]
+	expected_starter_sha="$(jq -r '.payload.entries[] | select(.path == ".taskfiles/starter.yml") | .sha256' \
+		"${prepared}/manifest.json")"
+	expected_taskfile_sha="$(sha256sum "${prepared}/tree/Taskfile.yml" | cut -d' ' -f1)"
+	[ -n "${expected_starter_sha}" ]
+	[ -n "${expected_taskfile_sha}" ]
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "cross-dialect release fixture"
+	tag_current_release
+	local mike_bin="${TEST_ROOT}/mike-bin"
+	mkdir -p "${mike_bin}"
+	ln -s "${MIKE_YQ}" "${mike_bin}/yq"
+
+	run env PATH="${mike_bin}:${PATH}" bash -c \
+		'cd "$1" && printf "%b" "$2" | ./.taskfiles/scripts/project-init.sh --release starter/v1.0.0' \
+		_ "${PROJECT_ROOT}" 'project-main\n\nCREATE ROOT\n'
+
+	[ "${status}" -eq 0 ] || {
+		printf '%s\n' "${output}" >&3
+		false
+	}
+	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
+	[ "$(jq -cS '.managed_fingerprints | sort_by(.path)' "${PROJECT_ROOT}/.starter/state.json")" = \
+		"$(jq -cS . <<<"${expected_fingerprints}")" ]
+	[ "$(jq -r '.managed_fingerprints[] | select(.path == ".taskfiles/starter.yml") | .sha256' \
+		"${PROJECT_ROOT}/.starter/state.json")" = "${expected_starter_sha}" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/.taskfiles/starter.yml" | cut -d' ' -f1)" = "${expected_starter_sha}" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/Taskfile.yml" | cut -d' ' -f1)" = "${expected_taskfile_sha}" ]
+	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
 }
 
 @test "explicit release succeeds and ambiguous automatic detection fails before mutation" {
