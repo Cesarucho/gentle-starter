@@ -8,6 +8,8 @@ setup() {
 	seed_project
 	LICENSE_SHA256_BEFORE="$(sha256sum "${PROJECT_ROOT}/LICENSE" | awk '{print $1}')"
 	LICENSE_MODE_BEFORE="$(stat -c '%a' "${PROJECT_ROOT}/LICENSE")"
+	AGENTS_TEMPLATE_SHA256_BEFORE="$(sha256sum "${PROJECT_ROOT}/AGENTS.md.TEMPLATE" | awk '{print $1}')"
+	AGENTS_TEMPLATE_MODE_BEFORE="$(stat -c '%a' "${PROJECT_ROOT}/AGENTS.md.TEMPLATE")"
 }
 
 teardown() {
@@ -33,6 +35,8 @@ seed_project() {
 	printf '# Starter\n' >"${PROJECT_ROOT}/README.md"
 	printf '# Agents\n' >"${PROJECT_ROOT}/AGENTS.md"
 	printf '# Template\n<PROJECT_NAME>\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE"
+	chmod 0640 "${PROJECT_ROOT}/AGENTS.md.TEMPLATE"
+	printf '# Template example\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE"
 	printf '# Changelog\n' >"${PROJECT_ROOT}/CHANGELOG.md"
 	printf 'MIT\n' >"${PROJECT_ROOT}/LICENSE"
 	chmod 0640 "${PROJECT_ROOT}/LICENSE"
@@ -180,8 +184,10 @@ assert_starter_identity_cleaned() {
 	[ "$(sha256sum "${PROJECT_ROOT}/LICENSE" | awk '{print $1}')" = "${LICENSE_SHA256_BEFORE}" ]
 	[ "$(stat -c '%a' "${PROJECT_ROOT}/LICENSE")" = "${LICENSE_MODE_BEFORE}" ]
 	[ ! -e "${PROJECT_ROOT}/CHANGELOG.md" ]
-	[ -f "${PROJECT_ROOT}/AGENTS.md" ]
-	grep -Fq '<PROJECT_NAME>' "${PROJECT_ROOT}/AGENTS.md"
+	[ ! -e "${PROJECT_ROOT}/AGENTS.md" ]
+	[ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/AGENTS.md.TEMPLATE" | awk '{print $1}')" = "${AGENTS_TEMPLATE_SHA256_BEFORE}" ]
+	[ "$(stat -c '%a' "${PROJECT_ROOT}/AGENTS.md.TEMPLATE")" = "${AGENTS_TEMPLATE_MODE_BEFORE}" ]
 	[ -f "${PROJECT_ROOT}/.devcontainer/docs/extending.md" ]
 	grep -Fq './docs/extending.md' "${PROJECT_ROOT}/.devcontainer/README.md"
 }
@@ -797,7 +803,11 @@ EOF
 	[ "${status}" -eq 0 ]
 	[ "$(git -C "${PROJECT_ROOT}" branch --show-current)" = "starter" ]
 	[ "$(git -C "${PROJECT_ROOT}" rev-list --count HEAD)" -eq 1 ]
-	assert_starter_identity_cleaned
+	[ ! -e "${PROJECT_ROOT}/README.md" ]
+	[ ! -e "${PROJECT_ROOT}/docs" ]
+	[ -f "${PROJECT_ROOT}/AGENTS.md" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/AGENTS.md" | awk '{print $1}')" = "${AGENTS_TEMPLATE_SHA256_BEFORE}" ]
+	[ -f "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
 }
 
 @test "task project:init entrypoint executes the isolated lifecycle" {

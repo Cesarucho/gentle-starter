@@ -122,7 +122,7 @@ On your PC you need:
     Example prompts:
 
     ```text
-    >_ Read @AGENTS.md.TEMPLATE and help me fill in the placeholders.
+    >_ Read @AGENTS.md.TEMPLATE and help me create AGENTS.md by filling in the placeholders.
 
     >_ Read skill add-tool add PostgreSQL 16 with a version-controlled
        `pg_hba.conf` and persistent data volume.

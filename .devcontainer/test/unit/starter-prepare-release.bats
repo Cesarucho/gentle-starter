@@ -12,6 +12,10 @@ setup() {
 	printf '# Fixture\n' >"${PROJECT}/.devcontainer/README.md"
 	printf '{"name":"fixture"}\n' >"${PROJECT}/.devcontainer/devcontainer.json"
 	printf 'services: {}\n' >"${PROJECT}/.devcontainer/docker-compose.yml"
+	printf '# Consumer template\n<PROJECT_NAME>\n' >"${PROJECT}/AGENTS.md.TEMPLATE"
+	chmod 0640 "${PROJECT}/AGENTS.md.TEMPLATE"
+	printf '# Producer policy\n' >"${PROJECT}/AGENTS.md"
+	printf '# Producer example\n' >"${PROJECT}/AGENTS.md.TEMPLATE.EXAMPLE"
 	git init -q "${PROJECT}"
 }
 
@@ -69,6 +73,13 @@ restore_predecessor_fixture() {
 		false
 	}
 	[ -f "${PROJECT}/.starter/distribution/prepared/2.0.0/manifest.json" ]
+	[ "$(sha256sum "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = \
+		"$(sha256sum "${PROJECT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" ]
+	[ "$(stat -c '%a' "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE")" = 640 ]
+	[ ! -e "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md" ]
+	[ ! -e "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE.EXAMPLE" ]
+	! jq -e '.payload.entries[] | select(.path == "AGENTS.md.TEMPLATE" or .path == "AGENTS.md" or .path == "AGENTS.md.TEMPLATE.EXAMPLE")' \
+		"${PROJECT}/.starter/distribution/prepared/2.0.0/manifest.json" >/dev/null
 	[ -z "$(find "${PROJECT}/.starter/distribution/prepared" -maxdepth 1 -name '.2.0.0.prepare.*' -print -quit)" ]
 	run_prepare 2.1.0 2.0.0
 	[ "${status}" -eq 0 ]

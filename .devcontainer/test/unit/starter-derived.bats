@@ -9,7 +9,9 @@ setup() {
 teardown() { rm -rf "${TEST_ROOT}"; }
 
 @test "official tree transforms deterministically into a consumer-only tree" {
-	local first="${TEST_ROOT}/first" second="${TEST_ROOT}/second" first_id second_id
+	local first="${TEST_ROOT}/first" second="${TEST_ROOT}/second" first_id second_id template_sha template_mode
+	template_sha="$(sha256sum "${REPO_ROOT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)"
+	template_mode="$(stat -c '%a' "${REPO_ROOT}/AGENTS.md.TEMPLATE")"
 	run bash -c 'source "$1"; starter_derived_transform "$2" "$3"; starter_derived_identity "$3"' _ \
 		"${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${first}"
 	[ "$status" -eq 0 ]
@@ -24,6 +26,10 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[ ! -e "${first}/.taskfiles/scripts/starter-prepare-release.sh" ]
 	[ ! -e "${first}/.starter/distribution/manifest.json" ]
 	[ ! -e "${first}/.starter/state.json" ]
+	[ ! -e "${first}/AGENTS.md" ]
+	[ ! -e "${first}/AGENTS.md.TEMPLATE.EXAMPLE" ]
+	[ "$(sha256sum "${first}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = "${template_sha}" ]
+	[ "$(stat -c '%a' "${first}/AGENTS.md.TEMPLATE")" = "${template_mode}" ]
 	[ -f "${first}/.devcontainer/docs/starter-updates.md" ]
 	run yq -e '.tasks.release or .tasks.prepare-release' "${first}/.taskfiles/starter.yml"
 	[ "$status" -ne 0 ]

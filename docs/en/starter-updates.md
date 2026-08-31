@@ -262,9 +262,12 @@ origin; any separately confirmed origin replacement belongs to
 `starter:adopt`, `starter:check`, and `starter:update` still never mutate
 `origin` or create commits.
 
-Identity cleanup removes the starter's top-level `docs/` and regenerates
-`AGENTS.md` from the project template. `.devcontainer/README.md` remains in the
-derived project and carries the short safety contract. Project maintainers
-should document their selected starter source, release cadence, and ownership
-exceptions in their own durable docs without weakening these
-boundaries.
+Identity cleanup removes the starter's top-level `docs/`, producer `AGENTS.md`,
+and worked template example. The derived project retains
+`AGENTS.md.TEMPLATE` byte-for-byte as a project-owned starting point; it does
+not generate root `AGENTS.md`. These exclusions are producer-to-derived
+transformation rules, not deletion authority over existing consumers.
+`.devcontainer/README.md` remains in the derived project and carries the short
+safety contract. Project maintainers should create and maintain their own
+`AGENTS.md`, then document their selected starter source, release cadence, and
+ownership exceptions without weakening these boundaries.

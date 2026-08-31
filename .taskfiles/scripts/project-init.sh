@@ -15,8 +15,16 @@ if [ -f "${SCRIPT_DIR}/starter-lib/core/derived-tree.sh" ]; then
 	# shellcheck source=.taskfiles/scripts/starter-lib/core/derived-tree.sh
 	source "${SCRIPT_DIR}/starter-lib/core/derived-tree.sh"
 else
-	STARTER_DERIVED_REMOVALS=()
-	starter_derived_apply_removals() { :; }
+	# Keep the project-init consumer identity policy even when lifecycle support
+	# is unavailable (for example, an intentionally unmarked legacy project).
+	STARTER_DERIVED_REMOVALS=(AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE)
+	starter_derived_apply_removals() {
+		local root="$1" item
+		[ -n "${root}" ] && [ "${root}" != / ] || return 1
+		for item in "${STARTER_DERIVED_REMOVALS[@]}"; do
+			rm -rf -- "${root:?}/${item}"
+		done
+	}
 fi
 
 readonly ROOT_COMMIT_MESSAGE="chore: initialize project"

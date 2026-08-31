@@ -8,7 +8,7 @@ source "${YQ_COMPATIBILITY_PATH}"
 STARTER_DERIVED_REMOVALS=(
 	.taskfiles/project.yml .taskfiles/clean.yml
 	.taskfiles/scripts/project-init.sh .taskfiles/scripts/clean.sh .taskfiles/scripts/clean-lib.sh
-	AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE
+	AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE
 	.devcontainer/test/unit/project-init.bats
 	.starter/contracts .starter/distribution/migrations .starter/distribution/payloads .starter/distribution/prepared
 	.taskfiles/scripts/starter-release.sh .taskfiles/scripts/starter-prepare-release.sh
@@ -45,9 +45,6 @@ starter_derived_write_docs() {
 		[ -f "${source_root}/docs/en/${doc}" ] || continue
 		cp -- "${source_root}/docs/en/${doc}" "${destination}/.devcontainer/docs/${doc}"
 	done
-	if [ -f "${source_root}/AGENTS.md.TEMPLATE" ]; then
-		cp -- "${source_root}/AGENTS.md.TEMPLATE" "${destination}/AGENTS.md"
-	fi
 	sed -i -e 's|\.\./docs/en/|./docs/|g' -e 's|docs/en/|docs/|g' "${destination}/.devcontainer/README.md"
 }
 

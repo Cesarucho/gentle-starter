@@ -156,6 +156,10 @@ for M/P/F/G/remove behavior and transaction consequences.
 - Consumer release payload, manifest, migration, plan, journal, and state
   contracts are lifecycle v2 only. Recreate development consumers through the
   current `project:init`; do not restore a v1 compatibility bridge.
+- The derived consumer keeps `AGENTS.md.TEMPLATE` byte-for-byte as
+  project-owned content. The official-to-derived transformation removes the
+  producer `AGENTS.md` and `AGENTS.md.TEMPLATE.EXAMPLE` and does not generate a
+  root `AGENTS.md`; those removed surfaces are not consumer delete operations.
 - `task starter:check` discovers the highest exact stable annotated release by
   bounded Git ref discovery, then uses normal `GitTagSource/v1` admission and
   lifecycle planning. Explicit `--release` bypasses discovery.

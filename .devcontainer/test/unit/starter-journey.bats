@@ -75,6 +75,12 @@ resolve_conflict() {
 	[ "$(git -C "${BASE_PROJECT}" rev-list --count HEAD)" -eq 1 ]
 	[ "$(git -C "${BASE_PROJECT}" for-each-ref --format='%(refname)' | grep -c '^refs/heads/main$')" -eq 1 ]
 	[ -z "$(git -C "${BASE_PROJECT}" tag --list)" ]
+	[ ! -e "${BASE_PROJECT}/AGENTS.md" ]
+	[ ! -e "${BASE_PROJECT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
+	[ "$(sha256sum "${BASE_PROJECT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = \
+		"$(sha256sum "${SOURCE}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" ]
+	[ "$(stat -c '%a' "${BASE_PROJECT}/AGENTS.md.TEMPLATE")" = \
+		"$(stat -c '%a' "${SOURCE}/AGENTS.md.TEMPLATE")" ]
 	[ -n "$(git --git-dir="${BASE_PROJECT}/.starter/evidence/releases/2.0.0/evidence/repository.git" \
 		for-each-ref --format='%(refname)' refs/gentle-starter/releases/2.0.0)" ]
 	run "${BASE_PROJECT}/.taskfiles/scripts/starter.sh" check --project-root "${BASE_PROJECT}" \
