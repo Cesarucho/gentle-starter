@@ -9,12 +9,14 @@ setup() {
 
 	mkdir -p "${WORKSPACE}/.devcontainer/install/available" \
 		"${WORKSPACE}/.devcontainer/install/02-enabled" \
-		"${WORKSPACE}/.taskfiles/scripts" \
+		"${WORKSPACE}/.taskfiles/scripts/starter-lib/contracts" \
 		"${HOME_DIR}"
 	cp "${REPO_ROOT}/.devcontainer/setup-volumes.sh" \
 		"${WORKSPACE}/.devcontainer/setup-volumes.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
 		"${WORKSPACE}/.taskfiles/scripts/install.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh" \
+		"${WORKSPACE}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
 	: >"${CALLS_FILE}"
 
 	write_installer "30-ai-pi-coding"
@@ -107,6 +109,7 @@ run_pi_volume_repair() {
 @test "potential owner mapping remains independent from activation" {
 	local scripts=()
 	# shellcheck source=/dev/null
+	WORKSPACE_DIR="${WORKSPACE}"
 	source "${WORKSPACE}/.devcontainer/setup-volumes.sh"
 
 	compose_target_to_install_scripts "/home/${UID}/.pi" scripts

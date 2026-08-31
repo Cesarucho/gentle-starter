@@ -18,6 +18,9 @@ derived-project adoption, checks, and updates.
 
 The normal clone path admits its originating release during initialization:
 
+`project:init` requires `jq` and a supported `yq` on the host. Mike Farah yq v4
+is recommended; Kislyuk yq remains supported for existing environments.
+
 ```bash
 task project:init
 

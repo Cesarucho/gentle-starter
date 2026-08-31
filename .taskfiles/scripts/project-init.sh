@@ -4,6 +4,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/clean-lib.sh"
+if [ -f "${SCRIPT_DIR}/starter-lib/contracts/yq-compatibility.sh" ]; then
+	# shellcheck source=.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh
+	source "${SCRIPT_DIR}/starter-lib/contracts/yq-compatibility.sh"
+else
+	echo "[error] project:init requires its yq compatibility support file" >&2
+	exit 1
+fi
 if [ -f "${SCRIPT_DIR}/starter-lib/core/derived-tree.sh" ]; then
 	# shellcheck source=.taskfiles/scripts/starter-lib/core/derived-tree.sh
 	source "${SCRIPT_DIR}/starter-lib/core/derived-tree.sh"
@@ -557,6 +564,7 @@ print_result() {
 main() {
 	parse_project_init_args "$@"
 	enter_clean_repository_root
+	yq_compatibility_require || fail "project:init requires a supported yq; install Mike Farah yq v4 (recommended) or Kislyuk yq"
 	preflight_starter_adoption
 	prompt_for_inputs
 	print_project_plan

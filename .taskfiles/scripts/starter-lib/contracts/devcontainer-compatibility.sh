@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Read-only compatibility gate for managed lock advancement.
 
+YQ_COMPATIBILITY_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/yq-compatibility.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh
+source "${YQ_COMPATIBILITY_PATH}"
+
 starter_devcontainer_compatibility_validate() {
 	local root="$1" config compose lock dockerfile tool_policy service configured_features locked_features
 	config="${root}/.devcontainer/devcontainer.json"
@@ -12,12 +16,8 @@ starter_devcontainer_compatibility_validate() {
 		[ -f "${path}" ] && [ ! -L "${path}" ] || return 1
 	done
 	service="$(sed '/^[[:space:]]*\/\//d' "${config}" | jq -r '.service')" || return 1
-	# $service below is a jq variable supplied by --arg.
-	# shellcheck disable=SC2016
-	yq -e --arg service "${service}" '.services[$service] | type == "object"' "${compose}" >/dev/null || return 1
-	# $service below is a jq variable supplied by --arg.
-	# shellcheck disable=SC2016
-	[ "$(yq -r --arg service "${service}" '.services[$service].build.dockerfile' "${compose}")" = ./Dockerfile ] || return 1
+	yq_compatibility_service_is_object "${service}" "${compose}" || return 1
+	[ "$(yq_compatibility_service_dockerfile "${service}" "${compose}")" = ./Dockerfile ] || return 1
 	configured_features="$(sed '/^[[:space:]]*\/\//d' "${config}" | jq -cS '.features | keys')" || return 1
 	locked_features="$(jq -cS '.features | keys' "${lock}")"
 	[ "${configured_features}" = "${locked_features}" ] || {

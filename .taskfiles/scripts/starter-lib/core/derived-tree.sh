@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Deterministic official-to-derived tree transformation.
 
+YQ_COMPATIBILITY_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../contracts" && pwd)/yq-compatibility.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh
+source "${YQ_COMPATIBILITY_PATH}"
+
 STARTER_DERIVED_REMOVALS=(
 	.taskfiles/project.yml .taskfiles/clean.yml
 	.taskfiles/scripts/project-init.sh .taskfiles/scripts/clean.sh .taskfiles/scripts/clean-lib.sh
@@ -20,10 +24,10 @@ starter_derived_transform() {
 		"${source_root}/" "${destination}/"
 	starter_derived_apply_removals "${destination}"
 	starter_derived_write_docs "${source_root}" "${destination}"
-	yq -y 'del(.tasks.release, .tasks["prepare-release"])' "${source_root}/.taskfiles/starter.yml" >"${destination}/.taskfiles/starter.yml"
+	yq_compatibility_yaml 'del(.tasks.release, .tasks["prepare-release"])' "${source_root}/.taskfiles/starter.yml" >"${destination}/.taskfiles/starter.yml"
 	jq empty "${destination}/.starter/distribution/ownership.json"
 	if [ -f "${destination}/Taskfile.yml" ]; then
-		yq -y -i 'del(.includes.clean, .includes.project, .tasks.clean)' "${destination}/Taskfile.yml"
+		yq_compatibility_yaml_in_place 'del(.includes.clean, .includes.project, .tasks.clean)' "${destination}/Taskfile.yml"
 	fi
 	starter_derived_reject_generated "${destination}"
 }

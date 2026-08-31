@@ -18,7 +18,7 @@ seed_project() {
 	mkdir -p \
 		"${PROJECT_ROOT}/.devcontainer/docs" \
 		"${PROJECT_ROOT}/.devcontainer/install" \
-		"${PROJECT_ROOT}/.taskfiles/scripts" \
+		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib/contracts" \
 		"${PROJECT_ROOT}/docs/en" \
 		"${PROJECT_ROOT}/.agents"
 	cp "${REPO_ROOT}/.taskfiles/scripts/project-init.sh" \
@@ -27,6 +27,8 @@ seed_project() {
 		"${PROJECT_ROOT}/.taskfiles/scripts/clean.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/clean-lib.sh" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/clean-lib.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh" \
+		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
 	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/"*.sh
 	printf '# Starter\n' >"${PROJECT_ROOT}/README.md"
 	printf '# Agents\n' >"${PROJECT_ROOT}/AGENTS.md"
@@ -50,10 +52,67 @@ seed_project() {
 	git -C "${PROJECT_ROOT}" commit -qm "starter history"
 }
 
+@test "missing yq fails before project-init mutates history or files" {
+	local before_head before_status before_config before_refs bin
+	before_head="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+	before_status="$(git -C "${PROJECT_ROOT}" status --porcelain=v1 --untracked-files=all)"
+	before_config="$(sha256sum "${PROJECT_ROOT}/.git/config")"
+	before_refs="$(git -C "${PROJECT_ROOT}" for-each-ref --format='%(objectname) %(refname)')"
+	bin="${TEST_ROOT}/bin"
+	mkdir -p "${bin}"
+	for command in bash dirname git grep pwd; do
+		ln -s "$(command -v "${command}")" "${bin}/${command}"
+	done
+
+	run env PATH="${bin}" /bin/bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh --no-starter-adopt' _ "${PROJECT_ROOT}"
+
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"yq is required"* ]]
+	[[ "${output}" == *"Mike Farah yq v4"* ]]
+	[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${before_head}" ]
+	[ "$(git -C "${PROJECT_ROOT}" status --porcelain=v1 --untracked-files=all)" = "${before_status}" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/.git/config")" = "${before_config}" ]
+	[ "$(git -C "${PROJECT_ROOT}" for-each-ref --format='%(objectname) %(refname)')" = "${before_refs}" ]
+}
+
+@test "unsupported yq defeats an inherited dialect and leaves no-adopt repository state unchanged" {
+	local before_head before_status before_config before_refs bin
+	before_head="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+	before_status="$(git -C "${PROJECT_ROOT}" status --porcelain=v1 --untracked-files=all)"
+	before_config="$(sha256sum "${PROJECT_ROOT}/.git/config")"
+	before_refs="$(git -C "${PROJECT_ROOT}" for-each-ref --format='%(objectname) %(refname)')"
+	bin="${TEST_ROOT}/bin"
+	mkdir -p "${bin}"
+	for command in bash dirname git grep pwd; do
+		ln -s "$(command -v "${command}")" "${bin}/${command}"
+	done
+	cat >"${bin}/yq" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+--version) printf 'unsupported yq 1.0\n' ;;
+--help) printf 'unsupported implementation\n' ;;
+esac
+EOF
+	chmod +x "${bin}/yq"
+
+	run env PATH="${bin}" YQ_COMPATIBILITY_DIALECT=kislyuk /bin/bash -c \
+		'cd "$1" && ./.taskfiles/scripts/project-init.sh --no-starter-adopt' _ "${PROJECT_ROOT}"
+
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"unsupported yq implementation"* ]]
+	[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${before_head}" ]
+	[ "$(git -C "${PROJECT_ROOT}" status --porcelain=v1 --untracked-files=all)" = "${before_status}" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/.git/config")" = "${before_config}" ]
+	[ "$(git -C "${PROJECT_ROOT}" for-each-ref --format='%(objectname) %(refname)')" = "${before_refs}" ]
+}
+
 seed_starter_update_machinery() {
 	mkdir -p "${PROJECT_ROOT}/.starter"
 	cp "${REPO_ROOT}/.starter/source.json" "${PROJECT_ROOT}/.starter/source.json"
 	cp -R "${REPO_ROOT}/.starter/distribution" "${PROJECT_ROOT}/.starter/distribution"
+	rm -rf "${PROJECT_ROOT}/.starter/distribution/migrations"/* \
+		"${PROJECT_ROOT}/.starter/distribution/payloads"/* \
+		"${PROJECT_ROOT}/.starter/distribution/prepared"/*
 	jq -n '{schema:"gentle-starter.ownership-inventory/v2",default_ownership:"project-owned",managed:[
 		{match:"exact",path:".starter/baseline.json"},{match:"exact",path:".starter/distribution/ownership.json"},
 		{match:"exact",path:".starter/source.json"},{match:"exact",path:".taskfiles/starter.yml"},
@@ -62,8 +121,8 @@ seed_starter_update_machinery() {
 		{match:"exact",path:".devcontainer/docker-compose.yml",contract:"F-manual/v1"}]}' \
 		>"${PROJECT_ROOT}/.starter/distribution/ownership.json"
 	cp "${REPO_ROOT}/.starter/baseline.json" "${PROJECT_ROOT}/.starter/baseline.json"
-	cp -R "${REPO_ROOT}/.taskfiles/scripts/starter-lib" \
-		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib"
+	cp -R "${REPO_ROOT}/.taskfiles/scripts/starter-lib/." \
+		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib/"
 	cp "${REPO_ROOT}/.taskfiles/scripts/starter.sh" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/starter.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/starter-prepare-release.sh" \

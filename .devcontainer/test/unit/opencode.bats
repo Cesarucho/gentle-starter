@@ -84,6 +84,7 @@ prepare_setup_sandbox() {
 	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/install/available" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled" \
 		"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested" \
+		"${SETUP_WORKSPACE}/.taskfiles/scripts/starter-lib/contracts" \
 		"${HOME_DIR}/.config/opencode" \
 		"${HOME_DIR}/.pi" \
 		"${HOME_DIR}/.engram" \
@@ -91,6 +92,8 @@ prepare_setup_sandbox() {
 		"${HOME_DIR}/.local/share/opencode"
 	cp "${REPO_ROOT}/.devcontainer/setup.sh" "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
 	cp "${REPO_ROOT}/.devcontainer/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/setup-volumes.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh" \
+		"${SETUP_WORKSPACE}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/opencode.json"
 	printf 'nested baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested/agent.md"
 	printf 'user customisation\n' >"${HOME_DIR}/.config/opencode/opencode.json"
@@ -270,6 +273,14 @@ printf '{}\n'
 EOF
 	cat >"${BIN_DIR}/yq" <<'EOF'
 #!/usr/bin/env bash
+if [ "${1:-}" = --version ]; then
+	printf 'yq 0.0.0\n'
+	exit 0
+fi
+if [ "${1:-}" = --help ]; then
+	printf 'yq: jq wrapper for YAML documents\n  --yaml-output\n'
+	exit 0
+fi
 if [ -n "${SETUP_VOLUME_TARGET:-}" ]; then
 	printf '../.env.d/.local:%s\n' "${SETUP_VOLUME_TARGET}"
 fi
@@ -694,6 +705,7 @@ path_metadata() {
 
 @test "OpenCode share state is passive and has no repair installer mapping" {
 	local scripts=("sentinel")
+	WORKSPACE_DIR="${REPO_ROOT}"
 	# shellcheck source=/dev/null
 	source "${REPO_ROOT}/.devcontainer/setup-volumes.sh"
 

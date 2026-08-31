@@ -20,6 +20,9 @@ linked from the documentation index. This file is a shortcut.
 - **Repository reality**: at session start, inspect the current branch, `HEAD`,
   worktree, and relevant release artifacts. Never rely on branch or commit
   metadata copied into this file.
+- **Host initialization dependencies**: `task project:init` requires `jq` and
+  either Mike Farah yq v4 (recommended) or Kislyuk yq. Lifecycle code must use
+  the shared yq compatibility boundary rather than dialect-specific flags.
 
 ## AI session contract
 

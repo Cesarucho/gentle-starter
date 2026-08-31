@@ -64,9 +64,9 @@ On your PC you need:
 - **[Task](https://taskfile.dev/installation/)**
 - **[Docker](https://docs.docker.com/get-started/get-docker/)**
 - **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**
-
-[jq](https://jqlang.org/download/) is useful for optional diagnostics but is not
-required for the happy path.
+- **[jq](https://jqlang.org/download/)**
+- **[yq](https://github.com/mikefarah/yq/#install)** — Mike Farah yq v4 is
+  recommended; `project:init` also supports Kislyuk yq.
 
 > Alternatively, use an IDE with Dev Container support, such as
 > [VS Code](https://code.visualstudio.com/download),
@@ -86,8 +86,8 @@ required for the happy path.
     task project:init         # create an adopted, independent project history
     ```
 
-    > `task project:init` requires a clean worktree and explicit confirmation to
-    > create independent, parentless Git history. It admits the exact annotated
+    > `task project:init` requires supported `yq`, a clean worktree, and explicit
+    > confirmation to create independent, parentless Git history. It admits the exact annotated
     > release at `HEAD`, includes state and retained evidence in the root commit,
     > never pushes, and preserves `LICENSE`. If release identity is unavailable or
     > ambiguous, pass `--release starter/vX.Y.Z` explicitly.

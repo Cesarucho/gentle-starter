@@ -17,6 +17,7 @@
     { "match": "exact", "path": ".taskfiles/scripts/starter-lib/contracts/path-safety.sh" },
     { "match": "exact", "path": ".taskfiles/scripts/starter-lib/contracts/repository-status-port.sh" },
     { "match": "exact", "path": ".taskfiles/scripts/starter-lib/contracts/source-port.sh" },
+    { "match": "exact", "path": ".taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh" },
     { "match": "exact", "path": ".taskfiles/scripts/starter-lib/core/derived-tree.sh" },
     { "match": "exact", "path": ".taskfiles/scripts/starter-lib/core/fusion-transaction.sh" },
     { "match": "exact", "path": ".taskfiles/scripts/starter-lib/core/journal.sh" },

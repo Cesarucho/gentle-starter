@@ -45,6 +45,10 @@
 # WORKSPACE_DIR, HOME, and UID being set by the caller. Running it
 # directly will not work.
 
+YQ_COMPATIBILITY_PATH="${WORKSPACE_DIR}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
+# shellcheck source=.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh
+source "${YQ_COMPATIBILITY_PATH}"
+
 # Emit "source|target" pairs, one per line, for each bind mount in
 # docker-compose.yml with both source and target defined.
 resolve_compose_volume_targets() {
@@ -74,7 +78,7 @@ resolve_compose_volume_targets() {
 				printf '%s|%s\n' "${src}" "${tgt}"
 			fi
 		fi
-	done < <(yq -r '.services."container-svc".volumes[]' "${compose_file}" 2>/dev/null || true)
+	done < <(yq_compatibility_raw '.services."container-svc".volumes[]' "${compose_file}" 2>/dev/null || true)
 }
 
 # Map a container-side target path to the install script base names

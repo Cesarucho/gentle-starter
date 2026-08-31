@@ -51,6 +51,7 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-ownership.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats
       - bats {{.DEVCONTAINER_DIR}}/test/unit/starter-transaction-v2-safety.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/yq-compatibility.bats
 
   integration:
     desc: Run integration tests for installed tools
