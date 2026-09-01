@@ -449,6 +449,9 @@ create_parentless_root() {
 	if declare -F starter_derived_transform_taskfile >/dev/null; then
 		starter_derived_transform_taskfile "$(pwd -P)"
 	fi
+	if declare -F starter_derived_filter_test_taskfile >/dev/null; then
+		starter_derived_filter_test_taskfile "$(pwd -P)" || return 1
+	fi
 	if [ "${STARTER_ADOPT_ENABLED}" = true ]; then
 		operation_count="$(jq '.operations | length' <<<"${PREPARED_PLAN}")"
 		for ((operation_index = 0; operation_index < operation_count; operation_index++)); do

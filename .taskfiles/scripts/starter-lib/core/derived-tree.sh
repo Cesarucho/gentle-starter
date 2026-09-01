@@ -25,11 +25,18 @@ starter_derived_transform() {
 	starter_derived_apply_removals "${destination}"
 	starter_derived_write_docs "${source_root}" "${destination}"
 	yq_compatibility_yaml 'del(.tasks.release, .tasks["prepare-release"])' "${source_root}/.taskfiles/starter.yml" >"${destination}/.taskfiles/starter.yml"
-	yq_compatibility_yaml_in_place '.tasks.unit.cmds |= map(select(. != "bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats" and . != "bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats"))' "${destination}/.taskfiles/test.yml"
+	starter_derived_filter_test_taskfile "${destination}"
 	jq empty "${destination}/.starter/distribution/ownership.json"
 	starter_derived_transform_taskfile "${destination}"
 	starter_derived_reject_generated "${destination}"
 	starter_tree_canonicalize_modes "${destination}" "${tracked_modes}"
+}
+
+starter_derived_filter_test_taskfile() {
+	local root="$1"
+	if [ -f "${root}/.taskfiles/test.yml" ]; then
+		yq_compatibility_yaml_in_place '.tasks.unit.cmds |= map(select(. != "bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats" and . != "bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats"))' "${root}/.taskfiles/test.yml"
+	fi
 }
 
 starter_derived_transform_taskfile() {

@@ -29,6 +29,7 @@ seed_project() {
 		"${PROJECT_ROOT}/.taskfiles/scripts/clean.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/clean-lib.sh" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/clean-lib.sh"
+	cp "${REPO_ROOT}/.taskfiles/test.yml" "${PROJECT_ROOT}/.taskfiles/test.yml"
 	cp "${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh" \
 		"${PROJECT_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
 	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/"*.sh
@@ -217,6 +218,9 @@ assert_only_root_ref_remains() {
 	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
 	[ -f "${PROJECT_ROOT}/.starter/baseline.json" ]
 	[ -f "${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/evidence/index.json" ]
+	! grep -Fq 'project-init.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
+	! grep -Fq 'starter-release.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
+	grep -Fq 'starter-derived.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url gentle-starter)" = "$(jq -r '.url' "${PROJECT_ROOT}/.starter/source.json")" ]
 	git -C "${PROJECT_ROOT}" show --stat --oneline HEAD >/dev/null
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
