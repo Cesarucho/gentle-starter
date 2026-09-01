@@ -28,6 +28,7 @@ starter_derived_transform() {
 	jq empty "${destination}/.starter/distribution/ownership.json"
 	starter_derived_transform_taskfile "${destination}"
 	starter_derived_reject_generated "${destination}"
+	starter_tree_canonicalize_modes "${source_root}" "${destination}"
 }
 
 starter_derived_transform_taskfile() {
@@ -64,6 +65,21 @@ starter_derived_reject_generated() {
 			return 1
 		}
 	done
+}
+
+starter_tree_canonicalize_modes() {
+	local source_root="$1" tree_root="$2" entry metadata path mode
+	while IFS= read -r -d '' path; do
+		chmod 0644 "${tree_root}/${path}"
+	done < <(find "${tree_root}" -type f -printf '%P\0' | LC_ALL=C sort -z)
+	while IFS= read -r -d '' entry; do
+		metadata="${entry%%$'\t'*}"
+		path="${entry#*$'\t'}"
+		mode="${metadata%% *}"
+		[ "${mode}" = 100755 ] || continue
+		[ -f "${tree_root}/${path}" ] && [ ! -L "${tree_root}/${path}" ] || continue
+		chmod 0755 "${tree_root}/${path}"
+	done < <(git -C "${source_root}" ls-files --stage -z)
 }
 
 starter_derived_identity() {

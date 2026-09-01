@@ -17,6 +17,7 @@ setup() {
 	printf '# Producer policy\n' >"${PROJECT}/AGENTS.md"
 	printf '# Producer example\n' >"${PROJECT}/AGENTS.md.TEMPLATE.EXAMPLE"
 	git init -q "${PROJECT}"
+	git -C "${PROJECT}" add .
 }
 
 teardown() { rm -rf "${TEST_ROOT}"; }
@@ -24,13 +25,31 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 run_prepare() {
 	local version="${1:-2.0.0}" predecessor="${2:-0.0.0}"
 	run env STARTER_PREPARE_FAILPOINT="${STARTER_PREPARE_FAILPOINT:-}" \
-		bash -c 'cd "$1" && exec "$2" "$3" --predecessor "$4"' _ "${PROJECT}" "${PREPARE}" "${version}" "${predecessor}"
+		bash -c 'umask "$5"; cd "$1" && exec "$2" "$3" --predecessor "$4"' _ \
+		"${PROJECT}" "${PREPARE}" "${version}" "${predecessor}" "${PREPARE_UMASK:-0022}"
 }
 
 run_prepare_inferred() {
 	local version="$1"
 	run env STARTER_PREPARE_FAILPOINT="${STARTER_PREPARE_FAILPOINT:-}" \
 		bash -c 'cd "$1" && exec "$2" "$3"' _ "${PROJECT}" "${PREPARE}" "${version}"
+}
+
+materialize_tracked_modes() {
+	local umask="$1" path regular_mode executable_mode
+	case "${umask}" in
+	0022) regular_mode=0644 executable_mode=0755 ;;
+	0002) regular_mode=0664 executable_mode=0775 ;;
+	*) return 1 ;;
+	esac
+	while IFS= read -r -d '' path; do
+		[ ! -L "${PROJECT}/${path}" ] || continue
+		if git -C "${PROJECT}" ls-files --stage -- "${path}" | grep -q '^100755 '; then
+			chmod "${executable_mode}" "${PROJECT}/${path}"
+		else
+			chmod "${regular_mode}" "${PROJECT}/${path}"
+		fi
+	done < <(git -C "${PROJECT}" ls-files -z)
 }
 
 bind_predecessor_manifest() {
@@ -75,7 +94,7 @@ restore_predecessor_fixture() {
 	[ -f "${PROJECT}/.starter/distribution/prepared/2.0.0/manifest.json" ]
 	[ "$(sha256sum "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = \
 		"$(sha256sum "${PROJECT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" ]
-	[ "$(stat -c '%a' "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE")" = 640 ]
+	[ "$(stat -c '%a' "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE")" = 644 ]
 	[ ! -e "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md" ]
 	[ ! -e "${PROJECT}/.starter/distribution/prepared/2.0.0/tree/AGENTS.md.TEMPLATE.EXAMPLE" ]
 	! jq -e '.payload.entries[] | select(.path == "AGENTS.md.TEMPLATE" or .path == "AGENTS.md" or .path == "AGENTS.md.TEMPLATE.EXAMPLE")' \
@@ -84,6 +103,40 @@ restore_predecessor_fixture() {
 	run_prepare 2.1.0 2.0.0
 	[ "${status}" -eq 0 ]
 	[ -f "${PROJECT}/.starter/distribution/prepared/2.1.0/manifest.json" ]
+}
+
+@test "prepare-release canonicalizes tracked modes independently of checkout umask" {
+	local baseline current path
+	mkdir -p "${PROJECT}/.taskfiles/scripts/starter-lib/core"
+	printf '# shell module\n' >"${PROJECT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh"
+	printf '#!/usr/bin/env bash\nexit 0\n' >"${PROJECT}/.taskfiles/scripts/starter.sh"
+	chmod 0644 "${PROJECT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh"
+	chmod 0755 "${PROJECT}/.taskfiles/scripts/starter.sh"
+	git -C "${PROJECT}" add .taskfiles/scripts
+
+	materialize_tracked_modes 0022
+	PREPARE_UMASK=0022
+	run_prepare
+	[ "${status}" -eq 0 ] || {
+		printf '%s\n' "${output}" >&3
+		false
+	}
+	baseline="${TEST_ROOT}/prepared-0022"
+	mv "${PROJECT}/.starter/distribution/prepared/2.0.0" "${baseline}"
+
+	materialize_tracked_modes 0002
+	PREPARE_UMASK=0002
+	run_prepare
+	[ "${status}" -eq 0 ] || {
+		printf '%s\n' "${output}" >&3
+		false
+	}
+	current="${PROJECT}/.starter/distribution/prepared/2.0.0"
+	cmp "${baseline}/manifest.json" "${current}/manifest.json"
+	cmp "${baseline}/index.json" "${current}/index.json"
+	[ "$(jq -r '.payload.entries[] | select(.path == ".taskfiles/scripts/starter-lib/core/derived-tree.sh") | .mode' "${current}/manifest.json")" = 644 ]
+	[ "$(jq -r '.payload.entries[] | select(.path == ".taskfiles/scripts/starter.sh") | .mode' "${current}/manifest.json")" = 755 ]
+	[ -z "$(diff -r "${baseline}/payloads" "${current}/payloads")" ]
 }
 
 @test "prepare-release preserves a pre-existing final output on collision" {

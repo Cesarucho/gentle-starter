@@ -66,6 +66,7 @@ main() {
 	mkdir -p "${official}"
 	rsync -a --exclude=.git --exclude=.env.d --exclude=.starter/evidence --exclude=.starter/journals \
 		--exclude=.starter/caches --exclude=.starter/distribution/prepared --exclude=context.md "${root}/" "${official}/"
+	starter_tree_canonicalize_modes "${root}" "${official}"
 	official_identity="$(starter_derived_identity "${official}")"
 	cp -a "${derived}" "${staging_output}/tree"
 	starter_prepare_distribution "${derived}" "${staging_output}" "${version}" "${predecessor}" "${official_identity}" "${identity}"
@@ -144,7 +145,10 @@ starter_prepare_validate() {
 			(map(.id) as $ids | ($ids|length) == ($ids|unique|length)) and
 			(map(.path) as $paths | ($paths|length) == ($paths|unique|length)) and all(
 			(keys|sort) == ["id","path","sha256"] and (.id|type == "string" and length > 0) and (.path|relative) and (.sha256|sha)))
-	' "${manifest}" >/dev/null || return 1
+	' "${manifest}" >/dev/null || {
+		prepare_error "manifest schema validation failed: ${manifest}"
+		return 1
+	}
 	[ "$(sha256sum "${output}/ownership.json" | cut -d' ' -f1)" = "$(jq -r '.ownership.sha256' "${manifest}")" ] || return 1
 	starter_ownership_validate_file "${output}/ownership.json" || return 1
 	count="$(jq '.payload.entries | length' "${manifest}")"
