@@ -88,10 +88,11 @@ EOF
 
 @test "derived transformation runs through Mike Farah v4 syntax" {
 	write_fake_yq 'if [ "${1:-}" = --version ]; then echo "yq (https://github.com/mikefarah/yq/) version v4.44.3"; exit; fi; if [ "${1:-}" = -o=json ]; then shift 2; fi; exec "$REAL_YQ" -c "$@"'
-	local destination="${TEST_ROOT}/derived"
+	local destination="${TEST_ROOT}/derived" modes="${TEST_ROOT}/tracked-modes"
+	git -C "${REPO_ROOT}" ls-files --stage -z >"${modes}"
 
-	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_YQ="${REAL_YQ}" bash -c 'source "$1"; starter_derived_transform "$2" "$3"' \
-		_ "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${destination}"
+	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_YQ="${REAL_YQ}" bash -c 'source "$1"; starter_derived_transform "$2" "$3" "$4"' \
+		_ "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${destination}" "${modes}"
 
 	[ "${status}" -eq 0 ]
 	run "${REAL_YQ}" -e '.tasks.release or .tasks.prepare-release' "${destination}/.taskfiles/starter.yml"
@@ -100,17 +101,18 @@ EOF
 
 @test "real supported dialects produce byte-identical canonical derived files and identity" {
 	[ -x "${MIKE_YQ}" ] || skip "MIKE_YQ does not name a real Mike Farah v4 binary"
-	local kislyuk_bin="${TEST_ROOT}/kislyuk-bin" mike_bin="${TEST_ROOT}/mike-bin"
+	local kislyuk_bin="${TEST_ROOT}/kislyuk-bin" mike_bin="${TEST_ROOT}/mike-bin" modes="${TEST_ROOT}/tracked-modes"
 	local kislyuk_tree="${TEST_ROOT}/derived-kislyuk" mike_tree="${TEST_ROOT}/derived-mike"
 	mkdir -p "${kislyuk_bin}" "${mike_bin}"
 	ln -s "${REAL_YQ}" "${kislyuk_bin}/yq"
 	ln -s "${MIKE_YQ}" "${mike_bin}/yq"
+	git -C "${REPO_ROOT}" ls-files --stage -z >"${modes}"
 
-	run env PATH="${kislyuk_bin}:${PATH}" bash -c 'source "$1"; starter_derived_transform "$2" "$3"' \
-		_ "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${kislyuk_tree}"
+	run env PATH="${kislyuk_bin}:${PATH}" bash -c 'source "$1"; starter_derived_transform "$2" "$3" "$4"' \
+		_ "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${kislyuk_tree}" "${modes}"
 	[ "${status}" -eq 0 ]
-	run env PATH="${mike_bin}:${PATH}" bash -c 'source "$1"; starter_derived_transform "$2" "$3"' \
-		_ "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${mike_tree}"
+	run env PATH="${mike_bin}:${PATH}" bash -c 'source "$1"; starter_derived_transform "$2" "$3" "$4"' \
+		_ "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${mike_tree}" "${modes}"
 	[ "${status}" -eq 0 ]
 
 	cmp "${kislyuk_tree}/.taskfiles/starter.yml" "${mike_tree}/.taskfiles/starter.yml"

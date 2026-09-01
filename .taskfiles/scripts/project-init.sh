@@ -117,13 +117,15 @@ select_originating_release() {
 }
 
 prepare_adopted_project() {
-	local source_url source_result retained_result plan state operation_count index target source official_project
+	local source_url source_result retained_result plan state operation_count index target source official_project tracked_modes
 	PREPARED_PROJECT="$(mktemp -d "${TMPDIR:-/tmp}/project-init-preflight.XXXXXX")"
-	trap 'rm -rf -- "${PREPARED_PROJECT:-}" "${official_project:-}"' EXIT
+	tracked_modes="${PREPARED_PROJECT}.tracked-modes"
+	trap 'rm -rf -- "${PREPARED_PROJECT:-}" "${official_project:-}" "${tracked_modes:-}"' EXIT
+	starter_git_capture_tracked_modes "$(pwd -P)" "${tracked_modes}" || fail "tracked mode metadata could not be captured"
 	git archive HEAD | tar -x -C "${PREPARED_PROJECT}"
 	official_project="${PREPARED_PROJECT}"
 	PREPARED_PROJECT="${official_project}.derived"
-	starter_derived_transform "${official_project}" "${PREPARED_PROJECT}" || fail "derived project tree could not be materialized"
+	starter_derived_transform "${official_project}" "${PREPARED_PROJECT}" "${tracked_modes}" || fail "derived project tree could not be materialized"
 	STARTER_PROJECT_ROOT="${PREPARED_PROJECT}"
 	STARTER_RELEASE="${SELECTED_RELEASE}"
 	STARTER_CACHE_DIR="${PREPARED_PROJECT}/.starter-cache"
@@ -460,6 +462,8 @@ create_parentless_root() {
 		cp -a -- "${PREPARED_PROJECT}/.starter/evidence" .starter/evidence
 		rebind_adopted_evidence_paths
 	fi
+	# Managed materialization must not override the final consumer identity policy.
+	starter_derived_apply_removals "$(pwd -P)"
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git add -A
 	GIT_INDEX_FILE="${TEMP_INDEX_PATH}" git write-tree >"${TRANSACTION_DIR}/tree"
 	read -r tree <"${TRANSACTION_DIR}/tree"

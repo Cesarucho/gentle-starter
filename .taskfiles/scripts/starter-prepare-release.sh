@@ -18,7 +18,7 @@ starter_prepare_cleanup() {
 }
 
 main() {
-	local version="${1:-}" predecessor="" root inventory workspace derived official identity official_identity
+	local version="${1:-}" predecessor="" root inventory workspace derived official identity official_identity tracked_modes
 	local prepared_root output staging_output
 	if { [ "$#" -ne 1 ] && [ "$#" -ne 3 ]; } ||
 		{ [ "$#" -eq 3 ] && [ "${2:-}" != --predecessor ]; } ||
@@ -59,14 +59,16 @@ main() {
 	PREPARE_STAGING_OUTPUT="${staging_output}"
 	PREPARE_WORKSPACE="${workspace}"
 	trap 'starter_prepare_cleanup' EXIT
+	tracked_modes="${workspace}/tracked-modes"
+	starter_git_capture_tracked_modes "${root}" "${tracked_modes}"
 	derived="${workspace}/derived"
-	starter_derived_transform "${root}" "${derived}"
+	starter_derived_transform "${root}" "${derived}" "${tracked_modes}"
 	identity="$(starter_derived_identity "${derived}")"
 	official="${workspace}/official"
 	mkdir -p "${official}"
 	rsync -a --exclude=.git --exclude=.env.d --exclude=.starter/evidence --exclude=.starter/journals \
 		--exclude=.starter/caches --exclude=.starter/distribution/prepared --exclude=context.md "${root}/" "${official}/"
-	starter_tree_canonicalize_modes "${root}" "${official}"
+	starter_tree_canonicalize_modes "${official}" "${tracked_modes}"
 	official_identity="$(starter_derived_identity "${official}")"
 	cp -a "${derived}" "${staging_output}/tree"
 	starter_prepare_distribution "${derived}" "${staging_output}" "${version}" "${predecessor}" "${official_identity}" "${identity}"

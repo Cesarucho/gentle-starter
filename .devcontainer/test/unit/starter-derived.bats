@@ -9,15 +9,16 @@ setup() {
 teardown() { rm -rf "${TEST_ROOT}"; }
 
 @test "official tree transforms deterministically into a consumer-only tree" {
-	local first="${TEST_ROOT}/first" second="${TEST_ROOT}/second" first_id second_id template_sha template_mode
+	local first="${TEST_ROOT}/first" second="${TEST_ROOT}/second" modes="${TEST_ROOT}/tracked-modes" first_id second_id template_sha template_mode
 	template_sha="$(sha256sum "${REPO_ROOT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)"
 	template_mode="$(stat -c '%a' "${REPO_ROOT}/AGENTS.md.TEMPLATE")"
-	run bash -c 'source "$1"; starter_derived_transform "$2" "$3"; starter_derived_identity "$3"' _ \
-		"${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${first}"
+	git -C "${REPO_ROOT}" ls-files --stage -z >"${modes}"
+	run bash -c 'source "$1"; starter_derived_transform "$2" "$3" "$4"; starter_derived_identity "$3"' _ \
+		"${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${first}" "${modes}"
 	[ "$status" -eq 0 ]
 	first_id="${output##*$'\n'}"
-	run bash -c 'source "$1"; starter_derived_transform "$2" "$3"; starter_derived_identity "$3"' _ \
-		"${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${second}"
+	run bash -c 'source "$1"; starter_derived_transform "$2" "$3" "$4"; starter_derived_identity "$3"' _ \
+		"${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh" "${REPO_ROOT}" "${second}" "${modes}"
 	[ "$status" -eq 0 ]
 	second_id="${output##*$'\n'}"
 	[ "${first_id}" = "${second_id}" ]

@@ -209,7 +209,10 @@ assert_only_root_ref_remains() {
 		printf '%s\n' "${output}" >&3
 		false
 	}
+	[[ "${output}" != *"fatal:"* ]]
+	[[ "${output}" != *"not a git repository"* ]]
 	assert_parentless_root
+	assert_starter_identity_cleaned
 	assert_only_root_ref_remains project-main
 	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
 	[ -f "${PROJECT_ROOT}/.starter/baseline.json" ]
