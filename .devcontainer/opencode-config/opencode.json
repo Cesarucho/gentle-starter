@@ -373,6 +373,17 @@
     "scrollbar_toggle": "ctrl+shift+s"
   },
   "lsp": true,
+  "permission": {
+    "external_directory": {
+      "*": "ask",
+      "/tmp/**": "allow",
+      "~/.config/opencode/**": "allow"
+    },
+    "edit": {
+      "*": "allow",
+      "~/.config/opencode/**": "ask"
+    }
+  },
   "mcp": {
     "context7": {
       "enabled": true,
