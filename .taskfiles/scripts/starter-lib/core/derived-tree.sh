@@ -18,18 +18,19 @@ STARTER_DERIVED_REMOVALS=(
 starter_derived_transform() {
 	local source_root="$1" destination="$2" tracked_modes="$3"
 	[ -d "${source_root}" ] && [ -f "${tracked_modes}" ] && [ ! -L "${tracked_modes}" ] && [ ! -e "${destination}" ] || return 1
-	mkdir -p "${destination}"
+	mkdir -p "${destination}" || return 1
 	rsync -a --exclude=.git --exclude=.env.d --exclude=.starter/evidence \
-		--exclude=.starter/journals --exclude=.starter/caches --exclude=context.md \
-		"${source_root}/" "${destination}/"
-	starter_derived_apply_removals "${destination}"
-	starter_derived_write_docs "${source_root}" "${destination}"
-	yq_compatibility_yaml 'del(.tasks.release, .tasks["prepare-release"])' "${source_root}/.taskfiles/starter.yml" >"${destination}/.taskfiles/starter.yml"
-	starter_derived_filter_test_taskfile "${destination}"
-	jq empty "${destination}/.starter/distribution/ownership.json"
-	starter_derived_transform_taskfile "${destination}"
-	starter_derived_reject_generated "${destination}"
-	starter_tree_canonicalize_modes "${destination}" "${tracked_modes}"
+		--exclude=.starter/journals --exclude=.starter/caches --exclude=.starter/state.json \
+		--exclude=.starter/proposals --exclude=.starter/pending --exclude=context.md \
+		"${source_root}/" "${destination}/" || return 1
+	starter_derived_apply_removals "${destination}" || return 1
+	starter_derived_write_docs "${source_root}" "${destination}" || return 1
+	yq_compatibility_yaml 'del(.tasks.release, .tasks["prepare-release"])' "${source_root}/.taskfiles/starter.yml" >"${destination}/.taskfiles/starter.yml" || return 1
+	starter_derived_filter_test_taskfile "${destination}" || return 1
+	jq empty "${destination}/.starter/distribution/ownership.json" || return 1
+	starter_derived_transform_taskfile "${destination}" || return 1
+	starter_derived_reject_generated "${destination}" || return 1
+	starter_tree_canonicalize_modes "${destination}" "${tracked_modes}" || return 1
 }
 
 starter_derived_filter_test_taskfile() {

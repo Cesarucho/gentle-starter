@@ -62,7 +62,7 @@ main() {
 	tracked_modes="${workspace}/tracked-modes"
 	starter_git_capture_tracked_modes "${root}" "${tracked_modes}"
 	derived="${workspace}/derived"
-	starter_derived_transform "${root}" "${derived}" "${tracked_modes}"
+	starter_derived_transform "${root}" "${derived}" "${tracked_modes}" || return 1
 	identity="$(starter_derived_identity "${derived}")"
 	official="${workspace}/official"
 	mkdir -p "${official}"
