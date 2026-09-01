@@ -116,6 +116,7 @@ EOF
 	[ "${status}" -eq 0 ]
 
 	cmp "${kislyuk_tree}/.taskfiles/starter.yml" "${mike_tree}/.taskfiles/starter.yml"
+	cmp "${kislyuk_tree}/.taskfiles/test.yml" "${mike_tree}/.taskfiles/test.yml"
 	cmp "${kislyuk_tree}/Taskfile.yml" "${mike_tree}/Taskfile.yml"
 	source "${REPO_ROOT}/.taskfiles/scripts/starter-lib/core/derived-tree.sh"
 	[ "$(starter_derived_identity "${kislyuk_tree}")" = "$(starter_derived_identity "${mike_tree}")" ]
