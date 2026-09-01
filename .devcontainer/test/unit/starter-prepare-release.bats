@@ -3,8 +3,7 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	PREPARE="${REPO_ROOT}/.taskfiles/scripts/starter-prepare-release.sh"
-	[ -d /home/ubuntu/tmp ]
-	TEST_ROOT="$(mktemp -d /home/ubuntu/tmp/starter-prepare.XXXXXX)"
+	TEST_ROOT="$(mktemp -d "${BATS_TEST_TMPDIR}/starter-prepare.XXXXXX")"
 	PROJECT="${TEST_ROOT}/publisher"
 	mkdir -p "${PROJECT}/.starter/distribution" "${PROJECT}/.taskfiles" "${PROJECT}/.devcontainer"
 	cp -p "${REPO_ROOT}/.starter/distribution/ownership.json" "${PROJECT}/.starter/distribution/ownership.json"

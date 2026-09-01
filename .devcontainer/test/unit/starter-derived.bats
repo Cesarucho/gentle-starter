@@ -2,8 +2,7 @@
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-	[ -d /home/ubuntu/tmp ]
-	TEST_ROOT="$(mktemp -d /home/ubuntu/tmp/starter-derived-test.XXXXXX)"
+	TEST_ROOT="$(mktemp -d "${BATS_TEST_TMPDIR}/starter-derived-test.XXXXXX")"
 }
 
 teardown() { rm -rf "${TEST_ROOT}"; }

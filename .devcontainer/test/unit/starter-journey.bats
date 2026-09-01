@@ -2,8 +2,7 @@
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-	[ -d /home/ubuntu/tmp ]
-	TEST_ROOT="$(mktemp -d /home/ubuntu/tmp/starter-journey.XXXXXX)"
+	TEST_ROOT="$(mktemp -d "${BATS_TEST_TMPDIR}/starter-journey.XXXXXX")"
 	SOURCE="${TEST_ROOT}/source"
 	BASE_PROJECT="${TEST_ROOT}/base-project"
 	PROJECT="${TEST_ROOT}/project"
