@@ -260,6 +260,12 @@ if [[ " $* " == *" ls-files "* ]] && [[ " $* " == *" --stage "* ]]; then
 	if [ -f "${SETUP_WORKSPACE}/regression.bats" ]; then
 		printf '100755 %040d 0\tregression.bats\0' 0
 	fi
+	if [ -e "${SETUP_WORKSPACE}/module.sh" ]; then
+		printf '100644 %040d 0\tmodule.sh\0' 0
+	fi
+	if [ -e "${SETUP_WORKSPACE}/tracked-link.sh" ]; then
+		printf '100644 %040d 0\ttracked-link.sh\0' 0
+	fi
 	exit 0
 fi
 if [[ " $* " == *" --get-all "* ]]; then
@@ -421,20 +427,28 @@ path_metadata() {
 	! grep -Fq "${ignored_dir}" "${CHOWN_LOG_FILE}"
 }
 
-@test "workspace repair keeps tracked executable BATS tests executable and ordinary files non-executable" {
+@test "workspace repair restores mixed Git-index file modes without following symlinks" {
 	prepare_setup_sandbox
 	local bats_file="${SETUP_WORKSPACE}/regression.bats"
+	local shell_module="${SETUP_WORKSPACE}/module.sh"
 	local ordinary_file="${SETUP_WORKSPACE}/notes.txt"
+	local symlink_target="${TEST_ROOT}/tracked-link-target"
+	local tracked_link="${SETUP_WORKSPACE}/tracked-link.sh"
 	printf '#!/usr/bin/env bats\n' >"${bats_file}"
+	printf 'shell module\n' >"${shell_module}"
 	printf 'ordinary payload\n' >"${ordinary_file}"
-	chmod 0700 "${bats_file}"
-	chmod 0600 "${ordinary_file}"
+	printf 'external payload\n' >"${symlink_target}"
+	ln -s "${symlink_target}" "${tracked_link}"
+	chmod 0600 "${bats_file}" "${shell_module}" "${ordinary_file}" "${symlink_target}"
 
 	run_setup
 
 	[ "${status}" -eq 0 ]
 	[ "$(stat -c '%a' "${bats_file}")" = "755" ]
+	[ "$(stat -c '%a' "${shell_module}")" = "644" ]
 	[ "$(stat -c '%a' "${ordinary_file}")" = "644" ]
+	[ -L "${tracked_link}" ]
+	[ "$(stat -c '%a' "${symlink_target}")" = "600" ]
 }
 
 @test "workspace chown builds prune args first and uses no-follow semantics" {

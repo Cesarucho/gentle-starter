@@ -125,9 +125,12 @@ sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -
 while IFS= read -r -d '' tracked_entry; do
 	tracked_mode="${tracked_entry%% *}"
 	tracked_path="${tracked_entry#*$'\t'}"
-	if [ "${tracked_mode}" = "100755" ] && [ -f "${WORKSPACE_DIR}/${tracked_path}" ]; then
-		sudo chmod 755 "${WORKSPACE_DIR}/${tracked_path}"
-	fi
+	[ -f "${WORKSPACE_DIR}/${tracked_path}" ] || continue
+	[ ! -L "${WORKSPACE_DIR}/${tracked_path}" ] || continue
+	case "${tracked_mode}" in
+	100644) sudo chmod 644 "${WORKSPACE_DIR}/${tracked_path}" ;;
+	100755) sudo chmod 755 "${WORKSPACE_DIR}/${tracked_path}" ;;
+	esac
 done < <(git -C "${WORKSPACE_DIR}" ls-files --stage -z)
 
 # Copy the file tree under source_root into target_root, but only
