@@ -84,7 +84,9 @@ starter_tree_canonicalize_modes() {
 		path="${entry#*$'\t'}"
 		mode="${metadata%% *}"
 		[ "${mode}" = 100755 ] || continue
-		[ -f "${tree_root}/${path}" ] && [ ! -L "${tree_root}/${path}" ] || continue
+		if [ ! -f "${tree_root}/${path}" ] || [ -L "${tree_root}/${path}" ]; then
+			continue
+		fi
 		chmod 0755 "${tree_root}/${path}"
 	done <"${tracked_modes}"
 }
