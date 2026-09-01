@@ -36,11 +36,13 @@ copy_official_fixture() {
 	[ ! -e "${first}/AGENTS.md" ]
 	[ ! -e "${first}/AGENTS.md.TEMPLATE.EXAMPLE" ]
 	[ ! -e "${first}/.devcontainer/test/unit/starter-journey.bats" ]
+	[ ! -e "${first}/.devcontainer/test/unit/starter-prepare-release.bats" ]
 	[ "$(sha256sum "${first}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = "${template_sha}" ]
 	[ "$(stat -c '%a' "${first}/AGENTS.md.TEMPLATE")" = "${template_mode}" ]
 	[ -f "${first}/.devcontainer/docs/starter-updates.md" ]
 	! grep -Fq 'project-init.bats' "${first}/.taskfiles/test.yml"
 	! grep -Fq 'starter-journey.bats' "${first}/.taskfiles/test.yml"
+	! grep -Fq 'starter-prepare-release.bats' "${first}/.taskfiles/test.yml"
 	! grep -Fq 'starter-release.bats' "${first}/.taskfiles/test.yml"
 	grep -Fq 'starter-derived.bats' "${first}/.taskfiles/test.yml"
 	run yq -e '.tasks.release or .tasks.prepare-release' "${first}/.taskfiles/starter.yml"
