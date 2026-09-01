@@ -3,6 +3,7 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	TEST_ROOT="$(mktemp -d "${BATS_TEST_TMPDIR}/starter-derived-test.XXXXXX")"
+	source "${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
 }
 
 teardown() { rm -rf "${TEST_ROOT}"; }
@@ -12,6 +13,29 @@ copy_official_fixture() {
 	mkdir -p "${destination}"
 	rsync -a --exclude=.git --exclude=.env.d --exclude=.starter/distribution/prepared \
 		"${REPO_ROOT}/" "${destination}/"
+}
+
+assert_producer_only_tests_excluded() {
+	local derived_root="$1" test_file command producer_commands derived_commands
+	local producer_only_tests=(
+		project-init.bats
+		starter-journey.bats
+		starter-prepare-release.bats
+		starter-public-v2-safety.bats
+		starter-release.bats
+	)
+	producer_commands="$(yq_compatibility_raw '.tasks.unit.cmds[]' "${REPO_ROOT}/.taskfiles/test.yml")"
+	derived_commands="$(yq_compatibility_raw '.tasks.unit.cmds[]' "${derived_root}/.taskfiles/test.yml")"
+	for test_file in "${producer_only_tests[@]}"; do
+		[ ! -e "${derived_root}/.devcontainer/test/unit/${test_file}" ]
+		! grep -Fqx "bats {{.DEVCONTAINER_DIR}}/test/unit/${test_file}" <<<"${derived_commands}"
+	done
+	while IFS= read -r command; do
+		case "${command}" in
+		*'/project-init.bats' | *'/starter-journey.bats' | *'/starter-prepare-release.bats' | *'/starter-public-v2-safety.bats' | *'/starter-release.bats') continue ;;
+		esac
+		grep -Fqx "${command}" <<<"${derived_commands}"
+	done <<<"${producer_commands}"
 }
 
 @test "official tree transforms deterministically into a consumer-only tree" {
@@ -35,16 +59,10 @@ copy_official_fixture() {
 	[ ! -e "${first}/.starter/state.json" ]
 	[ ! -e "${first}/AGENTS.md" ]
 	[ ! -e "${first}/AGENTS.md.TEMPLATE.EXAMPLE" ]
-	[ ! -e "${first}/.devcontainer/test/unit/starter-journey.bats" ]
-	[ ! -e "${first}/.devcontainer/test/unit/starter-prepare-release.bats" ]
+	assert_producer_only_tests_excluded "${first}"
 	[ "$(sha256sum "${first}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = "${template_sha}" ]
 	[ "$(stat -c '%a' "${first}/AGENTS.md.TEMPLATE")" = "${template_mode}" ]
 	[ -f "${first}/.devcontainer/docs/starter-updates.md" ]
-	! grep -Fq 'project-init.bats' "${first}/.taskfiles/test.yml"
-	! grep -Fq 'starter-journey.bats' "${first}/.taskfiles/test.yml"
-	! grep -Fq 'starter-prepare-release.bats' "${first}/.taskfiles/test.yml"
-	! grep -Fq 'starter-release.bats' "${first}/.taskfiles/test.yml"
-	grep -Fq 'starter-derived.bats' "${first}/.taskfiles/test.yml"
 	run yq -e '.tasks.release or .tasks.prepare-release' "${first}/.taskfiles/starter.yml"
 	[ "$status" -ne 0 ]
 }

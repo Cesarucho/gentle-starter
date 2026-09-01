@@ -4,6 +4,7 @@ setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	TEST_ROOT="$(mktemp -d)"
 	PROJECT_ROOT="${TEST_ROOT}/project"
+	source "${REPO_ROOT}/.taskfiles/scripts/starter-lib/contracts/yq-compatibility.sh"
 	mkdir -p "${PROJECT_ROOT}"
 	seed_project
 	LICENSE_SHA256_BEFORE="$(sha256sum "${PROJECT_ROOT}/LICENSE" | awk '{print $1}')"
@@ -198,6 +199,29 @@ assert_only_root_ref_remains() {
 	[ "$(git -C "${PROJECT_ROOT}" for-each-ref --format='%(refname)')" = "${expected_ref}" ]
 }
 
+assert_producer_only_tests_excluded() {
+	local test_file command producer_commands project_commands
+	local producer_only_tests=(
+		project-init.bats
+		starter-journey.bats
+		starter-prepare-release.bats
+		starter-public-v2-safety.bats
+		starter-release.bats
+	)
+	producer_commands="$(yq_compatibility_raw '.tasks.unit.cmds[]' "${REPO_ROOT}/.taskfiles/test.yml")"
+	project_commands="$(yq_compatibility_raw '.tasks.unit.cmds[]' "${PROJECT_ROOT}/.taskfiles/test.yml")"
+	for test_file in "${producer_only_tests[@]}"; do
+		[ ! -e "${PROJECT_ROOT}/.devcontainer/test/unit/${test_file}" ]
+		! grep -Fqx "bats {{.DEVCONTAINER_DIR}}/test/unit/${test_file}" <<<"${project_commands}"
+	done
+	while IFS= read -r command; do
+		case "${command}" in
+		*'/project-init.bats' | *'/starter-journey.bats' | *'/starter-prepare-release.bats' | *'/starter-public-v2-safety.bats' | *'/starter-release.bats') continue ;;
+		esac
+		grep -Fqx "${command}" <<<"${project_commands}"
+	done <<<"${producer_commands}"
+}
+
 @test "automatic adoption detects an exact release at HEAD and includes state and evidence in the root" {
 	seed_starter_update_machinery
 	git -C "${PROJECT_ROOT}" add -A
@@ -218,13 +242,7 @@ assert_only_root_ref_remains() {
 	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
 	[ -f "${PROJECT_ROOT}/.starter/baseline.json" ]
 	[ -f "${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/evidence/index.json" ]
-	[ ! -e "${PROJECT_ROOT}/.devcontainer/test/unit/starter-journey.bats" ]
-	[ ! -e "${PROJECT_ROOT}/.devcontainer/test/unit/starter-prepare-release.bats" ]
-	! grep -Fq 'project-init.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
-	! grep -Fq 'starter-journey.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
-	! grep -Fq 'starter-prepare-release.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
-	! grep -Fq 'starter-release.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
-	grep -Fq 'starter-derived.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
+	assert_producer_only_tests_excluded
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url gentle-starter)" = "$(jq -r '.url' "${PROJECT_ROOT}/.starter/source.json")" ]
 	git -C "${PROJECT_ROOT}" show --stat --oneline HEAD >/dev/null
 	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
@@ -867,8 +885,10 @@ EOF
 	grep -Fq 'project-init.bats' "${REPO_ROOT}/.taskfiles/test.yml"
 	grep -Fq 'starter-journey.bats' "${REPO_ROOT}/.taskfiles/test.yml"
 	grep -Fq 'starter-prepare-release.bats' "${REPO_ROOT}/.taskfiles/test.yml"
+	grep -Fq 'starter-public-v2-safety.bats' "${REPO_ROOT}/.taskfiles/test.yml"
 	[ -f "${REPO_ROOT}/.devcontainer/test/unit/starter-journey.bats" ]
 	[ -f "${REPO_ROOT}/.devcontainer/test/unit/starter-prepare-release.bats" ]
+	[ -f "${REPO_ROOT}/.devcontainer/test/unit/starter-public-v2-safety.bats" ]
 	[ -f "${REPO_ROOT}/.taskfiles/project.yml" ]
 	run grep -Eq 'git[[:space:]]+(push|fetch|ls-remote)' \
 		"${REPO_ROOT}/.taskfiles/scripts/project-init.sh"

@@ -77,7 +77,6 @@
     { "match": "exact", "path": ".devcontainer/test/unit/common.sh.bats" },
     { "match": "exact", "path": ".devcontainer/test/unit/starter-contract.bats" },
     { "match": "exact", "path": ".devcontainer/test/unit/starter-git-source.bats" },
-    { "match": "exact", "path": ".devcontainer/test/unit/starter-public-v2-safety.bats" },
     { "match": "exact", "path": ".devcontainer/test/unit/starter-ownership.bats" },
     { "match": "exact", "path": ".devcontainer/test/unit/starter-transaction-v2-safety.bats" }
   ],
