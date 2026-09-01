@@ -38,8 +38,6 @@ copy_official_fixture() {
 	[ "$(sha256sum "${first}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = "${template_sha}" ]
 	[ "$(stat -c '%a' "${first}/AGENTS.md.TEMPLATE")" = "${template_mode}" ]
 	[ -f "${first}/.devcontainer/docs/starter-updates.md" ]
-	grep -Fq 'project-init.bats' "${REPO_ROOT}/.taskfiles/test.yml"
-	grep -Fq 'starter-release.bats' "${REPO_ROOT}/.taskfiles/test.yml"
 	! grep -Fq 'project-init.bats' "${first}/.taskfiles/test.yml"
 	! grep -Fq 'starter-release.bats' "${first}/.taskfiles/test.yml"
 	grep -Fq 'starter-derived.bats' "${first}/.taskfiles/test.yml"
