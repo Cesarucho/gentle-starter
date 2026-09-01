@@ -10,6 +10,7 @@ STARTER_DERIVED_REMOVALS=(
 	.taskfiles/scripts/project-init.sh .taskfiles/scripts/clean.sh .taskfiles/scripts/clean-lib.sh
 	AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE
 	.devcontainer/test/unit/project-init.bats
+	.devcontainer/test/unit/starter-journey.bats
 	.starter/contracts .starter/distribution/migrations .starter/distribution/payloads .starter/distribution/prepared
 	.taskfiles/scripts/starter-release.sh .taskfiles/scripts/starter-prepare-release.sh
 	.devcontainer/test/unit/starter-release.bats
@@ -36,7 +37,7 @@ starter_derived_transform() {
 starter_derived_filter_test_taskfile() {
 	local root="$1"
 	if [ -f "${root}/.taskfiles/test.yml" ]; then
-		yq_compatibility_yaml_in_place '.tasks.unit.cmds |= map(select(. != "bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats" and . != "bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats"))' "${root}/.taskfiles/test.yml"
+		yq_compatibility_yaml_in_place '.tasks.unit.cmds |= map(select(. != "bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats" and . != "bats {{.DEVCONTAINER_DIR}}/test/unit/starter-journey.bats" and . != "bats {{.DEVCONTAINER_DIR}}/test/unit/starter-release.bats"))' "${root}/.taskfiles/test.yml"
 	fi
 }
 

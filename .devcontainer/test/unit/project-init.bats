@@ -218,7 +218,9 @@ assert_only_root_ref_remains() {
 	[ "$(jq -r '.release.version' "${PROJECT_ROOT}/.starter/state.json")" = 1.0.0 ]
 	[ -f "${PROJECT_ROOT}/.starter/baseline.json" ]
 	[ -f "${PROJECT_ROOT}/.starter/evidence/releases/1.0.0/evidence/index.json" ]
+	[ ! -e "${PROJECT_ROOT}/.devcontainer/test/unit/starter-journey.bats" ]
 	! grep -Fq 'project-init.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
+	! grep -Fq 'starter-journey.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
 	! grep -Fq 'starter-release.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
 	grep -Fq 'starter-derived.bats' "${PROJECT_ROOT}/.taskfiles/test.yml"
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url gentle-starter)" = "$(jq -r '.url' "${PROJECT_ROOT}/.starter/source.json")" ]
@@ -861,6 +863,8 @@ EOF
 	grep -Fq 'project:' "${REPO_ROOT}/Taskfile.yml"
 	grep -Fq 'task project:init' "${REPO_ROOT}/Taskfile.yml"
 	grep -Fq 'project-init.bats' "${REPO_ROOT}/.taskfiles/test.yml"
+	grep -Fq 'starter-journey.bats' "${REPO_ROOT}/.taskfiles/test.yml"
+	[ -f "${REPO_ROOT}/.devcontainer/test/unit/starter-journey.bats" ]
 	[ -f "${REPO_ROOT}/.taskfiles/project.yml" ]
 	run grep -Eq 'git[[:space:]]+(push|fetch|ls-remote)' \
 		"${REPO_ROOT}/.taskfiles/scripts/project-init.sh"
