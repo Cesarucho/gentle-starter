@@ -1,0 +1,86 @@
+version: "3"
+
+tasks:
+  help:
+    desc: Show skill workflow examples
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Skill tasks
+
+        Sources of truth:
+          skills-lock.json         External source/update metadata managed by the skills CLI
+          .agents/local-skills.txt Project-authored skill names preserved by prune
+          .agents/skills/          Versioned skill content discovered by Pi
+
+        Examples:
+          task skill:add -- github/awesome-copilot --skill java-docs
+          task skill:install
+          task skill:update
+          task skill:list
+          task skill:prune
+          task skill:validate
+          task skill:sync
+
+        Typical flows:
+          # Add an external skill and commit its lock metadata and copied files
+          task skill:add -- <package> --skill <skill-name>
+          task skill:validate
+
+          # Add a repository-authored skill
+          mkdir -p .agents/skills/<skill-name>
+          echo '<skill-name>' >> .agents/local-skills.txt
+          task skill:validate
+
+          # Restore skills after cloning the repo
+          task skill:install
+
+          # Refresh canonical skills, remove Claude compatibility links, and review the diff
+          task skill:update
+          git diff -- skills-lock.json .agents/local-skills.txt .agents/skills
+
+          # Remove skills absent from both the external lock and local manifest
+          task skill:prune
+        EOF
+
+  add:
+    desc: Add an external skill package and update skills-lock.json
+    cmds:
+      - skills add {{.CLI_ARGS}} --agent pi --copy -y
+
+  install:
+    desc: Restore project skills from skills-lock.json into .agents/skills
+    cmds:
+      - skills experimental_install -y
+
+  update:
+    desc: Update canonical project skills and remove Claude compatibility links
+    cmds:
+      - skills update --project -y
+      - skills remove --agent claude-code --skill '*' -y
+
+  list:
+    desc: List installed project skills
+    cmds:
+      - skills list --json
+
+  prune:
+    desc: Remove skills absent from both the external lock and local manifest
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/skills.sh prune
+
+  validate:
+    desc: Validate externally locked and project-authored skills
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/skills.sh validate
+
+  sync:
+    desc: Restore, update, prune, and validate project skills
+    cmds:
+      - task: install
+      - task: update
+      - task: prune
+      - task: validate

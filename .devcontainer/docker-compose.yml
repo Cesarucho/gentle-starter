@@ -1,0 +1,48 @@
+services:
+  container-svc:
+    image: "${APP_NAME}-img:0.1"
+    container_name: "${APP_NAME}-run"
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        APP_NAME: ${APP_NAME}
+    privileged: true
+    # Bind mounts below persist state. setup-volumes.sh parses each one
+    # at container start. Installer-owned targets map to runtime repair
+    # scripts; passive targets, such as OpenCode share state, intentionally
+    # have no mapping because the application populates them. Run
+    # `task install:volumes` to inspect the current contract end-to-end.
+    volumes:
+      # AI-TOOLS
+      - type: bind
+        source: ../.env.d/.pi
+        target: /home/ubuntu/.pi
+        bind: { create_host_path: false }
+      - type: bind
+        source: ../.env.d/.engram
+        target: /home/ubuntu/.engram
+        bind: { create_host_path: false }
+      - type: bind
+        source: ../.env.d/.opencode/share
+        target: /home/ubuntu/.local/share/opencode
+        bind: { create_host_path: false }
+      - type: bind
+        source: ../.env.d/.gentle-ai
+        target: /home/ubuntu/.gentle-ai
+        bind: { create_host_path: false }
+      # GIT-CONFIG
+      - type: bind
+        source: ../.env.d/.gitconfig
+        target: /home/ubuntu/.gitconfig-volume
+        bind: { create_host_path: false }
+      # SSH-AGENT-FORWARDING: share host SSH agent so git push inside the
+      # container uses the host's keys. Requires host SSH_AUTH_SOCK to be set.
+      # - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent/socket
+    environment:
+      SSH_AUTH_SOCK: /ssh-agent/socket
+    ports:
+      - "${APP_PORT}:${APP_PORT}" # app port
+      # - "2222:22" # SSH (open to LAN at your own risk)
+    env_file:
+      - ../.env

@@ -1,0 +1,22 @@
+globs:
+  - README.md
+  - AGENTS.md
+  - AGENTS.md.TEMPLATE
+  - CHANGELOG.md
+  - .devcontainer/README.md
+  - .devcontainer/install/03-hooks/README.md
+  - docs/en/**/*.md
+
+ignores:
+  - .env.d/**
+  - .agents/**
+  - .atl/**
+  - docs/assets/**
+  - node_modules/**
+
+config:
+  MD013: false
+  MD033: false
+  MD041: false
+  MD056: false
+  MD060: false

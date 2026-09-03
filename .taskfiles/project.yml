@@ -1,0 +1,25 @@
+version: "3"
+
+tasks:
+  help:
+    desc: Show project initialization help
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Project initialization
+
+          task project:init
+          task project:init -- --dry-run
+
+        Prompts for a project branch (default: main) and optional origin URL,
+        configures the canonical Gentle Starter upstream, removes starter
+        identity, and creates a normal child commit. Use --dry-run to inspect
+        every planned action without mutation. It never contacts a remote.
+        EOF
+
+  init:
+    desc: Initialize a project while preserving Git history
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/project-init.sh {{.CLI_ARGS}}

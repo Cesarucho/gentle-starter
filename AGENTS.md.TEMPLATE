@@ -1,0 +1,544 @@
+# AGENTS.md
+
+This file is the AI-facing context for the **<PROJECT_NAME>** project.
+Any coding agent that opens this repository in a fresh session
+should be able to read this file and continue from where the last
+session left off, without reconstructing the reasoning from scratch.
+
+For humans, the long-form reference is:
+
+- `openspec/changes/` for active change artifacts;
+- `docs/` for durable project documentation;
+- the codebase itself for current implementation truth.
+
+> Template note:
+>
+> - Replace all `<PLACEHOLDERS>`.
+> - Delete optional sections that do not apply.
+> - Keep this file focused on durable repo policy.
+> - Keep active slice status in OpenSpec, not here.
+> - Do not duplicate the full global `gentle-ai` policy unless this repo
+>   intentionally overrides it.
+
+## Source-of-truth model
+
+- `AGENTS.md` is durable repo policy: architecture guardrails,
+  orchestration exceptions, delivery hygiene, and stable conventions.
+- OpenSpec is operational truth: active change, current slice,
+  completed-through state, blockers, apply/verify/sync/archive evidence,
+  and next recommended work.
+- Git is branch truth: a fresh session MUST inspect `git status --short`
+  and `git branch --show-current` instead of relying on a branch name in
+  this file.
+- Runtime/project files are implementation truth: when `AGENTS.md`,
+  OpenSpec, and code disagree, verify in the repository before acting.
+- Memory is supplementary only when callable memory tools are available;
+  never rely on memory as the sole source for current implementation
+  state.
+
+## Fresh session quick start
+
+1. Read this file as durable policy.
+2. Inspect `git status --short` and `git branch --show-current`.
+3. Resolve the active change/slice from OpenSpec (`sdd-status` when
+   available; otherwise inspect `openspec/changes/*/tasks.md` and
+   `apply-progress.md`).
+4. Treat OpenSpec's current active slice as authoritative over chat
+   history or stale branch names.
+5. Before edits, confirm whether the work belongs to an existing review
+   unit or needs a new branch/work unit.
+6. For non-trivial work, follow the globally installed `gentle-ai` /
+   OpenSpec / SDD flow unless this file defines a repo-specific
+   exception.
+
+## Project identity
+
+- **Product**: `<PRODUCT_NAME>`
+- **Repo**: `<REPOSITORY_NAME>`
+- **Primary stack**: `<PRIMARY_STACK>`
+- **Architecture style**: `<ARCHITECTURE_STYLE>`
+- **Stable integration branch**: `<STABLE_BRANCH_POLICY>`
+- **Primary runtime / deploy context**: `<RUNTIME_OR_DEPLOY_CONTEXT>`
+
+Use this section for durable identity only. Do not encode the current
+slice, temporary branch names, or one-off experiments here.
+
+## AI session contract
+
+- **Language**: `<USER_LANGUAGE_POLICY>`
+- **Technical artifacts**: `<ARTIFACT_LANGUAGE_POLICY>`
+- **Tone**: senior architect; recommend before implementing when a
+  change is significant.
+- **OpenSpec / SDD**: mandatory for non-trivial work in this repo.
+- **Subagents**: follow the globally installed `gentle-ai` routing and
+  subagent policy by default. This file should only document repo-level
+  exceptions, mandatory context, or extra guardrails that child agents
+  must respect.
+- **Memory**: when callable memory tools are available, save
+  non-obvious discoveries, decisions, bug fixes, conventions, and
+  environment facts with stable `topic_key`s. If memory is unavailable,
+  preserve evidence in OpenSpec and say so explicitly.
+- **Skills**: load project/user skills before non-trivial specialized
+  work when relevant. If this repo requires a minimum skill set for some
+  area, document it here.
+- **This file is mutable.** If a future session changes a convention,
+  update this file in the same commit.
+
+## OpenSpec workflow
+
+Use OpenSpec artifacts for non-trivial decisions and implementation
+planning.
+
+Default phase flow:
+
+```text
+proposal → spec → design → tasks → apply → verify → sync → archive
+```
+
+Rules:
+
+- Do not hardcode the active change in this file unless the repository is
+  intentionally single-change for a long period and that convention is
+  itself durable.
+- Prefer `sdd-status` as the resolver for the active change and next
+  ready phase when available.
+- Record durable change-local decisions in the active change directory,
+  for example `decision-log.md`, `design.md`, `tasks.md`, or
+  `apply-progress.md`.
+- If a design or implementation decision is still slice-local or
+  experimental, keep it in OpenSpec first.
+- Promote validated, cross-slice rules into `docs/` or `AGENTS.md` when
+  they become durable project policy.
+
+## Project purpose
+
+`<PROJECT_NAME>` exists to:
+
+- `<PRIMARY_PURPOSE_1>`
+- `<PRIMARY_PURPOSE_2>`
+- `<PRIMARY_PURPOSE_3>`
+
+If the repository is part of a larger system, state the relationship and
+ownership boundaries here.
+
+Example prompts for filling this section:
+
+- Which business or technical problem does this repo solve?
+- Which adjacent repo or service owns the upstream/downstream business
+  rules?
+- Which outputs from this repo are trusted, untrusted, final, or only
+  candidate inputs for another boundary?
+
+## Core boundary
+
+Use this section to define what the repository **owns**, **does not own**,
+and **must treat as external or untrusted**.
+
+Template:
+
+- `<PROJECT_NAME>` owns `<OWNED_CONCERNS>`.
+- `<PROJECT_NAME>` must return or persist only `<OUTPUT_SCOPE>`.
+- Treat `<UNTRUSTED_INPUTS_OR_OUTPUTS>` as untrusted until validated by
+  `<TRUSTED_BOUNDARY>`.
+- `<PROJECT_NAME>` must not implement `<OUT_OF_SCOPE_CONCERNS>`.
+
+This is one of the highest-value sections in the file. Keep it precise.
+
+## Architecture summary
+
+Describe the main extension surfaces of the repo. Keep this short and
+structural.
+
+Suggested format:
+
+1. **<SURFACE_1>** (`<PATH_1>`) — `<WHAT_CHANGES_HERE>`
+2. **<SURFACE_2>** (`<PATH_2>`) — `<WHAT_CHANGES_HERE>`
+3. **<SURFACE_3>** (`<PATH_3>`) — `<WHAT_CHANGES_HERE>`
+4. **<SURFACE_4>** (`<PATH_4>`) — `<WHAT_CHANGES_HERE>`
+
+Good examples of extension surfaces:
+
+- domain modules;
+- API contract files;
+- infrastructure or deployment manifests;
+- migrations;
+- composition roots;
+- UI app routes and shared component systems;
+- worker/job definitions;
+- configuration registries.
+
+Do not turn this into a full architecture handbook. Link to `docs/` for
+long-form explanations.
+
+## The "what NOT to touch" list
+
+This section is for settled decisions that should not be casually
+reopened.
+
+Add only durable constraints such as:
+
+- package/layout conventions;
+- persistence or migration rules;
+- identity/id generation rules;
+- cross-module dependency rules;
+- runtime wiring rules;
+- config seeding / secrets / env ownership rules;
+- public contract stability rules.
+
+Template bullets:
+
+- **`<SETTLED_DECISION_1>`** — `<WHY_IT_EXISTS_AND_WHAT_NOT_TO_BREAK>`
+- **`<SETTLED_DECISION_2>`** — `<WHY_IT_EXISTS_AND_WHAT_NOT_TO_BREAK>`
+- **`<SETTLED_DECISION_3>`** — `<WHY_IT_EXISTS_AND_WHAT_NOT_TO_BREAK>`
+
+Rule: if a future change intentionally contradicts one of these
+constraints, update this file or a durable doc in the same commit.
+
+## Permanent architecture guardrails
+
+Use this section for durable engineering rules that should survive across
+many slices.
+
+Examples:
+
+- dependency direction rules;
+- bounded-context ownership rules;
+- idempotency and concurrency assumptions;
+- multi-instance safety assumptions;
+- public API compatibility rules;
+- error/outcome modeling rules;
+- data isolation rules;
+- frontend state ownership rules;
+- event versioning rules.
+
+Recommended pattern:
+
+1. **Design rule in `AGENTS.md`** — short durable statement.
+2. **Human checklist in `docs/`** — deeper review guidance.
+3. **Executable rule in tests/lint/fitness checks** — machine-enforced
+   guardrail when practical.
+
+Operational rules:
+
+- Prefer a small executable rule for important settled constraints rather
+  than leaving them only as prose.
+- If a change intentionally breaks a guardrail, update the relevant doc
+  and executable rule in the same change, or explicitly record the
+  exception before merge.
+
+## Security and data handling
+
+Keep this section if the repo handles user data, secrets, auth,
+payments, AI outputs, admin actions, or any sensitive operations.
+
+Template prompts:
+
+- What must never be exposed publicly?
+- Which inputs are dangerous or untrusted?
+- What data must not be logged or persisted by default?
+- Which failures must fail closed?
+- Which authz/authn assumptions are mandatory?
+
+Template bullets:
+
+- Do not expose `<SENSITIVE_RUNTIME_OR_ENGINE>` directly to the public
+  internet.
+- Require `<AUTHN_AUTHZ_POLICY>` for `<SENSITIVE_ACTIONS>`.
+- Do not log `<SENSITIVE_DATA_CLASSES>` unless explicitly required and
+  documented.
+- Enforce `<LIMITS_BUDGETS_TIMEOUTS_ALLOWLISTS>` at the boundary.
+- Fail closed for `<FAIL_CLOSED_CONDITIONS>`.
+
+Delete this section only if the repository is truly low-risk.
+
+## Project assumptions and non-goals
+
+Use this section for durable assumptions that are important enough to
+steer implementation, but not so transient that they belong only in the
+active change.
+
+Good examples:
+
+- deployment baseline;
+- supported environments;
+- temporary but long-lived product posture;
+- deliberately deferred capabilities;
+- storage/provider constraints;
+- review-budget assumptions.
+
+Template bullets:
+
+- **Baseline**: `<BASELINE_ASSUMPTION>`
+- **Current scope**: `<CURRENT_SCOPE_ASSUMPTION>`
+- **Deferred / not default**: `<DEFERRED_CAPABILITIES>`
+- **Non-goals**: `<EXPLICIT_NON_GOALS>`
+
+If an assumption is active only for one change, keep it in OpenSpec
+instead.
+
+## Testing and verification
+
+State the real verification posture of the repository.
+
+Rules:
+
+- Do not claim verification by tests if no reliable test command exists.
+- If test commands exist, document the canonical commands here or point
+  to the durable testing doc.
+- If OpenSpec `config.yaml` defines the authoritative test command, say
+  so explicitly.
+- Separate current project debt from the required verification for the
+  slice at hand.
+
+Template:
+
+- **Current testing status**: `<TESTING_STATUS>`
+- **Source of truth for test commands**: `<TEST_COMMAND_SOURCE>`
+- **Required verification after backend/code changes**:
+
+```bash
+<VERIFY_COMMAND_1>
+<VERIFY_COMMAND_2>
+```
+
+- **Required verification after docs/config/contract changes**:
+
+```bash
+<VERIFY_COMMAND_3>
+<VERIFY_COMMAND_4>
+```
+
+If this repo has a special diagnostics workflow, lint policy, or edited-
+file-only rule, document it here.
+
+## Delivery hygiene
+
+These rules protect reviewer focus, keep work discardable, and make
+fresh-session continuation reliable.
+
+### AGENTS.md maintenance guardrail
+
+`AGENTS.md` must be updated in the same change when a durable repository
+convention changes.
+
+Update it when a change modifies stable policy such as:
+
+- repository layout;
+- bounded-context ownership;
+- package/module naming;
+- kernel/shared-code rules;
+- canonical build, test, lint, format, or verification commands;
+- OpenSpec, Graphify, contract, diagram, or executable-spec locations;
+- architecture fitness checks;
+- security, authorization, privacy, or data-handling guardrails;
+- delivery, branch, review, or agent workflow policy.
+
+Do not update it for transient state, active task progress, branch names,
+temporary workarounds, unvalidated hypotheses, or slice-local decisions.
+
+Before archiving an OpenSpec change, check whether any validated convention must be
+promoted to `AGENTS.md`. If no durable policy changed, state that explicitly in the
+change evidence.
+
+### Work-unit policy
+
+- A commit represents a reviewable work unit, not a session boundary.
+- Tests and docs travel with the behavior they verify or describe.
+- Do not batch unrelated concerns into one commit just because they were
+  changed in the same session.
+- If the repo has a commit-shaping or PR-packaging skill, load it before
+  staging non-trivial work.
+
+### Branch policy
+
+- Open a new branch for each reviewable PR/work unit unless the work is
+  an explicitly approved continuation of an existing branch.
+- Confirm the correct base branch with Git and OpenSpec before creating a
+  branch.
+- If the project uses chained PRs, state that policy here.
+- Do not keep accumulating multiple future PRs on one branch by default.
+
+### Review budget policy
+
+- If a slice is likely to exceed the agreed review budget, split it
+  before applying or propose chained PRs.
+- If a branch grows beyond its intended review story, stop and re-slice
+  before continuing by inertia.
+
+### Post-change understanding review
+
+After every non-trivial change, provide the user a concise
+understanding review grouped by functional block.
+
+For each block include:
+
+- objective;
+- files;
+- explanation;
+- what works well;
+- watch-outs / suggestions.
+
+End with a short suggestions summary that offers explicit options:
+
+- accept and document debt for later;
+- open a tightly scoped follow-up slice now;
+- propose alternatives;
+- investigate further through repo research, web research, or Context7
+  when that would materially improve the decision.
+
+### ToDo lifecycle guardrail
+
+Keep Pi ToDos current proactively; closure reconciliation is only a safety net.
+
+- Maintain exactly one ToDo `in_progress` during normal single-threaded work.
+- Mark a ToDo `completed` immediately when its acceptance condition is met; do
+  not wait for the end of the session or a final summary.
+- When an active ToDo creates a subtask, micro-slice, or blocker, immediately
+  reframe the parent ToDo in the same turn:
+  - mark the parent `completed` if the subtask replaces or finishes its goal;
+  - make the parent blocked by the subtask if the parent still represents real
+    remaining work;
+  - update the parent description if the remaining work changed;
+  - avoid leaving broad bookkeeping parents active when the real work now lives
+    in narrower subtasks.
+- Complete verification, commit, merge, review, and reconciliation ToDos as soon
+  as the corresponding command or artifact is done.
+- At each functional closure point, run `todo list` and inspect any
+  `in_progress` or stale `pending` items before reporting done. Functional
+  closure means a slice is committed, merged, handed off, marked verified, or
+  otherwise described as complete.
+- For each active ToDo at closure, compare it against Git state, commits,
+  verification evidence, and OpenSpec state. Keep it active only when real work
+  remains, and state the blocker or next action explicitly.
+- Mention any remaining active ToDos in the closure summary so the user can
+  distinguish real work from stale task state.
+
+## Continuity and handoff rules
+
+These rules exist so a fresh session can continue from repo artifacts
+instead of depending on chat history.
+
+- If the user asks for a handoff, continuation prompt, or says the
+  context is getting full, prepare a session handoff instead of
+  continuing implementation by inertia.
+- Before a handoff, save `mem_session_summary` when memory tools are
+  callable. If memory is unavailable, state that explicitly.
+- If the session performed non-trivial work, confirm OpenSpec reflects
+  the real state before handing off, or clearly list the missing
+  reconciliation as a blocker.
+- A handoff MUST include: current branch, `git status --short`, relevant
+  recent commits, active change, next exact slice, completed work,
+  modified files, verification evidence, blockers/risks, non-goals / do-
+  not-reopen items, and an exact prompt for the new session.
+- A handoff is an index, not the source of truth. The new session MUST
+  verify it against Git + OpenSpec + `AGENTS.md` before implementing.
+- Do not include secrets or credentials in handoffs.
+- `tasks.md` is the operational backlog, not a museum. If a broad task
+  is materially complete, mark it complete or replace it with narrower
+  residual work.
+- `apply-progress.md` may preserve history, but its top section MUST stay
+  operationally legible: current active slice, completed-through
+  milestone, next recommended slice, blockers, and important non-goals.
+- Before `sync` or `archive`, confirm that unchecked tasks still
+  represent real remaining work and that the next step can be inferred
+  from repo artifacts alone.
+
+## Docs vs OpenSpec rule
+
+Use `openspec/` for **active change execution and traceability**:
+proposal/design/tasks/apply-progress/verify evidence, slice-specific
+risks, bounded non-goals, and the current "what happens next" state.
+
+Use `docs/` for **durable human-facing project knowledge** that should
+remain useful after the active change is closed: reusable technical
+guides, accepted architecture RFCs, stable testing policies,
+checklists, and cross-slice conventions.
+
+Promotion rule:
+
+- start in `openspec/` when a decision is change-local or still being
+  proven;
+- promote to `docs/` once the decision is validated and should guide
+  future slices beyond the current change.
+
+Keep duplication minimal: `openspec/` records why/when this change did
+something; `docs/` records the durable rule future work should follow.
+
+## Pointers
+
+List the most important durable paths for a fresh session.
+
+Template:
+
+- `openspec/changes/<PRIMARY_CHANGE_OR_NOTE>/` — `<WHY_IT_MATTERS>`
+- `<KEY_CODE_PATH>` — `<WHY_IT_MATTERS>`
+- `<KEY_CONTRACT_OR_CONFIG_PATH>` — `<WHY_IT_MATTERS>`
+- `<KEY_DOC_PATH>` — `<WHY_IT_MATTERS>`
+- `<KEY_TEST_OR_CHECKLIST_PATH>` — `<WHY_IT_MATTERS>`
+
+## Optional sections to keep only when they add durable value
+
+Delete this whole section after adapting the template, or replace it
+with the specific optional blocks that apply.
+
+### Optional: product identity guardrail
+
+Keep this section when product naming, branding, package names, repo
+names, tenant labels, or generated metadata may diverge.
+
+Template prompts:
+
+- Which labels are configurable product-facing metadata?
+- Which names are stable technical identifiers?
+- What rename/migration boundaries must not be blurred?
+
+### Optional: API contract direction
+
+Keep this section when API direction is stable enough to guide multiple
+future slices, but still needs a concise durable statement in the repo
+policy.
+
+Examples:
+
+- canonical entrypoint style;
+- contract-first vs code-first policy;
+- schema ownership policy;
+- sync rules between controllers/handlers and contract files.
+
+### Optional: deployment shape
+
+Keep this section when runtime topology is a durable part of design.
+
+Examples:
+
+- single deployable vs multi-service;
+- private/internal engine assumptions;
+- volume persistence rules;
+- readiness dependencies;
+- colocated resource constraints.
+
+### Optional: observability posture
+
+Keep this section when log/redaction/trace/correlation policy is durable.
+
+Examples:
+
+- structured logs only;
+- mandatory correlation ids;
+- no raw payload logging by default;
+- cost/audit/event tracing boundaries.
+
+### Optional: backend/java specialization
+
+If the repo is mostly backend/Java, you may keep a short repo-specific
+section such as:
+
+- package naming convention;
+- modular monolith or multi-module Gradle rules;
+- DDD / hexagonal dependency boundaries;
+- migration orchestration location;
+- Spring wiring or OpenAPI sync rules;
+- ArchUnit / Testcontainers / integration-test expectations.
+
+Keep it short. Durable repo rules belong here; framework tutorials do
+not.

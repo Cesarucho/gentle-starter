@@ -1,0 +1,14 @@
+version: "3"
+
+tasks:
+  help:
+    desc: Show clean task help
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/clean.sh help
+
+  identity:
+    desc: Remove project identity files while preserving LICENSE and base structure
+    silent: true
+    cmds:
+      - ./.taskfiles/scripts/clean.sh identity

@@ -1,0 +1,53 @@
+{
+    "name": "${localEnv:APP_NAME:project-name}-svc",
+    "dockerComposeFile": "./docker-compose.yml",
+    "service": "container-svc",
+    "workspaceFolder": "/home/ubuntu/${localEnv:APP_NAME}",
+    "overrideCommand": true,
+    "remoteUser": "ubuntu",
+
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:3": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [],
+            "settings": {
+                "workbench.colorTheme": "Dark Modern",
+                "workbench.colorCustomizations": {
+                    "statusBar.background": "#005f73",
+                    "statusBar.noFolderBackground": "#005f73",
+                    "statusBar.debuggingBackground": "#9b2226",
+                    "statusBar.foreground": "#ffffff"
+                },
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/usr/bin/bash"
+                    }
+                },
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.sendKeybindingsToShell": true,
+                "editor.renderWhitespace": "all"
+            }
+        }
+    },
+
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/home/ubuntu/${localEnv:APP_NAME},type=bind",
+        "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
+    ],
+
+    "containerEnv": {
+        "SSH_AUTH_SOCK": "/ssh-agent"
+    },
+
+    // Win11-native issue solved
+    // "postCreateCommand": "bash -lc 'find ${containerWorkspaceFolder}/.devcontainer -type f -name \"*.sh\" -exec sed -i \"s/\\r$//\" {} \\; && bash ${containerWorkspaceFolder}/.devcontainer/setup.sh'",
+    "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
+
+    "runArgs": [
+        "--privileged"
+    ]
+}

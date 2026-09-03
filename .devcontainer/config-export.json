@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "trees": [
+    {
+      "name": "OpenCode",
+      "runtime": ".config/opencode",
+      "seed": ".devcontainer/opencode-config",
+      "managed": [
+        "AGENTS.md",
+        "opencode.json",
+        "opencode.jsonc",
+        "tui.json",
+        ".gentle-ai-default-agent.json",
+        "commands/**",
+        "plugins/**",
+        "profiles/**",
+        "prompts/**",
+        "skills/**"
+      ],
+      "excluded": [
+        ".git/**",
+        ".gitignore",
+        "node_modules/**",
+        "package.json",
+        "package-lock.json",
+        "profile-versions/**",
+        "auth.json",
+        "credentials.json",
+        "sessions/**",
+        "state/**",
+        "logs/**",
+        "cache/**"
+      ]
+    },
+    {
+      "name": "Pi",
+      "runtime": ".pi",
+      "seed": ".devcontainer/pi-config",
+      "managed": [
+        "agent/settings.json",
+        "agent/mcp.json",
+        "agent/mcp.presets.json",
+        "agent/subagents.json",
+        "gentle-ai/banner.json",
+        "gentle-ai/models.json",
+        "gentle-ai/models.openai.json",
+        "gentle-ai/models.opencode.json",
+        "gentle-ai/persona.json"
+      ],
+      "excluded": [
+        "agent/npm/**",
+        "agent/state/**",
+        "agent/sessions/**",
+        "agent/intercom/**",
+        "agent/bin/**",
+        "agent/chains/**",
+        "agent/agents/**",
+        "agent/gentle-ai/**",
+        "agent/pi-pretty/**",
+        "agent/auth.json",
+        "agent/trust.json",
+        "agent/APPEND_SYSTEM.md",
+        "agent/models-store.json",
+        "agent/mcp-cache.json",
+        "agent/mcp-npx-cache.json",
+        "agent/mcp.json.devcontainer-backup.*",
+        "sessions/**",
+        "state/**",
+        "npm/**",
+        "intercom/**",
+        "run-history.jsonl",
+        "logs/**",
+        "pids/**",
+        "cache/**",
+        "caches/**"
+      ]
+    }
+  ]
+}

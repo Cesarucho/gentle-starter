@@ -1,0 +1,132 @@
+version: "3"
+
+includes:
+  clean:
+    taskfile: ./.taskfiles/clean.yml
+  config:
+    taskfile: ./.taskfiles/config.yml
+  container:
+    taskfile: ./.taskfiles/devcontainer.yml
+  deps:
+    taskfile: ./.taskfiles/deps.yml
+  doctor:
+    taskfile: ./.taskfiles/doctor.yml
+  install:
+    taskfile: ./.taskfiles/install.yml
+  quality:
+    taskfile: ./.taskfiles/quality.yml
+  project:
+    taskfile: ./.taskfiles/project.yml
+  skill:
+    taskfile: ./.taskfiles/skills.yml
+  ssh:
+    taskfile: ./.taskfiles/ssh.yml
+  test:
+    taskfile: ./.taskfiles/test.yml
+
+tasks:
+  default:
+    desc: Show project task help
+    cmds:
+      - task: help
+
+  clean:
+    desc: Review and execute project identity cleanup
+    cmds:
+      - task: clean:identity
+
+  doctor:
+    desc: Run doctor checks for the detected context
+    cmds:
+      - task: doctor:auto
+
+  validate:
+    desc: Run host-safe validation checks
+    cmds:
+      - task: doctor
+      - task: quality:check
+
+  validate:full:
+    desc: Run strict validation checks that require shell quality tools
+    cmds:
+      - task: doctor
+      - task: quality:full
+
+  test:
+    desc: Run all tests (unit + integration)
+    cmds:
+      - task: test:test
+
+  help:
+    desc: Show task help
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Tasks help
+
+        General:
+          task help                       Show this help
+          task --list                     List all available tasks
+          task doctor                     Run doctor checks for the detected context
+          task validate                   Run host-safe validation checks, excluding skills
+          task validate:full              Run strict validation requiring shell quality tools
+          task deps:update                Update approved pins and report deliberate exclusions
+          task clean                      Review, confirm, and remove project identity files
+          task clean:identity             Explicit alias for project identity cleanup
+          task --exit-code config:diff    Compare runtime configuration with its seed
+          task config:export              Export managed runtime configuration to its seed
+          task project:init               Initialize branch, remotes, identity, and child commit
+
+        SSH:
+          task ssh:help                   Show SSH workflow help
+          task ssh:register-keys          Auto-detect and register .pub keys
+          task ssh:start                  Start SSH agent and add keys
+          task ssh:check                  Verify SSH agent and GitHub connectivity
+          task ssh:status                 Show current SSH agent status
+          task ssh:stop                   Stop the SSH agent
+
+        Doctor:
+          task doctor:host                Check host requirements
+          task doctor:container           Check tools inside the devcontainer
+
+        Quality:
+          task quality:check              Run host-safe quality checks
+          task quality:full               Run strict quality checks
+          task quality:shellcheck         Run ShellCheck when available
+          task quality:shellcheck:full    Require ShellCheck and run it
+          task quality:format             Check shell formatting when available
+          task quality:format:full        Require shfmt and check formatting
+          task quality:markdown           Run Markdown lint when available
+          task quality:markdown:full      Require markdownlint-cli2 and run it
+
+        Skills:
+          task skill:help                 Show skill workflow examples
+          task skill:list                 List installed project skills
+          task skill:sync                 Restore, update, prune, and validate skills
+          task skill:validate             Validate locked and project-authored local skills
+
+        Container:
+          task container:help             Show container workflow examples
+          task container:build            Build devcontainer
+          task container:up               Start devcontainer
+          task container:rm               Force-remove the devcontainer service container
+          task container:rebuild          Remove, build, and start devcontainer
+          task container:restart          Remove and start devcontainer
+          task container:connect          Open bash inside devcontainer
+          task container:opencode         Continue OpenCode inside devcontainer
+          task container:pi               Connect to Pi inside devcontainer
+          task container:engram           Connect to Engram TUI inside devcontainer
+
+        Install:
+          task install:list               Show install scripts and full catalog status
+          task install:enable -- NAME     Enable an available install script (NAME = filename without .sh)
+          task install:disable -- NAME    Disable an enabled install script (NAME = filename without .sh)
+          task install:doctor             Check install layout integrity
+
+        Testing:
+          task test                       Run all tests (unit + integration)
+          task test:unit                  Run repository unit tests
+          task test:integration           Run integration tests for installed tools
+          task test:install               Install BATS if not present
+        EOF

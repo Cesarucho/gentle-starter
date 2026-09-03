@@ -1,0 +1,114 @@
+{
+  "sdd-init": {
+    "model": "openai-codex/gpt-5.4-mini",
+    "thinking": "low"
+  },
+  "sdd-onboard": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "low"
+  },
+  "sdd-explore": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high",
+    "maxExecutionTimeMs": 1200000
+  },
+  "sdd-proposal": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "xhigh",
+    "maxExecutionTimeMs": 1200000
+  },
+  "sdd-spec": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "sdd-design": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "medium"
+  },
+  "sdd-tasks": {
+    "model": "openai-codex/gpt-5.4-mini",
+    "thinking": "low"
+  },
+  "sdd-status": {
+    "model": "openai-codex/gpt-5.4-mini",
+    "thinking": "low"
+  },
+  "sdd-apply": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "high",
+    "maxExecutionTimeMs": 1800000
+  },
+  "sdd-verify": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high",
+    "maxExecutionTimeMs": 1800000
+  },
+  "sdd-sync": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "sdd-archive": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "minimal"
+  },
+  "context-builder": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "delegate": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "oracle": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "planner": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "medium"
+  },
+  "researcher": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "reviewer": {
+    "model": "openai-codex/gpt-5.5",
+    "thinking": "high"
+  },
+  "scout": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "worker": {
+    "model": "openai-codex/gpt-5.3-codex-spark",
+    "thinking": "high"
+  },
+  "jd-judge-a": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "jd-judge-b": {
+    "model": "opencode-go/minimax-m2.7",
+    "thinking": "medium"
+  },
+  "jd-fix-agent": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "review-readability": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "review-reliability": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "review-resilience": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  },
+  "review-risk": {
+    "model": "openai-codex/gpt-5.4",
+    "thinking": "medium"
+  }
+}

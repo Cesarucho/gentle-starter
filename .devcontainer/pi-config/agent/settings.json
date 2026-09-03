@@ -1,0 +1,92 @@
+{
+  "breadcrumb": "inner",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultProvider": "openai-codex",
+  "defaultThinkingLevel": "low",
+  "footer": true,
+  "header-info": true,
+  "hud": {
+    "autoCompactWhileStreaming": true,
+    "compactWidth": 26,
+    "contextIndicator": "icon",
+    "expandedWidth": 42,
+    "margin": {
+      "bottom": 1,
+      "right": 1,
+      "top": 1
+    },
+    "minTerminalWidth": 90,
+    "minimizeShortcut": "ctrl+h",
+    "mode": "overlay",
+    "position": "top-right",
+    "shortcut": "ctrl+shift+h",
+    "startupNotification": true,
+    "switchShortcut": "ctrl+.",
+    "usageDisplay": "metered",
+    "visibility": {
+      "context": true,
+      "mcps": true,
+      "project": true,
+      "worktrees": true
+    }
+  },
+  "lastChangelogVersion": "0.84.2",
+  "packages": [
+    "npm:gentle-pi@2.2.0",
+    "npm:pi-intercom@0.12.0",
+    "npm:gentle-engram@0.1.8",
+    "npm:pi-web-access@0.24.2",
+    "npm:pi-lens@4.1.2",
+    "npm:@juicesharp/rpiv-todo@2.7.1",
+    "npm:@juicesharp/rpiv-ask-user-question@2.7.1",
+    "npm:pi-terminal-theme@0.2.0",
+    "npm:pi-hud@0.8.0",
+    "npm:@juicesharp/rpiv-btw@2.7.1",
+    "npm:pi-mcp-adapter"
+  ],
+  "powerline": true,
+  "subagents": {
+    "agentOverrides": {
+      "context-builder": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "medium"
+      },
+      "delegate": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "medium"
+      },
+      "oracle": {
+        "maxExecutionTimeMs": 1800000,
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high"
+      },
+      "planner": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "medium"
+      },
+      "researcher": {
+        "maxExecutionTimeMs": 1800000,
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high"
+      },
+      "reviewer": {
+        "maxExecutionTimeMs": 1800000,
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high"
+      },
+      "scout": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "medium"
+      },
+      "worker": {
+        "maxExecutionTimeMs": 1800000,
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high"
+      }
+    }
+  },
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "theme": "terminal-tinted"
+}

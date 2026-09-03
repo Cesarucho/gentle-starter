@@ -1,0 +1,3 @@
+# Project-authored skills that are versioned locally instead of restored from skills-lock.json.
+# Keep one kebab-case directory name per line.
+add-tool
