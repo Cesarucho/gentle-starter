@@ -25,7 +25,7 @@ Tools receive only the fields they need. The first migration covers Java, Engram
 
 The central file contains no commands, version-check commands, shell fragments, URLs, paths, artifact names, architecture logic, permissions, recovery, or idempotency mechanisms. Installers retain responsibility for installation, detection, comparison, functional validation, privilege handling, architecture, URLs, artifacts, and recovery.
 
-Checksums normally remain next to direct-download logic. C4-PlantUML is the narrow exception: `TOOL_C4_PLANTUML_VERSION` and `TOOL_C4_PLANTUML_SHA256` are an atomic policy pair because its codeload archive does not publish a separate upstream checksum manifest. `task deps:update` downloads the archive for the selected stable 2.x tag, computes its digest, validates the complete candidate policy, and replaces the policy file atomically. The installer still owns the archive URL and verification mechanism.
+Checksums normally remain next to direct-download logic. C4-PlantUML and Gentle AI are policy exceptions. C4-PlantUML's version and digest are an atomic pair because its codeload archive has no separate upstream checksum manifest. Gentle AI's two generated Linux digests correspond to its manually selected version. The updater validates the complete candidate policy before atomic replacement; installers still own artifact URLs and verification mechanisms.
 
 ### Assignment-only format and loader security
 
@@ -80,26 +80,22 @@ It queries that registry through pnpm. Its direct-release scope is stable C4
 2.x, Terraform 1.x, Gitleaks 8.x, Pulumi 3.x, OpenTofu 1.x, Terragrunt 1.x,
 kubectl 1.36.x, PlantUML 1.2026.x, and Delve v1.x.
 
-Gentle AI is intentionally manual: its exact version and both Linux architecture
-digests are reviewed and changed together so a dependency update cannot silently
-replace the binary trust anchor with data from the same release boundary. The
-updater checks the latest stable Gentle AI release and reports whether the pin is
-current or a newer version needs review, but never mutates those three values.
-For a newer release it prints the release URL, checksum-manifest URL, a command
-that filters the manifest to the Linux amd64 and arm64 archives, and the three
-policy keys that must be updated together. Manual approval still requires pinned
-architecture digests for reproducible installer integrity. The manifest shares
-the upstream release trust boundary and is not independent signature or
-provenance verification; the updater never imports its values into policy.
+Maintainers select Gentle AI's exact version manually. The updater never discovers
+or changes that version: it queries exactly `v${version}` and atomically updates
+both generated Linux architecture digests from the GitHub Release Assets API.
+It validates repository and tag identity, stable release state, immutability when
+the field is available, exact versioned asset names, uniqueness, download URLs,
+and lowercase SHA-256 format. Any failure leaves policy bytes unchanged. The
+installer continues to require and verify the pinned architecture digest before
+an exact-version early exit and preserves its staged replacement rollback.
 
 The updater maintains an explicit exclusion inventory and reports every omitted
-policy with a concise reason. This includes Engram, BATS, Graphify,
+policy with a concise reason. This includes Gentle AI's maintainer-selected
+version, Engram, BATS, Graphify,
 provider-managed selectors, major channels, and literal `latest` policies. It does
 not claim that an update exists where deterministic discovery is unsupported or
-would not represent the policy semantics. Gentle AI advisory lookup failure is
-warning-only: advisory data never enters the candidate, so failing a safe managed
-update would reduce availability without protecting policy integrity. Managed
-discovery and validation failures remain fatal. The command discovers and
+would not represent the policy semantics. Managed discovery and validation
+failures remain fatal. The command discovers and
 validates all managed candidates before one atomic policy-file replacement; it
 does not install packages, rebuild the container, commit, push, or publish changes.
 
@@ -119,6 +115,7 @@ does not install packages, rebuild the container, commit, push, or publish chang
 - Floating policies remain reproducibility risks, now made explicit rather than silently changed.
 - Version changes still rely on each installer's idempotency behavior.
 - The C4-PlantUML digest records the bytes observed during update discovery; it is not an independent upstream attestation.
+- Gentle AI's generated digests share the GitHub release trust boundary; automation provides reproducibility and mismatch detection, not independent publisher identity or provenance verification.
 
 ## Migration plan
 

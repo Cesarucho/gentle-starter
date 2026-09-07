@@ -19,6 +19,8 @@ setup() {
 	GENTLE_FIXTURE_NEW_VERSION="1.2.4"
 	GENTLE_FIXTURE_SHA256_AMD64="$(printf 'a%.0s' {1..64})"
 	GENTLE_FIXTURE_SHA256_ARM64="$(printf 'b%.0s' {1..64})"
+	GENTLE_FIXTURE_NEW_SHA256_AMD64="$(printf 'c%.0s' {1..64})"
+	GENTLE_FIXTURE_NEW_SHA256_ARM64="$(printf 'd%.0s' {1..64})"
 	write_pnpm_stub stable
 	write_curl_stub success
 	write_forbidden_stub npm
@@ -139,11 +141,32 @@ case "\${url}" in
     body='[{"tag_name":"v1.2027.1","draft":false,"prerelease":false},{"tag_name":"v1.2026.99","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/go-delve/delve/releases*)
     body='[{"tag_name":"v2.0.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
-  *api.github.com/repos/Gentleman-Programming/gentle-ai/releases*)
-    if [ "${mode}" = gentle_current ]; then
-      body='[{"tag_name":"v${configured_gentle_version}","draft":false,"prerelease":false}]'
-    else
-      body='[{"tag_name":"v9.9.9-rc.1","draft":false,"prerelease":true},{"tag_name":"v${GENTLE_FIXTURE_NEW_VERSION}","draft":false,"prerelease":false}]'
+  *api.github.com/repos/Gentleman-Programming/gentle-ai/releases/tags/v*)
+    tag="v${configured_gentle_version}"
+    api_url="https://api.github.com/repos/Gentleman-Programming/gentle-ai/releases/tags/\${tag}"
+    html_url="https://github.com/Gentleman-Programming/gentle-ai/releases/tag/\${tag}"
+    amd64_name="gentle-ai_${configured_gentle_version}_linux_amd64.tar.gz"
+    arm64_name="gentle-ai_${configured_gentle_version}_linux_arm64.tar.gz"
+    amd64_url="https://github.com/Gentleman-Programming/gentle-ai/releases/download/\${tag}/\${amd64_name}"
+    arm64_url="https://github.com/Gentleman-Programming/gentle-ai/releases/download/\${tag}/\${arm64_name}"
+    immutable=true; draft=false; prerelease=false
+    amd64_digest="sha256:${GENTLE_FIXTURE_NEW_SHA256_AMD64}"
+    arm64_digest="sha256:${GENTLE_FIXTURE_NEW_SHA256_ARM64}"
+    case "${mode}" in
+      gentle_wrong_tag) tag=v9.9.9 ;;
+      gentle_wrong_repository) html_url="https://github.com/example/gentle-ai/releases/tag/\${tag}" ;;
+      gentle_draft) draft=true ;;
+      gentle_prerelease) prerelease=true ;;
+      gentle_mutable) immutable=false ;;
+      gentle_bad_digest) arm64_digest=sha256:ABC ;;
+      gentle_missing_asset) arm64_name=not-the-selected-asset ;;
+      gentle_wrong_asset_url) arm64_url="https://github.com/example/gentle-ai/releases/download/\${tag}/\${arm64_name}" ;;
+    esac
+    body="{\"url\":\"\${api_url}\",\"html_url\":\"\${html_url}\",\"tag_name\":\"\${tag}\",\"draft\":\${draft},\"prerelease\":\${prerelease},\"immutable\":\${immutable},\"assets\":[{\"name\":\"\${amd64_name}\",\"browser_download_url\":\"\${amd64_url}\",\"digest\":\"\${amd64_digest}\"},{\"name\":\"\${arm64_name}\",\"browser_download_url\":\"\${arm64_url}\",\"digest\":\"\${arm64_digest}\"}]}"
+    if [ "${mode}" = gentle_duplicate ]; then
+      body="\${body%]}}, {\"name\":\"\${amd64_name}\",\"browser_download_url\":\"\${amd64_url}\",\"digest\":\"\${amd64_digest}\"}]}"
+    elif [ "${mode}" = gentle_no_immutable ]; then
+      body="\${body/,\"immutable\":true/}"
     fi ;;
   *) echo "unexpected URL: \${url}" >&2; exit 64 ;;
 esac
@@ -170,9 +193,10 @@ EOF
 	grep -q "^TOOL_C4_PLANTUML_SHA256=\"${expected_c4_sha}\"$" "${POLICY_FILE}"
 	grep -q '^TOOL_TERRAFORM_VERSION="1.99.0"$' "${POLICY_FILE}"
 	grep -q '^TOOL_GITLEAKS_VERSION="8.99.0"$' "${POLICY_FILE}"
-	write_gentle_block "${TEST_ROOT}/gentle-after"
-	cmp -s "${TEST_ROOT}/gentle-before" "${TEST_ROOT}/gentle-after"
-	grep -q 'Gentleman-Programming/gentle-ai' "${CALLS_FILE}"
+	grep -q "^TOOL_GENTLE_AI_VERSION=\"$(sed -n 's/^TOOL_GENTLE_AI_VERSION=\"\([^\"]*\)\"$/\1/p' "${TEST_ROOT}/gentle-before")\"$" "${POLICY_FILE}"
+	grep -q "^TOOL_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
+	grep -q "^TOOL_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
+	grep -q "releases/tags/v$(sed -n 's/^TOOL_GENTLE_AI_VERSION=\"\([^\"]*\)\"$/\1/p' "${POLICY_FILE}")" "${CALLS_FILE}"
 	grep -q '^TOOL_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
 	grep -q '^TOOL_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
 	! grep -Eq '(^| )(npm|pi)( |$)' "${CALLS_FILE}"
@@ -181,45 +205,48 @@ EOF
 	cmp -s "${TEST_ROOT}/expected-pnpm-calls" "${TEST_ROOT}/actual-pnpm-calls"
 }
 
-@test "deps:update reports a newer Gentle AI release without changing its coupled pins" {
-	seed_gentle_fixture
-	write_gentle_block "${TEST_ROOT}/gentle-before"
-
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
-
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"Gentle AI: ${GENTLE_FIXTURE_NEW_VERSION} available (pinned: ${GENTLE_FIXTURE_VERSION}); omitted"* ]]
-	[[ "${output}" == *"manual review of the version and both architecture digests/trust inputs"* ]]
-	[[ "${output}" == *"Release: https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v${GENTLE_FIXTURE_NEW_VERSION}"* ]]
-	[[ "${output}" == *"Checksums: https://github.com/Gentleman-Programming/gentle-ai/releases/download/v${GENTLE_FIXTURE_NEW_VERSION}/checksums.txt"* ]]
-	[[ "${output}" == *"gentle-ai_${GENTLE_FIXTURE_NEW_VERSION//./\\.}_linux_(amd64|arm64)\\.tar\\.gz$"* ]]
-	[[ "${output}" == *"Update TOOL_GENTLE_AI_VERSION, TOOL_GENTLE_AI_SHA256_AMD64, and TOOL_GENTLE_AI_SHA256_ARM64 together."* ]]
-	write_gentle_block "${TEST_ROOT}/gentle-after"
-	cmp -s "${TEST_ROOT}/gentle-before" "${TEST_ROOT}/gentle-after"
+@test "Gentle AI 2.6.0 policy keeps its selected version above generated API digests" {
+	grep -q '^TOOL_GENTLE_AI_VERSION="2.6.0"$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
+	grep -q '^# Do not edit these digest values manually; select TOOL_GENTLE_AI_VERSION above.$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
+	grep -q '^TOOL_GENTLE_AI_SHA256_AMD64="1dbf4e4ebc2b0d0e0f3f003a77ca2cf0fedc7b4d3e5f85939abeb877694630f0"$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
+	grep -q '^TOOL_GENTLE_AI_SHA256_ARM64="9fc43679476486fb234c302c91f8e15fd7d878e43de1104c2ebdddd68baaa95b"$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
+	[ "$(tail -n 2 "${REPO_ROOT}/.devcontainer/tool-versions.conf" | grep -c '^TOOL_GENTLE_AI_SHA256_')" -eq 2 ]
 }
 
-@test "deps:update reports Gentle AI as current without claiming an update" {
+@test "deps:update keeps the selected Gentle AI version and atomically updates both digests" {
 	seed_gentle_fixture
-	write_curl_stub gentle_current
-	write_gentle_block "${TEST_ROOT}/gentle-before"
+	write_curl_stub success
 
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"Gentle AI: current at ${GENTLE_FIXTURE_VERSION}; omitted"* ]]
-	[[ "${output}" != *"Gentle AI: ${GENTLE_FIXTURE_VERSION} available"* ]]
-	write_gentle_block "${TEST_ROOT}/gentle-after"
-	cmp -s "${TEST_ROOT}/gentle-before" "${TEST_ROOT}/gentle-after"
+	grep -q "^TOOL_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
+	grep -q "^TOOL_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
+	grep -q "^TOOL_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
+	[[ "${output}" == *"TOOL_GENTLE_AI_VERSION — maintainer-selected version"* ]]
 }
 
-@test "deps:update treats Gentle AI advisory discovery failure as warning-only" {
-	write_curl_stub gentle_fail
+@test "deps:update accepts an exact stable release when immutable metadata is unavailable" {
+	seed_gentle_fixture
+	write_curl_stub gentle_no_immutable
 
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"WARNING: Gentle AI advisory lookup failed"* ]]
-	grep -q '^TOOL_PI_CODING_AGENT_VERSION="9.9.9"$' "${POLICY_FILE}"
+}
+
+@test "deps:update rejects invalid Gentle AI release metadata and assets without writing" {
+	local mode
+	for mode in gentle_fail gentle_wrong_tag gentle_wrong_repository gentle_draft gentle_prerelease gentle_mutable gentle_bad_digest gentle_missing_asset gentle_wrong_asset_url gentle_duplicate; do
+		seed_gentle_fixture
+		write_curl_stub "${mode}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+		[ "${status}" -ne 0 ]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	done
 }
 
 @test "deps:update explicitly reports every excluded policy key" {
@@ -229,7 +256,7 @@ EOF
 	for key in \
 		TOOL_JAVA_INSTALL_VERSION TOOL_JAVA_REQUIRED_VERSION TOOL_NODE_MAJOR \
 		TOOL_GO_VERSION TOOL_PNPM_VERSION TOOL_BATS_VERSION TOOL_ENGRAM_VERSION \
-		TOOL_GENTLE_AI_VERSION TOOL_GENTLE_AI_SHA256_AMD64 TOOL_GENTLE_AI_SHA256_ARM64 \
+		TOOL_GENTLE_AI_VERSION \
 		TOOL_GRAPHIFY_VERSION TOOL_PLAYWRIGHT_CLI_VERSION TOOL_DEVCONTAINER_CLI_VERSION \
 		TOOL_VITEST_VERSION TOOL_PHP_VERSION TOOL_PHPUNIT_VERSION; do
 		[[ "${output}" == *"${key}"* ]]

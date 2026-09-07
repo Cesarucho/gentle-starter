@@ -300,20 +300,15 @@ task test:help         # show available test tasks
 Unit tests live in `.devcontainer/test/unit/`: `common.sh.bats` covers
 `common.sh` helpers (phase detection, logging, fetching, version extraction,
 version comparison, idempotency), `deps-update.bats` covers the dependency
-policy updater and C4-PlantUML version/checksum behavior, and `gentle-ai.bats`
-covers Gentle AI's manually pinned architecture digests, bounded download
-retries, canonical enabled slot, rollback, and exact-version idempotency.
-`task deps:update` now performs a warning-only stable-release advisory for Gentle
-AI, while keeping its version and both architecture digests outside mutation so
-all three trust inputs remain pinned and manually reviewed together for installer
-integrity. When a newer release exists, the advisory links its release and
-`checksums.txt`, prints a command that selects only the Linux amd64 and arm64
-archive lines, and names the three policy keys that must change together. These
-same-release-boundary checksums support reproducible byte integrity; they are not
-independent publisher verification. The command does not import them into policy.
-The command also reports every other deliberately excluded policy and its reason.
-Advisory lookup failure does not block validated managed updates because the
-advisory contributes no candidate policy value. This guidance remains available
+policy updater and direct-release checksum behavior, and `gentle-ai.bats` covers
+Gentle AI's pinned architecture digests, bounded download retries, canonical
+enabled slot, rollback, and exact-version idempotency. Maintainers select
+`TOOL_GENTLE_AI_VERSION`; `task deps:update` queries that exact GitHub release and
+atomically fills both generated Linux digests from its Release Assets API.
+Metadata or asset validation failure leaves the policy unchanged. These
+same-release-boundary digests support reproducible byte integrity; they are not
+independent publisher verification. The command also reports every deliberately
+excluded policy and its reason. This behavior remains available
 after `task project:init` because the task files, updater, policy, installer
 library, and this guide survive in the derived project. Integration tests in
 `.devcontainer/test/integration/tools.bats` verify that the expected tools are

@@ -169,7 +169,7 @@ tasks:
       - task: ensure-running
       - task: run-devcontainer
         vars:
-          ARGS: exec --workspace-folder {{.WORKSPACE}} opencode -c
+          ARGS: exec --workspace-folder {{.WORKSPACE}} opencode --continue
 
   pi:
     desc: Connect to Pi inside devcontainer

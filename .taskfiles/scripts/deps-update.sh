@@ -39,6 +39,7 @@ MANAGED_KEYS=(
 	TOOL_GENTLE_ENGRAM_VERSION TOOL_PI_MCP_ADAPTER_VERSION
 	TOOL_PI_TERMINAL_THEME_VERSION
 	TOOL_C4_PLANTUML_VERSION TOOL_C4_PLANTUML_SHA256
+	TOOL_GENTLE_AI_SHA256_AMD64 TOOL_GENTLE_AI_SHA256_ARM64
 	TOOL_MARKDOWNLINT_CLI2_VERSION TOOL_MERMAID_CLI_VERSION
 	TOOL_PLAYWRIGHT_VERSION TOOL_TERRAFORM_VERSION TOOL_GITLEAKS_VERSION
 	TOOL_PULUMI_VERSION TOOL_OPENTOFU_VERSION TOOL_TERRAGRUNT_VERSION
@@ -49,7 +50,7 @@ MANAGED_KEYS=(
 # Every policy key not managed above must be classified here deliberately.
 # Format: comma-separated keys|category|reason
 EXCLUDED_SPECS=(
-	"TOOL_GENTLE_AI_VERSION,TOOL_GENTLE_AI_SHA256_AMD64,TOOL_GENTLE_AI_SHA256_ARM64|manual trust review|manual review of the version and both architecture digests/trust inputs"
+	"TOOL_GENTLE_AI_VERSION|maintainer-selected version|the updater derives digests for this exact version but never selects a release"
 	"TOOL_JAVA_INSTALL_VERSION,TOOL_JAVA_REQUIRED_VERSION|provider-managed installer|SDKMAN selects the distribution while the required version is only an observable check"
 	"TOOL_NODE_MAJOR|major channel|policy intentionally follows Node major 26"
 	"TOOL_GO_VERSION|explicit latest|policy explicitly delegates selection to the latest Go release"
@@ -178,31 +179,35 @@ report_exclusions() {
 	printf '\nDeliberately excluded policy:\n'
 	for spec in "${EXCLUDED_SPECS[@]}"; do
 		IFS='|' read -r keys category reason <<<"${spec}"
-		[ "${keys}" = "TOOL_GENTLE_AI_VERSION,TOOL_GENTLE_AI_SHA256_AMD64,TOOL_GENTLE_AI_SHA256_ARM64" ] && continue
 		printf '  %s — %s: %s\n' "${keys}" "${category}" "${reason}"
 	done
 }
 
-report_gentle_ai_advisory() {
-	local current latest lookup_output reason keys
-	current="$(policy_value TOOL_GENTLE_AI_VERSION)"
-	keys="TOOL_GENTLE_AI_VERSION,TOOL_GENTLE_AI_SHA256_AMD64,TOOL_GENTLE_AI_SHA256_ARM64"
-	reason="manual review of the version and both architecture digests/trust inputs"
+discover_gentle_ai_digests() {
+	local version release_url release_json architecture asset_name digest
+	version="$(policy_value TOOL_GENTLE_AI_VERSION)"
+	require_stable_semver TOOL_GENTLE_AI_VERSION "${version}"
+	release_url="https://api.github.com/repos/Gentleman-Programming/gentle-ai/releases/tags/v${version}"
+	release_json="$(fetch_url "${release_url}")"
 
-	if lookup_output="$(latest_github_release 'Gentleman-Programming/gentle-ai' '^v[0-9]+\.[0-9]+\.[0-9]+$' no 2>&1)"; then
-		latest="${lookup_output}"
-		if [ "$(printf '%s\n%s\n' "${current}" "${latest}" | sort -V | tail -n 1)" = "${latest}" ] && [ "${latest}" != "${current}" ]; then
-			printf '  Gentle AI: %s available (pinned: %s); omitted — %s — %s\n' "${latest}" "${current}" "${keys}" "${reason}"
-			printf '    Release: https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v%s\n' "${latest}"
-			printf '    Checksums: https://github.com/Gentleman-Programming/gentle-ai/releases/download/v%s/checksums.txt\n' "${latest}"
-			printf "    Inspect Linux checksums: curl -fsSL 'https://github.com/Gentleman-Programming/gentle-ai/releases/download/v%s/checksums.txt' | grep -E '  gentle-ai_%s_linux_(amd64|arm64)\\.tar\\.gz$'\n" "${latest}" "${latest//./\\.}"
-			printf '    Update TOOL_GENTLE_AI_VERSION, TOOL_GENTLE_AI_SHA256_AMD64, and TOOL_GENTLE_AI_SHA256_ARM64 together.\n'
-		else
-			printf '  Gentle AI: current at %s; omitted — %s — %s\n' "${current}" "${keys}" "${reason}"
-		fi
-	else
-		printf '  WARNING: Gentle AI advisory lookup failed; omitted — %s — %s. Managed updates continue because advisory discovery cannot affect their validated candidate.\n' "${keys}" "${reason}" >&2
-	fi
+	# jq variables are intentionally evaluated by jq, not the shell.
+	# shellcheck disable=SC2016
+	printf '%s' "${release_json}" | "${JQ_BIN}" -e \
+		--arg html_url "https://github.com/Gentleman-Programming/gentle-ai/releases/tag/v${version}" \
+		--arg tag "v${version}" \
+		'.html_url == $html_url and .tag_name == $tag and .draft == false and .prerelease == false and ((has("immutable") | not) or .immutable == true)' \
+		>/dev/null || fail "Gentle AI release metadata failed repository, tag, stability, or immutability validation"
+
+	for architecture in amd64 arm64; do
+		asset_name="gentle-ai_${version}_linux_${architecture}.tar.gz"
+		# shellcheck disable=SC2016
+		digest="$(printf '%s' "${release_json}" | "${JQ_BIN}" -er --arg name "${asset_name}" --arg download_url "https://github.com/Gentleman-Programming/gentle-ai/releases/download/v${version}/${asset_name}" '
+			[.assets[] | select(.name == $name)]
+			| if length == 1 and .[0].browser_download_url == $download_url then .[0].digest else error("expected exactly one matching asset") end
+		')" || fail "Gentle AI release must contain exactly one matching ${architecture} asset"
+		[[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "Gentle AI ${architecture} asset has an invalid SHA-256 digest"
+		CANDIDATES["TOOL_GENTLE_AI_SHA256_${architecture^^}"]="${digest#sha256:}"
+	done
 }
 
 discover_candidates() {
@@ -215,6 +220,7 @@ discover_candidates() {
 	done
 
 	printf 'Discovering constrained direct releases...\n'
+	discover_gentle_ai_digests
 	CANDIDATES[TOOL_C4_PLANTUML_VERSION]="$(latest_github_release 'plantuml-stdlib/C4-PlantUML' '^v2\.[0-9]+\.[0-9]+$' no)"
 	CANDIDATES[TOOL_TERRAFORM_VERSION]="$(latest_terraform_version)"
 	CANDIDATES[TOOL_GITLEAKS_VERSION]="$(latest_github_release 'gitleaks/gitleaks' '^v8\.[0-9]+\.[0-9]+$' no)"
@@ -313,7 +319,6 @@ main() {
 	discover_candidates
 	publish_policy
 	report_exclusions
-	report_gentle_ai_advisory
 	printf "\nRun 'task container:rebuild' to apply these versions.\n"
 }
 

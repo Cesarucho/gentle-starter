@@ -175,9 +175,9 @@ task deps:update          # From inside container, update the repository's appro
 task container:rebuild    # From host, apply that policy to the development environment
 ```
 
-`deps:update` atomically replaces approved stable allowlist pins and reports
-exclusions. Gentle AI stays advisory: review its version and digests together.
-It never installs, rebuilds, or mutates live state. See [ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
+`deps:update` atomically replaces approved pins and reports exclusions. Select Gentle AI's
+version manually; it derives both Linux digests from that exact immutable GitHub release.
+It never installs or changes live state. See [ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
 
 ### ⚙️ Save OpenCode and Pi configuration changes
 
@@ -284,7 +284,7 @@ task container:rebuild      # remove, build, and start
 ```bash
 # These tasks auto-start the devcontainer if it is not running
 task container:connect      # open a shell; run `opencode` inside
-task container:opencode     # continue OpenCode using `opencode -c`
+task container:opencode     # continue OpenCode using `opencode --continue`
 task container:pi           # connect to Pi using `pi --continue`
 task container:engram       # connect to the Engram TUI
 ```

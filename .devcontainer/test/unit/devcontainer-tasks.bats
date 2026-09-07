@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[[ "${task_definition}" == *"interactive: true"* ]]
 	[[ "${task_definition}" == *"- task: ensure-running"* ]]
 	[[ "${task_definition}" == *"- task: run-devcontainer"* ]]
-	[[ "${task_definition}" == *"ARGS: exec --workspace-folder {{.WORKSPACE}} opencode -c"* ]]
+	[[ "${task_definition}" == *"ARGS: exec --workspace-folder {{.WORKSPACE}} opencode --continue"* ]]
 }
 
 @test "container:up prepares managed bind sources after the host guard and before startup" {
