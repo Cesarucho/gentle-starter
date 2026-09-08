@@ -60,6 +60,7 @@ readme_install_placement_inventory() {
 40-cli-terragrunt.sh|details
 40-go-debug.sh|details
 40-node-contracts.sh|details
+40-node-archify.sh|details
 40-node-markdownlint.sh|details
 40-node-mermaid.sh|details
 40-node-test.sh|details

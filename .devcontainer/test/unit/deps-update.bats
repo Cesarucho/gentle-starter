@@ -21,10 +21,42 @@ setup() {
 	GENTLE_FIXTURE_SHA256_ARM64="$(printf 'b%.0s' {1..64})"
 	GENTLE_FIXTURE_NEW_SHA256_AMD64="$(printf 'c%.0s' {1..64})"
 	GENTLE_FIXTURE_NEW_SHA256_ARM64="$(printf 'd%.0s' {1..64})"
+	ARCHIFY_FIXTURE_VERSION="9.8.7"
+	ARCHIFY_ARCHIVE_FILE="${TEST_ROOT}/archify.zip"
+	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" normal
+	ARCHIFY_FIXTURE_SHA256="$(sha256sum "${ARCHIFY_ARCHIVE_FILE}" | awk '{print $1}')"
+	write_archify_archive 9.9.9 normal
+	cp "${ARCHIFY_ARCHIVE_FILE}" "${ARCHIFY_ARCHIVE_FILE}.wrong-version"
+	ARCHIFY_WRONG_VERSION_SHA256="$(sha256sum "${ARCHIFY_ARCHIVE_FILE}.wrong-version" | awk '{print $1}')"
+	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" malformed
+	cp "${ARCHIFY_ARCHIVE_FILE}" "${ARCHIFY_ARCHIVE_FILE}.bad-layout"
+	ARCHIFY_BAD_LAYOUT_SHA256="$(sha256sum "${ARCHIFY_ARCHIVE_FILE}.bad-layout" | awk '{print $1}')"
+	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" normal
 	write_pnpm_stub stable
 	write_curl_stub success
 	write_forbidden_stub npm
 	write_forbidden_stub pi
+}
+
+write_archify_archive() {
+	local version="$1"
+	local mode="$2"
+	python3 - "${ARCHIFY_ARCHIVE_FILE}" "${version}" "${mode}" <<'PY'
+import json, stat, sys, zipfile
+archive, version, mode = sys.argv[1:]
+files = {
+    "archify/SKILL.md": "---\nname: archify\ndescription: Fixture.\n---\n",
+    "archify/package.json": json.dumps({"name": "archify", "version": version}),
+    "archify/skill-release.json": json.dumps({"version": version}),
+    "archify/bin/archify.mjs": "#!/usr/bin/env node\n",
+}
+if mode == "malformed": files = {"other/file": "bad"}
+with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+    for name, body in files.items():
+        info = zipfile.ZipInfo(name)
+        info.external_attr = (stat.S_IFREG | (0o755 if name.endswith(".mjs") else 0o644)) << 16
+        z.writestr(info, body)
+PY
 }
 
 teardown() {
@@ -117,6 +149,14 @@ if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-
   exit 22
 fi
 case "\${url}" in
+
+  *github.com/tt-a1i/archify/releases/download/*/archify.zip)
+    case "${mode}" in
+      archify_zip_layout) cp "${ARCHIFY_ARCHIVE_FILE}.bad-layout" "\${output}" ;;
+      archify_zip_version) cp "${ARCHIFY_ARCHIVE_FILE}.wrong-version" "\${output}" ;;
+      *) cp "${ARCHIFY_ARCHIVE_FILE}" "\${output}" ;;
+    esac
+    exit 0 ;;
   *releases.hashicorp.com/terraform/index.json)
     body='{"versions":{"1.98.0":{},"1.99.0":{},"2.0.0-beta.1":{}}}' ;;
   *dl.k8s.io/release/stable-1.36.txt)
@@ -141,6 +181,28 @@ case "\${url}" in
     body='[{"tag_name":"v1.2027.1","draft":false,"prerelease":false},{"tag_name":"v1.2026.99","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/go-delve/delve/releases*)
     body='[{"tag_name":"v2.0.0-rc.1","draft":false,"prerelease":true},{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
+  *api.github.com/repos/tt-a1i/archify/releases*)
+    tag="v${ARCHIFY_FIXTURE_VERSION}"
+    name=archify.zip
+    asset_url="https://github.com/tt-a1i/archify/releases/download/\${tag}/archify.zip"
+    digest="sha256:${ARCHIFY_FIXTURE_SHA256}"
+    immutable=true; draft=false; prerelease=false
+    case "${mode}" in
+      archify_mutable) immutable=false ;;
+      archify_bad_digest) digest=sha256:ABC ;;
+      archify_download_digest) digest="sha256:$(printf '0%.0s' {1..64})" ;;
+      archify_zip_layout) digest="sha256:${ARCHIFY_BAD_LAYOUT_SHA256}" ;;
+      archify_zip_version) digest="sha256:${ARCHIFY_WRONG_VERSION_SHA256}" ;;
+      archify_wrong_asset) name=other.zip ;;
+      archify_wrong_url) asset_url="https://example.com/archify.zip" ;;
+      archify_prerelease) prerelease=true ;;
+    esac
+    body="[{\"tag_name\":\"\${tag}\",\"draft\":\${draft},\"prerelease\":\${prerelease},\"immutable\":\${immutable},\"assets\":[{\"name\":\"\${name}\",\"browser_download_url\":\"\${asset_url}\",\"digest\":\"\${digest}\"}]}]"
+    if [ "${mode}" = archify_duplicate ]; then
+      body="\${body%]}]}, {\"name\":\"archify.zip\",\"browser_download_url\":\"\${asset_url}\",\"digest\":\"\${digest}\"}]}]"
+    elif [ "${mode}" = archify_malformed ]; then
+      body='not-json'
+    fi ;;
   *api.github.com/repos/Gentleman-Programming/gentle-ai/releases/tags/v*)
     tag="v${configured_gentle_version}"
     api_url="https://api.github.com/repos/Gentleman-Programming/gentle-ai/releases/tags/\${tag}"
@@ -199,18 +261,82 @@ EOF
 	grep -q "releases/tags/v$(sed -n 's/^TOOL_GENTLE_AI_VERSION=\"\([^\"]*\)\"$/\1/p' "${POLICY_FILE}")" "${CALLS_FILE}"
 	grep -q '^TOOL_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
 	grep -q '^TOOL_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
+	grep -q "^TOOL_ARCHIFY_VERSION=\"${ARCHIFY_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
+	grep -q "^TOOL_ARCHIFY_SHA256=\"${ARCHIFY_FIXTURE_SHA256}\"$" "${POLICY_FILE}"
 	! grep -Eq '(^| )(npm|pi)( |$)' "${CALLS_FILE}"
 	write_expected_pnpm_calls "${TEST_ROOT}/expected-pnpm-calls"
 	grep '^pnpm view ' "${CALLS_FILE}" >"${TEST_ROOT}/actual-pnpm-calls"
 	cmp -s "${TEST_ROOT}/expected-pnpm-calls" "${TEST_ROOT}/actual-pnpm-calls"
 }
 
-@test "Gentle AI 2.6.0 policy keeps its selected version above generated API digests" {
-	grep -q '^TOOL_GENTLE_AI_VERSION="2.6.0"$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
-	grep -q '^# Do not edit these digest values manually; select TOOL_GENTLE_AI_VERSION above.$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
-	grep -q '^TOOL_GENTLE_AI_SHA256_AMD64="1dbf4e4ebc2b0d0e0f3f003a77ca2cf0fedc7b4d3e5f85939abeb877694630f0"$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
-	grep -q '^TOOL_GENTLE_AI_SHA256_ARM64="9fc43679476486fb234c302c91f8e15fd7d878e43de1104c2ebdddd68baaa95b"$' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
-	[ "$(tail -n 2 "${REPO_ROOT}/.devcontainer/tool-versions.conf" | grep -c '^TOOL_GENTLE_AI_SHA256_')" -eq 2 ]
+@test "deps:update rejects invalid Archify metadata atomically" {
+	local mode
+	for mode in archify_mutable archify_bad_digest archify_wrong_asset archify_wrong_url archify_prerelease archify_duplicate archify_malformed; do
+		write_curl_stub "${mode}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+		[ "${status}" -ne 0 ]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	done
+}
+
+@test "deps:update rejects invalid Archify candidate ZIPs at the intended validator" {
+	local mode expected_error
+	for mode in archify_download_digest archify_zip_layout archify_zip_version; do
+		case "${mode}" in
+		archify_download_digest) expected_error='SHA-256 mismatch' ;;
+		archify_zip_layout) expected_error='unsafe path or multiple top-level trees' ;;
+		archify_zip_version) expected_error='embedded version does not match' ;;
+		esac
+		write_curl_stub "${mode}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"${expected_error}"* ]]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	done
+}
+
+@test "policy groups representative editable keys by owning installer" {
+	awk '
+		/^# Java — install\/available\/20-runtime-java\.sh$/ { group = "java"; next }
+		/^# Pi Gentle — install\/available\/30-ai-pi-gentle\.sh$/ { group = "pi-gentle"; next }
+		/^# Node contracts — install\/available\/40-node-contracts\.sh$/ { group = "contracts"; next }
+		/^# Playwright — install\/available\/50-browser-playwright\.sh$/ { group = "playwright"; next }
+		/^# .* — install\/available\// { group = ""; next }
+		/^#/ || /^$/ { next }
+		group == "java" && /^TOOL_JAVA_/ { java++ }
+		group == "pi-gentle" && /^(TOOL_GENTLE_PI_|TOOL_PI_|TOOL_RPIV_|TOOL_GENTLE_ENGRAM_)/ { pi_gentle++ }
+		group == "contracts" && /^(TOOL_SPECTRAL_|TOOL_REDOCLY_|TOOL_ASYNCAPI_)/ { contracts++ }
+		group == "playwright" && /^TOOL_PLAYWRIGHT_/ { playwright++ }
+		END { exit !(java == 2 && pi_gentle == 11 && contracts == 3 && playwright == 2) }
+	' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
+}
+
+@test "policy keys are valid and unique and generated values stay in the generated section" {
+	policy="${REPO_ROOT}/.devcontainer/tool-versions.conf"
+	run bash -c 'source "$1"; devcontainer_load_tool_versions "$2"' _ \
+		"${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${policy}"
+	[ "${status}" -eq 0 ]
+
+	awk '
+		/^# .* — install\/available\// { owner = 1; next }
+		/^# Generated by `task deps:update`;/ { generated = 1; owner = 0; next }
+		/^TOOL_/ {
+			count[$1]++
+			is_digest = $0 ~ /^TOOL_.*SHA256[^=]*=/
+			if ((generated && !is_digest) || (!generated && is_digest)) bad = 1
+			if (!generated && !owner) bad = 1
+		}
+		END {
+			for (key in count) if (count[key] != 1) bad = 1
+			exit bad || !generated
+		}
+	' FS='=' "${policy}"
 }
 
 @test "deps:update keeps the selected Gentle AI version and atomically updates both digests" {
@@ -272,6 +398,7 @@ EOF
 	before_node="$(grep '^TOOL_NODE_MAJOR=' "${POLICY_FILE}")"
 	before_graphify="$(grep '^TOOL_GRAPHIFY_VERSION=' "${POLICY_FILE}")"
 	before_latest="$(grep '="latest"$' "${POLICY_FILE}")"
+	grep '^#' "${POLICY_FILE}" >"${TEST_ROOT}/comments-before"
 
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
@@ -279,7 +406,8 @@ EOF
 	[ "$(grep '^TOOL_NODE_MAJOR=' "${POLICY_FILE}")" = "${before_node}" ]
 	[ "$(grep '^TOOL_GRAPHIFY_VERSION=' "${POLICY_FILE}")" = "${before_graphify}" ]
 	[ "$(grep '="latest"$' "${POLICY_FILE}")" = "${before_latest}" ]
-	grep -q '^# Canonical version policy' "${POLICY_FILE}"
+	grep '^#' "${POLICY_FILE}" >"${TEST_ROOT}/comments-after"
+	cmp -s "${TEST_ROOT}/comments-before" "${TEST_ROOT}/comments-after"
 }
 
 @test "deps:update rejects prerelease package metadata without writing" {

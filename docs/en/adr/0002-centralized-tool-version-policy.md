@@ -23,7 +23,12 @@ Tools receive only the fields they need. The first migration covers Java, Engram
 
 ### Policy and mechanism remain separate
 
-The central file contains no commands, version-check commands, shell fragments, URLs, paths, artifact names, architecture logic, permissions, recovery, or idempotency mechanisms. Installers retain responsibility for installation, detection, comparison, functional validation, privilege handling, architecture, URLs, artifacts, and recovery.
+Assignment values contain no commands, version-check commands, shell fragments,
+URLs, paths, artifact names, architecture logic, permissions, recovery, or
+idempotency mechanisms. Group comments may provide non-authoritative,
+repository-relative navigation to the owning installer. Installers retain
+authoritative responsibility for installation, detection, comparison, functional
+validation, privilege handling, architecture, URLs, artifacts, and recovery.
 
 Checksums normally remain next to direct-download logic. C4-PlantUML and Gentle AI are policy exceptions. C4-PlantUML's version and digest are an atomic pair because its codeload archive has no separate upstream checksum manifest. Gentle AI's two generated Linux digests correspond to its manually selected version. The updater validates the complete candidate policy before atomic replacement; installers still own artifact URLs and verification mechanisms.
 
@@ -122,7 +127,7 @@ does not install packages, rebuild the container, commit, push, or publish chang
 1. Add the policy file, restricted loader, Docker copy, validation task, and parser/path/precedence tests.
 2. Migrate representative cases: Java, Engram, C4-PlantUML, and the three node-contract CLIs.
 3. Inventory and migrate the remaining exact, major, selector, required, and `latest` policies in small reviewable units, then remove duplicated local defaults and validate required keys.
-4. Add `task install:versions` reporting and reasonable audits for unused, missing, duplicate, empty, or still-local version declarations.
+4. Add reasonable audits for unused, missing, duplicate, empty, or still-local version declarations.
 
 ## Rejected alternatives
 

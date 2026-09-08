@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 POLICY_FILE="${DEPS_UPDATE_POLICY_FILE:-${WORKSPACE}/.devcontainer/tool-versions.conf}"
 COMMON_SH="${DEPS_UPDATE_COMMON_SH:-${WORKSPACE}/.devcontainer/install/lib/common.sh}"
+ARCHIFY_ARCHIVE_SH="${DEPS_UPDATE_ARCHIFY_ARCHIVE_SH:-${WORKSPACE}/.devcontainer/install/lib/archify-archive.sh}"
 PNPM_BIN="${DEPS_UPDATE_PNPM:-pnpm}"
 CURL_BIN="${DEPS_UPDATE_CURL:-curl}"
 JQ_BIN="${DEPS_UPDATE_JQ:-jq}"
@@ -45,6 +46,7 @@ MANAGED_KEYS=(
 	TOOL_PULUMI_VERSION TOOL_OPENTOFU_VERSION TOOL_TERRAGRUNT_VERSION
 	TOOL_KUBECTL_VERSION TOOL_PLANTUML_VERSION TOOL_DELVE_VERSION
 	TOOL_SPECTRAL_VERSION TOOL_REDOCLY_VERSION TOOL_ASYNCAPI_VERSION
+	TOOL_ARCHIFY_VERSION TOOL_ARCHIFY_SHA256
 )
 
 # Every policy key not managed above must be classified here deliberately.
@@ -210,6 +212,36 @@ discover_gentle_ai_digests() {
 	done
 }
 
+discover_archify_release() {
+	local releases release_json version asset_url digest archive extraction
+	releases="$(fetch_url 'https://api.github.com/repos/tt-a1i/archify/releases?per_page=100')"
+	version="$(printf '%s' "${releases}" | "${JQ_BIN}" -r '.[] | select(.draft == false and .prerelease == false) | .tag_name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+	[ -n "${version}" ] || fail "no stable Archify release found"
+	require_stable_semver "GitHub repository tt-a1i/archify" "${version}"
+	# shellcheck disable=SC2016
+	release_json="$(printf '%s' "${releases}" | "${JQ_BIN}" -c --arg tag "${version}" '[.[] | select(.tag_name == $tag)] | if length == 1 then .[0] else error("expected one release") end')" || fail "Archify release metadata is ambiguous"
+	asset_url="https://github.com/tt-a1i/archify/releases/download/${version}/archify.zip"
+	# shellcheck disable=SC2016
+	digest="$(printf '%s' "${release_json}" | "${JQ_BIN}" -er --arg url "${asset_url}" '
+		if .draft == false and .prerelease == false and .immutable == true then
+			[.assets[] | select(.name == "archify.zip")]
+			| if length == 1 and .[0].browser_download_url == $url then .[0].digest else error("invalid canonical asset") end
+		else error("release is not immutable stable") end
+	')" || fail "Archify release must have one canonical immutable archify.zip asset"
+	[[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "Archify asset has an invalid SHA-256 digest"
+	archive="${TEMP_DIR}/archify.zip"
+	extraction="${TEMP_DIR}/archify-extracted"
+	fetch_url_to_file "${asset_url}" "${archive}"
+	bash -c '
+		source "$1"
+		source "$2"
+		devcontainer_validate_archify_archive "$3" "$4" "$5" "$6"
+	' _ "${COMMON_SH}" "${ARCHIFY_ARCHIVE_SH}" "${archive}" "${version#v}" "${digest#sha256:}" "${extraction}" ||
+		fail "Archify candidate ZIP failed digest, layout, entry-type, or embedded-version validation"
+	CANDIDATES[TOOL_ARCHIFY_VERSION]="${version#v}"
+	CANDIDATES[TOOL_ARCHIFY_SHA256]="${digest#sha256:}"
+}
+
 discover_candidates() {
 	local spec key package_name
 
@@ -221,6 +253,7 @@ discover_candidates() {
 
 	printf 'Discovering constrained direct releases...\n'
 	discover_gentle_ai_digests
+	discover_archify_release
 	CANDIDATES[TOOL_C4_PLANTUML_VERSION]="$(latest_github_release 'plantuml-stdlib/C4-PlantUML' '^v2\.[0-9]+\.[0-9]+$' no)"
 	CANDIDATES[TOOL_TERRAFORM_VERSION]="$(latest_terraform_version)"
 	CANDIDATES[TOOL_GITLEAKS_VERSION]="$(latest_github_release 'gitleaks/gitleaks' '^v8\.[0-9]+\.[0-9]+$' no)"
@@ -309,10 +342,13 @@ publish_policy() {
 main() {
 	[ -f "${POLICY_FILE}" ] || fail "policy file not found: ${POLICY_FILE}"
 	[ -f "${COMMON_SH}" ] || fail "common installer library not found: ${COMMON_SH}"
+	[ -f "${ARCHIFY_ARCHIVE_SH}" ] || fail "Archify archive validator not found: ${ARCHIFY_ARCHIVE_SH}"
 	require_command "${PNPM_BIN}"
 	require_command "${CURL_BIN}"
 	require_command "${JQ_BIN}"
 	require_command sha256sum
+	require_command node
+	require_command unzip
 	validate_inventory
 
 	TEMP_DIR="$(mktemp -d)"

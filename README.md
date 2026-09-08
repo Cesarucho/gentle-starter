@@ -61,7 +61,7 @@ prompt, enabling workflows like these:
 - **Runtimes/testing:** Node.js, npm, Bats, PHP, Composer, PHPUnit, Xdebug,
   Vitest, Delve.
 - **Docs/APIs/diagrams:** markdownlint-cli2, Glow, Spectral CLI, Redocly CLI,
-  AsyncAPI CLI, Mermaid CLI, Graphviz, PlantUML, C4-PlantUML, Graphify,
+  AsyncAPI CLI, Mermaid CLI, Archify, Graphviz, PlantUML, C4-PlantUML, Graphify,
   Graphify MCP.
 - **Infrastructure/security:** OpenSSH server/client, Ansible Core, kubectl,
   Terraform, OpenTofu, Terragrunt, Pulumi, Gitleaks.

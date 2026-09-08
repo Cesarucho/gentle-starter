@@ -151,6 +151,13 @@ skip_if_install_disabled() {
     command -v vitest >/dev/null
 }
 
+@test "opt-in archify: Archify is healthy" {
+    skip_if_install_disabled "40-node-archify.sh" "task install:enable -- 40-node-archify"
+    command -v archify >/dev/null
+    run env ARCHIFY_UPDATE_CHECK_DISABLED=1 archify doctor
+    [ "$status" -eq 0 ]
+}
+
 @test "opt-in php: php is installed" {
     skip "opt-in (task install:enable -- 40-php-lang to activate)" if ! command -v php >/dev/null
     command -v php >/dev/null
