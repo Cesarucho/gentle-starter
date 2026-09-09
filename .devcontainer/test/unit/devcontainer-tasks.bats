@@ -54,3 +54,36 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ -n "${guard_line}" ]
 	[ "${guard_line}" -lt "${rm_line}" ]
 }
+
+@test "Dockerfile isolates core inputs in the foundation cache boundary" {
+	cd "${REPO_ROOT}"
+	foundation="$(awk '/^FROM \$\{IMAGE\} AS foundation$/{capture=1; next} capture && /^FROM /{exit} capture' .devcontainer/Dockerfile)"
+	mapfile -t copy_directives < <(awk '$1 == "COPY" || $1 == "ADD" {$1=$1; print}' <<<"${foundation}")
+
+	[ "${#copy_directives[@]}" -eq 2 ]
+	[ "${copy_directives[0]}" = "COPY install/01-core/ ./.devcontainer-install/01-core/" ]
+	[ "${copy_directives[1]}" = "COPY install/lib/common.sh ./.devcontainer-install/lib/common.sh" ]
+}
+
+@test "Dockerfile installs tool-specific inputs only downstream of foundation" {
+	cd "${REPO_ROOT}"
+	downstream="$(awk '/^FROM foundation AS devcontainer$/{capture=1} capture' .devcontainer/Dockerfile)"
+
+	[[ "${downstream}" == *"ARG ENGRAM_VERSION="* ]]
+	[[ "${downstream}" == *"COPY tool-versions.conf"* ]]
+	[[ "${downstream}" == *"COPY install/available/"* ]]
+	[[ "${downstream}" == *"COPY install/02-enabled/"* ]]
+	[[ "${downstream}" == *"COPY install/03-hooks/"* ]]
+}
+
+@test "Dockerfile keeps the cheap version contract independent and synchronized" {
+	cd "${REPO_ROOT}"
+	contract="$(awk '/^FROM \$\{IMAGE\} AS devcontainer-version-contract$/{capture=1; next} capture && /^FROM /{exit} capture' .devcontainer/Dockerfile)"
+	devcontainer="$(awk '/^FROM foundation AS devcontainer$/{capture=1; next} capture' .devcontainer/Dockerfile)"
+	contract_variables="$(awk '$1 == "ARG" || ($1 == "ENV" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/) {print}' <<<"${contract}")"
+	devcontainer_variables="$(awk '$1 == "ARG" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/ || ($1 == "ENV" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/) {print}' <<<"${devcontainer}")"
+
+	[ "${contract_variables}" = "${devcontainer_variables}" ]
+	[[ "${contract}" != *"COPY "* ]]
+	[[ "${contract}" != *"RUN "* ]]
+}

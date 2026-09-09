@@ -11,6 +11,7 @@ When in doubt, the English version is canonical.
 | [`install-tree.md`](./install-tree.md) | Deep dive on the `install/` convention: groups, numbering, how to add a new install script. |
 | [`install-volumes.md`](./install-volumes.md) | Deep dive on the volume repair contract: how the bind-mount → owning-script mapping works, how to add a new stateful volume. |
 | [`configs.md`](./configs.md) | Deep dive on `seed_config_tree`: privilege detection, the three cases, idempotency rules, the `*.local` pattern. |
+| [`container-foundation.md`](./container-foundation.md) | Automatic same-builder caching for the internal core Docker stage. |
 | [`adr/0001-install-layout-refactor.md`](./adr/0001-install-layout-refactor.md) | Install-tree, ownership, ordering, and config-seeding decision. |
 | [`adr/0002-centralized-tool-version-policy.md`](./adr/0002-centralized-tool-version-policy.md) | Canonical declarative tool-version policy and secure loader decision. |
 | `assets/` | Brand assets (logo, etc.). |
