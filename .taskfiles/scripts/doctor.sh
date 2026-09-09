@@ -134,6 +134,27 @@ check_skills() {
 	done < <(jq -r '.skills | keys[]' skills-lock.json)
 }
 
+is_install_enabled() {
+	local script_name="$1"
+	local available=".devcontainer/install/available/${script_name}"
+	local link
+	[ -f "${available}" ] || return 1
+	for link in .devcontainer/install/02-enabled/*; do
+		if [ ! -L "${link}" ] || [ ! -e "${link}" ]; then
+			continue
+		fi
+		[ "$(readlink -f -- "${link}")" = "$(readlink -f -- "${available}")" ] && return 0
+	done
+	return 1
+}
+
+check_enabled_command() {
+	local installer="$1" command_name="$2"
+	if is_install_enabled "${installer}"; then
+		check_command "${command_name}"
+	else info "${command_name} check skipped: ${installer} is disabled"; fi
+}
+
 run_host() {
 	info "Gentle Starter doctor: host checks"
 
@@ -172,14 +193,14 @@ run_container() {
 	check_command task
 	check_command node
 	check_command npm
-	check_command pi
-	check_command engram
-	check_command gentle-ai
+	check_enabled_command 30-ai-pi-coding.sh pi
+	check_enabled_command 30-ai-engram.sh engram
+	check_enabled_command 30-ai-gentle-ai.sh gentle-ai
 	check_command gh optional
 	check_command playwright optional
 
-	check_dir /home/ubuntu/.pi
-	check_dir /home/ubuntu/.engram
+	if is_install_enabled 30-ai-pi-coding.sh || is_install_enabled 30-ai-pi-gentle.sh; then check_dir /home/ubuntu/.pi; fi
+	if is_install_enabled 30-ai-engram.sh; then check_dir /home/ubuntu/.engram; fi
 	check_dir /home/ubuntu/.gitconfig-volume
 
 	if [ "$(id -un 2>/dev/null || true)" = "ubuntu" ]; then

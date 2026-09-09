@@ -32,11 +32,7 @@ if devcontainer_has_cmd plantuml; then
 	exit 0
 fi
 
-if ! devcontainer_has_cmd java; then
-	devcontainer_log_error "Java is required to run PlantUML"
-	devcontainer_log_error "Enable 20-runtime-java.sh before this script"
-	exit 1
-fi
+devcontainer_require_cmd java "Enable 20-runtime-java.sh before PlantUML." || exit 1
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT

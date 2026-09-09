@@ -21,10 +21,8 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 fi
 
 # Guard: skip if php is not present (this tool depends on php being installed).
-if ! devcontainer_has_cmd php; then
-	devcontainer_log_warn "Skipping PHPUnit: php is not installed. Run 'task install:enable -- 40-php-lang' first."
-	exit 0
-fi
+devcontainer_require_cmd php "Enable 40-php-lang.sh before PHPUnit." || exit 1
+devcontainer_require_cmd composer "Enable 40-php-lang.sh before PHPUnit." || exit 1
 
 if devcontainer_has_cmd phpunit; then
 	devcontainer_log_info "phpunit already installed: $(phpunit --version)"

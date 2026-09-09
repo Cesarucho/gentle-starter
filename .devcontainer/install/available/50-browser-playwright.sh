@@ -25,6 +25,9 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 	exit 0
 fi
 
+devcontainer_require_cmd npm "Enable 20-runtime-node.sh before Playwright." || exit 1
+devcontainer_require_cmd npx "Enable 20-runtime-node.sh before Playwright." || exit 1
+
 devcontainer_log_info "Preparing playwright browsers path at ${PLAYWRIGHT_BROWSERS_PATH}"
 devcontainer_run_as_root mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}"
 devcontainer_run_as_root chmod 0755 "${PLAYWRIGHT_BROWSERS_PATH}"

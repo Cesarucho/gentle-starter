@@ -20,6 +20,8 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 	exit 0
 fi
 
+devcontainer_require_cmd npm "Enable 20-runtime-node.sh before Pi Coding." || exit 1
+
 if devcontainer_has_cmd pi; then
 	devcontainer_log_info "pi already installed: $(pi --version)"
 	exit 0

@@ -26,6 +26,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 INSTALL_DIR="${REPO_ROOT}/.devcontainer/install"
+DEPENDENCIES_FILE="${INSTALL_DIR}/dependencies.conf"
 
 usage() {
 	cat <<'EOF'
@@ -110,6 +111,76 @@ is_available_enabled() {
 	enabled_link_names_for_base "${base}" | grep -q .
 }
 
+enabled_alias_for_base() {
+	enabled_link_names_for_base "$1" | sort | head -n 1
+}
+
+validate_enabled_dependencies() {
+	local errors=0 consumer kind dependency command_name consumer_alias dependency_alias
+	[ -f "${DEPENDENCIES_FILE}" ] || return 0
+	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
+		[[ "${consumer}" =~ ^[[:space:]]*(#|$) ]] && continue
+		[ "${kind}" = "enabled" ] || continue
+		is_available_enabled "${consumer}" || continue
+		if ! is_available_enabled "${dependency}"; then
+			echo "FAIL: ${consumer} requires enabled installer ${dependency} (${command_name})" >&2
+			errors=$((errors + 1))
+			continue
+		fi
+		consumer_alias="$(enabled_alias_for_base "${consumer}")"
+		dependency_alias="$(enabled_alias_for_base "${dependency}")"
+		if [[ "${dependency_alias}" > "${consumer_alias}" ]]; then
+			echo "FAIL: ${dependency} must run before ${consumer} (${dependency_alias} sorts after ${consumer_alias})" >&2
+			errors=$((errors + 1))
+		fi
+	done <"${DEPENDENCIES_FILE}"
+	[ "${errors}" -eq 0 ]
+}
+
+dependency_summary() {
+	local wanted="$1" consumer kind dependency command_name summaries=()
+	[ -f "${DEPENDENCIES_FILE}" ] || return 0
+	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
+		[ "${consumer}" = "${wanted}" ] || continue
+		summaries+=("${kind}:${dependency}")
+	done <"${DEPENDENCIES_FILE}"
+	[ "${#summaries[@]}" -eq 0 ] || printf ' [%s]' "$(
+		IFS=,
+		echo "${summaries[*]}"
+	)"
+}
+
+enabled_dependents_for() {
+	local wanted="$1" consumer kind dependency command_name
+	[ -f "${DEPENDENCIES_FILE}" ] || return 0
+	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
+		if [ "${kind}" != "enabled" ] || [ "${dependency}" != "${wanted}" ]; then
+			continue
+		fi
+		is_available_enabled "${consumer}" && printf '%s\n' "${consumer}"
+	done <"${DEPENDENCIES_FILE}"
+}
+
+resolve_disable_target() {
+	local name="$1" candidate canonical
+	if resolve_available "${name}"; then
+		return 0
+	fi
+	for candidate in "${name}" "${name}.sh"; do
+		candidate="${INSTALL_DIR}/02-enabled/${candidate}"
+		if [ ! -L "${candidate}" ] || [ ! -e "${candidate}" ]; then
+			continue
+		fi
+		canonical="$(readlink -f -- "${candidate}")" || continue
+		case "${canonical}" in
+		"${INSTALL_DIR}/available/"*.sh)
+			[ -f "${canonical}" ] && printf '%s\n' "${canonical}" && return 0
+			;;
+		esac
+	done
+	return 1
+}
+
 cmd_list() {
 	if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "${1}" != "--presets" ]; }; then
 		echo "ERROR: list accepts no arguments or the legacy --presets alias" >&2
@@ -141,10 +212,12 @@ cmd_list() {
 		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
 			name="$(basename "${f}")"
 			if is_available_enabled "${name}"; then
-				echo "  ${name} (enabled)"
+				printf '  %s (enabled)' "${name}"
 			else
-				echo "  ${name} (not enabled)"
+				printf '  %s (not enabled)' "${name}"
 			fi
+			dependency_summary "${name}"
+			printf '\n'
 		done
 	else
 		echo "  (directorio ausente)"
@@ -189,6 +262,11 @@ cmd_enable() {
 		cd "${INSTALL_DIR}/02-enabled"
 		ln -sfn "../available/${base}" "${link_name}"
 	)
+	if ! validate_enabled_dependencies; then
+		rm -f "${INSTALL_DIR}/02-enabled/${link_name}"
+		echo "ERROR: enable rolled back because installer dependencies are not satisfied" >&2
+		exit 1
+	fi
 	echo "Enabled: enabled/${link_name} -> available/${base}"
 	echo ""
 	echo "Next step: task container:rebuild"
@@ -198,11 +276,21 @@ cmd_enable() {
 cmd_disable() {
 	local name="$1"
 	local removed=0
+	local source_path base dependents
 
 	if [ -z "${name}" ]; then
 		echo "ERROR: disable requires a NAME argument" >&2
 		usage >&2
 		exit 2
+	fi
+
+	if source_path="$(resolve_disable_target "${name}" 2>/dev/null)"; then
+		base="$(basename "${source_path}")"
+		dependents="$(enabled_dependents_for "${base}")"
+		if [ -n "${dependents}" ]; then
+			echo "ERROR: cannot disable ${base}; required by enabled installer(s): ${dependents//$'\n'/, }" >&2
+			exit 1
+		fi
 	fi
 
 	for candidate in "${name}" "${name}.sh"; do
@@ -266,6 +354,11 @@ cmd_doctor() {
 				errors=$((errors + 1))
 			fi
 		done
+	fi
+	if ! validate_enabled_dependencies; then
+		errors=$((errors + 1))
+	else
+		echo "ok: enabled installer dependencies"
 	fi
 
 	if [ "${errors}" -eq 0 ]; then

@@ -21,10 +21,7 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 fi
 
 # Guard: skip if go is not present (this tool depends on go being installed).
-if ! devcontainer_has_cmd go; then
-	devcontainer_log_warn "Skipping dlv: go is not installed. Run 'task install:enable -- 20-runtime-go' first."
-	exit 0
-fi
+devcontainer_require_cmd go "Enable 20-runtime-go.sh before Delve." || exit 1
 
 if devcontainer_has_cmd dlv; then
 	devcontainer_log_info "dlv already installed: $(dlv version)"

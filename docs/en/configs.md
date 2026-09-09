@@ -5,8 +5,11 @@
 `.devcontainer/<name>-config/` to their runtime path. It is
 copy-on-first-run (idempotent, preserves user customisations across
 rebuilds) and auto-escalates to `sudo` for targets outside `$HOME`.
-The built-in mappings seed `pi-config/` to `~/.pi/` and
-`opencode-config/` to `~/.config/opencode/`.
+The built-in mappings split `pi-config/` by owner: `agent/` is seeded only
+when Pi Coding is enabled, while `gentle-ai/` is seeded independently when
+Gentle AI is enabled. OpenCode configuration is seeded separately to
+`~/.config/opencode/`. Activation uses any valid enabled symlink that
+canonically resolves to the corresponding available installer.
 
 ## Review and export runtime changes
 
@@ -133,7 +136,7 @@ Three steps:
 
    ```bash
    setup_versioned_configs() {
-       seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
+       # Existing enabled-aware Pi and Gentle AI mappings omitted here.
        seed_config_tree "${WORKSPACE_DIR}/.devcontainer/kubectl-config" "${HOME}/.kube"
    }
    ```
@@ -156,7 +159,7 @@ automatically — no flag, no extra wiring on your part.
 
 ```bash
 setup_versioned_configs() {
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
+    # Existing enabled-aware Pi and Gentle AI mappings omitted here.
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
 }
 ```
@@ -187,7 +190,7 @@ added even before the directory exists.
 
 ```bash
 setup_versioned_configs() {
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
+    # Existing enabled-aware Pi and Gentle AI mappings omitted here.
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
     # Personal: not committed, exists only on this clone.
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config.local" "${HOME}/.pi" || true

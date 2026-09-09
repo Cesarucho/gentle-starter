@@ -23,6 +23,8 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 	exit 0
 fi
 
+devcontainer_require_cmd npm "Enable 20-runtime-node.sh before the Dev Container CLI." || exit 1
+
 if devcontainer_has_cmd devcontainer; then
 	devcontainer_log_info "devcontainer CLI already installed: $(devcontainer --version 2>/dev/null || command -v devcontainer)"
 	exit 0

@@ -20,6 +20,8 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 	exit 0
 fi
 
+devcontainer_require_cmd npm "Enable 20-runtime-node.sh before Vitest." || exit 1
+
 # Guard: skip if node is not present (this tool depends on node being installed).
 if ! devcontainer_has_cmd node; then
 	devcontainer_log_warn "Skipping vitest: node is not installed. Run 'task install:enable -- 20-runtime-node' first."

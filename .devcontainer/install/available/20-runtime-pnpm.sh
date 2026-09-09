@@ -20,6 +20,8 @@ if [ "${1:-}" = "--print-version-policy" ]; then
 	exit 0
 fi
 
+devcontainer_require_cmd npm "Enable 20-runtime-node.sh before pnpm." || exit 1
+
 if devcontainer_has_cmd pnpm; then
 	devcontainer_log_info "pnpm already installed: $(pnpm --version)"
 	exit 0

@@ -2,7 +2,7 @@
 #
 # 30-ai-engram.sh — install the Engram memory server into the user's
 # local bin directory, register ~/.local/bin on PATH via ~/.bashrc, and
-# run the Pi integration step.
+# optionally run the Pi integration step when Pi is available.
 #
 # Mirrors .devcontainer/scripts/10-install-ai-engram.sh with the
 # common.sh helpers. Architecture detection uses devcontainer_arch.
@@ -21,6 +21,7 @@ devcontainer_load_tool_versions
 : "${ENGRAM_DATA_DIR:=${HOME}/.engram}"
 : "${ENGRAM_PROFILE_FILE:=${HOME}/.bashrc}"
 : "${ENGRAM_SETUP_PI:=1}"
+: "${ENGRAM_PI_COMMAND:=pi}"
 TARGET_OS="linux"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
@@ -123,6 +124,11 @@ setup_pi_integration() {
 	binary="$(engram_binary)"
 
 	if [ "${ENGRAM_SETUP_PI}" = "0" ]; then
+		devcontainer_log_info "Skipping Engram Pi integration (ENGRAM_SETUP_PI=0)"
+		return 0
+	fi
+	if ! devcontainer_has_cmd "${ENGRAM_PI_COMMAND}"; then
+		devcontainer_log_warn "Pi is not installed; Engram is ready for standalone use and Pi integration was skipped"
 		return 0
 	fi
 

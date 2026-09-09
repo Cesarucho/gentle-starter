@@ -103,7 +103,7 @@ seed_config_tree() {
 	done < <(find "${source_root}" -type f)
 }
 
-# Seed the base config files for every tool the project cares about.
+# Seed base config only for the tools that own each runtime subtree.
 # Each line is a (source_root, target_root) pair that gets handed to
 # seed_config_tree. To add a new tool's baseline config:
 #   1. Create .devcontainer/<name>-config/ with the file tree that
@@ -111,8 +111,13 @@ seed_config_tree() {
 #   2. Add a seed_config_tree call below with the absolute target.
 # See .devcontainer/README.md for the full convention.
 setup_versioned_configs() {
-	# Pi and Gentle-AI configs land in the user's home (~/.pi/).
-	seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
+	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-pi-coding.sh"; then
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/agent" "${HOME}/.pi/agent"
+	fi
+	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-gentle-ai.sh"; then
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai" "${HOME}/.pi/gentle-ai"
+	fi
+	# OpenCode configuration remains independent from Pi-owned state.
 	seed_config_tree "${WORKSPACE_DIR}/.devcontainer/opencode-config" "${HOME}/.config/opencode"
 
 	# Add additional tool configs here, one line per source root:
@@ -123,24 +128,10 @@ setup_versioned_configs() {
 }
 
 run_enabled_opencode_installer() {
-	local enabled_dir="${SCRIPT_DIR}/install/02-enabled"
 	local installer="${SCRIPT_DIR}/install/available/30-ai-opencode.sh"
-	local canonical_installer
-	local enabled_script
-	local resolved_script
 
-	[ -f "${installer}" ] || return 0
-	canonical_installer="$(readlink -f -- "${installer}")"
-
-	for enabled_script in "${enabled_dir}"/*.sh; do
-		[ -L "${enabled_script}" ] || continue
-		resolved_script="$(readlink -f -- "${enabled_script}" 2>/dev/null)" || continue
-
-		if [ "${resolved_script}" = "${canonical_installer}" ]; then
-			DEVCONTAINER_PHASE=runtime bash "${canonical_installer}"
-			return
-		fi
-	done
+	install_script_is_enabled "${installer}" || return 0
+	DEVCONTAINER_PHASE=runtime bash "$(readlink -f -- "${installer}")"
 }
 
 setup_pi_workspace_trust() {
@@ -217,7 +208,9 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # any tool broke the symlinks via atomic replace); with copy, there
 # is nothing to re-link, so one call is enough.
 setup_versioned_configs
-setup_pi_workspace_trust
+if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-pi-coding.sh"; then
+	setup_pi_workspace_trust
+fi
 # export PATH="${HOME}/.local/bin:${PATH}"
 repair_installed_volumes
 run_enabled_opencode_installer

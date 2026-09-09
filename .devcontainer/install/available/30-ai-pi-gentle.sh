@@ -157,6 +157,8 @@ if [ "$(id -u)" -eq 0 ]; then
 	exit 1
 fi
 
+devcontainer_require_cmd pi "Enable 30-ai-pi-coding.sh before Pi Gentle." || exit 1
+
 remove_legacy_powerline
 
 for source in "${PACKAGES[@]}"; do

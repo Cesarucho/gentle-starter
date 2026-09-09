@@ -84,6 +84,8 @@ prepare_setup_sandbox() {
 	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/install/available" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled" \
 		"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested" \
+		"${SETUP_WORKSPACE}/.devcontainer/pi-config/agent" \
+		"${SETUP_WORKSPACE}/.devcontainer/pi-config/gentle-ai" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts" \
 		"${HOME_DIR}/.config/opencode" \
 		"${HOME_DIR}/.pi" \
@@ -96,6 +98,8 @@ prepare_setup_sandbox() {
 		"${SETUP_WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/opencode.json"
 	printf 'nested baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested/agent.md"
+	printf 'pi baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
+	printf 'gentle baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/pi-config/gentle-ai/persona.json"
 	printf 'user customisation\n' >"${HOME_DIR}/.config/opencode/opencode.json"
 	printf 'child payload\n' >"${OPENCODE_SENTINEL}"
 	printf '0:0\n' >"${PI_OWNER_FILE}"
@@ -120,6 +124,10 @@ if [ ! -x "${HOME}/.opencode/bin/opencode" ]; then
 fi
 EOF
 	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-opencode.sh"
+	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-pi-coding.sh"
+	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-gentle-ai.sh"
+	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-pi-coding.sh" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-gentle-ai.sh"
 	cat >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-engram.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -477,6 +485,47 @@ path_metadata() {
 	[ "${status}" -eq 0 ]
 	[ "$(cat "${HOME_DIR}/.config/opencode/nested/agent.md")" = "nested baseline" ]
 	[ "$(cat "${HOME_DIR}/.config/opencode/opencode.json")" = "user customisation" ]
+}
+
+@test "setup seeds Gentle AI config without Pi agent state when only Gentle AI is enabled" {
+	prepare_setup_sandbox
+	ln -s ../available/30-ai-gentle-ai.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/47-custom-gentle.sh"
+	rm -rf "${HOME_DIR}/.pi"
+
+	run_setup
+	[ "${status}" -eq 0 ]
+	[ "$(cat "${HOME_DIR}/.pi/gentle-ai/persona.json")" = "gentle baseline" ]
+	[ ! -e "${HOME_DIR}/.pi/agent" ]
+}
+
+@test "setup seeds Pi agent config and trust without Gentle AI when only Pi is enabled" {
+	prepare_setup_sandbox
+	ln -s ../available/30-ai-pi-coding.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/48-custom-pi.sh"
+	rm -rf "${HOME_DIR}/.pi"
+
+	run_setup
+	[ "${status}" -eq 0 ]
+	[ "$(cat "${HOME_DIR}/.pi/agent/settings.json")" = "pi baseline" ]
+	[ -f "${HOME_DIR}/.pi/agent/trust.json" ]
+	[ ! -e "${HOME_DIR}/.pi/gentle-ai" ]
+}
+
+@test "setup creates no Pi state when Pi-owned tools are disabled" {
+	prepare_setup_sandbox
+	rm -rf "${HOME_DIR}/.pi"
+	run_setup
+	[ "${status}" -eq 0 ]
+	[ ! -e "${HOME_DIR}/.pi" ]
+}
+
+@test "broken installer aliases do not activate Pi-owned config" {
+	prepare_setup_sandbox
+	ln -s ../available/missing-pi.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/70-pi-coding.sh"
+	ln -s ../available/missing-gentle.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/81-gentle-ai.sh"
+	rm -rf "${HOME_DIR}/.pi"
+	run_setup
+	[ "${status}" -eq 0 ]
+	[ ! -e "${HOME_DIR}/.pi" ]
 }
 
 @test "seeded OpenCode plugins use the split review and SDD implementations" {

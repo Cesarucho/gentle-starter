@@ -256,14 +256,14 @@ run_installer() {
     local doctor_bin="${TEST_ROOT}/doctor-bin"
     write_doctor_stubs "${doctor_bin}"
 
-    run env PATH="${doctor_bin}:/usr/bin:/bin" \
+    run env PATH="${doctor_bin}:/usr/bin:/bin" REPO_ROOT="${REPO_ROOT}" \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
 
     [ "$status" -eq 0 ]
     [[ "$output" == *'[ok] gentle-ai available:'* ]]
 
     rm -f "${doctor_bin}/gentle-ai"
-    run env PATH="${doctor_bin}:/usr/bin:/bin" \
+    run env PATH="${doctor_bin}:/usr/bin:/bin" REPO_ROOT="${REPO_ROOT}" \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
 
     [ "$status" -eq 1 ]

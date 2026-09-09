@@ -12,10 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common.sh"
 
 # Guard: skip if php is not present (this tool depends on php being installed).
-if ! devcontainer_has_cmd php; then
-	devcontainer_log_warn "Skipping Xdebug: php is not installed. Run 'task install:enable -- 40-php-lang' first."
-	exit 0
-fi
+devcontainer_require_cmd php "Enable 40-php-lang.sh before Xdebug." || exit 1
 
 PHP_MAJOR="$(php -r 'echo PHP_MAJOR_VERSION;')"
 PHP_MINOR="$(php -r 'echo PHP_MINOR_VERSION;')"

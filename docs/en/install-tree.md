@@ -95,6 +95,12 @@ repairs. It does not uninstall packages from the current container or delete
 mutable state already persisted under `.env.d/`. Re-enabling an installer
 makes its future lifecycle work active again.
 
+`dependencies.conf` is the central activation contract. `enabled` dependencies
+must also be active and ordered earlier; `image` dependencies come from the
+base/core layer; `companion` entries describe optional runtime integration.
+`task install:list` displays these relationships and `task install:doctor`
+validates the active set. Engram remains standalone when Pi is disabled.
+
 ### `03-hooks/` — user extensions (gitignored)
 
 Reserved for personal, project-agnostic extensions (a personal VPN

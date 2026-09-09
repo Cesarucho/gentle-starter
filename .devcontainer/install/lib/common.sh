@@ -135,6 +135,14 @@ devcontainer_has_cmd() {
 	command -v "$1" >/dev/null 2>&1
 }
 
+devcontainer_require_cmd() {
+	local command_name="$1" guidance="${2:-Install its prerequisite first.}"
+	if ! devcontainer_has_cmd "${command_name}"; then
+		devcontainer_log_error "Required command not found: ${command_name}. ${guidance}"
+		return 1
+	fi
+}
+
 # Returns 0 when a filesystem path exists.
 devcontainer_has_path() {
 	[ -e "$1" ]

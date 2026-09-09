@@ -173,14 +173,17 @@ skip_if_install_disabled() {
 # ---------------------------------------------------------------------------
 
 @test "ai: pi is installed" {
+	skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
     command -v pi >/dev/null
 }
 
 @test "ai: pi is executable" {
+	skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
     [ -x "$(command -v pi)" ]
 }
 
 @test "ai: engram is installed" {
+	skip_if_install_disabled "30-ai-engram.sh" "task install:enable -- 30-ai-engram"
     command -v engram >/dev/null
 }
 
@@ -206,6 +209,7 @@ skip_if_install_disabled() {
 }
 
 @test "ai: skills directory exists" {
+	skip_if_install_disabled "30-ai-pi-gentle.sh" "task install:enable -- 30-ai-pi-gentle"
     [ -d "${HOME}/.pi/agent/skills" ] || [ -d "${HOME}/.pi/agent/npm/node_modules/gentle-pi/skills" ]
 }
 
