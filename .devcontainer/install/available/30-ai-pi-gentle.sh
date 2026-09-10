@@ -16,19 +16,17 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${GENTLE_PI_VERSION:=${TOOL_GENTLE_PI_VERSION:-2.2.0}}"
-: "${PI_SUBAGENTS_VERSION:=${TOOL_PI_SUBAGENTS_VERSION:-0.54.0}}"
-: "${PI_INTERCOM_VERSION:=${TOOL_PI_INTERCOM_VERSION:-0.11.0}}"
-: "${PI_WEB_ACCESS_VERSION:=${TOOL_PI_WEB_ACCESS_VERSION:-0.24.1}}"
-: "${PI_LENS_VERSION:=${TOOL_PI_LENS_VERSION:-4.1.1}}"
-: "${RPIV_TODO_VERSION:=${TOOL_RPIV_TODO_VERSION:-1.20.0}}"
-: "${RPIV_ASK_USER_QUESTION_VERSION:=${TOOL_RPIV_ASK_USER_QUESTION_VERSION:-1.20.0}}"
-: "${RPIV_BTW_VERSION:=${TOOL_RPIV_BTW_VERSION:-1.20.0}}"
-: "${GENTLE_ENGRAM_VERSION:=${TOOL_GENTLE_ENGRAM_VERSION:-0.1.10}}"
-: "${PI_MCP_ADAPTER_VERSION:=${TOOL_PI_MCP_ADAPTER_VERSION:-2.27.0}}"
-: "${PI_TERMINAL_THEME_VERSION:=${TOOL_PI_TERMINAL_THEME_VERSION:-0.2.0}}"
-
-: "${PI_AUTO_UPDATE:=0}"
+: "${GENTLE_PI_VERSION:=${LOCK_GENTLE_PI_VERSION:?missing LOCK_GENTLE_PI_VERSION}}"
+: "${PI_SUBAGENTS_VERSION:=${LOCK_PI_SUBAGENTS_VERSION:?missing LOCK_PI_SUBAGENTS_VERSION}}"
+: "${PI_INTERCOM_VERSION:=${LOCK_PI_INTERCOM_VERSION:?missing LOCK_PI_INTERCOM_VERSION}}"
+: "${PI_WEB_ACCESS_VERSION:=${LOCK_PI_WEB_ACCESS_VERSION:?missing LOCK_PI_WEB_ACCESS_VERSION}}"
+: "${PI_LENS_VERSION:=${LOCK_PI_LENS_VERSION:?missing LOCK_PI_LENS_VERSION}}"
+: "${RPIV_TODO_VERSION:=${LOCK_RPIV_TODO_VERSION:?missing LOCK_RPIV_TODO_VERSION}}"
+: "${RPIV_ASK_USER_QUESTION_VERSION:=${LOCK_RPIV_ASK_USER_QUESTION_VERSION:?missing LOCK_RPIV_ASK_USER_QUESTION_VERSION}}"
+: "${RPIV_BTW_VERSION:=${LOCK_RPIV_BTW_VERSION:?missing LOCK_RPIV_BTW_VERSION}}"
+: "${GENTLE_ENGRAM_VERSION:=${LOCK_GENTLE_ENGRAM_VERSION:?missing LOCK_GENTLE_ENGRAM_VERSION}}"
+: "${PI_MCP_ADAPTER_VERSION:=${LOCK_PI_MCP_ADAPTER_VERSION:?missing LOCK_PI_MCP_ADAPTER_VERSION}}"
+: "${PI_TERMINAL_THEME_VERSION:=${LOCK_PI_TERMINAL_THEME_VERSION:?missing LOCK_PI_TERMINAL_THEME_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf '%s\n' \
@@ -90,6 +88,14 @@ installed_version() {
 	done
 
 	return 1
+}
+
+configured_source() {
+	local source="$1"
+	local name
+
+	name="$(package_name "${source}")"
+	pi list | sed -nE "s/^[[:space:]]+(npm:${name//\//\\/}(@[^[:space:]]+)?)$/\\1/p"
 }
 
 is_installed() {
@@ -166,17 +172,16 @@ for source in "${PACKAGES[@]}"; do
 		devcontainer_log_info "Pi package already installed: ${source}"
 		continue
 	fi
+	actual_version="$(installed_version "${source}" 2>/dev/null || true)"
+	if [ -n "${actual_version}" ]; then
+		installed_source="$(configured_source "${source}")"
+		: "${installed_source:=npm:$(package_name "${source}")}"
+		devcontainer_log_info "Replacing Pi package ${installed_source} ${actual_version} with $(package_version "${source}")"
+		pi remove "${installed_source}"
+	fi
 
 	devcontainer_log_info "Installing Pi package: ${source}"
 	pi install "${source}"
 done
 
-case "${PI_AUTO_UPDATE}" in
-1 | true | TRUE | yes | YES)
-	devcontainer_log_info "Updating Pi packages to pick up newer available versions"
-	pi update
-	;;
-*)
-	devcontainer_log_info "Skipping automatic Pi updates (set PI_AUTO_UPDATE=1 to enable upgrades)"
-	;;
-esac
+devcontainer_log_info "Pi packages remain pinned to the generated policy resolutions"

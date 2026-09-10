@@ -68,12 +68,9 @@ compose_target_to_install_scripts() {
 	scripts_ref=()
 	case "${target}" in
 	"${HOME}/.pi" | "/home/${UID}/.pi")
-		scripts_ref+=("30-ai-pi-coding" "30-ai-pi-gentle")
+		scripts_ref+=("30-ai-pi-gentle")
 		;;
 	"${HOME}/.engram" | "/home/${UID}/.engram")
-		scripts_ref+=("30-ai-engram")
-		;;
-	"${HOME}/.local" | "/home/${UID}/.local")
 		scripts_ref+=("30-ai-engram")
 		;;
 	esac

@@ -34,7 +34,7 @@
   "packages": [
     "npm:gentle-pi@2.2.0",
     "npm:pi-intercom@0.12.0",
-    "npm:gentle-engram@0.1.8",
+    "npm:gentle-engram@0.1.12",
     "npm:pi-web-access@0.24.2",
     "npm:pi-lens@4.1.2",
     "npm:@juicesharp/rpiv-todo@2.7.1",

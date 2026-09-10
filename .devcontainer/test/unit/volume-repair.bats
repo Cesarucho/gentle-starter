@@ -116,7 +116,7 @@ run_pi_volume_repair() {
 
 	compose_target_to_install_scripts "/home/${UID}/.pi" scripts
 
-	[ "${scripts[*]}" = "30-ai-pi-coding 30-ai-pi-gentle" ]
+	[ "${scripts[*]}" = "30-ai-pi-gentle" ]
 }
 
 @test "volume parser supports long syntax and ignores long-syntax named volumes" {
@@ -177,7 +177,7 @@ YAML
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"../.env.d/a|b c"* ]]
 	[[ "${output}" == *"${HOME_DIR}/.pi"* ]]
-	[[ "${output}" == *"30-ai-pi-coding 30-ai-pi-gentle"* ]]
+	[[ "${output}" == *"30-ai-pi-gentle"* ]]
 }
 
 @test "volume repair accepts an arbitrary enabled alias" {
@@ -207,13 +207,13 @@ YAML
 	[ ! -s "${CALLS_FILE}" ]
 }
 
-@test "Pi Coding still repairs when Pi Gentle is disabled" {
+@test "Pi Coding is image-owned and never dispatched for runtime volume repair" {
 	enable_installer_as "30-ai-pi-coding" "70-pi-coding.sh"
 
 	run_pi_volume_repair
 
 	[ "${status}" -eq 0 ]
-	[ "$(cat "${CALLS_FILE}")" = "30-ai-pi-coding|runtime" ]
-	[[ "${output}" == *"30-ai-pi-coding.sh"* ]]
+	[ ! -s "${CALLS_FILE}" ]
+	[[ "${output}" != *"30-ai-pi-coding.sh"* ]]
 	[[ "${output}" != *"30-ai-pi-gentle.sh"* ]]
 }
