@@ -2,7 +2,7 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 const TASK_RESULT = /^<task id="[^"\r\n]+" state="completed">\n(?:<summary>[^<>\r\n]+<\/summary>\n)?<task_result>\n([\s\S]*?)\n<\/task_result>\n<\/task>$/
 const TASK_TAG = /<\/?(?:task|task_result|summary)(?:\s|>)/
-const SDD_PHASES = ["sdd-init", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive", "sdd-onboard"]
+const SDD_PHASES = ["sdd-init", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-research", "sdd-apply", "sdd-verify", "sdd-archive", "sdd-onboard"]
 const SDD_TASK_FAILURE_PREFIX = "GENTLE_AI_SDD_FAILURE "
 const SDD_TASK_ROUTE_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/
 
