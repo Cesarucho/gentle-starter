@@ -20,4 +20,7 @@ separate foundation image, tag, lifecycle command, or metadata.
 Cache reuse is automatic only when builds can access the same BuildKit cache,
 typically on the same Docker builder. It is not a cross-machine guarantee, and
 cache eviction, builder replacement, base-image changes, core argument changes,
-or changes to `01-core` and `common.sh` rebuild the foundation.
+or changes to `01-core` and `common.sh` rebuild the foundation. Locale and
+timezone generation are core setup, so changing `LOCALE`, `TZ`, or their core
+installers invalidates `foundation`; tool-version policy remains downstream and
+does not.

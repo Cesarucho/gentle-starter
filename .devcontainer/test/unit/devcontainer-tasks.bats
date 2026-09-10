@@ -62,7 +62,15 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 
 	[ "${#copy_directives[@]}" -eq 2 ]
 	[ "${copy_directives[0]}" = "COPY install/01-core/ ./.devcontainer-install/01-core/" ]
-	[ "${copy_directives[1]}" = "COPY install/lib/common.sh ./.devcontainer-install/lib/common.sh" ]
+	[ "${copy_directives[1]}" = "COPY install/lib/common.sh install/lib/run-installers.sh ./.devcontainer-install/lib/" ]
+}
+
+@test "Dockerfile routes every installer group through the fail-fast runner" {
+	cd "${REPO_ROOT}"
+	dockerfile="$(<.devcontainer/Dockerfile)"
+
+	[ "$(grep -c '&& ./.devcontainer-install/lib/run-installers.sh' <<<"${dockerfile}")" -eq 3 ]
+	[[ "${dockerfile}" != *'| sort | while'* ]]
 }
 
 @test "Dockerfile installs tool-specific inputs only downstream of foundation" {
