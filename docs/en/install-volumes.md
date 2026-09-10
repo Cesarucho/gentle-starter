@@ -111,11 +111,17 @@ recursive or container-runtime ownership repair touches bind roots.
 After creation, the `postCreateCommand` runs `bash .devcontainer/setup.sh`:
 
 ```bash
-setup_versioned_configs         # copy missing Pi and OpenCode baseline configs
+setup_versioned_configs         # copy enabled tools' missing baseline configs
 setup_pi_workspace_trust        # mark the workspace as trusted in trust.json
-repair_installed_volumes        # dispatch repair for installer-owned mounts
-run_enabled_opencode_installer
+repair_installed_volumes        # run enabled Pi Gentle and Engram state owners
+DEVCONTAINER_PHASE=runtime bash 20-tool-ssh.sh  # when SSH is enabled
+start-sshd                      # after SSH runtime preparation
 ```
+
+OpenCode's binary is installed in the image. At runtime,
+`setup_versioned_configs` seeds its missing configuration only when the
+canonical OpenCode installer is enabled; it does not install or update the
+binary.
 
 Dev Containers runs with `remoteUser: ubuntu`; its numeric UID projection aligns
 the prepared host directories with the container development user. The project
@@ -131,10 +137,10 @@ For active owners, the script's idempotency guard decides whether the call is a
 no-op or actually does work.
 
 For example, disabling `30-ai-pi-gentle` leaves the `.pi` mapping unchanged but
-removes that owner from future builds and postCreate repairs. The independently
-enabled `30-ai-pi-coding` owner continues repairing the same mount. Disable is
-non-destructive: it does not remove Pi packages already persisted in
-`.env.d/.pi`, and volume repair does not provide a purge operation.
+removes its only runtime repair owner. Pi Coding remains image-owned and is not
+dispatched by volume repair. Disable is non-destructive: it does not remove Pi
+packages already persisted in `.env.d/.pi`, and volume repair does not provide
+a purge operation.
 
 So the actual "populate the empty bind mount" moment is inside the
 runtime-only branches of the install scripts, not in `setup-volumes.sh`

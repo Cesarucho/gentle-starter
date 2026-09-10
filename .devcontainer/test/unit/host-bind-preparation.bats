@@ -58,14 +58,19 @@ services:
         target: /home/ubuntu/.local/share/opencode
         bind:
           create_host_path: false
+      - type: bind
+        source: ../.env.d/.ssh-server
+        target: /home/ubuntu/.ssh-server
+        bind:
+          create_host_path: false
 YAML
 
 	run_preparation
 	[ "${status}" -eq 0 ]
-	for path in .env.d .env.d/.pi .env.d/.opencode .env.d/.opencode/share; do
+	for path in .env.d .env.d/.pi .env.d/.opencode .env.d/.opencode/share .env.d/.ssh-server; do
 		[ "$(stat -c '%u:%g:%a' -- "${WORKSPACE}/${path}")" = "$(id -u):$(id -g):755" ]
 	done
-	[ "$(find "${WORKSPACE}" -mindepth 1 -printf '%P\n' | sort)" = $'.devcontainer\n.devcontainer/docker-compose.yml\n.env.d\n.env.d/.opencode\n.env.d/.opencode/share\n.env.d/.pi\n.taskfiles\n.taskfiles/scripts\n.taskfiles/scripts/prepare-bind-mounts.py\n.taskfiles/scripts/prepare-bind-mounts.sh\n.taskfiles/scripts/yq-compatibility.sh' ]
+	[ "$(find "${WORKSPACE}" -mindepth 1 -printf '%P\n' | sort)" = $'.devcontainer\n.devcontainer/docker-compose.yml\n.env.d\n.env.d/.opencode\n.env.d/.opencode/share\n.env.d/.pi\n.env.d/.ssh-server\n.taskfiles\n.taskfiles/scripts\n.taskfiles/scripts/prepare-bind-mounts.py\n.taskfiles/scripts/prepare-bind-mounts.sh\n.taskfiles/scripts/yq-compatibility.sh' ]
 	before="$(metadata "${WORKSPACE}/.env.d")|$(metadata "${WORKSPACE}/.env.d/.opencode/share")"
 	sleep 1
 	run_preparation

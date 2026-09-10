@@ -7,7 +7,7 @@ copy-on-first-run (idempotent, preserves user customisations across
 rebuilds) and auto-escalates to `sudo` for targets outside `$HOME`.
 The built-in mappings split `pi-config/` by owner: `agent/` is seeded only
 when Pi Coding is enabled, while `gentle-ai/` is seeded independently when
-Gentle AI is enabled. OpenCode configuration is seeded separately to
+Gentle AI is enabled. OpenCode configuration is seeded only when OpenCode is enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 

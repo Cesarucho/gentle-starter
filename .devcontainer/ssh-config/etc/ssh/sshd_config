@@ -1,6 +1,5 @@
 # sshd_config — hardened for devcontainer use
-# Seeded by 20-tool-ssh.sh during DEVCONTAINER_PHASE=runtime.
-# This file is idempotent: copy-on-first-run via seed_config_tree.
+# Installed as /etc/ssh/sshd_config.gentle-starter by 20-tool-ssh.sh.
 
 Port 22
 ListenAddress 0.0.0.0
@@ -16,10 +15,14 @@ PermitEmptyPasswords no
 ChallengeResponseAuthentication no
 KerberosAuthentication no
 GSSAPIAuthentication no
+# Ubuntu's account is password-locked by default. PAM permits that account to
+# authenticate with a public key while the directives above still forbid passwords.
+UsePAM yes
 
 # Auth
 PubkeyAuthentication yes
 AuthorizedKeysFile  .ssh/authorized_keys
+StrictModes yes
 
 # Logging
 SyslogFacility AUTH

@@ -273,6 +273,6 @@ EOF
 	run bash -c "cd '${REPO_ROOT}' && task --dry test"
 
 	[ "$status" -eq 0 ]
-	[[ "$output" == *'skills.bats'* ]]
+	[[ "$output" == *'test/unit/*.bats'* ]]
 	[[ "$output" == *'integration/tools.bats'* ]]
 }

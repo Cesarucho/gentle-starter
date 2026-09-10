@@ -31,6 +31,10 @@ services:
         source: ../.env.d/.gentle-ai
         target: /home/ubuntu/.gentle-ai
         bind: { create_host_path: false }
+      - type: bind
+        source: ../.env.d/.ssh-server
+        target: /home/ubuntu/.ssh-server
+        bind: { create_host_path: false }
       # GIT-CONFIG
       - type: bind
         source: ../.env.d/.gitconfig

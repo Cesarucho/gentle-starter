@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# start-sshd — start/restart the SSH daemon inside the devcontainer.
+# start-sshd — validate and start the SSH daemon inside the devcontainer.
 #
 # Usage:
 #   start-sshd              # start sshd (idempotent: no-op if already running)
@@ -15,13 +15,51 @@ if [ "${1:-}" = "--regenerate" ]; then
 	REGENERATE=true
 fi
 
-SSH_CONFIG_DIR="${HOME}/.ssh-server"
+SSH_CONFIG_DIR="${SSH_CONFIG_DIR:-${HOME}/.ssh-server}"
 SSH_DIR="${SSH_CONFIG_DIR}/ssh"
-SSHD_CONFIG="/etc/ssh/sshd_config"
-PIDFILE="/run/sshd.pid"
+SSHD_CONFIG="${SSHD_CONFIG:-/etc/ssh/sshd_config.gentle-starter}"
+SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
+SSHD_RUN_DIR="${SSHD_RUN_DIR:-/run/sshd}"
+SSHD_PID_FILE="${SSHD_PID_FILE:-${SSHD_RUN_DIR}/gentle-starter-sshd.pid}"
+PROC_ROOT="${PROC_ROOT:-/proc}"
+STARTUP_ATTEMPTS="${STARTUP_ATTEMPTS:-50}"
+STARTUP_DELAY="${STARTUP_DELAY:-0.1}"
+
+managed_sshd_is_running() {
+	local expected_title pid process_executable process_title process_uid
+	[ -f "${SSHD_PID_FILE}" ] && [ ! -L "${SSHD_PID_FILE}" ] || return 1
+	[ "$(sudo -n stat -c '%u' "${SSHD_PID_FILE}" 2>/dev/null || true)" = 0 ] || return 1
+	read -r pid <"${SSHD_PID_FILE}" || return 1
+	[[ "${pid}" =~ ^[0-9]+$ ]] || return 1
+	[ "$(wc -l <"${SSHD_PID_FILE}" 2>/dev/null || true)" = 1 ] || return 1
+	[ -d "${PROC_ROOT}/${pid}" ] || return 1
+	process_uid="$(sudo -n sed -n 's/^Uid:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "${PROC_ROOT}/${pid}/status" 2>/dev/null || true)"
+	[ "${process_uid}" = 0 ] || return 1
+	process_executable="$(sudo -n readlink -f "${PROC_ROOT}/${pid}/exe" 2>/dev/null || true)"
+	[ "${process_executable}" = "$(readlink -f "${SSHD_BIN}")" ] || return 1
+	process_title="$(sudo -n cat "${PROC_ROOT}/${pid}/cmdline" 2>/dev/null | tr '\0' '\n' || true)"
+	expected_title="sshd: ${SSHD_BIN} -f ${SSHD_CONFIG} -o PidFile=${SSHD_PID_FILE} -e [listener] "
+	[[ "${process_title}" == "${expected_title}"* ]]
+}
+
+stop_managed_sshd() {
+	local pid
+	managed_sshd_is_running || return 0
+	read -r pid <"${SSHD_PID_FILE}"
+	sudo -n kill "${pid}"
+	for ((attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt++)); do
+		[ ! -d "${PROC_ROOT}/${pid}" ] && break
+		sleep "${STARTUP_DELAY}"
+	done
+	[ ! -d "${PROC_ROOT}/${pid}" ] || {
+		echo "[start-sshd] ERROR: managed sshd did not stop" >&2
+		return 1
+	}
+	sudo -n rm -f "${SSHD_PID_FILE}"
+}
 
 # --- sanity checks -------------------------------------------------------
-if ! command -v sshd >/dev/null 2>&1; then
+if [ ! -x "${SSHD_BIN}" ]; then
 	echo "[start-sshd] ERROR: sshd not found. Run the install script first:" >&2
 	echo "[start-sshd]   DEVCONTAINER_PHASE=build bash ~/.devcontainer-install/available/20-tool-ssh.sh" >&2
 	exit 1
@@ -35,38 +73,75 @@ fi
 # --- regenerate host keys ------------------------------------------------
 if [ "${REGENERATE}" = true ]; then
 	echo "[start-sshd] Regenerating host keys..."
+	stop_managed_sshd
 	for key_type in rsa ed25519; do
 		rm -f "${SSH_DIR}/ssh_host_${key_type}_key" \
-		       "${SSH_DIR}/ssh_host_${key_type}_key.pub"
-		ssh-keygen -t "${key_type}" -f "${SSH_DIR}/ssh_host_${key_type}_key" -N "" -C "" 2>/dev/null || true
+			"${SSH_DIR}/ssh_host_${key_type}_key.pub"
+		ssh-keygen -q -t "${key_type}" -f "${SSH_DIR}/ssh_host_${key_type}_key" -N "" -C ""
 		echo "[start-sshd]   generated ssh_host_${key_type}_key"
 	done
 fi
 
-# --- stop existing daemon -------------------------------------------------
-if [ -f "${PIDFILE}" ]; then
-	PID=$(cat "${PIDFILE}" 2>/dev/null || echo "")
-	if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
-		echo "[start-sshd] Stopping existing sshd (PID ${PID})"
-		kill "${PID}"
-		sleep 1
+for key_type in rsa ed25519; do
+	key_file="${SSH_DIR}/ssh_host_${key_type}_key"
+	if [ ! -f "${key_file}" ] || [ -L "${key_file}" ] || [ ! -r "${key_file}" ]; then
+		echo "[start-sshd] ERROR: required host key is missing, unreadable, or not a regular file: ${key_file}" >&2
+		exit 1
 	fi
-	rm -f "${PIDFILE}"
+	ssh-keygen -y -f "${key_file}" >/dev/null 2>&1 || {
+		echo "[start-sshd] ERROR: invalid host key: ${key_file}" >&2
+		exit 1
+	}
+done
+
+# --- idempotent running check ---------------------------------------------
+if managed_sshd_is_running; then
+	echo "[start-sshd] sshd is already running"
+	exit 0
+fi
+if [ -e "${SSHD_PID_FILE}" ]; then
+	sudo -n rm -f "${SSHD_PID_FILE}"
 fi
 
 # --- start sshd -----------------------------------------------------------
 echo "[start-sshd] Starting sshd on port 22 (exposed as 2222 by compose)"
-mkdir -p /run
-/usr/sbin/sshd -f "${SSHD_CONFIG}" -e
+sudo -n install -d -o root -g root -m 0755 "${SSHD_RUN_DIR}"
+effective_config="$(sudo -n "${SSHD_BIN}" -T -f "${SSHD_CONFIG}" -C "user=$(id -un),host=localhost,addr=127.0.0.1" -o "PidFile=${SSHD_PID_FILE}")"
+effective_hostkeys="$(awk '$1 == "hostkey" { print $2 }' <<<"${effective_config}")"
+expected_hostkeys="$(printf '%s\n%s\n' "${SSH_DIR}/ssh_host_rsa_key" "${SSH_DIR}/ssh_host_ed25519_key")"
+if [ "${effective_hostkeys}" != "${expected_hostkeys}" ]; then
+	echo "[start-sshd] ERROR: effective HostKey paths do not match persistent managed keys" >&2
+	exit 1
+fi
+for required_setting in \
+	"authorizedkeysfile .ssh/authorized_keys" \
+	"strictmodes yes" \
+	"pubkeyauthentication yes" \
+	"passwordauthentication no" \
+	"kbdinteractiveauthentication no" \
+	"permitrootlogin no" \
+	"usepam yes"; do
+	grep -Fqx "${required_setting}" <<<"${effective_config}" || {
+		echo "[start-sshd] ERROR: unsafe or incompatible effective SSH setting: ${required_setting}" >&2
+		exit 1
+	}
+done
+sudo -n "${SSHD_BIN}" -t -f "${SSHD_CONFIG}" -o "PidFile=${SSHD_PID_FILE}"
+sudo -n "${SSHD_BIN}" -f "${SSHD_CONFIG}" -o "PidFile=${SSHD_PID_FILE}" -e
 
-# Wait for sshd to be ready
-sleep 1
-if ! pgrep -x sshd >/dev/null; then
+# Wait for daemonization, PID publication, and the listener process title.
+for ((attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt++)); do
+	if managed_sshd_is_running; then
+		echo "[start-sshd] sshd running on port 22. Connect from remote PC:"
+		echo "[start-sshd]   ssh -p 2222 ubuntu@<host-ip>"
+		echo "[start-sshd]   # Add your public key to ~/.ssh/authorized_keys first"
+		exit 0
+	fi
+	sleep "${STARTUP_DELAY}"
+done
+
+if ! managed_sshd_is_running; then
 	echo "[start-sshd] ERROR: sshd failed to start. Check logs with:" >&2
 	echo "[start-sshd]   grep -E 'sshd|error' /var/log/auth.log" >&2
 	exit 1
 fi
-
-echo "[start-sshd] sshd running on port 22. Connect from remote PC:"
-echo "[start-sshd]   ssh -p 2222 ubuntu@<host-ip>"
-echo "[start-sshd]   # Add your public key to ~/.ssh/authorized_keys first"

@@ -15,6 +15,7 @@ tasks:
           task test:install      Install BATS if not present
           task test:unit         Run repository unit tests
           task test:integration  Run integration tests for installed tools
+          task test:pi-lifecycle Run the isolated two-rebuild Pi lifecycle proof
           task test              Run both unit and integration tests
         ENDHELP
 
@@ -33,24 +34,17 @@ tasks:
   unit:
     desc: Run repository unit tests
     cmds:
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/common.sh.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/config-export.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/host-bind-preparation.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/post-setup-users.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/deps-update.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/devcontainer-tasks.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/gentle-ai.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/opencode.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/project-init.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/readme-contract.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/skills.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/volume-repair.bats
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/yq-compatibility.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/*.bats
 
   integration:
     desc: Run integration tests for installed tools
     cmds:
       - bats {{.DEVCONTAINER_DIR}}/test/integration/tools.bats
+
+  pi-lifecycle:
+    desc: Run the isolated two-rebuild Pi Gentle lifecycle proof (expensive Docker test)
+    cmds:
+      - bash {{.DEVCONTAINER_DIR}}/test/lifecycle/pi-gentle-two-rebuild.sh
 
   test:
     desc: Run all tests (unit + integration)

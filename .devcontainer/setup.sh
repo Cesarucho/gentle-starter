@@ -37,16 +37,7 @@ sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-de
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
-while IFS= read -r -d '' tracked_entry; do
-	tracked_mode="${tracked_entry%% *}"
-	tracked_path="${tracked_entry#*$'\t'}"
-	[ -f "${WORKSPACE_DIR}/${tracked_path}" ] || continue
-	[ ! -L "${WORKSPACE_DIR}/${tracked_path}" ] || continue
-	case "${tracked_mode}" in
-	100644) sudo chmod 644 "${WORKSPACE_DIR}/${tracked_path}" ;;
-	100755) sudo chmod 755 "${WORKSPACE_DIR}/${tracked_path}" ;;
-	esac
-done < <(git -C "${WORKSPACE_DIR}" ls-files --stage -z)
+bash "${SCRIPT_DIR}/restore-tracked-modes.sh" "${WORKSPACE_DIR}"
 
 # Copy the file tree under source_root into target_root, but only
 # for files that do NOT already exist at the target (so the user's
@@ -117,21 +108,15 @@ setup_versioned_configs() {
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-gentle-ai.sh"; then
 		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai" "${HOME}/.pi/gentle-ai"
 	fi
-	# OpenCode configuration remains independent from Pi-owned state.
-	seed_config_tree "${WORKSPACE_DIR}/.devcontainer/opencode-config" "${HOME}/.config/opencode"
+	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-opencode.sh"; then
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/opencode-config" "${HOME}/.config/opencode"
+	fi
 
 	# Add additional tool configs here, one line per source root:
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/redis-config" "/etc/redis"
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/vscode-config" "${HOME}/.config/Code"
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/<name>-config.local" "${HOME}/.<name>" || true
-}
-
-run_enabled_opencode_installer() {
-	local installer="${SCRIPT_DIR}/install/available/30-ai-opencode.sh"
-
-	install_script_is_enabled "${installer}" || return 0
-	DEVCONTAINER_PHASE=runtime bash "$(readlink -f -- "${installer}")"
 }
 
 setup_pi_workspace_trust() {
@@ -213,17 +198,17 @@ if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-pi-coding.sh
 fi
 # export PATH="${HOME}/.local/bin:${PATH}"
 repair_installed_volumes
-run_enabled_opencode_installer
 
 # ---------------------------------------------------------------------------
 # SSH server: start if the install script is enabled.
 # Detection: check for the symlink in 02-enabled/ (created by
-# task install:enable -- ssh, or manually). The script is NOT started
-# by default — this is an intentional security gate: SSH on a LAN port
-# should not spin up silently for every rebuild.
+# task install:enable -- ssh, or manually). Disabling that canonical installer
+# prevents both runtime preparation and service startup.
 # ---------------------------------------------------------------------------
-_ssh_enabled_file="${SCRIPT_DIR}/install/02-enabled/20-ssh.sh"
-if [ -L "${_ssh_enabled_file}" ]; then
+_ssh_installer="${SCRIPT_DIR}/install/available/20-tool-ssh.sh"
+if install_script_is_enabled "${_ssh_installer}"; then
+	export -f seed_config_tree
+	WORKSPACE_DIR="${WORKSPACE_DIR}" DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"
 	if command -v start-sshd >/dev/null 2>&1; then
 		start-sshd
 	else
