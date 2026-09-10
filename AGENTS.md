@@ -52,9 +52,10 @@ Gentle Starter has four coordinated extension surfaces:
 3. **Config seeding** (`seed_config_tree` in `.devcontainer/setup.sh`) — copies
    versioned baseline configuration on first run. Do not replace this with
    runtime config symlinks; tools that atomically rewrite files break them.
-4. **Tool-version policy** (`.devcontainer/tool-versions.conf`) — declares exact
-   versions, providers, channels, and explicit latest policies. Installers keep
-   installation URLs, checksums, permissions, idempotency, and verification.
+4. **Tool-version policy** (`.devcontainer/tool-versions.conf`) — keeps editable
+   `TOOL_*_VERSION` intent above a final generated `LOCK_*` section.
+   `task deps:update` is the only mutation authority; builds and installers are
+   read-only and carry no local version/checksum defaults.
 
 Start with `docs/en/extending.md`; use the linked deep dives for each surface.
 
@@ -128,3 +129,4 @@ For `project:init`, verify that:
 - `docs/en/configs.md` — config seeding
 - `docs/en/adr/0001-install-layout-refactor.md` — install layout ADR
 - `docs/en/adr/0002-centralized-tool-version-policy.md` — version policy ADR
+- `docs/en/adr/0003-unified-tool-policy-ownership.md` — unified policy ownership

@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PULUMI_VERSION:=${TOOL_PULUMI_VERSION:-3.248.0}}"
+: "${PULUMI_VERSION:=${LOCK_PULUMI_VERSION:?missing LOCK_PULUMI_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PULUMI_VERSION=%s\n' "${PULUMI_VERSION}"

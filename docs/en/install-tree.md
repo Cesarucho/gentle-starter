@@ -50,8 +50,9 @@ Three things to notice:
 
 ### `01-core/` — always runs
 
-The five core scripts today (00, 10, 15, 90, 99) cover timezone
-and locale, base apt packages, go-task, ubuntu sudoers, and final
+The six core scripts today (00, 10, 11, 15, 90, 99) seed the timezone,
+install base apt packages, generate the configured locale, finalize timezone
+data, install go-task, configure ubuntu sudoers, and perform final
 cleanup. They are mandatory. Adding a new core script means adding
 a new file with the right `NN-` prefix and committing it.
 
@@ -156,8 +157,8 @@ script multiple times. `devcontainer_load_tool_versions` safely parses the
 assignment-only `.devcontainer/tool-versions.conf` file without `source` or
 `eval`; it resolves both the Docker build copy and repository runtime tree
 independently of the current directory. See
-[ADR 0002](adr/0002-centralized-tool-version-policy.md) for the policy format,
-precedence, and migration plan. Representative installers expose an explicit
+[ADR 0003](adr/0003-unified-tool-policy-ownership.md) for provider strategies,
+generated integrity, and sole mutation ownership. Representative installers expose an explicit
 `--print-version-policy` diagnostic argument so tests and maintainers can inspect
 the resolved values without performing installation; normal build and runtime
 invocations never pass this argument.
@@ -169,12 +170,13 @@ new scripts. It has:
 
 - shebang + `set -euo pipefail` (with a documented carve-out for
   SDKMAN subshells)
-- a `: "${VAR:=default}"` block for variable defaults
-- an idempotency guard using `devcontainer_has_cmd`
+- generated policy resolution with no installer-local version/checksum default
+- a version-based idempotency guard
 - an install section (TODO) and a verify section
 
-Copy it, fill in the gaps, validate (`shellcheck` + `bash -n`), and
-place the result in `available/`.
+Copy it, register its provider strategy and complete update unit in
+`deps-update.sh`, fill in the gaps, validate (`shellcheck` + `bash -n`), and
+place it in `available/`. Builds and installers must not mutate policy.
 
 ## Adding a new install script
 

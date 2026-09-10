@@ -15,8 +15,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PLAYWRIGHT_VERSION:=${TOOL_PLAYWRIGHT_VERSION:-1.60.0}}"
-: "${PLAYWRIGHT_CLI_VERSION:=${TOOL_PLAYWRIGHT_CLI_VERSION:-latest}}"
+: "${PLAYWRIGHT_VERSION:=${LOCK_PLAYWRIGHT_VERSION:?missing LOCK_PLAYWRIGHT_VERSION}}"
+: "${PLAYWRIGHT_CLI_VERSION:=${LOCK_PLAYWRIGHT_CLI_VERSION:?missing LOCK_PLAYWRIGHT_CLI_VERSION}}"
 : "${PLAYWRIGHT_BROWSERS_PATH:=/opt/ms-playwright}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then

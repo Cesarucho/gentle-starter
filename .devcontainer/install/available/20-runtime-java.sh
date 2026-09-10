@@ -19,8 +19,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 devcontainer_load_tool_versions
 
 : "${UID_NAME:=ubuntu}"
-: "${JAVA_VERSION:=${TOOL_JAVA_INSTALL_VERSION:-25-tem}}"
-: "${JAVA_REQUIRED_VERSION:=${TOOL_JAVA_REQUIRED_VERSION:-25}}"
+: "${JAVA_VERSION:=${LOCK_JAVA_INSTALL_VERSION:?missing LOCK_JAVA_INSTALL_VERSION}}"
+: "${JAVA_REQUIRED_VERSION:=${LOCK_JAVA_REQUIRED_VERSION:?missing LOCK_JAVA_REQUIRED_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'JAVA_VERSION=%s\n' "${JAVA_VERSION}"

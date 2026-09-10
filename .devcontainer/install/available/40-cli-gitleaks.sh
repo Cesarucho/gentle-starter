@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${GITLEAKS_VERSION:=${TOOL_GITLEAKS_VERSION:-8.30.1}}"
+: "${GITLEAKS_VERSION:=${LOCK_GITLEAKS_VERSION:?missing LOCK_GITLEAKS_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'GITLEAKS_VERSION=%s\n' "${GITLEAKS_VERSION}"

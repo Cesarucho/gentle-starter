@@ -40,9 +40,9 @@ The devcontainer has four extension surfaces:
    path on first run. Deep dive in
    [`docs/en/configs.md`](../docs/en/configs.md).
 
-4. **Tool-version policy** (`tool-versions.conf`) — centralized versions,
-   providers, and selectors consumed by installers while installation mechanics
-   remain in each script.
+4. **Tool-version policy** (`tool-versions.conf`) — editable provider-specific
+   `TOOL_*_VERSION` intent plus a final generated `LOCK_*` section. Only
+   `task deps:update` may modify it; builds and installers are read-only.
 
 The comprehensive view (how the three systems interact, a worked
 example adding Redis end-to-end, and the FAQ) is in

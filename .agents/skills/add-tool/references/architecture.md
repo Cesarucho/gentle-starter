@@ -9,7 +9,11 @@ Run `scripts/inspect-install-tree.sh` from this skill directory, then read the p
 1. **Catalog:** `.devcontainer/install/available/` owns project installers. Start from the closest real installer; use the canonical repository template only as a skeleton. Do not place optional project tools in `01-core/` or personal tools in the versioned catalog.
 2. **Activation:** `.devcontainer/install/02-enabled/` is an ordering layer of symlinks. The target keeps a category-rich name; the link uses a unique discovered `NN-tool.sh` slot. Build order is Dockerfile group order, then lexical filename order.
 3. **Enable helper:** inspect `preferred_enabled_name` in the repository's install helper. Add a mapping and a contract test when a stable canonical enabled name is required; otherwise enabling may recreate the catalog basename and break intended order.
-4. **Version policy:** `.devcontainer/tool-versions.conf` contains quoted `TOOL_*` scalar policy only. Installers retain URLs, commands, paths, architecture logic, checks, permissions, retries, and recovery.
+4. **Version policy:** `.devcontainer/tool-versions.conf` contains user-editable
+   `TOOL_*_VERSION` intent followed by generated exact `LOCK_*` values and
+   checksums. `deps:update` is the sole mutation authority. Installers retain
+   URLs, paths, architecture gates, permissions, and verification, but never
+   local version/checksum defaults or release discovery.
 5. **Persistent state:** classify each bind as passive or installer-owned. Every repository-managed source uses Compose long syntax with `bind.create_host_path: false` and is prepared before Docker by the host-user `prepare-bind-mounts.sh`/Python path. Passive mounts stop there; installer-owned mounts also require `compose_target_to_install_scripts`, an enabled runtime-safe installer, and idempotent repair tests. Mapping values are installer basenames without `.sh`.
 6. **Config seeding:** baseline user configuration belongs in a versioned `<tool>-config/` tree wired through the repository's copy-on-first-run helper. Preserve existing user files. Never restore the legacy symlink pattern.
 

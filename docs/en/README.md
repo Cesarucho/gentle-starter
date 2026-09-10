@@ -14,6 +14,7 @@ When in doubt, the English version is canonical.
 | [`container-foundation.md`](./container-foundation.md) | Automatic same-builder caching for the internal core Docker stage. |
 | [`adr/0001-install-layout-refactor.md`](./adr/0001-install-layout-refactor.md) | Install-tree, ownership, ordering, and config-seeding decision. |
 | [`adr/0002-centralized-tool-version-policy.md`](./adr/0002-centralized-tool-version-policy.md) | Canonical declarative tool-version policy and secure loader decision. |
+| [`adr/0003-unified-tool-policy-ownership.md`](./adr/0003-unified-tool-policy-ownership.md) | User version intent, generated locks, and sole mutation authority. |
 | `assets/` | Brand assets (logo, etc.). |
 
 ## Where to start

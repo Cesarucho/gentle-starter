@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${SKILLS_VERSION:=${TOOL_SKILLS_VERSION:-1.5.10}}"
+: "${SKILLS_VERSION:=${LOCK_SKILLS_VERSION:?missing LOCK_SKILLS_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'SKILLS_VERSION=%s\n' "${SKILLS_VERSION}"

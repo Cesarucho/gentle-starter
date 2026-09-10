@@ -44,4 +44,9 @@ For npm tools, pin the package version, use the repository's package manager, in
 
 ## Coupled updates
 
-Version plus per-architecture repository-pinned digests form one review unit. Signature identity/policy changes are also coupled. Automate only when the updater preserves the intended independent boundary; otherwise keep the update manual and explain the verification procedure.
+Version plus every mandatory architecture digest form one generated candidate.
+The updater rejects missing/ambiguous assets, validates archive layout and
+embedded versions where applicable, then atomically replaces the policy while
+preserving original bytes and mode on failure. Package-manager integrity
+(apt/npm/pip/Composer/SDKMAN) is provider-delegated when no stable artifact
+identity exists and must be documented rather than represented by a fake hash.

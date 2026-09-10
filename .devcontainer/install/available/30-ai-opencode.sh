@@ -1,18 +1,30 @@
 #!/usr/bin/env bash
 #
-# 30-ai-opencode.sh — OpenCode installer (enabled by default).
-#
-# Its ordered alias lives in 02-enabled/ and can be managed with the install tasks.
+# 30-ai-opencode.sh — install a verified OpenCode release into the image.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/../lib/tar-archive.sh"
 
-: "${OPENCODE_INSTALL_DIR:=${HOME}/.opencode/bin}"
-: "${OPENCODE_PROFILE_FILE:=${HOME}/.bashrc}"
-: "${OPENCODE_AUTO_UPDATE:=0}"
-: "${OPENCODE_INSTALL_URL:=https://opencode.ai/install}"
+devcontainer_load_tool_versions
+
+: "${OPENCODE_VERSION:=${LOCK_OPENCODE_VERSION:?missing LOCK_OPENCODE_VERSION}}"
+: "${OPENCODE_INSTALL_DIR:=/usr/local/bin}"
+OPENCODE_TEMP_DIR=""
+OPENCODE_STAGED_BINARY=""
+
+cleanup_opencode_install() {
+	[ -z "${OPENCODE_STAGED_BINARY}" ] || rm -f "${OPENCODE_STAGED_BINARY}"
+	[ -z "${OPENCODE_TEMP_DIR}" ] || rm -rf "${OPENCODE_TEMP_DIR}"
+}
+
+abort_opencode_install() {
+	cleanup_opencode_install
+	exit 1
+}
 
 opencode_binary() {
 	printf '%s/opencode' "${OPENCODE_INSTALL_DIR}"
@@ -26,73 +38,66 @@ installed_opencode_version() {
 		return 1
 	fi
 
-	"${binary}" --version 2>/dev/null | awk '{print $NF}' | sed 's/^v//'
-}
-
-ensure_install_dir_on_path() {
-	local path_line
-	path_line="export PATH=\"${OPENCODE_INSTALL_DIR}:\$PATH\""
-
-	mkdir -p "${OPENCODE_INSTALL_DIR}"
-	touch "${OPENCODE_PROFILE_FILE}"
-
-	if ! grep -Fq "${OPENCODE_INSTALL_DIR}" "${OPENCODE_PROFILE_FILE}"; then
-		{
-			echo ""
-			echo "# User-local CLI tools"
-			echo "${path_line}"
-		} >>"${OPENCODE_PROFILE_FILE}"
-	fi
-
-	export PATH="${OPENCODE_INSTALL_DIR}:${PATH}"
-}
-
-should_install_opencode() {
-	local current_version=""
-
-	current_version="$(installed_opencode_version 2>/dev/null || true)"
-
-	if [ -z "${current_version}" ]; then
-		return 0
-	fi
-
-	case "${OPENCODE_AUTO_UPDATE}" in
-	1 | true | TRUE | yes | YES)
-		return 0
-		;;
-	*)
-		return 1
-		;;
-	esac
+	"${binary}" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
 }
 
 install_opencode() {
-	ensure_install_dir_on_path
-
-	if ! should_install_opencode; then
-		devcontainer_log_info "opencode already installed; auto-update disabled"
+	local architecture asset_arch digest archive_url tmp_dir archive extracted
+	architecture="$(devcontainer_arch)"
+	case "${architecture}" in
+	amd64)
+		asset_arch=x64
+		digest="${LOCK_OPENCODE_SHA256_AMD64:?missing LOCK_OPENCODE_SHA256_AMD64}"
+		;;
+	arm64)
+		asset_arch=arm64
+		digest="${LOCK_OPENCODE_SHA256_ARM64:?missing LOCK_OPENCODE_SHA256_ARM64}"
+		;;
+	*)
+		devcontainer_log_error "Unsupported OpenCode architecture: ${architecture}"
+		return 1
+		;;
+	esac
+	[[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || {
+		devcontainer_log_error "Invalid OpenCode SHA-256 for ${architecture}"
+		return 1
+	}
+	if [ "$(installed_opencode_version 2>/dev/null || true)" = "${OPENCODE_VERSION}" ]; then
+		devcontainer_log_info "OpenCode ${OPENCODE_VERSION} already installed"
 		return 0
 	fi
-
-	devcontainer_log_info "Installing opencode from ${OPENCODE_INSTALL_URL}"
-	curl -fsSL "${OPENCODE_INSTALL_URL}" | bash
-
-	if [ ! -x "$(opencode_binary)" ]; then
-		devcontainer_log_warn "opencode installation completed but binary was not found at ${OPENCODE_INSTALL_DIR}"
+	tmp_dir="$(mktemp -d)"
+	OPENCODE_TEMP_DIR="${tmp_dir}"
+	trap cleanup_opencode_install EXIT
+	trap abort_opencode_install HUP INT TERM
+	archive="${tmp_dir}/opencode.tar.gz"
+	archive_url="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${asset_arch}.tar.gz"
+	devcontainer_fetch "${archive_url}" "${archive}"
+	printf '%s  %s\n' "${digest}" "${archive}" | sha256sum -c -
+	mkdir "${tmp_dir}/extract"
+	devcontainer_validate_single_binary_tar "${archive}" opencode "${tmp_dir}/extract"
+	extracted="${tmp_dir}/extract/opencode"
+	install -d -m 0755 "${OPENCODE_INSTALL_DIR}"
+	OPENCODE_STAGED_BINARY="$(opencode_binary).new"
+	install -m 0755 "${extracted}" "${OPENCODE_STAGED_BINARY}"
+	if [ "$("${OPENCODE_STAGED_BINARY}" --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)" != "${OPENCODE_VERSION}" ]; then
+		return 1
 	fi
+	mv -f "${OPENCODE_STAGED_BINARY}" "$(opencode_binary)"
+	OPENCODE_STAGED_BINARY=""
+	cleanup_opencode_install
+	OPENCODE_TEMP_DIR=""
+	trap - EXIT HUP INT TERM
 }
 
-# Build phase: skip. opencode is user-scoped and integrates with the
-# user's home directory.
-if devcontainer_is_build; then
-	devcontainer_log_info "Skipping opencode user-local install during image build"
+if [ "${1:-}" = "--print-version-policy" ]; then
+	printf 'OPENCODE_VERSION=%s\n' "${OPENCODE_VERSION}"
 	exit 0
 fi
 
-# Runtime phase: must run as the final non-root user.
-if [ "$(id -u)" -eq 0 ]; then
-	devcontainer_log_error "This script must run as the final non-root user during runtime"
-	exit 1
+if devcontainer_is_runtime; then
+	devcontainer_log_info "OpenCode binary is image-owned; runtime installation is skipped"
+	exit 0
 fi
 
 install_opencode

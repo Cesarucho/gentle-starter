@@ -40,7 +40,16 @@ Run directly applicable BATS files first. Validate changed shell with `bash -n`,
 - Passive mounts have no installer mapping; installer-owned mounts have an enabled runtime-safe owner and idempotent repair coverage.
 - Structured Compose parsing uses complete JSON/Python and NUL-safe records without delimiter splitting, executable base64, or PATH-dependent `realpath`.
 - Documentation describes only surfaces actually changed.
-- `deps:update` either updates all coupled values atomically and validates before replacement, or explicitly leaves the tool manual.
+- `deps:update` implements one safe, explicit provider strategy for every
+  managed tool intent, updates all coupled values atomically, and validates
+  before replacement. Unsupported providers fail until that strategy is safely
+  implemented; otherwise the tool remains outside the managed install tree.
+- Every editable version intent has one explicit provider strategy and every policy key is
+  registered exactly once. Unknown strategies fail closed.
+- Build, setup, and installers leave policy bytes and mode unchanged.
+- Exact pins remain unchanged; latest retains user intent; compatibility
+  lanes and PlantUML year lanes cannot be crossed.
+- Tests and documentation ship in the same reviewable work unit.
 
 ## Host and clean-flow verification
 

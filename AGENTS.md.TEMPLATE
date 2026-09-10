@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Tool policy contract
+
+`.devcontainer/tool-versions.conf` keeps editable `TOOL_*_VERSION` intent
+and generated exact resolutions/checksums. Only `task deps:update` may modify
+it. Builds, setup, validators, and installers are read-only consumers. Run the
+update, rebuild, validation, tests, and diff review before one final commit.
+
 This file is the AI-facing context for the **<PROJECT_NAME>** project.
 Any coding agent that opens this repository in a fresh session
 should be able to read this file and continue from where the last

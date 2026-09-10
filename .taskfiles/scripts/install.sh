@@ -382,6 +382,7 @@ cmd_versions_validate() {
 	# shellcheck source=/dev/null
 	source "${common_sh}"
 	DEVCONTAINER_TOOL_VERSIONS_FILE="${versions_file}" devcontainer_load_tool_versions
+	DEPS_UPDATE_POLICY_FILE="${versions_file}" "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" --validate >/dev/null
 	echo "ok: ${versions_file}"
 }
 

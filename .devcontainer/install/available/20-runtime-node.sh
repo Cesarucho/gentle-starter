@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${NODE_MAJOR:=${TOOL_NODE_MAJOR:-26}}"
+: "${NODE_MAJOR:=${LOCK_NODE_MAJOR:?missing LOCK_NODE_MAJOR}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'NODE_MAJOR=%s\n' "${NODE_MAJOR}"

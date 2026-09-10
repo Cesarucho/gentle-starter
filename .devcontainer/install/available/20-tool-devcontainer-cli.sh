@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${DEVCONTAINER_CLI_VERSION:=${TOOL_DEVCONTAINER_CLI_VERSION:-latest}}"
+: "${DEVCONTAINER_CLI_VERSION:=${LOCK_DEVCONTAINER_CLI_VERSION:?missing LOCK_DEVCONTAINER_CLI_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'DEVCONTAINER_CLI_VERSION=%s\n' "${DEVCONTAINER_CLI_VERSION}"

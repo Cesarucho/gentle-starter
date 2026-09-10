@@ -2,16 +2,11 @@
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-	INSTALLER="${REPO_ROOT}/.devcontainer/install/available/30-ai-opencode.sh"
 	TEST_ROOT="$(mktemp -d)"
 	HOME_DIR="${TEST_ROOT}/home"
 	BIN_DIR="${TEST_ROOT}/bin"
-	PROFILE_FILE="${HOME_DIR}/.bashrc"
-	CALLS_FILE="${TEST_ROOT}/calls"
-	PATH_RESULT_FILE="${TEST_ROOT}/opencode-path"
 	SETUP_WORKSPACE="${TEST_ROOT}/workspace"
 	SETUP_CALLS_FILE="${TEST_ROOT}/setup-opencode-calls"
-	SETUP_DOWNLOADS_FILE="${TEST_ROOT}/setup-opencode-downloads"
 	SETUP_EVENTS_FILE="${TEST_ROOT}/setup-events"
 	WORKSPACE_REPAIR_EVENTS_FILE="${TEST_ROOT}/workspace-repair-events"
 	CHOWN_LOG_FILE="${TEST_ROOT}/chown.log"
@@ -23,14 +18,12 @@ setup() {
 	OPENCODE_OWNER_FILE="${TEST_ROOT}/opencode-owner"
 	OPENCODE_SENTINEL="${HOME_DIR}/.local/share/opencode/sentinel"
 	mkdir -p "${HOME_DIR}" "${BIN_DIR}"
-	: >"${CALLS_FILE}"
-	export REPO_ROOT INSTALLER TEST_ROOT HOME_DIR BIN_DIR PROFILE_FILE CALLS_FILE PATH_RESULT_FILE
-	export SETUP_WORKSPACE SETUP_CALLS_FILE SETUP_DOWNLOADS_FILE SETUP_EVENTS_FILE
+	export REPO_ROOT TEST_ROOT HOME_DIR BIN_DIR
+	export SETUP_WORKSPACE SETUP_CALLS_FILE SETUP_EVENTS_FILE
 	export WORKSPACE_REPAIR_EVENTS_FILE CHOWN_LOG_FILE
 	export PI_OWNER_FILE ENGRAM_OWNER_FILE GITCONFIG_OWNER_FILE
 	export LOCAL_OWNER_FILE SHARE_OWNER_FILE OPENCODE_OWNER_FILE OPENCODE_SENTINEL
 	write_id_stub
-	write_curl_stub
 }
 
 teardown() {
@@ -49,37 +42,6 @@ EOF
 	chmod +x "${BIN_DIR}/id"
 }
 
-write_curl_stub() {
-	cat >"${BIN_DIR}/curl" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-printf 'curl %s\n' "$*" >>"${CALLS_FILE}"
-cat <<'INSTALLER'
-#!/usr/bin/env bash
-set -euo pipefail
-install_dir="${OPENCODE_INSTALL_DIR:-${HOME}/.opencode/bin}"
-mkdir -p "${install_dir}"
-cat >"${install_dir}/opencode" <<'BINARY'
-#!/usr/bin/env bash
-printf 'opencode v1.2.3\n'
-BINARY
-chmod +x "${install_dir}/opencode"
-command -v opencode >"${PATH_RESULT_FILE}"
-INSTALLER
-EOF
-	chmod +x "${BIN_DIR}/curl"
-}
-
-run_installer() {
-	run env HOME="${HOME_DIR}" \
-		PATH="${BIN_DIR}:/usr/bin:/bin" \
-		DEVCONTAINER_PHASE=runtime \
-		OPENCODE_PROFILE_FILE="${PROFILE_FILE}" \
-		CALLS_FILE="${CALLS_FILE}" \
-		PATH_RESULT_FILE="${PATH_RESULT_FILE}" \
-		bash "${INSTALLER}"
-}
-
 prepare_setup_sandbox() {
 	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/install/available" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled" \
@@ -94,6 +56,7 @@ prepare_setup_sandbox() {
 		"${HOME_DIR}/.local/share/opencode"
 	cp "${REPO_ROOT}/.devcontainer/setup.sh" "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
 	cp "${REPO_ROOT}/.devcontainer/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/setup-volumes.sh"
+	cp "${REPO_ROOT}/.devcontainer/restore-tracked-modes.sh" "${SETUP_WORKSPACE}/.devcontainer/restore-tracked-modes.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/opencode.json"
@@ -116,12 +79,6 @@ prepare_setup_sandbox() {
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "${DEVCONTAINER_PHASE}" >>"${OPENCODE_SETUP_CALLS_FILE}"
-if [ ! -x "${HOME}/.opencode/bin/opencode" ]; then
-	printf 'download\n' >>"${OPENCODE_SETUP_DOWNLOADS_FILE}"
-	mkdir -p "${HOME}/.opencode/bin"
-	touch "${HOME}/.opencode/bin/opencode"
-	chmod +x "${HOME}/.opencode/bin/opencode"
-fi
 EOF
 	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-opencode.sh"
 	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-pi-coding.sh"
@@ -150,7 +107,6 @@ EOF
 	ln -s ../available/30-ai-engram.sh \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/60-engram.sh"
 	: >"${SETUP_CALLS_FILE}"
-	: >"${SETUP_DOWNLOADS_FILE}"
 	write_setup_command_stubs
 }
 
@@ -318,31 +274,11 @@ run_setup() {
 		OPENCODE_OWNER_FILE="${OPENCODE_OWNER_FILE}" \
 		OPENCODE_SENTINEL="${OPENCODE_SENTINEL}" \
 		OPENCODE_SETUP_CALLS_FILE="${SETUP_CALLS_FILE}" \
-		OPENCODE_SETUP_DOWNLOADS_FILE="${SETUP_DOWNLOADS_FILE}" \
 		bash "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
 }
 
 path_metadata() {
 	stat -c '%u:%g:%a' "$1"
-}
-
-@test "installs at the official path, exposes it immediately, and skips reinstall on rerun" {
-	run_installer
-
-	[ "${status}" -eq 0 ]
-	[ -x "${HOME_DIR}/.opencode/bin/opencode" ]
-	[ "$("${HOME_DIR}/.opencode/bin/opencode" --version)" = "opencode v1.2.3" ]
-	[ "$(cat "${PATH_RESULT_FILE}")" = "${HOME_DIR}/.opencode/bin/opencode" ]
-	[[ "${output}" != *"binary was not found at"* ]]
-	grep -Fqx "export PATH=\"${HOME_DIR}/.opencode/bin:\$PATH\"" "${PROFILE_FILE}"
-	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 1 ]
-
-	run_installer
-
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"already installed; auto-update disabled"* ]]
-	[[ "${output}" != *"binary was not found at"* ]]
-	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 1 ]
 }
 
 @test "install enable repairs a broken alias with a matching textual target basename" {
@@ -368,30 +304,13 @@ path_metadata() {
 @test "setup skips OpenCode when its canonical installer is not enabled" {
 	prepare_setup_sandbox
 	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/10-unrelated.sh"
+	rm -rf "${HOME_DIR}/.config/opencode"
 
 	run_setup
 
 	[ "${status}" -eq 0 ]
 	[ ! -s "${SETUP_CALLS_FILE}" ]
-}
-
-@test "setup invokes enabled OpenCode through an arbitrary ordered alias and preserves installer idempotency" {
-	prepare_setup_sandbox
-	ln -s ../available/30-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/47-custom-slot.sh"
-	ln -s ../available/missing.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/48-broken.sh"
-	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/49-unrelated.sh"
-
-	run_setup
-
-	[ "${status}" -eq 0 ]
-	[ "$(cat "${SETUP_CALLS_FILE}")" = "runtime" ]
-	[ "$(wc -l <"${SETUP_DOWNLOADS_FILE}")" -eq 1 ]
-
-	run_setup
-
-	[ "${status}" -eq 0 ]
-	[ "$(wc -l <"${SETUP_CALLS_FILE}")" -eq 2 ]
-	[ "$(wc -l <"${SETUP_DOWNLOADS_FILE}")" -eq 1 ]
+	[ ! -e "${HOME_DIR}/.config/opencode" ]
 }
 
 @test "workspace repair fixes tracked paths while preserving ignored descendants and symlink targets" {
@@ -473,6 +392,7 @@ path_metadata() {
 
 @test "setup seeds missing OpenCode config recursively and preserves existing user config" {
 	prepare_setup_sandbox
+	ln -s ../available/30-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/47-custom-opencode.sh"
 
 	run_setup
 
@@ -547,64 +467,4 @@ path_metadata() {
 	compose_target_to_install_scripts "/home/ubuntu/.local/share/opencode" scripts
 
 	[ "${#scripts[@]}" -eq 0 ]
-}
-
-@test "honors an explicit install directory override when checking an existing binary" {
-	custom_dir="${HOME_DIR}/custom-bin"
-	mkdir -p "${custom_dir}"
-	cat >"${custom_dir}/opencode" <<'EOF'
-#!/usr/bin/env bash
-printf 'opencode v9.9.9\n'
-EOF
-	chmod +x "${custom_dir}/opencode"
-
-	run env HOME="${HOME_DIR}" \
-		PATH="${BIN_DIR}:/usr/bin:/bin" \
-		DEVCONTAINER_PHASE=runtime \
-		OPENCODE_INSTALL_DIR="${custom_dir}" \
-		OPENCODE_PROFILE_FILE="${PROFILE_FILE}" \
-		CALLS_FILE="${CALLS_FILE}" \
-		bash "${INSTALLER}"
-
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"already installed; auto-update disabled"* ]]
-	[[ "${output}" != *"binary was not found at"* ]]
-	[ ! -s "${CALLS_FILE}" ]
-	grep -Fqx "export PATH=\"${custom_dir}:\$PATH\"" "${PROFILE_FILE}"
-}
-
-@test "installs at the configured target despite a global opencode on PATH" {
-	cat >"${BIN_DIR}/opencode" <<'EOF'
-#!/usr/bin/env bash
-printf 'opencode v0.0.1\n'
-EOF
-	chmod +x "${BIN_DIR}/opencode"
-
-	run_installer
-
-	[ "${status}" -eq 0 ]
-	[ -x "${HOME_DIR}/.opencode/bin/opencode" ]
-	[ "$("${HOME_DIR}/.opencode/bin/opencode" --version)" = "opencode v1.2.3" ]
-	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 1 ]
-	[[ "${output}" != *"binary was not found at"* ]]
-}
-
-@test "honors an explicit install directory override on first install" {
-	custom_dir="${HOME_DIR}/custom-bin"
-
-	run env HOME="${HOME_DIR}" \
-		PATH="${BIN_DIR}:/usr/bin:/bin" \
-		DEVCONTAINER_PHASE=runtime \
-		OPENCODE_INSTALL_DIR="${custom_dir}" \
-		OPENCODE_PROFILE_FILE="${PROFILE_FILE}" \
-		CALLS_FILE="${CALLS_FILE}" \
-		PATH_RESULT_FILE="${PATH_RESULT_FILE}" \
-		bash "${INSTALLER}"
-
-	[ "${status}" -eq 0 ]
-	[ -x "${custom_dir}/opencode" ]
-	[ "$(cat "${PATH_RESULT_FILE}")" = "${custom_dir}/opencode" ]
-	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 1 ]
-	[[ "${output}" != *"binary was not found at"* ]]
-	grep -Fqx "export PATH=\"${custom_dir}:\$PATH\"" "${PROFILE_FILE}"
 }

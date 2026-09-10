@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${OPENTOFU_VERSION:=${TOOL_OPENTOFU_VERSION:-1.12.3}}"
+: "${OPENTOFU_VERSION:=${LOCK_OPENTOFU_VERSION:?missing LOCK_OPENTOFU_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'OPENTOFU_VERSION=%s\n' "${OPENTOFU_VERSION}"

@@ -1,20 +1,33 @@
 # ADR 0002: Centralize tool version policy
 
+> **Superseded in part:** [ADR 0003](0003-unified-tool-policy-ownership.md)
+> replaces the version ownership, intent, integrity, and update workflow
+> decisions. This document remains the historical centralization record.
+> All operational instructions below describe the 2026-08-24 transition and
+> are **not current guidance**. For current work, follow ADR 0003: users edit
+> only `TOOL_*_VERSION`; `task deps:update` alone generates trailing `LOCK_*`
+> resolutions and integrity; every consumer is read-only and fail-closed.
+
 **Status:** Accepted, 2026-08-24  
 **Amends:** ADR 0001 section 6; the install tree, ownership, and execution order remain unchanged
 
 ## Context
 
-Version policy was distributed across installer-local defaults. This made it difficult to audit exact versions, provider selectors, minimum observable versions, major channels, and intentionally floating policies. It also mixed the location of policy with the scripts that implement installation.
+Version policy was distributed across installer-local defaults. This made it difficult to audit exact versions, provider intent, minimum observable versions, major channels, and intentionally floating policies. It also mixed the location of policy with the scripts that implement installation.
 
 Java demonstrates why a single generic version field is insufficient: SDKMAN consumes `25-tem`, while `java --version` reports major version `25`. Scripts that install several tools need several independent declarations. Some artifacts, such as C4-PlantUML, have no reliable version command and continue to use an installer-owned marker.
 
 ## Decision
 
+> **Historical decision (superseded operational model):** This section records
+> the initial centralization design. Its migration fallbacks, key semantics,
+> precedence, checksum ownership, and partial-coverage guidance must not be used
+> for new or current tooling. ADR 0003 is normative.
+
 `.devcontainer/tool-versions.conf` is the canonical declarative policy file. Keys describe their real semantics:
 
 - `*_VERSION`: exact package or artifact version;
-- `*_INSTALL_VERSION`: provider-specific install selector;
+- `*_INSTALL_VERSION`: provider-specific install identifier;
 - `*_REQUIRED_VERSION`: observable required or minimum version;
 - `*_MAJOR`: major release channel;
 - literal `latest`: an explicit floating, non-reproducible policy.
@@ -54,7 +67,7 @@ The Dockerfile copies `tool-versions.conf` into `/home/ubuntu/.devcontainer-inst
 
 ### Special cases
 
-- Java declares `TOOL_JAVA_INSTALL_VERSION="25-tem"` and `TOOL_JAVA_REQUIRED_VERSION="25"`.
+- Java intent is now `TOOL_JAVA_VERSION="25-tem"`; ADR 0003 defines its generated install and required locks.
 - Major channels, such as NodeSource's Node channel, use `*_MAJOR` when migrated.
 - `latest` remains explicit and non-reproducible; migration must not silently pin it.
 - Multi-tool installers consume multiple keys, as `40-node-contracts.sh` does.
@@ -68,7 +81,7 @@ A `TOOL_*` key exists only when its installer enforces the declared policy. Omit
 | Tool | Status | Reason |
 | --- | --- | --- |
 | BATS | Centralized | The installer consumes the exact `v${BATS_VERSION}` Git tag. |
-| OpenCode | Provider-managed; central version omitted | An exact pnpm installation requires an explicit global-bin layout and narrowly approved lifecycle scripts. The official installer remains until that design is proven separately. |
+| OpenCode | Exact release plus per-architecture SHA-256 | The image installs the canonical release archive into `/usr/local/bin`; runtime only seeds enabled configuration. |
 | Glow | Provider-managed; central version omitted | The Charm apt repository selects the candidate; migration to a verified upstream artifact is deferred. |
 | Ansible Core | Provider-managed; central version omitted | The apt candidate remains authoritative; moving to pipx is a separate provider and trust-boundary decision. |
 | Graphviz | Provider-managed; central version omitted | Ubuntu Noble apt intentionally owns dependency integration and security updates. |
@@ -77,6 +90,11 @@ A `TOOL_*` key exists only when its installer enforces the declared policy. Omit
 No cosmetic `TOOL_*` declaration is added for an installer that cannot enforce it.
 
 ### Automated dependency updates
+
+> **Superseded workflow:** The allowlist, manual Gentle AI selection, checksum
+> procedure, and exclusion inventory below are retained only as decision
+> history. ADR 0003 replaced them with mandatory provider-strategy registration
+> and complete generated locks for every managed intent.
 
 `task deps:update` updates only an explicit allowlist. Its initial npm-registry
 scope is Pi Coding Agent, Skills, the twelve Gentle Pi packages,
@@ -97,7 +115,7 @@ an exact-version early exit and preserves its staged replacement rollback.
 The updater maintains an explicit exclusion inventory and reports every omitted
 policy with a concise reason. This includes Gentle AI's maintainer-selected
 version, Engram, BATS, Graphify,
-provider-managed selectors, major channels, and literal `latest` policies. It does
+provider-managed identifiers, major channels, and literal `latest` policies. It does
 not claim that an update exists where deterministic discovery is unsupported or
 would not represent the policy semantics. Managed discovery and validation
 failures remain fatal. The command discovers and
@@ -109,7 +127,7 @@ does not install packages, rebuild the container, commit, push, or publish chang
 ### Positive
 
 - Version policy becomes reviewable and auditable in one place.
-- Names distinguish exact versions, selectors, requirements, and channels.
+- Names distinguish exact versions, provider identifiers, requirements, and channels.
 - Existing environment and Docker overrides continue to work.
 - Installer mechanisms and integrity controls stay close to the operations they protect.
 
@@ -124,9 +142,13 @@ does not install packages, rebuild the container, commit, push, or publish chang
 
 ## Migration plan
 
+> **Completed historical plan:** These steps describe the original migration,
+> not work that contributors should perform now. Use ADR 0003 and the current
+> `add-tool` contract for all additions and updates.
+
 1. Add the policy file, restricted loader, Docker copy, validation task, and parser/path/precedence tests.
 2. Migrate representative cases: Java, Engram, C4-PlantUML, and the three node-contract CLIs.
-3. Inventory and migrate the remaining exact, major, selector, required, and `latest` policies in small reviewable units, then remove duplicated local defaults and validate required keys.
+3. Inventory and migrate the remaining exact, major, required, and `latest` policies in small reviewable units, then remove duplicated local defaults and validate required keys.
 4. Add reasonable audits for unused, missing, duplicate, empty, or still-local version declarations.
 
 ## Rejected alternatives
@@ -134,5 +156,5 @@ does not install packages, rebuild the container, commit, push, or publish chang
 - **Commands or shell fragments in configuration:** mixes policy with mechanism and expands the execution surface.
 - **Unvalidated `source`:** executes arbitrary shell and violates the data-only contract.
 - **YAML, JSON, or TOML initially:** requires another parser for a small scalar dataset and complicates bootstrap.
-- **`.tool-versions`, mise, or asdf:** does not model provider selectors, artifact-only tools, npm bundles, checksums, and apt channels without adopting a new installation mechanism.
+- **`.tool-versions`, mise, or asdf:** does not model every provider identifier, artifact-only tool, npm bundle, checksum, and apt channel without adopting a new installation mechanism.
 - **Keeping distributed defaults indefinitely:** preserves the auditability problem and prevents the central file from becoming canonical.

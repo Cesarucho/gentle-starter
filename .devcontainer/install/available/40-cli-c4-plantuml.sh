@@ -12,8 +12,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${C4_PLANTUML_VERSION:=${TOOL_C4_PLANTUML_VERSION:-2.13.0}}"
-: "${C4_PLANTUML_SHA256:=${TOOL_C4_PLANTUML_SHA256:-1bf4e0061dafc7dea13923a0c5e0456a3702e99b73ef1c01e0871832e15a4e91}}"
+: "${C4_PLANTUML_VERSION:=${LOCK_C4_PLANTUML_VERSION:?missing LOCK_C4_PLANTUML_VERSION}}"
+: "${C4_PLANTUML_SHA256:=${LOCK_C4_PLANTUML_SHA256:?missing LOCK_C4_PLANTUML_SHA256}}"
 : "${C4_PLANTUML_INSTALL_DIR:=/usr/local/share/c4-plantuml}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then

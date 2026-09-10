@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${GO_VERSION:=${TOOL_GO_VERSION:-latest}}"
+: "${GO_VERSION:=${LOCK_GO_VERSION:?missing LOCK_GO_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'GO_VERSION=%s\n' "${GO_VERSION}"
@@ -26,11 +26,6 @@ fi
 
 target_arch="$(devcontainer_arch)"
 
-if [ "${GO_VERSION}" = "latest" ]; then
-	devcontainer_log_info "Resolving latest stable Go version from go.dev"
-	GO_VERSION="$(curl -fsSL "https://go.dev/dl/?mode=json" | jq -r '.[0].version')"
-fi
-
 archive="${GO_VERSION}.linux-${target_arch}.tar.gz"
 download_url="https://go.dev/dl/${archive}"
 tmp_dir="$(mktemp -d)"
@@ -38,6 +33,13 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 
 devcontainer_log_info "Downloading Go ${GO_VERSION} (${target_arch})"
 devcontainer_fetch "${download_url}" "${tmp_dir}/${archive}"
+digest_variable="LOCK_GO_SHA256_${target_arch^^}"
+digest="${!digest_variable:-}"
+[[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || {
+	devcontainer_log_error "Invalid Go SHA-256 for ${target_arch}"
+	exit 1
+}
+devcontainer_verify_sha256 "${tmp_dir}/${archive}" "${digest}"
 
 devcontainer_run_as_root rm -rf /usr/local/go
 devcontainer_run_as_root tar -C /usr/local -xzf "${tmp_dir}/${archive}"

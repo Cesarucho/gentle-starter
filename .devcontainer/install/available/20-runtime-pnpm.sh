@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PNPM_VERSION:=${TOOL_PNPM_VERSION:-latest}}"
+: "${PNPM_VERSION:=${LOCK_PNPM_VERSION:?missing LOCK_PNPM_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PNPM_VERSION=%s\n' "${PNPM_VERSION}"

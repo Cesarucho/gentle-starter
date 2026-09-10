@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PI_CODING_AGENT_VERSION:=${TOOL_PI_CODING_AGENT_VERSION:-0.80.2}}"
+: "${PI_CODING_AGENT_VERSION:=${LOCK_PI_CODING_AGENT_VERSION:?missing LOCK_PI_CODING_AGENT_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PI_CODING_AGENT_VERSION=%s\n' "${PI_CODING_AGENT_VERSION}"

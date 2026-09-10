@@ -91,8 +91,12 @@ if enabled_dir.is_dir():
 
 policy = root / ".devcontainer/tool-versions.conf"
 keys = []
+intents = []
+locks = []
 if policy.is_file():
-    keys = sorted(re.findall(r"^(TOOL_[A-Z0-9_]+)=", policy.read_text(), re.MULTILINE))
+    keys = re.findall(r"^((?:TOOL|LOCK)_[A-Z0-9_]+)=", policy.read_text(), re.MULTILINE)
+    intents = [key for key in keys if key.startswith("TOOL_")]
+    locks = [key for key in keys if key.startswith("LOCK_")]
 
 path_candidates = {
     "canonical_template": install / "templates/install-script.sh",
@@ -120,7 +124,13 @@ facts = {
         for item in enabled if item["unsafe_reason"]
     ],
     "duplicate_slots": {slot: names for slot, names in slots.items() if len(names) > 1},
-    "policy": {"path": str(policy.relative_to(root)) if policy.exists() else None, "keys": keys},
+    "policy": {
+        "path": str(policy.relative_to(root)) if policy.exists() else None,
+        "keys": keys,
+        "intents": intents,
+        "locks": locks,
+        "updater": str(path_candidates["updater"].relative_to(root)) if path_candidates["updater"].exists() else None,
+    },
     "paths": paths,
 }
 
@@ -145,6 +155,7 @@ else:
     duplicate_text = ", ".join(f"{slot}=[{', '.join(names)}]" for slot, names in facts["duplicate_slots"].items())
     print("Duplicate slots: " + (duplicate_text or "none"))
     print(f"Policy: {facts['policy']['path'] or 'not discovered'} ({len(keys)} keys)")
+    print(f"Editable intents: {len(intents)}; generated locks: {len(locks)}; mutation authority: {facts['policy']['updater'] or 'not discovered'}")
     print("Discovered paths:")
     for name, path in sorted(paths.items()):
         print(f"  {name}: {path}")

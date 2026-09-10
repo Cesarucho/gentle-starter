@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${KUBECTL_VERSION:=${TOOL_KUBECTL_VERSION:-1.36.2}}"
+: "${KUBECTL_VERSION:=${LOCK_KUBECTL_VERSION:?missing LOCK_KUBECTL_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'KUBECTL_VERSION=%s\n' "${KUBECTL_VERSION}"

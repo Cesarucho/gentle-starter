@@ -15,11 +15,13 @@
 #   3. If the script should run by default, create a symlink in
 #      .devcontainer/install/02-enabled/ pointing to it. Otherwise leave
 #      it in available/ and opt in with `task install:enable -- NAME`.
-#   4. Ensure the file ends with a single newline character. shfmt and
-#      shfmt expects POSIX text files. A missing trailing newline
-#      newline causes quality:format to fail. Verify with
-#      newline causes quality:format to fail. Verify with
+#   4. Ensure the file ends with a single newline character. shfmt expects
+#      POSIX text files, so a missing trailing newline causes quality:format
+#      to fail. Verify with
 #      `tail -c 1 FILE` (empty output = OK) or fix with `echo >> FILE`.
+#   5. Register one editable TOOL_*_VERSION intent, an explicit provider
+#      strategy, and generated LOCK_* outputs in deps-update.sh.
+#      Installers and builds MUST NOT resolve latest or rewrite policy.
 #
 # State and volumes:
 #   If your script OWNS a bind-mounted volume (e.g. a database, a
@@ -51,12 +53,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Variables: override via environment (Compose, Dockerfile ARG, or setup.sh).
-# Use the `: "${VAR:=default}"` pattern so an unset var triggers the default
-# even under `set -u`.
+# Variables: environment overrides may replace generated policy resolutions.
+# Never add installer-local version or checksum defaults.
 # ---------------------------------------------------------------------------
 : "${TOOL_NAME:=example}"
-: "${TOOL_VERSION:=1.0.0}"
+: "${TOOL_VERSION:=${LOCK_EXAMPLE_VERSION:?missing LOCK_EXAMPLE_VERSION}}"
 : "${TOOL_INSTALL_DIR:=/usr/local/bin}"
 
 # ---------------------------------------------------------------------------
@@ -64,8 +65,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 # Replace this with a version-aware check when the tool exposes one
 # (e.g. `${TOOL_NAME} --version`).
 # ---------------------------------------------------------------------------
-if devcontainer_has_cmd "${TOOL_NAME}"; then
-	devcontainer_log_info "${TOOL_NAME} already installed: $(command -v "${TOOL_NAME}")"
+if devcontainer_check_tool "${TOOL_NAME}" "${TOOL_VERSION}"; then
+	devcontainer_log_info "${TOOL_NAME} ${TOOL_VERSION} already installed"
 	exit 0
 fi
 

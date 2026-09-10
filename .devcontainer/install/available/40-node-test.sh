@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${VITEST_VERSION:=${TOOL_VITEST_VERSION:-latest}}"
+: "${VITEST_VERSION:=${LOCK_VITEST_VERSION:?missing LOCK_VITEST_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'VITEST_VERSION=%s\n' "${VITEST_VERSION}"

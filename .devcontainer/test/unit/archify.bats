@@ -114,7 +114,7 @@ assert_stale_installation_survives() {
 
 @test "Archify policy resolves centrally with environment precedence" {
 	policy="${TEST_ROOT}/policy"
-	printf '%s\n' 'TOOL_ARCHIFY_VERSION="1.2.3"' "TOOL_ARCHIFY_SHA256=\"$(printf 'a%.0s' {1..64})\"" >"${policy}"
+	printf '%s\n' 'LOCK_ARCHIFY_VERSION="1.2.3"' "LOCK_ARCHIFY_SHA256=\"$(printf 'a%.0s' {1..64})\"" >"${policy}"
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${policy}" ARCHIFY_VERSION=9.8.7 \
 		ARCHIFY_SHA256="$(printf 'b%.0s' {1..64})" \
 		bash "${REPO_ROOT}/.devcontainer/install/available/40-node-archify.sh" --print-version-policy

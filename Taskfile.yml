@@ -71,7 +71,7 @@ tasks:
           task doctor                     Run doctor checks for the detected context
           task validate                   Run host-safe validation checks, excluding skills
           task validate:full              Run strict validation requiring shell quality tools
-          task deps:update                Update approved pins and report deliberate exclusions
+          task deps:update                Resolve tool intent and regenerate exact locks
           task clean                      Review, confirm, and remove project identity files
           task clean:identity             Explicit alias for project identity cleanup
           task --exit-code config:diff    Compare runtime configuration with its seed
@@ -128,5 +128,6 @@ tasks:
           task test                       Run all tests (unit + integration)
           task test:unit                  Run repository unit tests
           task test:integration           Run integration tests for installed tools
+          task test:pi-lifecycle          Run isolated two-rebuild Pi lifecycle proof
           task test:install               Install BATS if not present
         EOF

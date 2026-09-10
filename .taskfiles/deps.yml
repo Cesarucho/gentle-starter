@@ -2,6 +2,6 @@ version: "3"
 
 tasks:
   update:
-    desc: Update approved pins and report deliberately excluded dependency policies
+    desc: Resolve editable tool intent into one generated lock section
     cmds:
       - ./.taskfiles/scripts/deps-update.sh

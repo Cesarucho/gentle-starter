@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${TERRAGRUNT_VERSION:=${TOOL_TERRAGRUNT_VERSION:-1.0.8}}"
+: "${TERRAGRUNT_VERSION:=${LOCK_TERRAGRUNT_VERSION:?missing LOCK_TERRAGRUNT_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'TERRAGRUNT_VERSION=%s\n' "${TERRAGRUNT_VERSION}"

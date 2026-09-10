@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${GRAPHIFY_VERSION:=${TOOL_GRAPHIFY_VERSION:-0.9.48}}"
+: "${GRAPHIFY_VERSION:=${LOCK_GRAPHIFY_VERSION:?missing LOCK_GRAPHIFY_VERSION}}"
 : "${GRAPHIFY_INSTALL_DIR:=/opt/graphify}"
 : "${GRAPHIFY_BIN_DIR:=/usr/local/bin}"
 

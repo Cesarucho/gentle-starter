@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PHPUNIT_VERSION:=${TOOL_PHPUNIT_VERSION:-10}}"
+: "${PHPUNIT_VERSION:=${LOCK_PHPUNIT_VERSION:?missing LOCK_PHPUNIT_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PHPUNIT_VERSION=%s\n' "${PHPUNIT_VERSION}"

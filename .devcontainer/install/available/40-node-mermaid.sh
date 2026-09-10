@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${MERMAID_CLI_VERSION:=${TOOL_MERMAID_CLI_VERSION:-11.16.0}}"
+: "${MERMAID_CLI_VERSION:=${LOCK_MERMAID_CLI_VERSION:?missing LOCK_MERMAID_CLI_VERSION}}"
 : "${UID_NAME:=ubuntu}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then

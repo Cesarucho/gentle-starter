@@ -12,10 +12,12 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PLANTUML_VERSION:=${TOOL_PLANTUML_VERSION:-1.2026.6}}"
+: "${PLANTUML_VERSION:=${LOCK_PLANTUML_VERSION:?missing LOCK_PLANTUML_VERSION}}"
+: "${PLANTUML_SHA256:=${LOCK_PLANTUML_SHA256:?missing LOCK_PLANTUML_SHA256}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PLANTUML_VERSION=%s\n' "${PLANTUML_VERSION}"
+	printf 'PLANTUML_SHA256=%s\n' "${PLANTUML_SHA256}"
 	exit 0
 fi
 : "${PLANTUML_INSTALL_DIR:=/usr/local/share/plantuml}"
@@ -39,13 +41,11 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 JAR_NAME="plantuml-${PLANTUML_VERSION}.jar"
 JAR_PATH="${TMP_DIR}/${JAR_NAME}"
-CHECKSUM_PATH="${TMP_DIR}/${JAR_NAME}.sha256"
 MAVEN_URL="https://repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/${PLANTUML_VERSION}"
 
 devcontainer_log_info "Downloading PlantUML ${PLANTUML_VERSION}"
 devcontainer_fetch "${MAVEN_URL}/${JAR_NAME}" "${JAR_PATH}"
-devcontainer_fetch "${MAVEN_URL}/${JAR_NAME}.sha256" "${CHECKSUM_PATH}"
-devcontainer_verify_sha256 "${JAR_PATH}" "$(tr -d '[:space:]' <"${CHECKSUM_PATH}")"
+devcontainer_verify_sha256 "${JAR_PATH}" "${PLANTUML_SHA256}"
 
 devcontainer_run_as_root mkdir -p "${PLANTUML_INSTALL_DIR}"
 devcontainer_run_as_root install -m 0644 "${JAR_PATH}" \

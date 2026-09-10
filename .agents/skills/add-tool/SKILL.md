@@ -17,6 +17,9 @@ Use for repository-managed dev-tool additions/replacements, provider or mechanis
 - Keep installation, copy-on-first-run configuration, and mutable state separate. Classify state as none, passive, or installer-owned.
 - Preserve fail-closed architecture gates and host-prepared long-syntax binds with `create_host_path: false`; never repair bind-root ownership at runtime.
 - Obtain explicit approval before weakening trust or lifecycle controls.
+- Classify every tool by provider and intent strategy. Only `deps:update` may
+  resolve versions or integrity and modify the single policy file.
+- Never add installer-local version/checksum defaults or build-time discovery.
 
 ## Decision Gates
 
@@ -35,8 +38,12 @@ Use for repository-managed dev-tool additions/replacements, provider or mechanis
 1. Classify the change first; stop or reroute excluded work.
 2. Inspect the tree, then load only the relevant references.
 3. Select the closest real provider example and test; do not duplicate an implementation.
-4. Apply proportional trust, rollback, state, architecture, updater, and verification controls.
-5. Refresh the registry through its official mechanism only when metadata changed.
+4. Register the intent and every generated lock output exactly once
+   in the transactional updater; reject unsupported provider semantics.
+5. Apply proportional trust, rollback, state, architecture, updater, and verification controls.
+   Direct artifacts require all supported architectures before publication.
+6. Keep implementation, tests, and user-facing documentation in one work unit.
+7. Refresh the registry through its official mechanism only when metadata changed.
 
 ## Output Contract
 

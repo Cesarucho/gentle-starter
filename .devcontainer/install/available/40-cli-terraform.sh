@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${TERRAFORM_VERSION:=${TOOL_TERRAFORM_VERSION:-1.15.7}}"
+: "${TERRAFORM_VERSION:=${LOCK_TERRAFORM_VERSION:?missing LOCK_TERRAFORM_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'TERRAFORM_VERSION=%s\n' "${TERRAFORM_VERSION}"

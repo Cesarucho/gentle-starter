@@ -271,9 +271,9 @@ setup() {
 # comment
 
 TOOL_ALPHA_VERSION="1.2.3"
-TOOL_BETA_MAJOR='26'
+LOCK_BETA_MAJOR='26'
 EOF
-    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && printf '%s|%s' \"\${TOOL_ALPHA_VERSION}\" \"\${TOOL_BETA_MAJOR}\""
+	run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && printf '%s|%s' \"\${TOOL_ALPHA_VERSION}\" \"\${LOCK_BETA_MAJOR}\""
     [ "$status" -eq 0 ]
     [ "$output" = "1.2.3|26" ]
 }
@@ -343,18 +343,18 @@ EOF
     [ "$output" = "2" ]
 }
 
-@test "legacy environment override wins over central value" {
+@test "approved environment override wins over generated lock" {
     file="${BATS_TEST_TMPDIR}/precedence.conf"
-    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
-    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && ENGRAM_VERSION='9.9.9' && : \"\${ENGRAM_VERSION:=\${TOOL_ENGRAM_VERSION:-fallback}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
+	printf '%s\n' 'LOCK_ENGRAM_VERSION="1.17.0"' >"${file}"
+	run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && ENGRAM_VERSION='9.9.9' && : \"\${ENGRAM_VERSION:=\${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
     [ "$status" -eq 0 ]
     [ "$output" = "9.9.9" ]
 }
 
-@test "central value wins over transitional fallback" {
+@test "generated lock supplies the installer value" {
     file="${BATS_TEST_TMPDIR}/central.conf"
-    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
-    run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && : \"\${ENGRAM_VERSION:=\${TOOL_ENGRAM_VERSION:-fallback}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
+	printf '%s\n' 'LOCK_ENGRAM_VERSION="1.17.0"' >"${file}"
+	run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && : \"\${ENGRAM_VERSION:=\${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
     [ "$status" -eq 0 ]
     [ "$output" = "1.17.0" ]
 }
@@ -374,11 +374,11 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-@test "Java installer resolves central selector and observable requirement" {
+@test "Java installer resolves central install and observable requirement locks" {
     file="${BATS_TEST_TMPDIR}/java-central.conf"
     printf '%s\n' \
-        'TOOL_JAVA_INSTALL_VERSION="25-tem"' \
-        'TOOL_JAVA_REQUIRED_VERSION="25"' >"${file}"
+		'LOCK_JAVA_INSTALL_VERSION="25-tem"' \
+		'LOCK_JAVA_REQUIRED_VERSION="25"' >"${file}"
 
     run env -u JAVA_VERSION -u JAVA_REQUIRED_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
@@ -392,8 +392,8 @@ EOF
 @test "Java installer environment overrides central values" {
     file="${BATS_TEST_TMPDIR}/java-override.conf"
     printf '%s\n' \
-        'TOOL_JAVA_INSTALL_VERSION="25-tem"' \
-        'TOOL_JAVA_REQUIRED_VERSION="25"' >"${file}"
+		'LOCK_JAVA_INSTALL_VERSION="25-tem"' \
+		'LOCK_JAVA_REQUIRED_VERSION="25"' >"${file}"
 
     run env \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
@@ -408,7 +408,7 @@ EOF
 
 @test "Engram installer resolves the central value" {
     file="${BATS_TEST_TMPDIR}/engram-central.conf"
-    printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
+	printf '%s\n' 'LOCK_ENGRAM_VERSION="1.17.0"' >"${file}"
 
     run env -u ENGRAM_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
@@ -444,12 +444,13 @@ EOF
     )
 
     cat >"${policy_file}" <<'EOF'
-TOOL_PI_CODING_AGENT_VERSION="9.9.1"
-TOOL_SKILLS_VERSION="9.9.2"
-TOOL_MARKDOWNLINT_CLI2_VERSION="9.9.3"
-TOOL_MERMAID_CLI_VERSION="9.9.4"
-TOOL_GRAPHIFY_VERSION="9.9.5"
-TOOL_PLAYWRIGHT_VERSION="9.9.6"
+LOCK_PI_CODING_AGENT_VERSION="9.9.1"
+LOCK_SKILLS_VERSION="9.9.2"
+LOCK_MARKDOWNLINT_CLI2_VERSION="9.9.3"
+LOCK_MERMAID_CLI_VERSION="9.9.4"
+LOCK_GRAPHIFY_VERSION="9.9.5"
+LOCK_PLAYWRIGHT_VERSION="9.9.6"
+LOCK_PLAYWRIGHT_CLI_VERSION="9.9.7"
 EOF
 
     for case_entry in "${cases[@]}"; do
@@ -460,7 +461,7 @@ EOF
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "50-browser-playwright.sh" ]; then
-            [ "$output" = "${environment_name}=${expected_version}"$'\n''PLAYWRIGHT_CLI_VERSION=latest' ]
+			[ "$output" = "${environment_name}=${expected_version}"$'\n''PLAYWRIGHT_CLI_VERSION=9.9.7' ]
         else
             [ "$output" = "${environment_name}=${expected_version}" ]
         fi
@@ -488,7 +489,8 @@ EOF
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "50-browser-playwright.sh" ]; then
-            [ "$output" = "${environment_name}=9.9.9"$'\n''PLAYWRIGHT_CLI_VERSION=latest' ]
+			expected_cli="$(sed -n 's/^LOCK_PLAYWRIGHT_CLI_VERSION="\([^"]*\)"$/\1/p' "${policy_file}")"
+			[ "$output" = "${environment_name}=9.9.9"$'\n'"PLAYWRIGHT_CLI_VERSION=${expected_cli}" ]
         else
             [ "$output" = "${environment_name}=9.9.9" ]
         fi
@@ -511,15 +513,18 @@ EOF
     )
 
     cat >"${policy_file}" <<'EOF'
-TOOL_TERRAFORM_VERSION="9.9.1"
-TOOL_GITLEAKS_VERSION="9.9.2"
-TOOL_PULUMI_VERSION="9.9.3"
-TOOL_OPENTOFU_VERSION="9.9.4"
-TOOL_TERRAGRUNT_VERSION="9.9.5"
-TOOL_KUBECTL_VERSION="9.9.6"
-TOOL_PLANTUML_VERSION="9.9.7"
-TOOL_DELVE_VERSION="v9.9.8"
-TOOL_GENTLE_AI_VERSION="9.9.9"
+LOCK_TERRAFORM_VERSION="9.9.1"
+LOCK_GITLEAKS_VERSION="9.9.2"
+LOCK_PULUMI_VERSION="9.9.3"
+LOCK_OPENTOFU_VERSION="9.9.4"
+LOCK_TERRAGRUNT_VERSION="9.9.5"
+LOCK_KUBECTL_VERSION="9.9.6"
+LOCK_PLANTUML_VERSION="9.9.7"
+LOCK_PLANTUML_SHA256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+LOCK_DELVE_VERSION="v9.9.8"
+LOCK_GENTLE_AI_VERSION="9.9.9"
+LOCK_GENTLE_AI_SHA256_AMD64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+LOCK_GENTLE_AI_SHA256_ARM64="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 EOF
 
     for case_entry in "${cases[@]}"; do
@@ -529,7 +534,11 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
+		if [ "${script_name}" = "40-cli-plantuml.sh" ]; then
+			[ "$output" = "${environment_name}=${expected_version}"$'\n''PLANTUML_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ]
+		else
         [ "$output" = "${environment_name}=${expected_version}" ]
+		fi
     done
 }
 
@@ -556,7 +565,11 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
+		if [ "${script_name}" = "40-cli-plantuml.sh" ]; then
+			[ "$output" = "${environment_name}=${override_version}"$'\n''PLANTUML_SHA256=0f77e5f769836b3dee340e207fe497c3e4c43e973d559e3c306915da9c32e34c' ]
+		else
         [ "$output" = "${environment_name}=${override_version}" ]
+		fi
     done
 }
 
@@ -575,14 +588,15 @@ EOF
     )
 
     cat >"${policy_file}" <<'EOF'
-TOOL_NODE_MAJOR="99"
-TOOL_GO_VERSION="go9.9.1"
-TOOL_PNPM_VERSION="9.9.2"
-TOOL_VITEST_VERSION="9.9.3"
-TOOL_PHP_VERSION="9.9"
-TOOL_PHPUNIT_VERSION="99"
-TOOL_PLAYWRIGHT_CLI_VERSION="9.9.4"
-TOOL_DEVCONTAINER_CLI_VERSION="9.9.5"
+LOCK_NODE_MAJOR="99"
+LOCK_GO_VERSION="go9.9.1"
+LOCK_PNPM_VERSION="9.9.2"
+LOCK_VITEST_VERSION="9.9.3"
+LOCK_PHP_SERIES="9.9"
+LOCK_PHPUNIT_VERSION="99"
+LOCK_PLAYWRIGHT_VERSION="9.9.6"
+LOCK_PLAYWRIGHT_CLI_VERSION="9.9.4"
+LOCK_DEVCONTAINER_CLI_VERSION="9.9.5"
 EOF
 
     for case_entry in "${cases[@]}"; do
@@ -593,7 +607,7 @@ EOF
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "50-browser-playwright.sh" ]; then
-            [ "$output" = "PLAYWRIGHT_VERSION=1.60.0"$'\n'"${environment_name}=${expected_value}" ]
+			[ "$output" = "PLAYWRIGHT_VERSION=9.9.6"$'\n'"${environment_name}=${expected_value}" ]
         else
             [ "$output" = "${environment_name}=${expected_value}" ]
         fi
@@ -603,7 +617,7 @@ EOF
 @test "Phase 3C-A installer environment overrides win over central policies" {
     local policy_file="${SCRIPT_DIR}/tool-versions.conf"
     local case_entry script_name environment_name override_value playwright_version
-    playwright_version="$(awk -F '="' '$1 == "TOOL_PLAYWRIGHT_VERSION" { sub(/"$/, "", $2); print $2 }' "${policy_file}")"
+	playwright_version="$(awk -F '="' '$1 == "LOCK_PLAYWRIGHT_VERSION" { sub(/"$/, "", $2); print $2 }' "${policy_file}")"
     local -a cases=(
         '20-runtime-node.sh|NODE_MAJOR|88'
         '20-runtime-go.sh|GO_VERSION|go8.8.1'
@@ -636,20 +650,21 @@ EOF
     local expected_output
 
     cat >"${policy_file}" <<'EOF'
-TOOL_GENTLE_PI_VERSION="9.9.1"
-TOOL_PI_SUBAGENTS_VERSION="9.9.2"
-TOOL_PI_INTERCOM_VERSION="9.9.3"
-TOOL_PI_WEB_ACCESS_VERSION="9.9.4"
-TOOL_PI_LENS_VERSION="9.9.5"
-TOOL_RPIV_TODO_VERSION="9.9.6"
-TOOL_RPIV_ASK_USER_QUESTION_VERSION="9.9.7"
-TOOL_RPIV_BTW_VERSION="9.9.8"
-TOOL_GENTLE_ENGRAM_VERSION="9.9.9"
-TOOL_PI_MCP_ADAPTER_VERSION="9.9.10"
-TOOL_PI_TERMINAL_THEME_VERSION="9.9.12"
+LOCK_GENTLE_PI_VERSION="9.9.1"
+LOCK_PI_SUBAGENTS_VERSION="9.9.2"
+LOCK_PI_INTERCOM_VERSION="9.9.3"
+LOCK_PI_WEB_ACCESS_VERSION="9.9.4"
+LOCK_PI_LENS_VERSION="9.9.5"
+LOCK_RPIV_TODO_VERSION="9.9.6"
+LOCK_RPIV_ASK_USER_QUESTION_VERSION="9.9.7"
+LOCK_RPIV_BTW_VERSION="9.9.8"
+LOCK_GENTLE_ENGRAM_VERSION="9.9.9"
+LOCK_PI_MCP_ADAPTER_VERSION="9.9.10"
+LOCK_PI_TERMINAL_THEME_VERSION="9.9.12"
 EOF
 
-    expected_output="$(cat <<'EOF'
+	expected_output="$(
+		cat <<'EOF'
 GENTLE_PI_VERSION=9.9.1
 PI_SUBAGENTS_VERSION=9.9.2
 PI_INTERCOM_VERSION=9.9.3
@@ -687,7 +702,8 @@ EOF
     local policy_file="${SCRIPT_DIR}/tool-versions.conf"
     local expected_output
 
-    expected_output="$(cat <<'EOF'
+	expected_output="$(
+		cat <<'EOF'
 GENTLE_PI_VERSION=8.8.1
 PI_SUBAGENTS_VERSION=8.8.2
 PI_INTERCOM_VERSION=8.8.3
@@ -829,7 +845,8 @@ EOF
 
 @test "BATS installer resolves the central exact tag version" {
     local policy_file="${BATS_TEST_TMPDIR}/bats-central.conf"
-    printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
+	printf '%s\n' 'LOCK_BATS_VERSION="9.9.2"' \
+		'LOCK_BATS_SHA256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' >"${policy_file}"
 
     run env -u BATS_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
@@ -841,7 +858,8 @@ EOF
 
 @test "BATS installer environment override wins over the central version" {
     local policy_file="${BATS_TEST_TMPDIR}/bats-override.conf"
-    printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
+	printf '%s\n' 'LOCK_BATS_VERSION="9.9.2"' \
+		'LOCK_BATS_SHA256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' >"${policy_file}"
 
     run env \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
@@ -852,43 +870,11 @@ EOF
     [ "$output" = "BATS_VERSION=8.8.2" ]
 }
 
-@test "BATS installer clone consumes the resolved exact tag" {
-    local policy_file="${BATS_TEST_TMPDIR}/bats-clone-policy.conf"
-    local stub_bin="${BATS_TEST_TMPDIR}/bats-clone-bin"
-    local git_log="${BATS_TEST_TMPDIR}/bats-git.log"
-    mkdir -p "${stub_bin}"
-    printf '%s\n' 'TOOL_BATS_VERSION="9.9.2"' >"${policy_file}"
-
-    cat >"${stub_bin}/git" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >"${BATS_GIT_LOG}"
-target="${!#}"
-mkdir -p "${target}"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${target}/install.sh"
-chmod +x "${target}/install.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'printf "Bats 9.9.2\\n"' >"${BATS_STUB_BIN}/bats"
-chmod +x "${BATS_STUB_BIN}/bats"
-EOF
-    chmod +x "${stub_bin}/git"
-
-    cat >"${stub_bin}/sudo" <<'EOF'
-#!/usr/bin/env bash
-exec "$@"
-EOF
-    chmod +x "${stub_bin}/sudo"
-
-    run env -u BATS_VERSION \
-        PATH="${stub_bin}:/usr/bin:/bin" \
-        DEVCONTAINER_PHASE=build \
-        DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
-        BATS_GIT_LOG="${git_log}" \
-        BATS_STUB_BIN="${stub_bin}" \
-        /usr/bin/bash "${SCRIPT_DIR}/install/available/10-bats.sh"
-
-    [ "$status" -eq 0 ]
-    run grep -F -- '--branch v9.9.2' "${git_log}"
-    [ "$status" -eq 0 ]
+@test "BATS installer consumes the resolved archive and generated checksum" {
+	installer="${SCRIPT_DIR}/install/available/10-bats.sh"
+	grep -q 'bats-core/archive/refs/tags/v${BATS_VERSION}.tar.gz' "${installer}"
+	grep -q 'BATS_SHA256="${LOCK_BATS_SHA256:?missing LOCK_BATS_SHA256}"' "${installer}"
+	! grep -q 'git clone' "${installer}"
 }
 
 @test "Docker build ARG persists as runtime Engram ENV" {

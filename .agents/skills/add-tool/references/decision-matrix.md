@@ -11,9 +11,8 @@
 | Go binary/build or prebuilt | `20-runtime-go.sh`, `40-go-debug.sh` |
 | PHP/Composer | `40-php-lang.sh`, `40-php-test.sh` |
 | SDK/provider manager | `20-runtime-java.sh` |
-| Direct archive/binary | `30-ai-gentle-ai.sh`, `40-cli-gitleaks.sh` |
-| Provider script | `30-ai-opencode.sh` (accepted provider trust boundary) |
-| Runtime-only user install | `30-ai-opencode.sh`, `30-ai-engram.sh` |
+| Direct GitHub release archive/binary | `30-ai-opencode.sh` (image-owned, checksum-verified), `30-ai-gentle-ai.sh`, `40-cli-gitleaks.sh` |
+| Runtime-only user install | `30-ai-engram.sh` |
 
 Read the example and its focused unit/integration tests. Reuse `lib/common.sh`; do not copy a second framework into the skill.
 
@@ -23,7 +22,7 @@ Read the example and its focused unit/integration tests. Reuse `lib/common.sh`; 
 | --- | --- | --- |
 | Available on demand | Catalog installer | Enabled link unless default activation is approved |
 | Default active | Unique discovered enabled symlink; canonical helper mapping/test when needed | Category prefix copied into enabled name |
-| Exact policy | Enforced `TOOL_*` key and policy diagnostic | Unused declaration |
+| Managed version policy | One editable `TOOL_*_VERSION`, complete provider strategy and generated `LOCK_*` outputs | Unregistered intent or installer-owned resolution |
 | User defaults | Config seed tree and explicit setup wiring | Config writes in the binary installer |
 | Passive mutable state | Long-syntax managed bind and host preparation coverage | Installer mapping or runtime repair |
 | Installer-owned mutable state | Managed bind, owner mapping, enabled runtime-safe installer, repair tests | Container-side mount-root ownership repair |
@@ -33,15 +32,26 @@ State is **none** unless persistence is required. A passive bind is populated by
 
 ## Version semantics
 
+First classify the provider: SDKMAN, Node channel, PHP series, kubectl minor,
+npm tag/range, Composer constraint, v-prefixed release, PlantUML year lane, or
+coupled Playwright components. Segment count alone is NEVER a strategy.
+
 Use names that match behavior:
 
-- `*_VERSION`: exact package or artifact.
-- `*_INSTALL_VERSION`: provider selector, such as an SDK identifier.
-- `*_REQUIRED_VERSION`: observable minimum/required output.
-- `*_MAJOR`: intentionally tracked major channel.
-- `latest`: explicit, reviewed non-reproducibility.
+- `TOOL_*_VERSION`: user intent; `latest` is resolved only by `deps:update`.
+- `LOCK_*_VERSION`: exact package, provider candidate, or artifact.
+- `LOCK_*_REQUIRED_VERSION`: exact observable requirement.
+- `LOCK_*_MAJOR` or `LOCK_*_SERIES`: provider-owned exact channel representation.
+- `LOCK_*_SHA256*`: generated exact build integrity.
 
-Resolve values in this order: existing installer environment override, matching `TOOL_*` value, then a temporary local fallback during migration. Prefer a `--print-version-policy` mode so tests can inspect resolution without installing.
+For each new managed tool, add exactly one editable `TOOL_*_VERSION` intent,
+register a complete provider strategy in `deps:update`, and generate every exact
+version, provider representation, and integrity value the installer needs as
+`LOCK_*`. Installers and other consumers may honor approved environment
+overrides, then consume required locks read-only and fail closed when they are
+missing. They never resolve editable intent, discover releases, or carry local
+version/checksum fallbacks. Prefer a `--print-version-policy` mode so tests can
+inspect consumed lock values without installing.
 
 ## Architecture gate
 
@@ -49,4 +59,10 @@ Discover supported repository and upstream architectures. Normalize host values 
 
 ## Update automation gate
 
-Add a tool to `deps:update` only when discovery is deterministic, stable-channel filtering is explicit, every coupled trust input is updated atomically, candidate validation happens before replacement, and review remains meaningful. Keep it manual for same-release-boundary digests, signatures requiring human identity review, provider-managed channels, `latest`, major selectors, or tools whose update would execute/install code.
+Every managed tool intent must have one safe, explicit strategy registered in
+`deps:update`. Discovery must be deterministic, stable-channel filtering
+explicit, and every coupled trust input updated in one atomic replacement.
+Reject intent when its provider cannot interpret it safely. If a provider
+cannot yet be implemented safely, fail the proposed managed addition and keep
+the tool outside the managed install tree; never defer resolution to an
+installer.

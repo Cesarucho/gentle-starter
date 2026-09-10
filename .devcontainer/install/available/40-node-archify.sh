@@ -11,8 +11,8 @@ source "${SCRIPT_DIR}/../lib/archify-archive.sh"
 
 devcontainer_load_tool_versions
 
-: "${ARCHIFY_VERSION:=${TOOL_ARCHIFY_VERSION:-2.16.0}}"
-: "${ARCHIFY_SHA256:=${TOOL_ARCHIFY_SHA256:-}}"
+: "${ARCHIFY_VERSION:=${LOCK_ARCHIFY_VERSION:?missing LOCK_ARCHIFY_VERSION}}"
+: "${ARCHIFY_SHA256:=${LOCK_ARCHIFY_SHA256:?missing LOCK_ARCHIFY_SHA256}}"
 : "${ARCHIFY_INSTALL_ROOT:=/opt/archify}"
 : "${ARCHIFY_BIN:=/usr/local/bin/archify}"
 

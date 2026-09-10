@@ -42,7 +42,7 @@ devcontainer_tool_versions_file() {
 devcontainer_load_tool_versions() {
 	local versions_file="${1:-}"
 	local line line_number=0 key quoted value
-	local assignment_pattern="^[[:space:]]*(TOOL_[A-Z0-9_]+)[[:space:]]*=[[:space:]]*('[^']*'|\"[^\"]*\")[[:space:]]*$"
+	local assignment_pattern="^[[:space:]]*((TOOL|LOCK)_[A-Z0-9_]+)[[:space:]]*=[[:space:]]*('[^']*'|\"[^\"]*\")[[:space:]]*$"
 	local command_substitution="\$("
 	local backtick="\`"
 	local -A seen=()
@@ -71,7 +71,7 @@ devcontainer_load_tool_versions() {
 		fi
 
 		key="${BASH_REMATCH[1]}"
-		quoted="${BASH_REMATCH[2]}"
+		quoted="${BASH_REMATCH[3]}"
 		value="${quoted:1:${#quoted}-2}"
 		if [ -z "${value}" ]; then
 			devcontainer_log_error "Empty tool version is not allowed for ${key} at ${versions_file}:${line_number}"

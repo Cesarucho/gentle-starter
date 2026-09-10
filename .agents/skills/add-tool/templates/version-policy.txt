@@ -1,12 +1,12 @@
-# Checklist example only: copy declarations only when the installer enforces them.
-# Keep values quoted, non-empty, and data-only. Do not add commands or URLs.
+# Checklist example only. Register the intent, strategy, and lock outputs in
+# deps-update.sh before use. Users edit only TOOL_*_VERSION values.
 
-TOOL_EXAMPLE_VERSION="1.2.3"
-TOOL_EXAMPLE_SHA256_AMD64="REPLACE_WITH_64_LOWERCASE_HEX"
-TOOL_EXAMPLE_SHA256_ARM64="REPLACE_WITH_64_LOWERCASE_HEX"
+TOOL_EXAMPLE_VERSION="1.2"
 
-# Alternatives when they describe the real policy:
-# TOOL_EXAMPLE_INSTALL_VERSION="provider-selector"
-# TOOL_EXAMPLE_REQUIRED_VERSION="1.2"
-# TOOL_EXAMPLE_MAJOR="1"
-# TOOL_EXAMPLE_VERSION="latest" # Explicitly non-reproducible; justify it.
+# Place every generated field in the final generated lock section.
+LOCK_EXAMPLE_VERSION="1.2.3"
+LOCK_EXAMPLE_SHA256_AMD64="GENERATED_64_LOWERCASE_HEX"
+LOCK_EXAMPLE_SHA256_ARM64="GENERATED_64_LOWERCASE_HEX"
+
+# Provider-delegated package-manager integrity has no SHA256 field. Document
+# that boundary explicitly instead of inventing an unstable artifact identity.

@@ -173,11 +173,14 @@ Resolve merge conflicts manually and commit the resolution normally. Existing
 ```bash
 task deps:update          # From inside container, update the repository's approved version policy
 task container:rebuild    # From host, apply that policy to the development environment
+task validate
+task test
+git diff                  # Review user intent and generated locks together
 ```
 
-`deps:update` atomically replaces approved pins and reports exclusions. Select Gentle AI's
-version manually; it derives both Linux digests from that exact immutable GitHub release.
-It never installs or changes live state. See [ADR 0002](docs/en/adr/0002-centralized-tool-version-policy.md).
+Edit only `TOOL_*_VERSION` fields. `deps:update` alone resolves stable exact versions,
+generates checksums, and atomically replaces the policy. Builds and installers are
+read-only; commit once after verification. See [ADR 0003](docs/en/adr/0003-unified-tool-policy-ownership.md).
 
 ### ⚙️ Save OpenCode and Pi configuration changes
 

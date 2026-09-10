@@ -1,28 +1,37 @@
 #!/usr/bin/env bash
 #
-# 30-ai-engram.sh — install the Engram memory server into the user's
-# local bin directory, register ~/.local/bin on PATH via ~/.bashrc, and
-# optionally run the Pi integration step when Pi is available.
-#
-# Mirrors .devcontainer/scripts/10-install-ai-engram.sh with the
-# common.sh helpers. Architecture detection uses devcontainer_arch.
-# Skips during image build; intended to run during container start as
-# the final non-root user.
+# 30-ai-engram.sh — install the image-owned Engram binary during build,
+# then initialize user data and optional Pi integration at runtime.
+# Architecture detection uses devcontainer_arch.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/../lib/tar-archive.sh"
 
 devcontainer_load_tool_versions
 
-: "${ENGRAM_VERSION:=${TOOL_ENGRAM_VERSION:-1.17.0}}"
-: "${ENGRAM_INSTALL_DIR:=${HOME}/.local/bin}"
+: "${ENGRAM_VERSION:=${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}}"
+: "${ENGRAM_INSTALL_DIR:=/usr/local/bin}"
 : "${ENGRAM_DATA_DIR:=${HOME}/.engram}"
 : "${ENGRAM_PROFILE_FILE:=${HOME}/.bashrc}"
-: "${ENGRAM_SETUP_PI:=1}"
+: "${ENGRAM_SETUP_PI:=0}"
 : "${ENGRAM_PI_COMMAND:=pi}"
 TARGET_OS="linux"
+ENGRAM_TEMP_DIR=""
+ENGRAM_STAGED_BINARY=""
+
+cleanup_engram_install() {
+	[ -z "${ENGRAM_STAGED_BINARY}" ] || rm -f "${ENGRAM_STAGED_BINARY}"
+	[ -z "${ENGRAM_TEMP_DIR}" ] || rm -rf "${ENGRAM_TEMP_DIR}"
+}
+
+abort_engram_install() {
+	cleanup_engram_install
+	exit 1
+}
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'ENGRAM_VERSION=%s\n' "${ENGRAM_VERSION}"
@@ -41,25 +50,7 @@ installed_engram_version() {
 		return 1
 	fi
 
-	"${binary}" version | awk '{print $NF}' | sed 's/^v//'
-}
-
-ensure_local_bin_on_path() {
-	local path_line
-	path_line="export PATH=\"${ENGRAM_INSTALL_DIR}:\$PATH\""
-
-	mkdir -p "${ENGRAM_INSTALL_DIR}"
-	touch "${ENGRAM_PROFILE_FILE}"
-
-	if ! grep -Fq "${ENGRAM_INSTALL_DIR}" "${ENGRAM_PROFILE_FILE}"; then
-		{
-			echo ""
-			echo "# User-local CLI tools"
-			echo "${path_line}"
-		} >>"${ENGRAM_PROFILE_FILE}"
-	fi
-
-	export PATH="${ENGRAM_INSTALL_DIR}:${PATH}"
+	"${binary}" version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
 }
 
 download_engram() {
@@ -73,7 +64,14 @@ download_engram() {
 
 	devcontainer_log_info "Downloading Engram ${ENGRAM_VERSION}: ${archive_url}"
 	devcontainer_fetch "${archive_url}" "${tmp_dir}/${archive_name}"
-	tar -xzf "${tmp_dir}/${archive_name}" -C "${tmp_dir}"
+	local digest_variable="LOCK_ENGRAM_SHA256_${target_arch^^}"
+	local digest="${!digest_variable:-}"
+	[[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || {
+		devcontainer_log_error "Invalid Engram SHA-256 for ${target_arch}"
+		return 1
+	}
+	printf '%s  %s\n' "${digest}" "${tmp_dir}/${archive_name}" | sha256sum -c -
+	devcontainer_validate_engram_tar "${tmp_dir}/${archive_name}" "${tmp_dir}/extract"
 }
 
 install_engram() {
@@ -83,8 +81,6 @@ install_engram() {
 	local downloaded_binary
 	local target_binary
 
-	ensure_local_bin_on_path
-
 	current_version="$(installed_engram_version 2>/dev/null || true)"
 	if [ "${current_version}" = "${ENGRAM_VERSION}" ]; then
 		devcontainer_log_info "Engram ${ENGRAM_VERSION} already installed at $(engram_binary)"
@@ -93,12 +89,14 @@ install_engram() {
 
 	target_arch="$(devcontainer_arch)"
 	tmp_dir="$(mktemp -d)"
-	trap 'rm -rf "${tmp_dir}"' RETURN
+	ENGRAM_TEMP_DIR="${tmp_dir}"
+	trap cleanup_engram_install EXIT
+	trap abort_engram_install HUP INT TERM
 
 	devcontainer_log_info "Installing Engram ${ENGRAM_VERSION} into ${ENGRAM_INSTALL_DIR}"
 
 	download_engram "${target_arch}" "${tmp_dir}"
-	downloaded_binary="$(find "${tmp_dir}" -type f -name engram | head -n 1)"
+	downloaded_binary="${tmp_dir}/extract/engram"
 
 	if [ -z "${downloaded_binary}" ]; then
 		devcontainer_log_error "Engram binary not found inside downloaded archive"
@@ -107,8 +105,17 @@ install_engram() {
 	fi
 
 	target_binary="$(engram_binary)"
-	install -m 0755 "${downloaded_binary}" "${target_binary}"
-	"${target_binary}" version
+	install -d -m 0755 "${ENGRAM_INSTALL_DIR}"
+	ENGRAM_STAGED_BINARY="${target_binary}.new"
+	install -m 0755 "${downloaded_binary}" "${ENGRAM_STAGED_BINARY}"
+	if [ "$("${ENGRAM_STAGED_BINARY}" version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)" != "${ENGRAM_VERSION}" ]; then
+		return 1
+	fi
+	mv -f "${ENGRAM_STAGED_BINARY}" "${target_binary}"
+	ENGRAM_STAGED_BINARY=""
+	cleanup_engram_install
+	ENGRAM_TEMP_DIR=""
+	trap - EXIT HUP INT TERM
 }
 
 setup_engram_data_dir() {
@@ -135,13 +142,10 @@ setup_pi_integration() {
 	"${binary}" setup pi
 }
 
-# Build phase: skip. Engram is user-scoped and integrates with the
-# user's home directory; it lands cleanly at runtime.
 if devcontainer_is_build; then
-	devcontainer_log_info "Skipping Engram user-local install during image build"
+	install_engram
 	exit 0
 fi
 
-install_engram
 setup_engram_data_dir
 setup_pi_integration

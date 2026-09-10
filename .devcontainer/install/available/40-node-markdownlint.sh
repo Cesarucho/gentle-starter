@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${MARKDOWNLINT_CLI2_VERSION:=${TOOL_MARKDOWNLINT_CLI2_VERSION:-0.22.1}}"
+: "${MARKDOWNLINT_CLI2_VERSION:=${LOCK_MARKDOWNLINT_CLI2_VERSION:?missing LOCK_MARKDOWNLINT_CLI2_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'MARKDOWNLINT_CLI2_VERSION=%s\n' "${MARKDOWNLINT_CLI2_VERSION}"

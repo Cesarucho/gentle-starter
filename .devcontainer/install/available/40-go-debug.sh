@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${DELVE_VERSION:=${TOOL_DELVE_VERSION:-v1.26.3}}"
+: "${DELVE_VERSION:=${LOCK_DELVE_VERSION:?missing LOCK_DELVE_VERSION}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'DELVE_VERSION=%s\n' "${DELVE_VERSION}"
@@ -29,6 +29,12 @@ if devcontainer_has_cmd dlv; then
 fi
 
 target_arch="$(devcontainer_arch)"
+digest_variable="LOCK_DELVE_SHA256_${target_arch^^}"
+digest="${!digest_variable:-}"
+[[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || {
+	devcontainer_log_error "Invalid Delve SHA-256 for ${target_arch}"
+	exit 1
+}
 
 archive="dlv_${DELVE_VERSION#v}_linux_${target_arch}.tar.gz"
 download_url="https://github.com/go-delve/delve/releases/download/${DELVE_VERSION}/${archive}"
@@ -37,6 +43,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 
 devcontainer_log_info "Downloading Delve ${DELVE_VERSION} for linux/${target_arch}"
 devcontainer_fetch "${download_url}" "${tmp_dir}/${archive}"
+devcontainer_verify_sha256 "${tmp_dir}/${archive}" "${digest}"
 
 devcontainer_log_info "Installing dlv"
 tar -xzf "${tmp_dir}/${archive}" -C "${tmp_dir}"

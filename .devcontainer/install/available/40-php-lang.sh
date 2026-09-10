@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${PHP_VERSION:=${TOOL_PHP_VERSION:-8.4}}"
+: "${PHP_VERSION:=${LOCK_PHP_SERIES:?missing LOCK_PHP_SERIES}}"
 
 if [ "${1:-}" = "--print-version-policy" ]; then
 	printf 'PHP_VERSION=%s\n' "${PHP_VERSION}"

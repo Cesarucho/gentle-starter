@@ -1,7 +1,7 @@
 # Extending the project
 
 This is the comprehensive guide for adding new functionality to the
-devcontainer. It covers the three systems that compose a new
+devcontainer. It covers the four extension surfaces that compose a new
 contribution, ties them together with a worked example, and answers
 the questions that come up most often.
 
@@ -14,18 +14,21 @@ The four extension surfaces are:
 3. **[Config seeding](configs.md)** — baseline config files
    versioned in `.devcontainer/<name>-config/` and copied to their
    runtime path on first run.
-4. **[Tool-version policy](adr/0002-centralized-tool-version-policy.md)** —
-   declarative versions and selectors in `.devcontainer/tool-versions.conf`.
-   Installers retain URLs, checksums, architecture, permissions, idempotency,
-   and version checks. Environment variables override central values;
-   transitional local fallbacks apply only when neither is present.
+4. **[Tool-version policy](adr/0003-unified-tool-policy-ownership.md)** —
+   editable `TOOL_*_VERSION` intent and final generated `LOCK_*` values
+   in `.devcontainer/tool-versions.conf`.
+   Installers retain URLs, architecture, permissions, idempotency, integrity
+   verification, and version checks. Approved environment variables may
+   override generated locks; otherwise installers require `LOCK_*` values and
+   fail closed. They never resolve editable intent or carry local
+   version/checksum defaults.
 
 Each surface has a deep-dive document or ADR.
 
 This file is the entry point and the FAQ. If you only have time to read one
 doc, read this one.
 
-## The three systems in one diagram
+## The extension surfaces in one diagram
 
 ```text
    BUILD PHASE (Dockerfile)                RUNTIME PHASE (setup.sh)
@@ -54,7 +57,7 @@ whether each call is a no-op or actually does work.
 You're working on a project that uses Redis for caching. You want
 `redis-cli` available in every rebuild, a baseline `redis.conf`
 that you can version, and the data to survive across rebuilds.
-This touches all three systems.
+This touches the install, config, and volume surfaces.
 
 ### Step 1: install — `install/available/30-tool-redis.sh`
 
@@ -149,7 +152,7 @@ cat /etc/redis/redis.conf | head -3   # the versioned baseline (copied)
 ls /var/lib/redis            # data dir, persists across rebuilds
 ```
 
-The three systems are now wired together. Future rebuilds preserve
+The three relevant surfaces are now wired together. Future rebuilds preserve
 your customisations in `/etc/redis/redis.conf` and in the data dir,
 and the postCreate hook re-seeds anything that was deleted.
 
@@ -233,7 +236,7 @@ it re-runs an install script at postCreate via
 `repair_installed_volumes` or a tool-specific runtime hook. Config
 files are copied separately by `setup_versioned_configs`; that helper
 does not invoke installers. Runtime phase runs as ubuntu; the script typically does user-scoped installs
-(`npm install -g` for ubuntu, `~/.local/bin/` for Engram, etc.)
+(`npm install -g` for ubuntu, `/usr/local/bin/` for image-owned direct binaries, etc.)
 or skips itself entirely if the tool is already installed.
 
 A script can be the same for both phases, with the idempotency
@@ -255,10 +258,10 @@ this pattern.
 
 The volume-repair contract kicks in for installer-owned targets.
 For `.env.d/.pi/`, `repair_installed_volumes` can re-run
-`30-ai-pi-coding.sh` and `30-ai-pi-gentle.sh` with
-`DEVCONTAINER_PHASE=runtime` when each owner is enabled; their idempotency
-guards decide what work is needed. Disabling Pi Gentle leaves Pi Coding active
-and does not uninstall packages already persisted in `.env.d/.pi`. Passive
+`30-ai-pi-gentle.sh` with `DEVCONTAINER_PHASE=runtime` when it is enabled; its
+idempotency guards decide what work is needed. Pi Coding is image-owned, while
+Pi Gentle remains the runtime owner of packages under `~/.pi`. Disabling it
+does not uninstall packages already persisted in `.env.d/.pi`. Passive
 mounts are different: OpenCode recreates its
 own mutable share state as it runs, so no repair installer is mapped.
 
@@ -301,15 +304,17 @@ Unit tests live in `.devcontainer/test/unit/`: `common.sh.bats` covers
 `common.sh` helpers (phase detection, logging, fetching, version extraction,
 version comparison, idempotency), `deps-update.bats` covers the dependency
 policy updater and direct-release checksum behavior, and `gentle-ai.bats` covers
-Gentle AI's pinned architecture digests, bounded download retries, canonical
-enabled slot, rollback, and exact-version idempotency. Maintainers select
-`TOOL_GENTLE_AI_VERSION`; `task deps:update` queries that exact GitHub release and
-atomically fills both generated Linux digests from its Release Assets API.
+Gentle AI's generated architecture digests, bounded download retries, canonical
+enabled slot, rollback, and exact-version idempotency. Maintainers edit
+`TOOL_GENTLE_AI_VERSION`; `task deps:update` resolves accepted intent and
+atomically fills the exact version and both generated Linux digests from its
+Release Assets API.
 Metadata or asset validation failure leaves the policy unchanged. These
 same-release-boundary digests support reproducible byte integrity; they are not
-independent publisher verification. The command also reports every deliberately
-excluded policy and its reason. This behavior remains available
-after `task project:init` because the task files, updater, policy, installer
+independent publisher verification. Every editable intent is registered with
+one explicit updater strategy; unsupported providers fail closed rather than
+remaining manual. This behavior remains available after `task project:init`
+because the task files, updater, policy, installer
 library, and this guide survive in the derived project. Integration tests in
 `.devcontainer/test/integration/tools.bats` verify that the expected tools are
 present after setup (core, Go, Java, Node, AI tools, and environment variables).

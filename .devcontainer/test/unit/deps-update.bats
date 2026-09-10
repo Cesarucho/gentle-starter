@@ -8,6 +8,7 @@ setup() {
 	CALLS_FILE="${TEST_ROOT}/calls"
 	mkdir -p "${BIN_DIR}"
 	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${POLICY_FILE}"
+	sed -i -E '/^TOOL_(JAVA|NODE|PHP|KUBECTL|PLANTUML)_VERSION=/! s/^(TOOL_[A-Z0-9_]+_VERSION)=.*/\1="latest"/' "${POLICY_FILE}"
 	: >"${CALLS_FILE}"
 	export REPO_ROOT TEST_ROOT POLICY_FILE BIN_DIR CALLS_FILE
 	export PATH="${BIN_DIR}:${PATH}"
@@ -70,9 +71,9 @@ write_pnpm_stub() {
 set -euo pipefail
 printf 'pnpm %s\n' "\$*" >>"${CALLS_FILE}"
 if [ "${mode}" = prerelease ]; then
-  printf '%s\n' '"9.9.9-beta.1"'
+  printf '%s\n' '["9.9.9-beta.1"]'
 else
-  printf '%s\n' '"9.9.9"'
+  printf '%s\n' '["5.0.0","9.9.9","10.0.0"]'
 fi
 EOF
 	chmod +x "${BIN_DIR}/pnpm"
@@ -89,46 +90,49 @@ EOF
 }
 
 write_expected_pnpm_calls() {
-	awk '
-    /^PACKAGE_SPECS=\($/ { in_package_specs = 1; next }
-    in_package_specs && /^\)$/ { exit }
-    in_package_specs {
-      spec = $0
-      sub(/^[[:space:]]*"/, "", spec)
-      sub(/"$/, "", spec)
-      split(spec, fields, "|")
-      printf "pnpm view %s version --json\n", fields[2]
-    }
-  ' "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" >"$1"
+	python3 - "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" "$1" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+block = text.split("PACKAGE_SPECS=(", 1)[1].split("\n)", 1)[0]
+packages = re.findall(r'"LOCK_[A-Z0-9_]+\|([^"|]+)"', block)
+open(sys.argv[2], "w", encoding="utf-8").write("".join(f"pnpm view {p} versions --json\n" for p in packages))
+PY
 }
 
 seed_gentle_fixture() {
 	sed -i \
-		-e "s/^TOOL_GENTLE_AI_VERSION=.*/TOOL_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"/" \
-		-e "s/^TOOL_GENTLE_AI_SHA256_AMD64=.*/TOOL_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_SHA256_AMD64}\"/" \
-		-e "s/^TOOL_GENTLE_AI_SHA256_ARM64=.*/TOOL_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_SHA256_ARM64}\"/" \
+		-e 's/^TOOL_GENTLE_AI_VERSION=.*/TOOL_GENTLE_AI_VERSION="latest"/' \
+		-e "s/^LOCK_GENTLE_AI_VERSION=.*/LOCK_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"/" \
+		-e "s/^LOCK_GENTLE_AI_SHA256_AMD64=.*/LOCK_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_SHA256_AMD64}\"/" \
+		-e "s/^LOCK_GENTLE_AI_SHA256_ARM64=.*/LOCK_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_SHA256_ARM64}\"/" \
 		"${POLICY_FILE}"
 }
 
 write_gentle_block() {
-	grep '^TOOL_GENTLE_AI_' "${POLICY_FILE}" >"$1"
+	grep '^LOCK_GENTLE_AI_' "${POLICY_FILE}" >"$1"
 }
 
 write_c4_archive_fixture() {
 	local archive_root="${TEST_ROOT}/c4-archive"
 	C4_ARCHIVE_FILE="${TEST_ROOT}/c4-plantuml.tar.gz"
-	C4_ARCHIVE_VERSION="$(sed -n 's/^TOOL_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	C4_ARCHIVE_VERSION="$(sed -n 's/^LOCK_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	mkdir -p "${archive_root}/C4-PlantUML-${C4_ARCHIVE_VERSION}"
 	printf '%s\n' 'configured C4 content' >"${archive_root}/C4-PlantUML-${C4_ARCHIVE_VERSION}/C4.puml"
 	tar -czf "${C4_ARCHIVE_FILE}" -C "${archive_root}" "C4-PlantUML-${C4_ARCHIVE_VERSION}"
 	expected_checksum="$(sha256sum "${C4_ARCHIVE_FILE}" | awk '{print $1}')"
-	sed -i "s/^TOOL_C4_PLANTUML_SHA256=.*/TOOL_C4_PLANTUML_SHA256=\"${expected_checksum}\"/" "${POLICY_FILE}"
+	sed -i "s/^LOCK_C4_PLANTUML_SHA256=.*/LOCK_C4_PLANTUML_SHA256=\"${expected_checksum}\"/" "${POLICY_FILE}"
 }
 
 write_curl_stub() {
 	local mode="$1"
 	local configured_gentle_version
-	configured_gentle_version="$(sed -n 's/^TOOL_GENTLE_AI_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	local pagination_page
+	configured_gentle_version="$(sed -n 's/^LOCK_GENTLE_AI_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	pagination_page="$(python3 - <<'PY'
+import json
+print(json.dumps([{"tag_name": f"v9.0.{number}", "draft": False, "prerelease": False} for number in range(1, 101)]))
+PY
+)"
 	cat >"${BIN_DIR}/curl" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -149,6 +153,38 @@ if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-
   exit 22
 fi
 case "\${url}" in
+	*pypi.org/pypi/graphifyy/json) body='{"releases":{"9.9.9":{},"10.0.0":{}}}' ;;
+	*repo.packagist.org/p2/phpunit/phpunit.json) body='{"packages":{"phpunit/phpunit":[{"version":"10.99.0","version_normalized":"10.99.0.0"}]}}' ;;
+
+	*go.dev/dl*)
+    body='[{"version":"go9.9.9","files":[{"version":"go9.9.9","os":"linux","arch":"amd64","kind":"archive","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"version":"go9.9.9","os":"linux","arch":"arm64","kind":"archive","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}]' ;;
+  *bats-core/bats-core/archive/refs/tags/*)
+    printf 'bats archive' >"\${output}"; exit 0 ;;
+  *go-delve/delve/releases/download/*/checksums.txt)
+    body='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  dlv_1.99.0_linux_amd64.tar.gz
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dlv_1.99.0_linux_arm64.tar.gz' ;;
+	*api.github.com/repos/bats-core/bats-core/releases/tags/v1.14.0)
+		body='{"tag_name":"v1.14.0","draft":false,"prerelease":false}' ;;
+  *api.github.com/repos/bats-core/bats-core/releases*)
+		body='[{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
+	*repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/*/*.sha256)
+		body='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' ;;
+  *api.github.com/repos/Gentleman-Programming/engram/releases/tags/*)
+    engram_prerelease=false
+    engram_arm64_name=engram_1.99.0_linux_arm64.tar.gz
+    engram_arm64_digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    [ "${mode}" != engram_prerelease ] || engram_prerelease=true
+    [ "${mode}" != engram_missing_asset ] || engram_arm64_name=unexpected.tar.gz
+    [ "${mode}" != engram_bad_digest ] || engram_arm64_digest=sha256:invalid
+    body="{\"tag_name\":\"v1.99.0\",\"draft\":false,\"prerelease\":\${engram_prerelease},\"assets\":[{\"name\":\"engram_1.99.0_linux_amd64.tar.gz\",\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"\${engram_arm64_name}\",\"digest\":\"\${engram_arm64_digest}\"}]}" ;;
+  *api.github.com/repos/Gentleman-Programming/engram/releases*)
+    body='[{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
+  *api.github.com/repos/anomalyco/opencode/releases/tags/*)
+    body='{"tag_name":"v1.99.0","draft":false,"prerelease":false,"assets":[{"name":"opencode-linux-x64.tar.gz","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"name":"opencode-linux-arm64.tar.gz","digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}' ;;
+  *api.github.com/repos/anomalyco/opencode/releases*)
+    body='[{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
+  *api.github.com/repos/Gentleman-Programming/gentle-ai/releases\?*)
+    body='[{"tag_name":"v${configured_gentle_version}","draft":false,"prerelease":false}]' ;;
 
   *github.com/tt-a1i/archify/releases/download/*/archify.zip)
     case "${mode}" in
@@ -170,7 +206,13 @@ case "\${url}" in
   *api.github.com/repos/plantuml-stdlib/C4-PlantUML/releases*)
     body='[{"tag_name":"v3.0.0-beta.1","draft":false,"prerelease":true},{"tag_name":"v2.99.0","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/gitleaks/gitleaks/releases*)
-    body='[{"tag_name":"v9.0.0-beta.1","draft":false,"prerelease":true},{"tag_name":"v8.99.0","draft":false,"prerelease":false}]' ;;
+		if [ "${mode}" = github_pagination ] && [[ "\${url}" == *'&page=1' ]]; then
+			body='${pagination_page}'
+		elif [ "${mode}" = github_pagination ]; then
+			body='[{"tag_name":"v8.99.0","draft":false,"prerelease":false}]'
+		else
+			body='[{"tag_name":"v9.0.0-beta.1","draft":false,"prerelease":true},{"tag_name":"v8.99.0","draft":false,"prerelease":false}]'
+		fi ;;
   *api.github.com/repos/pulumi/pulumi/releases*)
     body='[{"tag_name":"v3.999.0","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/opentofu/opentofu/releases*)
@@ -248,21 +290,20 @@ EOF
 
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"Run 'task container:rebuild' to apply these versions."* ]]
-	grep -q '^TOOL_PI_CODING_AGENT_VERSION="9.9.9"$' "${POLICY_FILE}"
-	grep -q '^TOOL_ASYNCAPI_VERSION="9.9.9"$' "${POLICY_FILE}"
-	grep -q '^TOOL_C4_PLANTUML_VERSION="2.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_PI_CODING_AGENT_VERSION="10.0.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ASYNCAPI_VERSION="10.0.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_C4_PLANTUML_VERSION="2.99.0"$' "${POLICY_FILE}"
 	expected_c4_sha="$(printf 'c4 archive bytes' | sha256sum | awk '{print $1}')"
-	grep -q "^TOOL_C4_PLANTUML_SHA256=\"${expected_c4_sha}\"$" "${POLICY_FILE}"
-	grep -q '^TOOL_TERRAFORM_VERSION="1.99.0"$' "${POLICY_FILE}"
-	grep -q '^TOOL_GITLEAKS_VERSION="8.99.0"$' "${POLICY_FILE}"
-	grep -q "^TOOL_GENTLE_AI_VERSION=\"$(sed -n 's/^TOOL_GENTLE_AI_VERSION=\"\([^\"]*\)\"$/\1/p' "${TEST_ROOT}/gentle-before")\"$" "${POLICY_FILE}"
-	grep -q "^TOOL_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
-	grep -q "^TOOL_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
-	grep -q "releases/tags/v$(sed -n 's/^TOOL_GENTLE_AI_VERSION=\"\([^\"]*\)\"$/\1/p' "${POLICY_FILE}")" "${CALLS_FILE}"
-	grep -q '^TOOL_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
-	grep -q '^TOOL_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
-	grep -q "^TOOL_ARCHIFY_VERSION=\"${ARCHIFY_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
-	grep -q "^TOOL_ARCHIFY_SHA256=\"${ARCHIFY_FIXTURE_SHA256}\"$" "${POLICY_FILE}"
+	grep -q "^LOCK_C4_PLANTUML_SHA256=\"${expected_c4_sha}\"$" "${POLICY_FILE}"
+	grep -q '^LOCK_TERRAFORM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_GITLEAKS_VERSION="8.99.0"$' "${POLICY_FILE}"
+	grep -q "^LOCK_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
+	grep -q "^LOCK_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
+	grep -q '^LOCK_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
+	grep -q '^LOCK_PLANTUML_SHA256="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"$' "${POLICY_FILE}"
+	grep -q '^LOCK_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
+	grep -q "^LOCK_ARCHIFY_VERSION=\"${ARCHIFY_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
+	grep -q "^LOCK_ARCHIFY_SHA256=\"${ARCHIFY_FIXTURE_SHA256}\"$" "${POLICY_FILE}"
 	! grep -Eq '(^| )(npm|pi)( |$)' "${CALLS_FILE}"
 	write_expected_pnpm_calls "${TEST_ROOT}/expected-pnpm-calls"
 	grep '^pnpm view ' "${CALLS_FILE}" >"${TEST_ROOT}/actual-pnpm-calls"
@@ -313,30 +354,20 @@ EOF
 		group == "pi-gentle" && /^(TOOL_GENTLE_PI_|TOOL_PI_|TOOL_RPIV_|TOOL_GENTLE_ENGRAM_)/ { pi_gentle++ }
 		group == "contracts" && /^(TOOL_SPECTRAL_|TOOL_REDOCLY_|TOOL_ASYNCAPI_)/ { contracts++ }
 		group == "playwright" && /^TOOL_PLAYWRIGHT_/ { playwright++ }
-		END { exit !(java == 2 && pi_gentle == 11 && contracts == 3 && playwright == 2) }
+		END { exit !(java == 1 && pi_gentle == 11 && contracts == 3 && playwright == 2) }
 	' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
 }
 
-@test "policy keys are valid and unique and generated values stay in the generated section" {
+@test "policy keys are valid and unique and digests stay in declared ownership sections" {
 	policy="${REPO_ROOT}/.devcontainer/tool-versions.conf"
 	run bash -c 'source "$1"; devcontainer_load_tool_versions "$2"' _ \
 		"${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${policy}"
 	[ "${status}" -eq 0 ]
 
-	awk '
-		/^# .* — install\/available\// { owner = 1; next }
-		/^# Generated by `task deps:update`;/ { generated = 1; owner = 0; next }
-		/^TOOL_/ {
-			count[$1]++
-			is_digest = $0 ~ /^TOOL_.*SHA256[^=]*=/
-			if ((generated && !is_digest) || (!generated && is_digest)) bad = 1
-			if (!generated && !owner) bad = 1
-		}
-		END {
-			for (key in count) if (count[key] != 1) bad = 1
-			exit bad || !generated
-		}
-	' FS='=' "${policy}"
+	keys="$(sed -nE 's/^(TOOL_[A-Z0-9_]+)=.*/\1/p' "${policy}")"
+	[ -z "$(printf '%s\n' "${keys}" | sort | uniq -d)" ]
+	grep -q '^# GENERATED LOCK' "${policy}"
+	grep -q '^LOCK_OPENCODE_SHA256_AMD64=' "${policy}"
 }
 
 @test "deps:update keeps the selected Gentle AI version and atomically updates both digests" {
@@ -346,10 +377,10 @@ EOF
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -eq 0 ]
-	grep -q "^TOOL_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
-	grep -q "^TOOL_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
-	grep -q "^TOOL_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
-	[[ "${output}" == *"TOOL_GENTLE_AI_VERSION — maintainer-selected version"* ]]
+	grep -q "^LOCK_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
+	grep -q "^LOCK_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
+	grep -q "^LOCK_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
+	[[ "${output}" == *"LOCK_GENTLE_AI_SHA256_AMD64"* ]]
 }
 
 @test "deps:update accepts an exact stable release when immutable metadata is unavailable" {
@@ -375,39 +406,90 @@ EOF
 	done
 }
 
-@test "deps:update explicitly reports every excluded policy key" {
+@test "deps:update preserves every editable intent byte while replacing locks" {
+	grep '^TOOL_' "${POLICY_FILE}" >"${TEST_ROOT}/intent-before"
+
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -eq 0 ]
-	for key in \
-		TOOL_JAVA_INSTALL_VERSION TOOL_JAVA_REQUIRED_VERSION TOOL_NODE_MAJOR \
-		TOOL_GO_VERSION TOOL_PNPM_VERSION TOOL_BATS_VERSION TOOL_ENGRAM_VERSION \
-		TOOL_GENTLE_AI_VERSION \
-		TOOL_GRAPHIFY_VERSION TOOL_PLAYWRIGHT_CLI_VERSION TOOL_DEVCONTAINER_CLI_VERSION \
-		TOOL_VITEST_VERSION TOOL_PHP_VERSION TOOL_PHPUNIT_VERSION; do
-		[[ "${output}" == *"${key}"* ]]
-	done
-	[[ "${output}" == *"major channel"* ]]
-	[[ "${output}" == *"explicit latest"* ]]
-	[[ "${output}" == *"provider-managed installer"* ]]
-	[[ "${output}" == *"unsupported exact pin"* ]]
-	[[ "${output}" == *"no trustworthy deterministic discovery"* ]]
+	grep '^TOOL_' "${POLICY_FILE}" >"${TEST_ROOT}/intent-after"
+	cmp -s "${TEST_ROOT}/intent-before" "${TEST_ROOT}/intent-after"
 }
 
-@test "deps:update preserves channels, latest policies, comments, and unsupported exact pins" {
-	before_node="$(grep '^TOOL_NODE_MAJOR=' "${POLICY_FILE}")"
-	before_graphify="$(grep '^TOOL_GRAPHIFY_VERSION=' "${POLICY_FILE}")"
-	before_latest="$(grep '="latest"$' "${POLICY_FILE}")"
-	grep '^#' "${POLICY_FILE}" >"${TEST_ROOT}/comments-before"
-
+@test "exact intents transition npm PyPI and GitHub asset locks to validated candidates" {
+	sed -i \
+		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="=9.9.9"/' \
+		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="5.0.0"/' \
+		-e 's/^TOOL_GRAPHIFY_VERSION=.*/TOOL_GRAPHIFY_VERSION="=9.9.9"/' \
+		-e 's/^LOCK_GRAPHIFY_VERSION=.*/LOCK_GRAPHIFY_VERSION="1.0.0"/' \
+		-e 's/^TOOL_ENGRAM_VERSION=.*/TOOL_ENGRAM_VERSION="=1.99.0"/' \
+		-e 's/^LOCK_ENGRAM_VERSION=.*/LOCK_ENGRAM_VERSION="1.20.0"/' \
+		-e 's/^LOCK_ENGRAM_SHA256_AMD64=.*/LOCK_ENGRAM_SHA256_AMD64="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"/' \
+		-e 's/^LOCK_ENGRAM_SHA256_ARM64=.*/LOCK_ENGRAM_SHA256_ARM64="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"/' \
+		"${POLICY_FILE}"
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
-
 	[ "${status}" -eq 0 ]
-	[ "$(grep '^TOOL_NODE_MAJOR=' "${POLICY_FILE}")" = "${before_node}" ]
-	[ "$(grep '^TOOL_GRAPHIFY_VERSION=' "${POLICY_FILE}")" = "${before_graphify}" ]
-	[ "$(grep '="latest"$' "${POLICY_FILE}")" = "${before_latest}" ]
-	grep '^#' "${POLICY_FILE}" >"${TEST_ROOT}/comments-after"
-	cmp -s "${TEST_ROOT}/comments-before" "${TEST_ROOT}/comments-after"
+	grep -q '^TOOL_VITEST_VERSION="=9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_GRAPHIFY_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_SHA256_AMD64="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_SHA256_ARM64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"$' "${POLICY_FILE}"
+	grep -Fq 'api.github.com/repos/Gentleman-Programming/engram/releases/tags/v1.99.0' "${CALLS_FILE}"
+	! grep -Fq 'api.github.com/repos/Gentleman-Programming/engram/releases?per_page=' "${CALLS_FILE}"
+}
+
+@test "exact GitHub asset pins reject unstable or incomplete releases atomically" {
+	local mode before_mode
+	for mode in engram_prerelease engram_missing_asset engram_bad_digest; do
+		sed -i 's/^TOOL_ENGRAM_VERSION=.*/TOOL_ENGRAM_VERSION="=1.99.0"/' "${POLICY_FILE}"
+		chmod 0640 "${POLICY_FILE}"
+		write_curl_stub "${mode}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+		before_mode="$(stat -c %a "${POLICY_FILE}")"
+
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+		[ "${status}" -ne 0 ]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+		[ "$(stat -c %a "${POLICY_FILE}")" = "${before_mode}" ]
+	done
+}
+
+@test "provider discovery selects the newest compatible major and PlantUML year lane" {
+	sed -i \
+		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9"/' \
+		-e 's/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION="1.2026"/' \
+		"${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
+}
+
+@test "bare semantic baseline rejects older candidates and selects a newer compatible candidate" {
+	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+}
+
+@test "GitHub compatibility discovery continues beyond the first 100 releases" {
+	sed -i 's/^TOOL_GITLEAKS_VERSION=.*/TOOL_GITLEAKS_VERSION="8"/' "${POLICY_FILE}"
+	write_curl_stub github_pagination
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^LOCK_GITLEAKS_VERSION="8.99.0"$' "${POLICY_FILE}"
+	grep -Fq 'api.github.com/repos/gitleaks/gitleaks/releases?per_page=100&page=2' "${CALLS_FILE}"
+}
+
+@test "exact GitHub intent uses the exact release endpoint instead of a release listing" {
+	sed -i 's/^TOOL_BATS_VERSION=.*/TOOL_BATS_VERSION="=1.14.0"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -Fq 'api.github.com/repos/bats-core/bats-core/releases/tags/v1.14.0' "${CALLS_FILE}"
+	! grep -Fq 'api.github.com/repos/bats-core/bats-core/releases?per_page=' "${CALLS_FILE}"
+	grep -q '^LOCK_BATS_VERSION="1.14.0"$' "${POLICY_FILE}"
 }
 
 @test "deps:update rejects prerelease package metadata without writing" {
@@ -423,18 +505,41 @@ EOF
 
 @test "deps:update leaves policy unchanged when direct release discovery fails" {
 	write_curl_stub fail
+	chmod 0640 "${POLICY_FILE}"
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	before_mode="$(stat -c %a "${POLICY_FILE}")"
 
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 
 	[ "${status}" -ne 0 ]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = "${before_mode}" ]
+	[ -z "$(find "${TEST_ROOT}" -maxdepth 1 -name '.tool-versions.conf.*' -print)" ]
+}
+
+@test "deps:update preserves policy bytes and mode when atomic publication fails" {
+	chmod 0640 "${POLICY_FILE}"
+	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	cat >"${BIN_DIR}/mv" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == */.tool-versions.conf.* && "${2:-}" == "${DEPS_UPDATE_POLICY_FILE}" ]]; then
+	exit 73
+fi
+exec /bin/mv "$@"
+EOF
+	chmod +x "${BIN_DIR}/mv"
+
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+	[ "${status}" -eq 73 ]
+	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
 	[ -z "$(find "${TEST_ROOT}" -maxdepth 1 -name '.tool-versions.conf.*' -print)" ]
 }
 
 @test "C4 installer resolves the central version and checksum with environment precedence" {
-	sed -i 's/^TOOL_C4_PLANTUML_SHA256=.*/TOOL_C4_PLANTUML_SHA256="0000000000000000000000000000000000000000000000000000000000000001"/' "${POLICY_FILE}"
-	configured_version="$(sed -n 's/^TOOL_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	sed -i 's/^LOCK_C4_PLANTUML_SHA256=.*/LOCK_C4_PLANTUML_SHA256="0000000000000000000000000000000000000000000000000000000000000001"/' "${POLICY_FILE}"
+	configured_version="$(sed -n 's/^LOCK_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
 		"${REPO_ROOT}/.devcontainer/install/available/40-cli-c4-plantuml.sh" --print-version-policy
@@ -454,7 +559,7 @@ EOF
 	install_dir="${TEST_ROOT}/c4-plantuml"
 	write_c4_archive_fixture
 	expected_version="${C4_ARCHIVE_VERSION}"
-	expected_checksum="$(sed -n 's/^TOOL_C4_PLANTUML_SHA256="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	expected_checksum="$(sed -n 's/^LOCK_C4_PLANTUML_SHA256="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	write_curl_stub c4_archive
 	mkdir -p "${install_dir}"
 	printf '%s\n' 'stale C4 content' >"${install_dir}/C4.puml"
@@ -474,8 +579,8 @@ EOF
 
 @test "C4 installer treats matching version and checksum as installed" {
 	install_dir="${TEST_ROOT}/c4-plantuml"
-	expected_version="$(sed -n 's/^TOOL_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
-	expected_checksum="$(sed -n 's/^TOOL_C4_PLANTUML_SHA256="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	expected_version="$(sed -n 's/^LOCK_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	expected_checksum="$(sed -n 's/^LOCK_C4_PLANTUML_SHA256="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	mkdir -p "${install_dir}"
 	printf '%s\n' "${expected_version}" >"${install_dir}/.version"
 	printf '%s\n' "${expected_checksum}" >"${install_dir}/.sha256"

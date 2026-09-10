@@ -12,9 +12,9 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 devcontainer_load_tool_versions
 
-: "${SPECTRAL_VERSION:=${TOOL_SPECTRAL_VERSION:-6.16.3}}"
-: "${REDOCLY_VERSION:=${TOOL_REDOCLY_VERSION:-2.47.0}}"
-: "${ASYNCAPI_VERSION:=${TOOL_ASYNCAPI_VERSION:-6.0.2}}"
+: "${SPECTRAL_VERSION:=${LOCK_SPECTRAL_VERSION:?missing LOCK_SPECTRAL_VERSION}}"
+: "${REDOCLY_VERSION:=${LOCK_REDOCLY_VERSION:?missing LOCK_REDOCLY_VERSION}}"
+: "${ASYNCAPI_VERSION:=${LOCK_ASYNCAPI_VERSION:?missing LOCK_ASYNCAPI_VERSION}}"
 
 if devcontainer_has_cmd spectral && devcontainer_has_cmd redocly && devcontainer_has_cmd asyncapi; then
 	devcontainer_log_info "API contract CLIs already installed"
