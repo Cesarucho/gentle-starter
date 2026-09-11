@@ -173,16 +173,79 @@ capture_persisted_ssh_identity() {
 	chmod 0600 "${fingerprints}" "${hashes}"
 }
 
+diagnose_rebuild_failure() {
+	local stage="$1"
+	local log="$2"
+	python3 - "${stage}" "${log}" <<'PY'
+import re
+import sys
+
+stage, path = sys.argv[1:]
+patterns = (
+    re.compile(r"(?:error|failed|failure|fatal|denied|timeout|timed out|unavailable|no space|not found)", re.I),
+    re.compile(r"^\s*×"),
+)
+skip = re.compile(r"(?:BEGIN .*PRIVATE KEY|ssh-(?:rsa|ed25519)\s+[A-Za-z0-9+/]{20,}|(?:^|\s)(?:RUN|CMD|command|argv):)", re.I)
+secret = re.compile(r"(?i)\b(password|passwd|token|secret|api[_-]?key|authorization|credential)\b(\s*[:=]\s*)(\S+)")
+env_value = re.compile(r"\b[A-Z][A-Z0-9_]*(?:PASSWORD|TOKEN|SECRET|KEY|CREDENTIAL)[A-Z0-9_]*=\S+")
+private_path = re.compile(r"/(?:tmp|home)/[^\s:'\"]+")
+url_auth = re.compile(r"(https?://)[^\s/@:]+(?::[^\s/@]+)?@")
+
+selected = []
+categories = set()
+with open(path, encoding="utf-8", errors="replace") as stream:
+    for raw in stream:
+        line = raw.strip()
+        if not line or skip.search(line) or not any(pattern.search(line) for pattern in patterns):
+            continue
+        lowered = line.lower()
+        if any(word in lowered for word in ("timeout", "timed out", "network", "download", "resolve", "connection")):
+            categories.add("network/download")
+        if any(word in lowered for word in ("apt", "npm", "package", "install")):
+            categories.add("package/install")
+        if re.search(r"\b(?:docker|compose|buildkit|build)\b", lowered):
+            categories.add("container/build")
+        if "no space" in lowered:
+            categories.add("storage")
+        if any(word in lowered for word in ("permission", "denied")):
+            categories.add("permissions")
+        line = url_auth.sub(r"\1[redacted]@", line)
+        line = secret.sub(r"\1\2[redacted]", line)
+        line = env_value.sub("[redacted-env]", line)
+        line = private_path.sub("[private-path]", line)
+        selected.append(line[:240] + ("…" if len(line) > 240 else ""))
+        if len(selected) == 12:
+            break
+
+category = ", ".join(sorted(categories)) if categories else "unclassified"
+print(f"[pi-lifecycle:error] {stage} rebuild failure category: {category}", file=sys.stderr)
+print("[pi-lifecycle:error] bounded sanitized excerpt (up to 12 lines, 240 characters each):", file=sys.stderr)
+if selected:
+    for line in selected:
+        print(f"[pi-lifecycle:error]   {line}", file=sys.stderr)
+else:
+    print("[pi-lifecycle:error]   no privacy-safe error line was identified", file=sys.stderr)
+PY
+}
+
 rebuild() {
-	local log="$1"
+	local stage="$1"
+	local log="$2"
 	(
+		trap - EXIT INT TERM
 		cd "${CANDIDATE}"
 		FORCE_HOST_CONTEXT=1 task container:rebuild
 	) >"${log}" 2>&1 || {
-		grep -E '^([[:space:]]*×|\[.*(error|ERROR)|Error:|error:)' "${log}" | tail -n 20 >&2 || true
-		fail "rebuild failed; private log: ${log} (removed during cleanup)"
+		diagnose_rebuild_failure "${stage}" "${log}" || true
+		fail "${stage} rebuild failed; private log removed during cleanup"
 	}
 }
+
+if [ "${1:-}" = "--diagnose-rebuild-log" ]; then
+	[ "$#" -eq 3 ] || fail "usage: --diagnose-rebuild-log STAGE LOG"
+	diagnose_rebuild_failure "$2" "$3"
+	exit 0
+fi
 
 require_safe_context
 RUN_ROOT="$(mktemp -d /tmp/opencode/pi-gentle-lifecycle.XXXXXXXX)"
@@ -207,7 +270,7 @@ configure_candidate
 candidate_snapshot "${PRIVATE_DIR}/candidate.configured"
 
 note "running first rebuild"
-rebuild "${PRIVATE_DIR}/rebuild-1.log"
+rebuild first "${PRIVATE_DIR}/rebuild-1.log"
 capture_versions "${PRIVATE_DIR}/versions-1"
 # shellcheck disable=SC2016 # Container-side HOME must expand remotely.
 container_exec 'mkdir -p "$HOME/.pi" "$HOME/.gentle-ai"; printf pi-state >"$HOME/.pi/idempotency-marker"; printf gentle-state >"$HOME/.gentle-ai/idempotency-marker"; start-sshd >/dev/null'
@@ -225,7 +288,7 @@ ssh -i "${PRIVATE_DIR}/client_key" -p "${SSH_PORT}" -o BatchMode=yes -o StrictHo
 	grep -Fxq ssh-ok || fail "public-key SSH access through the generated host port failed"
 
 note "running second rebuild"
-rebuild "${PRIVATE_DIR}/rebuild-2.log"
+rebuild second "${PRIVATE_DIR}/rebuild-2.log"
 capture_versions "${PRIVATE_DIR}/versions-2"
 mutation_count="$(grep -Ec 'Installing Pi package:|Replacing Pi package |Removing incompatible legacy Pi package:|(^|[[:space:]])pi (install|remove|update)([[:space:]]|$)' "${PRIVATE_DIR}/rebuild-2.log" || true)"
 [ "${mutation_count}" -eq 0 ] || fail "second rebuild performed ${mutation_count} Pi package mutation action(s)"

@@ -182,6 +182,36 @@ capture_fingerprints() {
 	! grep -Eq 'docker (system|container|image|network|volume) prune' "${HARNESS}"
 }
 
+@test "rebuild diagnostics are bounded and exclude private evidence" {
+	local log="${TEST_ROOT}/private-rebuild.log"
+	printf '%s\n' \
+		'Error: TOKEN=raw-token PASSWORD=hunter2' \
+		'Error: https://user:credential@example.test/archive failed' \
+		'Error: failed at /tmp/opencode/pi-gentle-lifecycle.private/private/rebuild.log' \
+		'command: docker build --secret raw-token /home/ubuntu/private-project' \
+		'-----BEGIN OPENSSH PRIVATE KEY-----' >>"${log}"
+	for number in $(seq 1 30); do
+		printf 'Error: safe package download timeout %s\n' "${number}" >>"${log}"
+	done
+
+	run bash "${HARNESS}" --diagnose-rebuild-log first "${log}"
+	[ "${status}" -eq 0 ]
+	[ "$(printf '%s\n' "${output}" | wc -l)" -eq 14 ]
+	[[ "${output}" == *"first rebuild failure category: network/download, package/install"* ]]
+	[[ "${output}" != *"raw-token"* ]]
+	[[ "${output}" != *"hunter2"* ]]
+	[[ "${output}" != *"credential@example"* ]]
+	[[ "${output}" != *"pi-gentle-lifecycle.private"* ]]
+	[[ "${output}" != *"docker build --secret"* ]]
+	[[ "${output}" != *"OPENSSH PRIVATE KEY"* ]]
+}
+
+@test "rebuild capture does not inherit cleanup traps" {
+	rebuild_function="$(awk '/^rebuild\(\)/,/^}/' "${HARNESS}")"
+	[[ "${rebuild_function}" == *'trap - EXIT INT TERM'* ]]
+	[[ "${rebuild_function}" == *'diagnose_rebuild_failure "${stage}" "${log}"'* ]]
+}
+
 @test "tracked snapshot ignores runtime env rewrites" {
 	setup_snapshot_fixture
 	mkdir "${SNAPSHOT_ROOT}/.devcontainer"
