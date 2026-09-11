@@ -46,8 +46,8 @@ services:
     environment:
       SSH_AUTH_SOCK: /ssh-agent/socket
     ports:
-      - "${APP_PORT}:${APP_PORT}" # app port
-      - "127.0.0.1:${OPENCODE_PORT}:4096" # OpenCode server/web
-      - "127.0.0.1:${SSH_PORT}:22" # SSH
+      - "${APP_PORT}:${APP_PORT}" # App port
+      - "${OPENCODE_PORT}:4096"   # OpenCode server/web
+      - "${SSH_PORT}:22"          # SSH
     env_file:
       - ../.env

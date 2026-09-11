@@ -23,6 +23,20 @@ note() {
 	printf '[pi-lifecycle] %s\n' "$*"
 }
 
+assert_broad_publication() {
+	local container_port="$1"
+	local host_port="$2"
+	local publication
+	publication="$(compose port "${SERVICE}" "${container_port}")"
+	printf '%s\n' "${publication}" | grep -Fxq "0.0.0.0:${host_port}" ||
+		fail "container port ${container_port} is not published on all IPv4 host interfaces at generated port ${host_port}"
+	# Expected-negative checks use explicit control flow so grep status cannot escape under set -e.
+	if printf '%s\n' "${publication}" | grep -Eq '^(127\.0\.0\.1|\[?::1\]?):'; then
+		fail "container port ${container_port} is unexpectedly restricted to host loopback"
+	fi
+	return 0
+}
+
 require_safe_context() {
 	[ -n "${ROOT}" ] || fail "run from a Git worktree"
 	[ "$(pwd -P)" = "${ROOT}" ] || fail "run from the repository root: ${ROOT}"
@@ -197,7 +211,9 @@ rebuild "${PRIVATE_DIR}/rebuild-1.log"
 capture_versions "${PRIVATE_DIR}/versions-1"
 # shellcheck disable=SC2016 # Container-side HOME must expand remotely.
 container_exec 'mkdir -p "$HOME/.pi" "$HOME/.gentle-ai"; printf pi-state >"$HOME/.pi/idempotency-marker"; printf gentle-state >"$HOME/.gentle-ai/idempotency-marker"; start-sshd >/dev/null'
-compose port "${SERVICE}" 22 | grep -Fxq "127.0.0.1:${SSH_PORT}" || fail "SSH is not published strictly on the selected loopback port"
+assert_broad_publication "${APP_PORT}" "${APP_PORT}"
+assert_broad_publication 4096 "${OPENCODE_PORT}"
+assert_broad_publication 22 "${SSH_PORT}"
 if ! bash "${HARNESS_DIR}/capture-ssh-hostkey-fingerprints.sh" \
 	127.0.0.1 "${SSH_PORT}" "${PRIVATE_DIR}/hostkey-fingerprints-1"; then
 	fail "could not capture exactly one RSA and ED25519 SSH host-key fingerprint"
@@ -206,7 +222,7 @@ capture_persisted_ssh_identity "${PRIVATE_DIR}/persisted-hostkey-fingerprints-1"
 cmp -s "${PRIVATE_DIR}/persisted-hostkey-fingerprints-1" "${PRIVATE_DIR}/hostkey-fingerprints-1" || fail "served SSH identity does not match persistent host-key files after first rebuild"
 ssh -i "${PRIVATE_DIR}/client_key" -p "${SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=no \
 	-o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ubuntu@127.0.0.1 'printf ssh-ok' 2>/dev/null |
-	grep -Fxq ssh-ok || fail "loopback public-key SSH access failed"
+	grep -Fxq ssh-ok || fail "public-key SSH access through the generated host port failed"
 
 note "running second rebuild"
 rebuild "${PRIVATE_DIR}/rebuild-2.log"
@@ -237,6 +253,6 @@ cat "${PRIVATE_DIR}/versions-2"
 note "second rebuild Pi mutation actions: ${mutation_count}"
 note "state markers persisted: .pi and .gentle-ai"
 note "SSH host fingerprints persisted: $(sha256sum "${PRIVATE_DIR}/hostkey-fingerprints-2" | cut -c1-16)"
-note "SSH exposure verified: 127.0.0.1:${SSH_PORT} only"
+note "generated app, OpenCode, and SSH ports verified on all host interfaces"
 note "primary branch, HEAD, status, hashes, and modes preserved"
 note "candidate policy and source files remained unchanged"

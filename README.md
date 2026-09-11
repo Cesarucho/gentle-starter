@@ -126,10 +126,23 @@ On your PC you need:
     generate one non-overlapping three-port block in `10000..59999`. They rewrite
     `APP_PORT`, `OPENCODE_PORT`, and `SSH_PORT` in both `.devcontainer/.env` and
     `.env` while preserving unrelated content. The mappings are app-to-same-port,
-    OpenCode-to-`4096`, and SSH-to-`22`; the two administrative mappings bind only
-    to host loopback. These generated values are authoritative on every container
+    OpenCode-to-`4096`, and SSH-to-`22`. Because the mappings omit a host IP,
+    Docker publishes all three ports on all host interfaces—not only the LAN
+    interface. These generated values are authoritative on every container
     task, so edit the project name—not the generated port entries—to change the
     block. Docker reports host-port collisions normally.
+
+    **Trusted networks only:** this exposure is intended for a trusted LAN/WLAN.
+    MAC filtering is not a strong security boundary, and Docker port publication
+    can bypass firewall behavior you may otherwise expect. OpenCode may be
+    unauthenticated. Do not configure router port forwarding or expose these
+    ports to the public Internet. Use Tailscale or an equivalent authenticated
+    private network before any remote Internet access.
+
+    The versioned `server.hostname: 0.0.0.0` OpenCode setting is copied only when
+    `~/.config/opencode` is first seeded. For an existing container, explicitly
+    synchronize that setting into the runtime config, then quit and restart
+    OpenCode; rebuilding alone does not overwrite an existing runtime config.
 
 2. Inside the container, you can use any tool normally. If you are using an **IDE**, look for the option to open its terminal.
 

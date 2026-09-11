@@ -72,21 +72,21 @@ SSH_PORT=$((app_port + 2))"
 	rm -rf "${test_root%/Identity Fixture}"
 }
 
-@test "compose publishes generated host ports to canonical container ports" {
+@test "compose publishes generated host ports on all host interfaces" {
 	compose="$(<"${REPO_ROOT}/.devcontainer/docker-compose.yml")"
 
 	[[ "${compose}" == *'"${APP_PORT}:${APP_PORT}"'* ]]
-	[[ "${compose}" == *'"127.0.0.1:${OPENCODE_PORT}:4096"'* ]]
-	[[ "${compose}" == *'"127.0.0.1:${SSH_PORT}:22"'* ]]
+	[[ "${compose}" == *'"${OPENCODE_PORT}:4096"'* ]]
+	[[ "${compose}" == *'"${SSH_PORT}:22"'* ]]
+	[[ "${compose}" != *'127.0.0.1:'* ]]
 	[[ "${compose}" != *'OPENCODE_SERVER_PORT'* ]]
 }
 
-@test "SSH guidance uses the generated loopback host port without fixed legacy values" {
+@test "SSH guidance uses the generated host port and trusted-LAN address" {
 	installer="$(<"${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh.sh")"
 	help="$(<"${REPO_ROOT}/.taskfiles/ssh.yml")"
 
-	[[ "${installer}" == *'ssh -p <SSH_PORT from .env> ubuntu@127.0.0.1'* ]]
-	[[ "${help}" == *'ssh -p <SSH_PORT from .env> ubuntu@127.0.0.1'* ]]
+	[[ "${installer}" == *'ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>'* ]]
+	[[ "${help}" == *'ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>'* ]]
 	[[ "${installer}${help}" != *'2222'* ]]
-	[[ "${installer}${help}" != *'<host-ip>'* ]]
 }

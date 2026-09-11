@@ -141,11 +141,33 @@ capture_fingerprints() {
 	[[ "${configuration}" != *'SSH_AUTHORIZED_KEYS'"'"' >"${CANDIDATE}/.devcontainer/.env"'"'"* ]]
 }
 
-@test "lifecycle harness uses generated ports with the repository loopback mapping" {
+@test "lifecycle harness uses generated ports with broad host bindings" {
 	configuration="$(awk '/^configure_candidate\(\)/,/^}/' "${HARNESS}")"
-	grep -Fq '"127.0.0.1:${SSH_PORT}:22"' "${REPO_ROOT}/.devcontainer/docker-compose.yml"
+	grep -Fq '"${APP_PORT}:${APP_PORT}"' "${REPO_ROOT}/.devcontainer/docker-compose.yml"
+	grep -Fq '"${OPENCODE_PORT}:4096"' "${REPO_ROOT}/.devcontainer/docker-compose.yml"
+	grep -Fq '"${SSH_PORT}:22"' "${REPO_ROOT}/.devcontainer/docker-compose.yml"
+	! grep -Fq '127.0.0.1:' "${REPO_ROOT}/.devcontainer/docker-compose.yml"
 	[[ "${configuration}" == *'OPENCODE_PORT=%s\nSSH_PORT=%s\n'* ]]
 	! grep -Fq '2222:22' "${HARNESS}"
+}
+
+@test "broad publication assertion succeeds without leaking the expected negative grep status" {
+	assertion="$(awk '/^assert_broad_publication\(\)/,/^}/' "${HARNESS}")"
+
+	run env ASSERTION="${assertion}" bash -c '
+		set -euo pipefail
+		SERVICE=container-svc
+		compose() { printf "%s\n" "0.0.0.0:12345"; }
+		fail() { printf "%s\n" "$*" >&2; return 1; }
+		eval "${ASSERTION}"
+		assert_broad_publication 4096 12345
+		printf "assertion-completed\n"
+	'
+
+	[ "${status}" -eq 0 ]
+	[ "${output}" = "assertion-completed" ]
+	[[ "${assertion}" == *"if "* ]]
+	[[ "${assertion}" == *"return 0"* ]]
 }
 
 @test "lifecycle harness resolves the actual service container through Compose" {

@@ -16,12 +16,12 @@ tasks:
           task ssh:status    Current agent state
           task ssh:stop      Stop agent when done
 
-        B) HOST ACCESS (SSH into the container from its Docker host)
+        B) TRUSTED LAN ACCESS (SSH into the container through its Docker host)
           task ssh:register-keys   Auto-detect and register .pub keys
           task container:rebuild   Rebuild so keys get registered
 
-          Then from the Docker host:
-            ssh -p <SSH_PORT from .env> ubuntu@127.0.0.1
+          Then from another device on the same trusted LAN/WLAN:
+            ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>
 
         How agent forwarding works:
           1. Host: ssh-agent holds your keys in memory
@@ -204,9 +204,9 @@ tasks:
         echo
         echo "=== Next Steps ==="
         echo "  1. task container:rebuild    # rebuild so keys get registered"
-        echo "  2. From the Docker host:"
+        echo "  2. From another device on the same trusted LAN/WLAN:"
         ssh_port="$(($(bash .taskfiles/scripts/project-identity.sh -o code) + 2))"
-        echo "       ssh -p ${ssh_port} ubuntu@127.0.0.1"
+        echo "       ssh -p ${ssh_port} ubuntu@<host-lan-ip>"
 
   stop:
     silent: true

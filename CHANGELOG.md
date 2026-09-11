@@ -58,8 +58,15 @@ releases start.
   `APP_PORT` based on the project directory.
 - Expanded deterministic devcontainer identity to an aligned three-port block
   for `APP_PORT`, `OPENCODE_PORT`, and `SSH_PORT`. Existing projects receive a
-  new generated `APP_PORT` on their next container task; OpenCode and SSH are
-  published only on host loopback by default.
+  new generated `APP_PORT` on their next container task. App, OpenCode, and SSH
+  omit a host IP and are therefore published on all host interfaces, not only
+  the LAN interface. This is for trusted LAN/WLAN use only: MAC filtering is
+  not a strong security boundary, Docker publication can bypass expected
+  firewall behavior, and OpenCode may be unauthenticated. Router port forwarding
+  and public Internet exposure are not intended; use Tailscale or an equivalent
+  authenticated private network before remote Internet access. The versioned
+  OpenCode bind setting applies on first config seed; existing runtime config
+  must be synchronized explicitly and OpenCode restarted.
 - Added devcontainer entrypoints for Pi and Engram TUI.
 - Pinned core AI tooling versions and moved Pi package updates behind the
   manual `task ai:update` workflow.
