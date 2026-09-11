@@ -56,6 +56,12 @@ data, install go-task, configure ubuntu sudoers, and perform final
 cleanup. They are mandatory. Adding a new core script means adding
 a new file with the right `NN-` prefix and committing it.
 
+Go Task is the narrow external APT-managed core bootstrap exception described
+by [ADR 0003](adr/0003-unified-tool-policy-ownership.md). It remains in core and
+outside `TOOL_*`/`LOCK_*` policy because repository Task workflows and the
+foundation cache boundary depend on it. This existing exception is not a route
+for adding new unmanaged tools.
+
 ### `02-enabled/` — opt-in, default active
 
 Each entry in `02-enabled/` is a symlink to a script in `available/`.

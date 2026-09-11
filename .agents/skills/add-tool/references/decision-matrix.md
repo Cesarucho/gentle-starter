@@ -5,7 +5,7 @@
 | Pattern | Closest repository example |
 | --- | --- |
 | Ubuntu apt distribution | `01-core/10-system.sh`, `40-cli-graphviz.sh` |
-| Third-party apt/PPA | `20-runtime-node.sh`, `40-php-lang.sh` |
+| Third-party apt/PPA | `20-runtime-node.sh`, `40-php-lang.sh`; do not copy Task's narrow core-bootstrap exception |
 | npm/pnpm global | `20-runtime-pnpm.sh`, `40-node-markdownlint.sh` |
 | Python isolated venv/pipx-like | `40-python-graphify.sh` |
 | Go binary/build or prebuilt | `20-runtime-go.sh`, `40-go-debug.sh` |
@@ -66,3 +66,10 @@ Reject intent when its provider cannot interpret it safely. If a provider
 cannot yet be implemented safely, fail the proposed managed addition and keep
 the tool outside the managed install tree; never defer resolution to an
 installer.
+
+The existing Go Task installer is not a general alternative to this gate. It is
+an external APT-managed core bootstrap needed to invoke repository workflows;
+Cloudsmith owns its package version and signed APT integrity, and its placement
+preserves the foundation/cache architecture. New tools still require the normal
+managed-policy route unless a separate architecture decision explicitly
+approves another bootstrap exception.

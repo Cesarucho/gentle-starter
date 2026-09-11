@@ -17,6 +17,14 @@ not invalidate the core layer. `task container:build` and
 `task container:up` rely on BuildKit's ordinary cache lookup; there is no
 separate foundation image, tag, lifecycle command, or metadata.
 
+Go Task is itself required to expose those workflows, so `01-core/15-task.sh`
+installs it as an external APT-managed core bootstrap. It is deliberately
+outside `.devcontainer/tool-versions.conf`: the signed Cloudsmith APT repository
+owns package version selection and package integrity, while the initial
+`setup.deb.sh` repository bootstrap is trusted through HTTPS/provider delivery
+rather than authenticated by APT signatures. Failures stop the build, and a
+transient provider or network failure requires a manual retry.
+
 Cache reuse is automatic only when builds can access the same BuildKit cache,
 typically on the same Docker builder. It is not a cross-machine guarantee, and
 cache eviction, builder replacement, base-image changes, core argument changes,

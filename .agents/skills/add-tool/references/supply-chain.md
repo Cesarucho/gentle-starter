@@ -42,6 +42,12 @@ Test these states:
 
 For npm tools, pin the package version, use the repository's package manager, inspect global-bin ownership, and explicitly decide whether lifecycle scripts are allowed. For official scripts, download-and-inspect or signature-verify when supported; never pipe an unpinned network response directly to a privileged shell without an explicit accepted policy.
 
+Go Task is the documented existing exception to the final rule: its official
+Cloudsmith `setup.deb.sh` bootstrap is trusted through HTTPS/provider delivery,
+then the configured signed APT repository authenticates package metadata and
+integrity. Do not claim that APT signatures authenticate the bootstrap script,
+and do not extend this exception to new tools without an explicit decision.
+
 ## Coupled updates
 
 Version plus every mandatory architecture digest form one generated candidate.

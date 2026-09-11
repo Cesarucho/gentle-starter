@@ -20,6 +20,24 @@ Builds, installers, setup, postCreate, doctor, and validators are read-only
 consumers. `latest` is resolved only by `deps:update`. Installers consume the
 generated resolutions and never carry local version or checksum defaults.
 
+Go Task is the narrow existing external APT-managed core bootstrap exception.
+It is installed in `01-core` because the Task runner is required before
+the repository can expose its managed workflows. It deliberately remains
+outside `TOOL_*`/`LOCK_*` policy so changing managed tool inputs stays
+downstream of the reusable `foundation` layer. The signed Cloudsmith APT
+repository selects the Task package version and authenticates package metadata
+and integrity. The initial Cloudsmith `setup.deb.sh` repository bootstrap is
+trusted through HTTPS and provider delivery; APT signatures do not authenticate
+that bootstrap script itself.
+
+This exception does not authorize new unmanaged tools. Other core Ubuntu
+packages are collectively provider-managed by the signed Ubuntu APT
+repositories rather than registered as individual managed tools. A Task
+bootstrap failure remains fail-fast; transient Cloudsmith or network failures
+require a manual build retry. The repository has no shared retry policy, so this
+decision adds no Task-specific retry loop or options. Gentle AI retains its
+separately documented bounded-retry exception.
+
 ## Provider strategies
 
 | Provider shape | Intent interpretation |
@@ -73,3 +91,5 @@ compose these steps, but it must not commit.
   foundation cache remains reusable.
 - Adding a tool requires provider classification, updater registration,
   integrity handling, tests, and documentation in one work unit.
+- Task remains a foundation bootstrap exception, not a precedent for bypassing
+  managed policy for new tools.

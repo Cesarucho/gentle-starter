@@ -14,6 +14,9 @@ Run `scripts/inspect-install-tree.sh` from this skill directory, then read the p
    checksums. `deps:update` is the sole mutation authority. Installers retain
    URLs, paths, architecture gates, permissions, and verification, but never
    local version/checksum defaults or release discovery.
+   Go Task is a narrow existing external APT-managed core bootstrap exception:
+   it stays outside policy to preserve the foundation/cache boundary. Do not use
+   it as precedent for a new unmanaged tool.
 5. **Persistent state:** classify each bind as passive or installer-owned. Every repository-managed source uses Compose long syntax with `bind.create_host_path: false` and is prepared before Docker by the host-user `prepare-bind-mounts.sh`/Python path. Passive mounts stop there; installer-owned mounts also require `compose_target_to_install_scripts`, an enabled runtime-safe installer, and idempotent repair tests. Mapping values are installer basenames without `.sh`.
 6. **Config seeding:** baseline user configuration belongs in a versioned `<tool>-config/` tree wired through the repository's copy-on-first-run helper. Preserve existing user files. Never restore the legacy symlink pattern.
 

@@ -2,10 +2,11 @@
 #
 # 15-task.sh — install go-task, the task runner used by Taskfile.yml.
 #
-# go-task is a single static binary but the project installs it via the
-# official apt repo so future updates land through apt. Runs as part of
-# core/ during image build, after 10-system.sh has refreshed the apt
-# indexes and before 90-post-setup-users.sh.
+# External APT-managed core bootstrap: Cloudsmith selects and authenticates the
+# package through its signed APT repository. The initial repository setup script
+# is trusted through HTTPS/provider delivery, not authenticated by APT itself.
+# Task intentionally stays outside TOOL/LOCK policy to preserve the foundation
+# cache boundary. Runs after 10-system.sh and before 90-post-setup-users.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +18,7 @@ if devcontainer_has_cmd task; then
 	exit 0
 fi
 
-devcontainer_log_info "Adding go-task apt repo (cloudsmith)"
+devcontainer_log_info "Adding official go-task Cloudsmith APT repository"
 curl -1sLf "https://dl.cloudsmith.io/public/task/task/setup.deb.sh" |
 	devcontainer_run_as_root bash -
 
