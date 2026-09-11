@@ -98,6 +98,10 @@ the three-piece contract (compose volume + case in
 `compose_target_to_install_scripts` + install script) and the
 step-by-step for adding a new stateful volume.
 
+Current location: the helper now lives at
+`.devcontainer/lifecycle/setup-volumes.sh`; the extraction decision above is
+retained as historical context.
+
 ### 6. Library version defaults in scripts, not in the Dockerfile
 
 The Dockerfile's `ENGRAM_VERSION`, `NODE_MAJOR`, and
@@ -137,7 +141,7 @@ Four surfaces catch a contributor at different moments:
 - `install/templates/install-script.sh` — a "State and volumes"
   section in the header.
 - `.devcontainer/docker-compose.yml` — a comment above
-  `volumes:` pointing to `setup-volumes.sh` and
+  `volumes:` pointing to the volume-repair helper and
   `task install:volumes`.
 - `task install:volumes` — prints the live bind-mount →
   owning-script contract.

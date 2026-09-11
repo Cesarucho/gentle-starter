@@ -7,11 +7,11 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Volume-aware install repair lives in its own file. Sourced (not
 # executed) so the three functions below are in scope and can call
 # each other. The file's header documents the three-piece contract
-# (docker-compose.yml volume + setup-volumes.sh mapping + install/
+# (docker-compose.yml volume + lifecycle/setup-volumes.sh mapping + install/
 # script) that a contributor must keep in sync when adding a new
 # stateful volume.
 # shellcheck source=/dev/null
-source "${SCRIPT_DIR}/setup-volumes.sh"
+source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
 
 # sudo chown -R ${UID}:${UID} ${HOME}/.codex
 
@@ -37,7 +37,7 @@ sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-de
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
-bash "${SCRIPT_DIR}/restore-tracked-modes.sh" "${WORKSPACE_DIR}"
+bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}"
 
 # Copy the file tree under source_root into target_root, but only
 # for files that do NOT already exist at the target (so the user's
@@ -211,7 +211,7 @@ git config --global alias.logline \
 git config --global alias.config-list "config --list --show-origin --show-scope"
 
 # ---------------------------------------------------------------------------
-# Volume-aware install repair is sourced above from setup-volumes.sh.
+# Volume-aware install repair is sourced above from lifecycle/setup-volumes.sh.
 # The functions (resolve_compose_volume_targets,
 # compose_target_to_install_scripts, repair_installed_volumes) are
 # in scope by the time the pipeline below runs.

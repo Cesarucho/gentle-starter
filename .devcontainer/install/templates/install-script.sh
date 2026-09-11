@@ -30,7 +30,7 @@
 #     a. Add the bind mount in .devcontainer/docker-compose.yml.
 #     b. Add a case for the new target path in
 #        compose_target_to_install_scripts in
-#        .devcontainer/setup-volumes.sh, listing this script's
+#        .devcontainer/lifecycle/setup-volumes.sh, listing this script's
 #        base name (without the .sh extension).
 #     c. Keep this script idempotent (use devcontainer_has_cmd at
 #        the top, return 0 if already present) so the repair

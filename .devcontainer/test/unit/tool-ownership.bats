@@ -157,7 +157,7 @@ EOF
 	yq -e '.services."container-svc".volumes[] | select(.source == "../.env.d/.ssh-server" and .target == "/home/ubuntu/.ssh-server" and .bind.create_host_path == false)' "${compose}" >/dev/null
 	local scripts=(sentinel)
 	WORKSPACE_DIR="${REPO_ROOT}"
-	source "${REPO_ROOT}/.devcontainer/setup-volumes.sh"
+	source "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
 	compose_target_to_install_scripts "/home/ubuntu/.ssh-server" scripts
 	[ "${#scripts[@]}" -eq 0 ]
 }

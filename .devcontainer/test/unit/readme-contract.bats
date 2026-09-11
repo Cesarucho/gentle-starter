@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 @test "README repository tree lists current lifecycle surfaces without runtime state" {
 	tree="$(awk '/^## 🗂️ Repository structure/{capture=1} capture && /^## 💾/{exit} capture' "${REPO_ROOT}/README.md")"
 	[[ "${tree}" == *"AGENTS.md.TEMPLATE"* ]]
-	[[ "${tree}" == *"setup-volumes.sh"* ]]
+	[[ "${tree}" == *"lifecycle/"* ]]
 	[[ "${tree}" == *"tool-versions.conf"* ]]
 	[[ "${tree}" != *"openspec/"* ]]
 	[[ "${tree}" != *".env.d/"* ]]

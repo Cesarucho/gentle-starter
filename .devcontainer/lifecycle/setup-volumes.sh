@@ -47,6 +47,7 @@
 # WORKSPACE_DIR, HOME, and UID being set by the caller. Running it
 # directly will not work.
 
+LIFECYCLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 YQ_COMPATIBILITY_PATH="${WORKSPACE_DIR}/.taskfiles/scripts/yq-compatibility.sh"
 # shellcheck source=/dev/null
 source "${YQ_COMPATIBILITY_PATH}"
@@ -55,7 +56,7 @@ source "${YQ_COMPATIBILITY_PATH}"
 resolve_compose_volume_targets() {
 	local compose_file="${WORKSPACE_DIR}/.devcontainer/docker-compose.yml"
 	yq_compatibility_json '.services."container-svc".volumes // []' "${compose_file}" |
-		python3 "${WORKSPACE_DIR}/.devcontainer/compose-volume-records.py"
+		python3 "${LIFECYCLE_DIR}/compose-volume-records.py"
 }
 
 # Map a container-side target path to the install script base names

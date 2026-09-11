@@ -2,9 +2,9 @@
 
 This document is the deep reference for the stateful-volume contract.
 Installer-owned targets tie together `docker-compose.yml`,
-`setup-volumes.sh`, and the `install/available/` scripts. Passive
+`lifecycle/setup-volumes.sh`, and the `install/available/` scripts. Passive
 state mounts use only Compose because no installer owns or populates
-them. The TL;DR lives in the header of `setup-volumes.sh` and in the
+them. The TL;DR lives in the header of `lifecycle/setup-volumes.sh` and in the
 output of `task install:volumes`.
 
 > **Looking for the comprehensive view?** Start at
@@ -25,12 +25,12 @@ identical to this one (the source tree IS the manifest).
 ## The contract in one diagram
 
 ```text
-.docker-compose.yml                    .devcontainer/setup-volumes.sh
+.docker-compose.yml              .devcontainer/lifecycle/setup-volumes.sh
 ┌──────────────────────────────┐         ┌─────────────────────────────────┐
 │ services.container-svc       │         │ resolve_compose_volume_targets │
 │   volumes:                   │ ──────▶ │   reads the volumes block,     │
-│     - type/source/target/bind   │         │   emits source|target pairs    │
-│       long-syntax entries      │         │                                 │
+│     - type/source/target/bind   │         │   emits alternating NUL-      │
+│       long-syntax entries      │         │   terminated source, target   │
 │     - .../opencode/share:...    │         │ compose_target_to_install_     │
 └──────────────────────────────┘         │   scripts(target) -> [names]   │
                                          │                                 │
@@ -143,8 +143,8 @@ packages already persisted in `.env.d/.pi`, and volume repair does not provide
 a purge operation.
 
 So the actual "populate the empty bind mount" moment is inside the
-runtime-only branches of the install scripts, not in `setup-volumes.sh`
-itself. `setup-volumes.sh` is the dispatch; the scripts are the work.
+runtime-only branches of the install scripts, not in `lifecycle/setup-volumes.sh`
+itself. `lifecycle/setup-volumes.sh` is the dispatch; the scripts are the work.
 
 ## Adding a new stateful volume (worked example)
 
@@ -172,7 +172,7 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
    `setup.sh` heredoc for SDKMAN is the model).
 
 3. **Add the target-to-script mapping** in
-   `.devcontainer/setup-volumes.sh` (the `case` block in
+   `.devcontainer/lifecycle/setup-volumes.sh` (the `case` block in
    `compose_target_to_install_scripts`):
 
    ```bash

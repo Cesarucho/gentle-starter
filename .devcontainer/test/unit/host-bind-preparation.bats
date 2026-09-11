@@ -247,7 +247,7 @@ YAML
 @test "relevant lifecycle has no executable base64 or realpath references" {
 	run grep -E '(^|[[:space:]|;])(base64|realpath)([[:space:]]|$)' \
 		"${REPO_ROOT}/.taskfiles/scripts/prepare-bind-mounts.sh" \
-		"${REPO_ROOT}/.devcontainer/setup-volumes.sh"
+		"${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	[ "${status}" -eq 1 ]
 }

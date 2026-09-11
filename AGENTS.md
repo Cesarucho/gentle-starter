@@ -47,7 +47,7 @@ Gentle Starter has four coordinated extension surfaces:
    `01-core/`, ordered symlinks in `02-enabled/`, and user hooks in `03-hooks/`.
    Source installers live in `available/`.
 2. **Persistent state** — `task container:up` prepares managed `.env.d` bind
-   sources as the host user before Docker starts; `.devcontainer/setup-volumes.sh`
+   sources as the host user before Docker starts; `.devcontainer/lifecycle/setup-volumes.sh`
    maps container targets to enabled owner scripts for runtime population.
 3. **Config seeding** (`seed_config_tree` in `.devcontainer/setup.sh`) — copies
    versioned baseline configuration on first run. Do not replace this with

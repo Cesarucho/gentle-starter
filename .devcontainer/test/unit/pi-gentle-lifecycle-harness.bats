@@ -6,7 +6,7 @@ setup() {
 	CAPTURE="${REPO_ROOT}/.devcontainer/test/lifecycle/capture-ssh-hostkey-fingerprints.sh"
 	SNAPSHOT="${REPO_ROOT}/.devcontainer/test/lifecycle/tracked-path-snapshot.py"
 	CREATE_CANDIDATE="${REPO_ROOT}/.devcontainer/test/lifecycle/create-candidate.sh"
-	RESTORE_MODES="${REPO_ROOT}/.devcontainer/restore-tracked-modes.sh"
+	RESTORE_MODES="${REPO_ROOT}/.devcontainer/lifecycle/restore-tracked-modes.sh"
 	TEST_ROOT="$(mktemp -d)"
 	BIN_DIR="${TEST_ROOT}/bin"
 	mkdir "${BIN_DIR}"

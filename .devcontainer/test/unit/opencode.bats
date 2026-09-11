@@ -43,7 +43,8 @@ EOF
 }
 
 prepare_setup_sandbox() {
-	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/install/available" \
+	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/lifecycle" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/available" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled" \
 		"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested" \
 		"${SETUP_WORKSPACE}/.devcontainer/pi-config/agent" \
@@ -55,8 +56,8 @@ prepare_setup_sandbox() {
 		"${HOME_DIR}/.gitconfig-volume" \
 		"${HOME_DIR}/.local/share/opencode"
 	cp "${REPO_ROOT}/.devcontainer/setup.sh" "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
-	cp "${REPO_ROOT}/.devcontainer/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/setup-volumes.sh"
-	cp "${REPO_ROOT}/.devcontainer/restore-tracked-modes.sh" "${SETUP_WORKSPACE}/.devcontainer/restore-tracked-modes.sh"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/restore-tracked-modes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/restore-tracked-modes.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/opencode.json"
@@ -466,7 +467,7 @@ path_metadata() {
 	local scripts=("sentinel")
 	WORKSPACE_DIR="${REPO_ROOT}"
 	# shellcheck source=/dev/null
-	source "${REPO_ROOT}/.devcontainer/setup-volumes.sh"
+	source "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	compose_target_to_install_scripts "/home/ubuntu/.local/share/opencode" scripts
 

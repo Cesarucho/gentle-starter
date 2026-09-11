@@ -388,10 +388,10 @@ cmd_versions_validate() {
 
 # Print the live volume contract: the bind mounts docker-compose.yml
 # declares, the install scripts that own each target, and a step-by-step
-# for adding a new stateful volume. Sources setup-volumes.sh for the
+# for adding a new stateful volume. Sources lifecycle/setup-volumes.sh for the
 # two functions that own the contract (parse + map).
 cmd_volumes() {
-	local setup_volumes="${REPO_ROOT}/.devcontainer/setup-volumes.sh"
+	local setup_volumes="${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
 	local target_path
 	local source_path
 	local scripts=()
@@ -402,7 +402,7 @@ cmd_volumes() {
 	fi
 
 	# Source the contract functions. WORKSPACE_DIR is read at call
-	# time inside setup-volumes.sh; HOME and UID come from the
+	# time inside lifecycle/setup-volumes.sh; HOME and UID come from the
 	# calling shell (UID is bash-readonly, can't be reassigned).
 	# shellcheck disable=SC2034
 	WORKSPACE_DIR="${REPO_ROOT}"
@@ -435,7 +435,7 @@ cmd_volumes() {
 	echo "  1. Add the bind mount to .devcontainer/docker-compose.yml."
 	echo "  2. Add a case for the new target path in"
 	echo "     compose_target_to_install_scripts in"
-	echo "     .devcontainer/setup-volumes.sh, listing the install script's"
+	echo "     .devcontainer/lifecycle/setup-volumes.sh, listing the install script's"
 	echo "     base name (without the .sh extension)."
 	echo "  3. Add the install script in .devcontainer/install/available/."
 	echo "  4. Link it from .devcontainer/install/02-enabled/ if it should"

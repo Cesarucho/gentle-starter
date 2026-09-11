@@ -130,7 +130,7 @@ volumes:
 `task container:up` derives and creates this source as the host user before
 Docker starts. Redis owns this state, so it also needs the repair mapping below.
 
-In `setup-volumes.sh`'s `compose_target_to_install_scripts`:
+In `.devcontainer/lifecycle/setup-volumes.sh`'s `compose_target_to_install_scripts`:
 
 ```bash
 "${HOME}/.redis" | "/var/lib/redis")
@@ -176,7 +176,7 @@ An installer-owned target additionally needs three pieces to agree:
 
 1. The target-to-script mapping: a case in
    `compose_target_to_install_scripts` in
-   `.devcontainer/setup-volumes.sh`.
+   `.devcontainer/lifecycle/setup-volumes.sh`.
 2. The runtime-safe install script in `.devcontainer/install/available/`.
 3. A valid symlink in `02-enabled/` when that potential owner should be active.
 

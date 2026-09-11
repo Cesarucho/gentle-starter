@@ -15,11 +15,11 @@ links from there.
 | `devcontainer.json` | VS Code Dev Containers integration. `postCreateCommand` runs `setup.sh`. |
 | `docker-compose.yml` | Service definition. Stateful bind mounts live here. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
+| `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
 | `test/` | BATS test suite. Run `task test:all` to verify the environment. |
 | `pi-config/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
 | `opencode-config/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
-| `setup-volumes.sh` | Sourced by `setup.sh`. Owns the bind-mount → install-script repair contract for installer-owned state. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
 
 ## The four systems
@@ -30,7 +30,7 @@ The devcontainer has four extension surfaces:
    dependencies. Adding a new tool or a new runtime lands here.
    Deep dive in [`docs/en/install-tree.md`](../docs/en/install-tree.md).
 
-2. **Stateful volumes** (`docker-compose.yml` + `setup-volumes.sh`)
+2. **Stateful volumes** (`docker-compose.yml` + `lifecycle/setup-volumes.sh`)
    — bind mounts that survive rebuilds. Installer-owned targets trigger
    their repair scripts; passive state mounts persist without repair.
    Deep dive in [`docs/en/install-volumes.md`](../docs/en/install-volumes.md).

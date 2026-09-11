@@ -7,14 +7,15 @@ setup() {
 	HOME_DIR="${TEST_ROOT}/home"
 	CALLS_FILE="${TEST_ROOT}/calls"
 
-	mkdir -p "${WORKSPACE}/.devcontainer/install/available" \
+	mkdir -p "${WORKSPACE}/.devcontainer/lifecycle" \
+		"${WORKSPACE}/.devcontainer/install/available" \
 		"${WORKSPACE}/.devcontainer/install/02-enabled" \
 		"${WORKSPACE}/.taskfiles/scripts" \
 		"${HOME_DIR}"
-	cp "${REPO_ROOT}/.devcontainer/setup-volumes.sh" \
-		"${WORKSPACE}/.devcontainer/setup-volumes.sh"
-	cp "${REPO_ROOT}/.devcontainer/compose-volume-records.py" \
-		"${WORKSPACE}/.devcontainer/compose-volume-records.py"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh" \
+		"${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/compose-volume-records.py" \
+		"${WORKSPACE}/.devcontainer/lifecycle/compose-volume-records.py"
 	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
 		"${WORKSPACE}/.taskfiles/scripts/install.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
@@ -57,7 +58,7 @@ run_pi_volume_repair() {
 				printf "../.env.d/.pi\0%s/.pi\0" "${HOME}"
 			}
 			repair_installed_volumes
-		' _ "${WORKSPACE}/.devcontainer/setup-volumes.sh"
+		' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 }
 
 @test "OpenCode is enabled by default in ordered slot 55" {
@@ -90,7 +91,7 @@ run_pi_volume_repair() {
 	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
 		install_script_is_enabled "$2"
-	' _ "${WORKSPACE}/.devcontainer/setup-volumes.sh" \
+	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh" \
 		"${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
 	[ "${status}" -eq 0 ]
 }
@@ -112,7 +113,7 @@ run_pi_volume_repair() {
 	local scripts=()
 	# shellcheck source=/dev/null
 	WORKSPACE_DIR="${WORKSPACE}"
-	source "${WORKSPACE}/.devcontainer/setup-volumes.sh"
+	source "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	compose_target_to_install_scripts "/home/${UID}/.pi" scripts
 
@@ -139,7 +140,7 @@ YAML
 		while IFS= read -r -d "" source && IFS= read -r -d "" target; do
 			printf "%s|%s\n" "$source" "$target"
 		done < <(resolve_compose_volume_targets)
-	' _ "${WORKSPACE}/.devcontainer/setup-volumes.sh"
+	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	[ "${status}" -eq 0 ]
 	[ "${output}" = "../.env.d/.pi|/home/ubuntu/.pi" ]
@@ -158,7 +159,7 @@ YAML
 		while IFS= read -r -d "" source && IFS= read -r -d "" target; do
 			printf "source=<%s> target=<%s>\n" "$source" "$target"
 		done < <(resolve_compose_volume_targets)
-	' _ "${WORKSPACE}/.devcontainer/setup-volumes.sh"
+	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	[ "${status}" -eq 0 ]
 	[ "${output}" = "source=<../.env.d/a|b c> target=<${HOME_DIR}/.pi>" ]

@@ -59,7 +59,7 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 
 @test "only deps-update owns policy replacement" {
 	run grep -R -l -E '(^|[;&|])[[:space:]]*(mv|cp|install)[[:space:]].*tool-versions\.conf' \
-		"${REPO_ROOT}/.devcontainer/install" "${REPO_ROOT}/.devcontainer/setup.sh" "${REPO_ROOT}/.devcontainer/setup-volumes.sh"
+		"${REPO_ROOT}/.devcontainer/install" "${REPO_ROOT}/.devcontainer/setup.sh" "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
 	[ "${status}" -eq 1 ]
 	grep -q 'mv "${CANDIDATE_FILE}" "${POLICY_FILE}"' "${UPDATER}"
 }

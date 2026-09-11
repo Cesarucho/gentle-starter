@@ -318,9 +318,9 @@ task quality:full
 ├── .agents/                         Versioned project skills and local manifest
 ├── .devcontainer/
 │   ├── install/                     Core, enabled, hook, and catalog installers
+│   ├── lifecycle/                   Internal post-create lifecycle helpers
 │   ├── docker-compose.yml           Dev Container service and persistent binds
 │   ├── setup.sh                     Post-create configuration
-│   ├── setup-volumes.sh             Volume-to-installer runtime dispatch
 │   └── tool-versions.conf           Centralized tool-version policy
 ├── .taskfiles/
 │   ├── devcontainer.yml             Host container lifecycle tasks

@@ -8,7 +8,7 @@ services:
       args:
         APP_NAME: ${APP_NAME}
     privileged: true
-    # Bind mounts below persist state. setup-volumes.sh parses each one
+    # Bind mounts below persist state. lifecycle/setup-volumes.sh parses each one
     # at container start. Installer-owned targets map to runtime repair
     # scripts; passive targets, such as OpenCode share state, intentionally
     # have no mapping because the application populates them. Run

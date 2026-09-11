@@ -172,7 +172,7 @@ EOF
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"prepare-bind-mounts.sh"* ]]
 	[[ "${output}" == *"prepare-bind-mounts.py"* ]]
-	[[ "${output}" == *"bind_records: .devcontainer/compose-volume-records.py"* ]]
+	[[ "${output}" == *"bind_records: .devcontainer/lifecycle/compose-volume-records.py"* ]]
 	[[ "${output}" == *"canonical_template: .devcontainer/install/templates/install-script.sh"* ]]
 	[[ "${output}" == *"Policy: .devcontainer/tool-versions.conf"* ]]
 	[[ "${output}" != *"preferred_enabled_name()"* ]]
