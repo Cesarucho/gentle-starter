@@ -94,6 +94,37 @@ seed_config_tree() {
 	done < <(find "${source_root}" -type f)
 }
 
+repair_user_local_parents() {
+	local runtime_uid runtime_gid path path_ownership path_uid
+	local -a repairable_parents=(
+		"${HOME}/.local"
+		"${HOME}/.local/share"
+	)
+	runtime_uid="$(id -u)"
+	runtime_gid="$(id -g)"
+
+	for path in "${repairable_parents[@]}"; do
+		if [ -L "${path}" ] || { [ -e "${path}" ] && [ ! -d "${path}" ]; }; then
+			echo "[setup:error] Refusing unsafe user-local parent: ${path}" >&2
+			return 1
+		fi
+		if [ ! -e "${path}" ]; then
+			continue
+		fi
+
+		path_ownership="$(stat -c '%u:%g' -- "${path}")"
+		path_uid="${path_ownership%%:*}"
+		if [ "${path_uid}" != "${runtime_uid}" ] && [ "${path_uid}" != 0 ]; then
+			echo "[setup:error] Refusing user-local parent with unexpected ownership: ${path} (owner ${path_ownership}, expected UID ${runtime_uid} or root)" >&2
+			return 1
+		fi
+	done
+
+	for path in "${repairable_parents[@]}"; do
+		sudo install -d -m 0755 -o "${runtime_uid}" -g "${runtime_gid}" -- "${path}"
+	done
+}
+
 # Seed base config only for the tools that own each runtime subtree.
 # Each line is a (source_root, target_root) pair that gets handed to
 # seed_config_tree. To add a new tool's baseline config:
@@ -192,6 +223,7 @@ git config --global alias.config-list "config --list --show-origin --show-scope"
 # symlinks and had to be called twice (link, then re-link in case
 # any tool broke the symlinks via atomic replace); with copy, there
 # is nothing to re-link, so one call is enough.
+repair_user_local_parents
 setup_versioned_configs
 if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-pi-coding.sh"; then
 	setup_pi_workspace_trust

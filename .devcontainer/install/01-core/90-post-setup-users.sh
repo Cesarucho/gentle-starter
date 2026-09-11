@@ -23,6 +23,7 @@ devcontainer_run_as_root chmod 0440 /etc/sudoers.d/95-ubuntu
 devcontainer_log_info "Ensuring ubuntu user-local executable directories"
 devcontainer_run_as_root install -d -m 0755 -o "${UID_NAME}" -g "${UID_NAME}" \
 	"${DEVCONTAINER_USER_HOME}/.local" \
-	"${DEVCONTAINER_USER_HOME}/.local/bin"
+	"${DEVCONTAINER_USER_HOME}/.local/bin" \
+	"${DEVCONTAINER_USER_HOME}/.local/share"
 
 devcontainer_log_info "Post-setup users configured"

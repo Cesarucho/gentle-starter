@@ -28,6 +28,7 @@ teardown() {
 	[ "${status}" -eq 0 ]
 	[ "$(stat -c '%U:%G:%a' -- "${HOME_DIR}/.local")" = "ubuntu:ubuntu:755" ]
 	[ "$(stat -c '%U:%G:%a' -- "${HOME_DIR}/.local/bin")" = "ubuntu:ubuntu:755" ]
+	[ "$(stat -c '%U:%G:%a' -- "${HOME_DIR}/.local/share")" = "ubuntu:ubuntu:755" ]
 	implementation="$(cat "${REPO_ROOT}/.devcontainer/install/01-core/90-post-setup-users.sh")"
 	[[ "${implementation}" != *'chown -R'* ]]
 	[[ "${implementation}" != *'DEVCONTAINER_PHASE=runtime'* ]]

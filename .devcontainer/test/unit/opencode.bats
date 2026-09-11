@@ -115,6 +115,10 @@ write_setup_command_stubs() {
 #!/usr/bin/env bash
 exec "$@"
 EOF
+	cat >"${BIN_DIR}/install" <<'EOF'
+#!/usr/bin/env bash
+exec /usr/bin/sudo -n /usr/bin/install "$@"
+EOF
 	cat >"${BIN_DIR}/chown" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -255,7 +259,7 @@ if [ -n "${SETUP_VOLUME_TARGET:-}" ]; then
 	printf '../.env.d/.local:%s\n' "${SETUP_VOLUME_TARGET}"
 fi
 EOF
-	chmod +x "${BIN_DIR}/sudo" "${BIN_DIR}/chown" "${BIN_DIR}/find" "${BIN_DIR}/python3" \
+	chmod +x "${BIN_DIR}/sudo" "${BIN_DIR}/install" "${BIN_DIR}/chown" "${BIN_DIR}/find" "${BIN_DIR}/python3" \
 		"${BIN_DIR}/cp" "${BIN_DIR}/stat" "${BIN_DIR}/git" "${BIN_DIR}/jq" "${BIN_DIR}/yq"
 }
 
@@ -467,4 +471,65 @@ path_metadata() {
 	compose_target_to_install_scripts "/home/ubuntu/.local/share/opencode" scripts
 
 	[ "${#scripts[@]}" -eq 0 ]
+}
+
+@test "setup recovers root-owned local parents and permits OpenTUI state creation" {
+	prepare_setup_sandbox
+	local sentinel_before opencode_before
+	sudo chown 0:0 "${HOME_DIR}/.local" "${HOME_DIR}/.local/share"
+	sudo chown 1234:2345 "${HOME_DIR}/.local/share/opencode" "${OPENCODE_SENTINEL}"
+	sentinel_before="$(sha256sum "${OPENCODE_SENTINEL}")"
+	opencode_before="$(path_metadata "${HOME_DIR}/.local/share/opencode")|$(path_metadata "${OPENCODE_SENTINEL}")"
+
+	run_setup
+
+	[ "${status}" -eq 0 ]
+	[ "$(path_metadata "${HOME_DIR}/.local")" = "$(id -u):$(id -g):755" ]
+	[ "$(path_metadata "${HOME_DIR}/.local/share")" = "$(id -u):$(id -g):755" ]
+	[ "$(path_metadata "${HOME_DIR}/.local/share/opencode")|$(path_metadata "${OPENCODE_SENTINEL}")" = "${opencode_before}" ]
+	[ "$(sha256sum "${OPENCODE_SENTINEL}")" = "${sentinel_before}" ]
+	mkdir -p "${HOME_DIR}/.local/share/opentui/tree-sitter"
+	[ -d "${HOME_DIR}/.local/share/opentui/tree-sitter" ]
+}
+
+@test "setup rejects a foreign-owned local parent without changing its metadata or content" {
+	prepare_setup_sandbox
+	local share_before sentinel_before
+	sudo chown 1234:2345 "${HOME_DIR}/.local/share" "${OPENCODE_SENTINEL}"
+	sudo chmod 0711 "${HOME_DIR}/.local/share"
+	share_before="$(path_metadata "${HOME_DIR}/.local/share")"
+	sentinel_before="$(path_metadata "${OPENCODE_SENTINEL}")|$(sha256sum "${OPENCODE_SENTINEL}")"
+
+	run_setup
+
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"${HOME_DIR}/.local/share (owner 1234:2345, expected UID 1000 or root)"* ]]
+	[ "$(path_metadata "${HOME_DIR}/.local/share")" = "${share_before}" ]
+	[ "$(path_metadata "${OPENCODE_SENTINEL}")|$(sha256sum "${OPENCODE_SENTINEL}")" = "${sentinel_before}" ]
+}
+
+@test "setup rejects a symlinked local parent without changing its target" {
+	prepare_setup_sandbox
+	local protected="${TEST_ROOT}/protected"
+	mkdir "${protected}"
+	printf 'protected\n' >"${protected}/sentinel"
+	rm -rf "${HOME_DIR}/.local"
+	ln -s "${protected}" "${HOME_DIR}/.local"
+
+	run_setup
+
+	[ "${status}" -ne 0 ]
+	[ "$(cat "${protected}/sentinel")" = protected ]
+	[ "$(path_metadata "${protected}")" = "$(id -u):$(id -g):755" ]
+}
+
+@test "setup rejects a non-directory share parent without changing it" {
+	prepare_setup_sandbox
+	rm -rf "${HOME_DIR}/.local/share"
+	printf 'collision\n' >"${HOME_DIR}/.local/share"
+
+	run_setup
+
+	[ "${status}" -ne 0 ]
+	[ "$(cat "${HOME_DIR}/.local/share")" = collision ]
 }

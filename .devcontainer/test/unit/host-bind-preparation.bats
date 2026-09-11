@@ -184,7 +184,7 @@ YAML
 	[[ "${output}" != *"chown -R"* ]]
 }
 
-@test "Compose managed binds fail closed and setup has no mount-root repair layer" {
+@test "Compose managed binds fail closed while setup repair excludes the passive bind root" {
 	cp "${REPO_ROOT}/.devcontainer/docker-compose.yml" "${WORKSPACE}/.devcontainer/docker-compose.yml"
 	write_expected_managed_directories \
 		"${WORKSPACE}/.devcontainer/docker-compose.yml" \
@@ -198,7 +198,7 @@ YAML
 		sed 's|^$|.env.d|; /^\.env\.d$/! s|^|.env.d/|' |
 		sort >"${TEST_ROOT}/actual-managed-directories"
 	cmp -s "${TEST_ROOT}/expected-managed-directories" "${TEST_ROOT}/actual-managed-directories"
-	run grep -E 'prepare_user_owned_mount_roots|repair_exact_directory' "${REPO_ROOT}/.devcontainer/setup.sh"
+	run grep -F '${HOME}/.local/share/opencode' "${REPO_ROOT}/.devcontainer/setup.sh"
 	[ "${status}" -eq 1 ]
 }
 
