@@ -56,6 +56,10 @@ releases start.
   extension entry.
 - Added deterministic devcontainer identity generation for `APP_NAME` and
   `APP_PORT` based on the project directory.
+- Expanded deterministic devcontainer identity to an aligned three-port block
+  for `APP_PORT`, `OPENCODE_PORT`, and `SSH_PORT`. Existing projects receive a
+  new generated `APP_PORT` on their next container task; OpenCode and SSH are
+  published only on host loopback by default.
 - Added devcontainer entrypoints for Pi and Engram TUI.
 - Pinned core AI tooling versions and moved Pi package updates behind the
   manual `task ai:update` workflow.

@@ -35,14 +35,15 @@ normalize_name() {
 
 generate_code() {
 	local normalized_name="$1"
-	local range=$((MAX_PORT - MIN_PORT + 1))
+	local block_size=3
+	local block_count=$(((MAX_PORT - MIN_PORT + 1) / block_size))
 
 	local hash
 	hash="$(printf "%s" "$normalized_name" | sha256sum | cut -c1-8)"
 
 	local decimal=$((16#$hash))
 
-	echo $((MIN_PORT + (decimal % range)))
+	echo $((MIN_PORT + block_size * (decimal % block_count)))
 }
 
 main() {

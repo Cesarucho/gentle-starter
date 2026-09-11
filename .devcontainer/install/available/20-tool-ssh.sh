@@ -10,15 +10,15 @@
 #   * Pubkey authentication only (no password auth)
 #   * Root login disabled
 #   * PermitRootLogin no
-#   * Port forced to 22 inside container (exposed as 2222 in compose)
+#   * Port forced to 22 inside container (published on generated SSH_PORT at host loopback)
 #
 # Usage:
 #   # Inside the container:
 #   start-sshd              # start sshd (idempotent: no-op if already running)
 #   start-sshd --regenerate # regenerate host keys first, then start
 #
-#   # From remote PC (same WiFi):
-#   ssh -p 2222 ubuntu@<host-ip>
+#   # From the host:
+#   ssh -p <SSH_PORT from .env> ubuntu@127.0.0.1
 #
 # To enable: create symlink in 02-enabled/ (opt-in; not enabled by default)
 

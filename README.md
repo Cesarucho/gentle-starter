@@ -122,6 +122,15 @@ On your PC you need:
     If you use an **IDE**, first run `task container:up` to prepare host bind
     sources. Then use `Dev Containers: Reopen in Container` or its equivalent.
 
+    The container tasks normalize the project directory name and deterministically
+    generate one non-overlapping three-port block in `10000..59999`. They rewrite
+    `APP_PORT`, `OPENCODE_PORT`, and `SSH_PORT` in both `.devcontainer/.env` and
+    `.env` while preserving unrelated content. The mappings are app-to-same-port,
+    OpenCode-to-`4096`, and SSH-to-`22`; the two administrative mappings bind only
+    to host loopback. These generated values are authoritative on every container
+    task, so edit the project name—not the generated port entries—to change the
+    block. Docker reports host-port collisions normally.
+
 2. Inside the container, you can use any tool normally. If you are using an **IDE**, look for the option to open its terminal.
 
     ```bash

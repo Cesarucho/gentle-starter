@@ -8,6 +8,8 @@ SERVICE="container-svc"
 RUN_ROOT=""
 CANDIDATE=""
 PROJECT=""
+APP_PORT=""
+OPENCODE_PORT=""
 SSH_PORT=""
 PRIVATE_DIR=""
 CLEANUP_FAILED=0
@@ -88,30 +90,17 @@ candidate_snapshot() {
 		"${PRIVATE_DIR}/candidate.manifest" "${CANDIDATE}" "${output}"
 }
 
-allocate_port() {
-	python3 - <<'PY'
-import socket
-with socket.socket() as sock:
-    sock.bind(("127.0.0.1", 0))
-    print(sock.getsockname()[1])
-PY
-}
-
 configure_candidate() {
 	local compose="${CANDIDATE}/.devcontainer/docker-compose.yml"
 	local devcontainer="${CANDIDATE}/.devcontainer/devcontainer.json"
-	python3 - "${compose}" "${PROJECT}" "${SSH_PORT}" <<'PY'
+	python3 - "${compose}" "${PROJECT}" <<'PY'
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 text = path.read_text()
 if not text.startswith("services:\n"):
     raise SystemExit("unexpected Compose structure")
-needle = '      # - "2222:22" # SSH (open to LAN at your own risk)'
-if needle not in text:
-    raise SystemExit("SSH port marker not found")
 text = f'name: "{sys.argv[2]}"\n' + text
-text = text.replace(needle, f'      - "127.0.0.1:{sys.argv[3]}:22" # harness-only SSH')
 path.write_text(text)
 PY
 	# Agent forwarding is unrelated to this proof and may refer to an unavailable host socket.
@@ -124,9 +113,11 @@ needle = '        "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
 text = text.replace(',\n' + needle, '')
 path.write_text(text)
 PY
-	printf 'APP_NAME=%s\nAPP_PORT=%s\n' "${PROJECT}" "$(allocate_port)" >"${CANDIDATE}/.devcontainer/.env"
-	printf 'APP_NAME=%s\nAPP_PORT=%s\nSSH_AUTHORIZED_KEYS="%s"\n' \
-		"${PROJECT}" "$(allocate_port)" "$(<"${PRIVATE_DIR}/client_key.pub")" >"${CANDIDATE}/.env"
+	printf 'APP_NAME=%s\nAPP_PORT=%s\nOPENCODE_PORT=%s\nSSH_PORT=%s\n' \
+		"${PROJECT}" "${APP_PORT}" "${OPENCODE_PORT}" "${SSH_PORT}" >"${CANDIDATE}/.devcontainer/.env"
+	printf 'APP_NAME=%s\nAPP_PORT=%s\nOPENCODE_PORT=%s\nSSH_PORT=%s\nSSH_AUTHORIZED_KEYS="%s"\n' \
+		"${PROJECT}" "${APP_PORT}" "${OPENCODE_PORT}" "${SSH_PORT}" \
+		"$(<"${PRIVATE_DIR}/client_key.pub")" >"${CANDIDATE}/.env"
 	chmod 0600 "${CANDIDATE}/.env" "${PRIVATE_DIR}"/*
 }
 
@@ -191,10 +182,12 @@ git ls-files --stage -z >"${PRIVATE_DIR}/candidate.manifest"
 PROJECT="pi-gentle-$(date +%s)-$$"
 PROJECT="$(printf '%s' "${PROJECT}" | tr '[:upper:]_' '[:lower:]-' | tr -cd 'a-z0-9-')"
 CANDIDATE="${RUN_ROOT}/${PROJECT}"
-SSH_PORT="$(allocate_port)"
 
 note "creating Git-backed candidate in isolated run ${RUN_ROOT##*/}"
 bash "${HARNESS_DIR}/create-candidate.sh" "${ROOT}" "${CANDIDATE}"
+APP_PORT="$(cd "${CANDIDATE}" && bash .taskfiles/scripts/project-identity.sh -o code)"
+OPENCODE_PORT="$((APP_PORT + 1))"
+SSH_PORT="$((APP_PORT + 2))"
 ssh-keygen -q -t ed25519 -N '' -f "${PRIVATE_DIR}/client_key"
 configure_candidate
 candidate_snapshot "${PRIVATE_DIR}/candidate.configured"

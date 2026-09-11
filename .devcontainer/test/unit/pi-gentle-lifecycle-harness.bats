@@ -141,9 +141,11 @@ capture_fingerprints() {
 	[[ "${configuration}" != *'SSH_AUTHORIZED_KEYS'"'"' >"${CANDIDATE}/.devcontainer/.env"'"'"* ]]
 }
 
-@test "lifecycle harness uses a literal loopback SSH mapping in the candidate" {
-	grep -Fq "127.0.0.1:{sys.argv[3]}:22" "${HARNESS}"
-	! grep -Fq '${SSH_HOST_PORT}' "${HARNESS}"
+@test "lifecycle harness uses generated ports with the repository loopback mapping" {
+	configuration="$(awk '/^configure_candidate\(\)/,/^}/' "${HARNESS}")"
+	grep -Fq '"127.0.0.1:${SSH_PORT}:22"' "${REPO_ROOT}/.devcontainer/docker-compose.yml"
+	[[ "${configuration}" == *'OPENCODE_PORT=%s\nSSH_PORT=%s\n'* ]]
+	! grep -Fq '2222:22' "${HARNESS}"
 }
 
 @test "lifecycle harness resolves the actual service container through Compose" {
