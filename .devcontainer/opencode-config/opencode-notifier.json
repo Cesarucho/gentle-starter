@@ -24,7 +24,7 @@
   },
   "events": {
     "permission": { "sound": true, "notification": true, "command": true, "bell": false },
-    "complete": { "sound": true, "notification": true, "command": true, "bell": false },
+    "complete": { "sound": true, "notification": false, "command": true, "bell": false },
     "subagent_complete": { "sound": false, "notification": false, "command": true, "bell": false },
     "error": { "sound": true, "notification": true, "command": true, "bell": false },
     "question": { "sound": true, "notification": true, "command": true, "bell": false },
