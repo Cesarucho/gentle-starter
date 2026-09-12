@@ -3,6 +3,9 @@
   "server": {
     "hostname": "0.0.0.0"
   },
+  "plugin": [
+    "@mohak34/opencode-notifier@latest"
+  ],
   "agent": {
     "explore": {
       "description": "Freeform exploration fallback agent",
@@ -474,7 +477,7 @@
       "*": "ask",
       "/tmp/**": "allow",
       "~/.config/opencode/**": "allow",
-      "~/tmp": "allow"
+      "~/tmp/**": "allow"
     }
   },
   "share": "disabled"

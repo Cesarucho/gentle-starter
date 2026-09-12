@@ -261,3 +261,55 @@ PY
 
   [ "$status" -eq 1 ]
 }
+
+@test "both tasks use the shared manifest for new and modified notifier exports" {
+  local runtime="${HOME_FIXTURE}/.config/opencode"
+  local seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
+  local state
+  printf '{"legacy":true}\r\n' >"${runtime}/opencode.jsonc"
+  cp "${runtime}/opencode.jsonc" "${FIXTURE}/legacy-before"
+
+  for state in new modified; do
+    printf '{"terminal":"ghostty","state":"%s"}\r\n' "$state" >"${runtime}/opencode-notifier.json"
+    cp "${runtime}/opencode-notifier.json" "${FIXTURE}/notifier-before"
+
+    run task --exit-code --dir "${REPOSITORY_ROOT}" config:diff -- \
+      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"${state}: OpenCode: opencode-notifier.json"* ]]
+    [[ "$output" == *"candidates=0"* ]]
+    [[ "$output" != *"OpenCode: opencode.jsonc"* ]]
+    cmp "${FIXTURE}/notifier-before" "${runtime}/opencode-notifier.json"
+    cmp "${FIXTURE}/legacy-before" "${runtime}/opencode.jsonc"
+
+    run task --exit-code --dir "${REPOSITORY_ROOT}" config:export -- \
+      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Exported: files=1"* ]]
+    cmp "${FIXTURE}/notifier-before" "${seed}/opencode-notifier.json"
+    cmp "${FIXTURE}/notifier-before" "${runtime}/opencode-notifier.json"
+    cmp "${FIXTURE}/legacy-before" "${runtime}/opencode.jsonc"
+    [ ! -e "${seed}/opencode.jsonc" ]
+    commit_fixture "export ${state} notifier"
+
+    run_helper diff
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "legacy jsonc alone is excluded without reintroducing its removed seed" {
+  [ ! -e "${REPOSITORY_ROOT}/.devcontainer/opencode-config/opencode.jsonc" ]
+  printf '{"legacy":true}\r\n' >"${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
+  cp "${HOME_FIXTURE}/.config/opencode/opencode.jsonc" "${FIXTURE}/legacy-before"
+
+  run_helper diff
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"excluded-files=1"* ]]
+  [[ "$output" == *"candidates=0"* ]]
+
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=0"* ]]
+  [ ! -e "${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.jsonc" ]
+  cmp "${FIXTURE}/legacy-before" "${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
+}

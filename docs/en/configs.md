@@ -44,7 +44,13 @@ deletes seed files: a missing runtime file remains only a report item. The
 operation refuses before writing when either seed tree has tracked, staged, or
 untracked changes. Unrelated repository changes do not block it.
 
-The allowlist and exclusions live in `.devcontainer/config-export.json`.
+Both tasks use the same allowlist and exclusions in
+`.devcontainer/config-export.json`, including managed `opencode-notifier.json`.
+`opencode.jsonc` is excluded from both tasks and is no longer shipped as a seed;
+its unique settings are not merged into `opencode.json`. Existing runtime
+`~/.config/opencode/opencode.jsonc` files are left untouched and may remain
+active: neither export nor seeding automatically deletes them.
+
 Credentials, sessions, package stores, logs, caches, and generated profile
 history are excluded. Exclusions override managed patterns. Review every Git
 diff before committing because allowlisted configuration may still contain
