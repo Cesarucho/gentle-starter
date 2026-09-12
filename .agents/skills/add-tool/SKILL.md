@@ -20,6 +20,9 @@ Use for repository-managed dev-tool additions/replacements, provider or mechanis
 - Classify every tool by provider and intent strategy. Only `deps:update` may
   resolve versions or integrity and modify the single policy file.
 - Never add installer-local version/checksum defaults or build-time discovery.
+- Keep Compose selection independent from installer activation; do not integrate
+  overrides into enable/disable. Require Task host preparation and applied
+  manifest identity before runtime state repair; IDEs attach only.
 
 ## Decision Gates
 

@@ -50,6 +50,12 @@ Run directly applicable BATS files first. Validate changed shell with `bash -n`,
 - Exact pins remain unchanged; latest retains user intent; compatibility
   lanes and PlantUML year lanes cannot be crossed.
 - Tests and documentation ship in the same reviewable work unit.
+- Verify ordered override selection, Compose-owned merging, input freshness,
+  relevant host-volume interpolation fingerprints, atomic manifest publication,
+  and rejection of unapplied desired mounts before runtime repair.
+- Test external sockets without creating directories or touching host sockets;
+  use fake ownership and sudo in isolated fixtures. Unit tests never prove final
+  host forwarding, SSH reachability, notifications, or audible playback.
 
 ## Host and clean-flow verification
 

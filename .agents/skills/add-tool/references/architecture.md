@@ -26,7 +26,23 @@ Build installers normally run as root with `DEVCONTAINER_PHASE=build`. PostCreat
 
 Runtime-only tools must explicitly skip build and reject accidental root execution when user ownership matters. Global binary installation must not invoke commands that create or rewrite user configuration.
 
-Host preparation parses complete Compose JSON in Python and creates only missing managed path components as the invoking user with exact mode `0755`. It preserves existing paths and descendants, fails on symlinks, files, or foreign ownership, and never performs recursive or container-runtime ownership repair. Keep structured records as JSON or NUL-delimited fields; never split on ad hoc delimiters, execute base64 transport, or depend on a PATH-resolved `realpath`.
+Host Task preparation lets Docker Compose resolve the service and ordered files
+from JSONC. Keep full config in memory; atomically publish only the versioned
+volume projection with input/source fingerprints. Normalize managed sources to
+workspace-relative `.env.d` paths. Create only missing components as the host
+user with exact mode `0755`; preserve existing paths and descendants and reject
+symlinks, files, and foreign ownership. Never prepare external sockets as
+directories. Runtime requires fresh repository inputs and the creation-time
+manifest identity before any mutation; desired mounts alone are insufficient.
+Check producer completion before dispatch, not through unchecked process
+substitution. Use JSON or NUL records, never delimiter splitting or base64 eval.
+
+Select independent Pi, SSH-agent, SSH-server, and audio overrides manually in
+`devcontainer.json`; installer enable/disable integration is deferred. Mount
+changes require Task recreation, package changes Task rebuilding. SSH client is
+downstream/default; server needs both installer and persisted-key override.
+Pulse clients are downstream/optional; `HOST_UID` only locates the host socket
+after the host guard, never container identity. Preserve foundation cache inputs.
 
 ## Lessons from Gentle AI
 
