@@ -3,9 +3,9 @@
     "dockerComposeFile": [
         "./docker-compose.yml"
         // , "./docker-compose.pi.yml"
-        // , "./docker-compose.ssh-agent.yml"
-        // , "./docker-compose.ssh-server.yml"
-        // , "./docker-compose.audio.yml"
+        , "./docker-compose.ssh-agent.yml"
+        , "./docker-compose.ssh-server.yml"
+        , "./docker-compose.audio.yml"
     ],
     "service": "container-svc",
     "workspaceFolder": "/home/ubuntu/${localEnv:APP_NAME}",
