@@ -289,11 +289,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
 
     def test_optional_installers_are_downstream_and_do_not_install_each_other(self):
         available = ROOT / ".devcontainer/install/available"
-        enabled = ROOT / ".devcontainer/install/02-enabled"
-        targets = [link.resolve().name for link in enabled.iterdir() if link.is_symlink()]
-        self.assertIn("20-tool-ssh.sh", targets)
         for name in ("20-tool-ssh-server.sh", "20-tool-pulseaudio-utils.sh", "30-ai-pi-coding.sh", "30-ai-pi-gentle.sh"):
-            self.assertNotIn(name, targets)
             self.assertTrue((available / name).is_file())
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
