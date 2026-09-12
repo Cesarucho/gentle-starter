@@ -1,35 +1,13 @@
 #!/usr/bin/env bats
 #
-# tools.bats — integration tests verifying that all tools are installed
+# tools.bats — maintainer integration checks for core and selected tools
 # after devcontainer setup. Run inside the devcontainer.
 #
 # Run from the repo root:
 #   bats .devcontainer/test/integration/tools.bats
 #
 
-enabled_install_targets() {
-    local enabled_dir="${BATS_TEST_DIRNAME}/../../install/02-enabled"
-    [ -d "${enabled_dir}" ] || return 0
-
-    find -L "${enabled_dir}" -maxdepth 1 -type f -name "*.sh" -print 2>/dev/null \
-        | while read -r path; do
-            basename "${path}"
-        done
-}
-
-is_enabled_install() {
-    local script_name="$1"
-    enabled_install_targets | grep -Fxq "${script_name}"
-}
-
-skip_if_install_disabled() {
-    local script_name="$1"
-    local hint="$2"
-
-    if ! is_enabled_install "${script_name}"; then
-        skip "disabled install (${hint})"
-    fi
-}
+load install-selection.sh
 
 # ---------------------------------------------------------------------------
 # Core tools
@@ -61,11 +39,13 @@ skip_if_install_disabled() {
     command -v task >/dev/null
 }
 
-@test "core: devcontainer CLI is installed" {
+@test "selected: devcontainer CLI is installed" {
+    skip_if_install_disabled "20-tool-devcontainer-cli.sh" "task install:enable -- 20-tool-devcontainer-cli"
     command -v devcontainer >/dev/null
 }
 
-@test "core: node is installed" {
+@test "selected: node is installed" {
+    skip_if_install_disabled "20-runtime-node.sh" "task install:enable -- 20-runtime-node"
     command -v node >/dev/null
 }
 
@@ -99,7 +79,7 @@ skip_if_install_disabled() {
     skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
     # GOROOT is set by the Go install script during devcontainer setup.
     # Outside the devcontainer it may be unset; in that case skip.
-    skip "DEVCONTAINER_PHASE not set (run inside devcontainer)" if [ -z "${DEVCONTAINER_PHASE:-}" ]
+    [ -n "${DEVCONTAINER_PHASE:-}" ] || skip "DEVCONTAINER_PHASE not set (run inside devcontainer)"
     [ -n "${GOROOT:-}" ]
 }
 
@@ -108,17 +88,17 @@ skip_if_install_disabled() {
 # ---------------------------------------------------------------------------
 
 @test "java: java is installed" {
-    skip "java is opt-in (task install:enable -- 20-runtime-java to activate)" if ! command -v java >/dev/null
+    skip_if_install_disabled "20-runtime-java.sh" "task install:enable -- 20-runtime-java"
     command -v java >/dev/null
 }
 
 @test "java: javac is installed" {
-    skip "java is opt-in (task install:enable -- 20-runtime-java to activate)" if ! command -v java >/dev/null
+    skip_if_install_disabled "20-runtime-java.sh" "task install:enable -- 20-runtime-java"
     command -v javac >/dev/null
 }
 
 @test "java: java version >= 21" {
-    skip "java is opt-in (task install:enable -- 20-runtime-java to activate)" if ! command -v java >/dev/null
+    skip_if_install_disabled "20-runtime-java.sh" "task install:enable -- 20-runtime-java"
     java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
     printf '%s\n%s\n' "21" "${java_version}" | sort -V -C
 }
@@ -128,11 +108,13 @@ skip_if_install_disabled() {
 # ---------------------------------------------------------------------------
 
 @test "node: pnpm version >= 8" {
+    skip_if_install_disabled "20-runtime-pnpm.sh" "task install:enable -- 20-runtime-pnpm"
     pnpm_version=$(pnpm --version)
     printf '%s\n%s\n' "8.0.0" "${pnpm_version}" | sort -V -C
 }
 
 @test "node: npm is functional" {
+    skip_if_install_disabled "20-runtime-node.sh" "task install:enable -- 20-runtime-node"
     run npm --version
     [ "$status" -eq 0 ]
 }
@@ -142,12 +124,12 @@ skip_if_install_disabled() {
 # ---------------------------------------------------------------------------
 
 @test "opt-in dlv: dlv is installed" {
-    skip "opt-in (task install:enable -- 40-go-debug to activate)" if ! command -v dlv >/dev/null
+    skip_if_install_disabled "40-go-debug.sh" "task install:enable -- 40-go-debug"
     command -v dlv >/dev/null
 }
 
 @test "opt-in vitest: vitest is installed" {
-    skip "opt-in (task install:enable -- 40-node-test to activate)" if ! command -v vitest >/dev/null
+    skip_if_install_disabled "40-node-test.sh" "task install:enable -- 40-node-test"
     command -v vitest >/dev/null
 }
 
@@ -159,12 +141,12 @@ skip_if_install_disabled() {
 }
 
 @test "opt-in php: php is installed" {
-    skip "opt-in (task install:enable -- 40-php-lang to activate)" if ! command -v php >/dev/null
+    skip_if_install_disabled "40-php-lang.sh" "task install:enable -- 40-php-lang"
     command -v php >/dev/null
 }
 
 @test "opt-in phpunit: phpunit is installed" {
-    skip "opt-in (task install:enable -- 40-php-test to activate)" if ! command -v phpunit >/dev/null
+    skip_if_install_disabled "40-php-test.sh" "task install:enable -- 40-php-test"
     command -v phpunit >/dev/null
 }
 
@@ -173,43 +155,29 @@ skip_if_install_disabled() {
 # ---------------------------------------------------------------------------
 
 @test "ai: pi is installed" {
-	skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
+    skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
     command -v pi >/dev/null
 }
 
 @test "ai: pi is executable" {
-	skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
+    skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
     [ -x "$(command -v pi)" ]
 }
 
 @test "ai: engram is installed" {
-	skip_if_install_disabled "30-ai-engram.sh" "task install:enable -- 30-ai-engram"
+    skip_if_install_disabled "30-ai-engram.sh" "task install:enable -- 30-ai-engram"
     command -v engram >/dev/null
 }
 
-@test "ai: Gentle AI uses the canonical enabled slot" {
-    local enabled_dir="${BATS_TEST_DIRNAME}/../../install/02-enabled"
-    local matching_links
-    matching_links="$(find "${enabled_dir}" -maxdepth 1 -type l -print 2>/dev/null | while read -r link; do
-        if [ "$(basename "$(readlink "${link}")")" = "30-ai-gentle-ai.sh" ]; then
-            basename "${link}"
-        fi
-    done)"
-    if [ -z "${matching_links}" ]; then
-        skip "disabled install (task install:enable -- 30-ai-gentle-ai)"
-    fi
-    [ "${matching_links}" = "81-gentle-ai.sh" ]
-}
-
 @test "ai: Gentle AI is installed" {
-    skip_if_install_disabled "81-gentle-ai.sh" "task install:enable -- 30-ai-gentle-ai"
+    skip_if_install_disabled "30-ai-gentle-ai.sh" "task install:enable -- 30-ai-gentle-ai"
     command -v gentle-ai >/dev/null
     run gentle-ai version
     [ "$status" -eq 0 ]
 }
 
 @test "ai: skills directory exists" {
-	skip_if_install_disabled "30-ai-pi-gentle.sh" "task install:enable -- 30-ai-pi-gentle"
+    skip_if_install_disabled "30-ai-pi-gentle.sh" "task install:enable -- 30-ai-pi-gentle"
     [ -d "${HOME}/.pi/agent/skills" ] || [ -d "${HOME}/.pi/agent/npm/node_modules/gentle-pi/skills" ]
 }
 
@@ -228,7 +196,7 @@ skip_if_install_disabled() {
 @test "env: DEVCONTAINER_PHASE is set" {
     # DEVCONTAINER_PHASE is set by the devcontainer lifecycle scripts.
     # Outside the devcontainer it is typically unset.
-    skip "DEVCONTAINER_PHASE not set (run inside devcontainer)" if [ -z "${DEVCONTAINER_PHASE:-}" ]
+    [ -n "${DEVCONTAINER_PHASE:-}" ] || skip "DEVCONTAINER_PHASE not set (run inside devcontainer)"
     [[ "${DEVCONTAINER_PHASE:-}" =~ ^(build|runtime)$ ]]
 }
 

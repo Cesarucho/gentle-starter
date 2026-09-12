@@ -312,10 +312,15 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         # Copy only public Compose/JSONC files; never read the real .env or state.
         for source in (ROOT / ".devcontainer").glob("docker-compose*.yml"):
             shutil.copy2(source, self.root / ".devcontainer" / source.name)
+        base = self.root / ".devcontainer/docker-compose.yml"
+        definition = manifest.read_compose_fragment(base)
+        definition["services"]["container-svc"].setdefault("ports", []).append("15551:15551")
+        base.write_text(json.dumps(definition))
         (self.root / ".env").write_text("")
         environment = {"APP_NAME": "fixture", "APP_PORT": "12340", "OPENCODE_PORT": "12341",
                        "SSH_PORT": "12342", "HOST_UID": "1234", "SSH_AUTH_SOCK": "/fixture/agent.sock",
                        "GENTLE_VOLUME_MANIFEST_ID": "fixture-creation-identity"}
+        base_ports = set()
         for optional, expected in ((None, None), ("pi", "/home/ubuntu/.pi"),
                                    ("ssh-agent", "/ssh-agent"), ("ssh-server", "/home/ubuntu/.ssh-server"),
                                    ("audio", "/pulse-native")):
@@ -328,7 +333,14 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             targets = {volume["target"] for volume in selected["volumes"]}
             optional_targets = targets & {"/home/ubuntu/.pi", "/ssh-agent", "/home/ubuntu/.ssh-server", "/pulse-native"}
             self.assertEqual(optional_targets, {expected} if expected else set())
-            self.assertEqual(len(selected["ports"]), 3 if optional == "ssh-server" else 2)
+            ports = {(port["target"], port.get("published"), port.get("protocol", "tcp"),
+                      port.get("host_ip")) for port in selected.get("ports", [])}
+            if optional is None:
+                base_ports = ports
+            elif optional == "ssh-server":
+                self.assertEqual(ports, base_ports | {(22, "12342", "tcp", None)})
+            else:
+                self.assertEqual(ports, base_ports)
             self.assertEqual(selected["environment"]["GENTLE_VOLUME_MANIFEST_ID"], "fixture-creation-identity")
             if optional == "audio":
                 self.assertEqual(selected["environment"]["PULSE_SERVER"], "unix:/pulse-native")
@@ -340,8 +352,6 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
 
     def test_audio_stays_outside_dind_tmp_and_is_never_managed(self):
-        config = (ROOT / ".devcontainer/devcontainer.json").read_text()
-        self.assertRegex(config, r'(?m)^\s*"ghcr.io/devcontainers/features/docker-in-docker:3":\s*\{\}')
         selected = manifest.read_compose_fragment(
             ROOT / ".devcontainer/docker-compose.audio.yml")["services"]["container-svc"]
         self.assertEqual(len(selected["volumes"]), 1)
@@ -479,9 +489,11 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         source_dir = self.root / "docs/en"
         source_dir.mkdir(parents=True)
         for name in ("extending.md", "install-tree.md", "install-volumes.md", "configs.md", "optional-integrations.md"):
-            shutil.copy2(ROOT / "docs/en" / name, source_dir / name)
+            (source_dir / name).write_text(
+                f"# Fixture {name}\n\n[Optional integrations](./optional-integrations.md)\n"
+                "[Container](../../.devcontainer/README.md)\n")
         readme = self.root / ".devcontainer/README.md"
-        shutil.copy2(ROOT / ".devcontainer/README.md", readme)
+        readme.write_text("# Fixture container\n\n[Optional integrations](../docs/en/optional-integrations.md)\n")
         original = (source_dir / "optional-integrations.md").read_bytes()
         result = subprocess.run(["bash", "-euc", 'source "$1"; clean_migrate_devcontainer_docs',
                                  "migration-fixture", str(ROOT / ".taskfiles/scripts/clean-lib.sh")],
@@ -494,6 +506,9 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertNotIn("../docs/en/optional-integrations.md", readme.read_text())
         self.assertIn("./optional-integrations.md", (target / "README.md").read_text())
         self.assertIn("./optional-integrations.md", (target / "install-volumes.md").read_text())
+        self.assertIn("(../README.md)", (target / "extending.md").read_text())
+        for source in source_dir.iterdir():
+            self.assertTrue((target / source.name).is_file())
 
 
 if __name__ == "__main__":

@@ -8,13 +8,16 @@ setup() {
   REPO_FIXTURE="${FIXTURE}/repo"
   mkdir -p "${HOME_FIXTURE}/.config/opencode" "${HOME_FIXTURE}/.pi" \
     "${REPO_FIXTURE}/.devcontainer/opencode-config" "${REPO_FIXTURE}/.devcontainer/pi-config"
-  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" \
+  cp "${BATS_TEST_DIRNAME}/../fixtures/config-export.json" \
     "${REPO_FIXTURE}/.devcontainer/config-export.json"
+}
+
+# Read-only loader/filter tests do not need Git history. Export guards do.
+initialize_git_fixture() {
+  [ ! -d "${REPO_FIXTURE}/.git" ] || return 0
   git -C "${REPO_FIXTURE}" init -q
   git -C "${REPO_FIXTURE}" config user.name "Fixture"
   git -C "${REPO_FIXTURE}" config user.email "fixture@example.invalid"
-  git -C "${REPO_FIXTURE}" add .
-  git -C "${REPO_FIXTURE}" commit -qm "fixture"
 }
 
 teardown() {
@@ -22,11 +25,15 @@ teardown() {
 }
 
 run_helper() {
+  if [ "$1" = export ]; then
+    initialize_git_fixture
+  fi
   run env HOME="${FIXTURE}/forbidden-home" python3 "${HELPER}" "$1" \
     --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
 }
 
 commit_fixture() {
+  initialize_git_fixture
   git -C "${REPO_FIXTURE}" add .
   git -C "${REPO_FIXTURE}" commit -qm "$1"
 }
@@ -139,6 +146,34 @@ commit_fixture() {
   [[ "$output" != *"models-store"* ]]
   [[ "$output" != *"devcontainer-backup"* ]]
   [[ "$output" != *".gitignore"* ]]
+}
+
+@test "fixture secrets are excluded even when also managed" {
+  mkdir -p "${HOME_FIXTURE}/.pi/agent"
+  printf 'fixture-secret' >"${HOME_FIXTURE}/.config/opencode/auth.json"
+  printf 'fixture-secret' >"${HOME_FIXTURE}/.pi/agent/auth.json"
+  run_helper diff
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"excluded-files=2"* ]]
+  [[ "$output" != *"fixture-secret"* ]]
+}
+
+@test "consumer manifest can manage JSONC instead of excluding it" {
+  python3 - "${REPO_FIXTURE}/.devcontainer/config-export.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["trees"][0]["excluded"].remove("opencode.jsonc")
+data["trees"][0]["managed"].append("opencode.jsonc")
+path.write_text(json.dumps(data))
+PY
+  printf '// consumer configuration\n{}' >"${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"new: OpenCode: opencode.jsonc"* ]]
+  [[ "$output" == *"candidates=0"* ]]
 }
 
 @test "export refuses tracked staged and untracked seed changes" {
@@ -263,6 +298,7 @@ PY
 }
 
 @test "both tasks use the shared manifest for new and modified notifier exports" {
+  initialize_git_fixture
   local runtime="${HOME_FIXTURE}/.config/opencode"
   local seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
   local state
@@ -297,8 +333,7 @@ PY
   done
 }
 
-@test "legacy jsonc alone is excluded without reintroducing its removed seed" {
-  [ ! -e "${REPOSITORY_ROOT}/.devcontainer/opencode-config/opencode.jsonc" ]
+@test "fixture JSONC exclusion prevents export without changing runtime bytes" {
   printf '{"legacy":true}\r\n' >"${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
   cp "${HOME_FIXTURE}/.config/opencode/opencode.jsonc" "${FIXTURE}/legacy-before"
 

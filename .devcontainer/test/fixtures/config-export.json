@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "trees": [
+    {
+      "name": "OpenCode",
+      "runtime": ".config/opencode",
+      "seed": ".devcontainer/opencode-config",
+      "managed": ["AGENTS.md", "opencode.json", "tui.json", "opencode-notifier.json", "commands/**", "profile-versions/**", "auth.json"],
+      "excluded": ["opencode.jsonc", ".git/**", ".gitignore", "profile-versions/**", "auth.json", "credentials.json", "sessions/**", "state/**"]
+    },
+    {
+      "name": "Pi",
+      "runtime": ".pi",
+      "seed": ".devcontainer/pi-config",
+      "managed": ["agent/settings.json", "agent/mcp.json", "agent/subagents.json"],
+      "excluded": ["agent/state/**", "agent/sessions/**", "agent/intercom/**", "agent/bin/**", "agent/chains/**", "agent/agents/**", "agent/gentle-ai/**", "agent/pi-pretty/**", "agent/auth.json", "agent/trust.json", "agent/APPEND_SYSTEM.md", "agent/models-store.json", "agent/mcp-cache.json", "agent/mcp-npx-cache.json", "agent/mcp.json.devcontainer-backup.*"]
+    }
+  ]
+}
