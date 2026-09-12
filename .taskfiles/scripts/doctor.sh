@@ -183,7 +183,7 @@ run_host() {
 		warn "local .env missing; create it with: cp .env.example .env"
 	fi
 
-	check_dir env optional
+	check_dir .env.d optional
 	check_devcontainer_service
 	check_skills || true
 }
