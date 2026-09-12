@@ -53,9 +53,11 @@ tasks:
       - task: quality:full
 
   test:
-    desc: Run all tests (unit + integration)
+    desc: Run application tests (project owner must configure this task)
     cmds:
-      - task: test:test
+      - |
+        printf '%s\n' 'Application tests are not configured. Replace tasks.test.cmds in Taskfile.yml with your application test command. Starter maintainers: use task test:starter explicitly.' >&2
+        exit 2
 
   help:
     desc: Show task help
@@ -125,9 +127,13 @@ tasks:
           task install:doctor             Check install layout integrity
 
         Testing:
-          task test                       Run all tests (unit + integration)
-          task test:unit                  Run repository unit tests
-          task test:integration           Run integration tests for installed tools
-          task test:pi-lifecycle          Run isolated two-rebuild Pi lifecycle proof
+          task test                       Application tests (configure tasks.test.cmds first)
+          task test:starter               Run the starter maintainer suites explicitly
+          task test:starter:unit          Run starter behavior and distribution contract tests
+          task test:starter:integration   Check core and selected installed tools
+          task test:unit                  Deprecated alias for test:starter:unit
+          task test:integration           Deprecated alias for test:starter:integration
+          task test:starter:lifecycle    Explicit expensive base lifecycle proof (see test:help)
+          task test:starter:clean        Preview recovery of registered test-owned resources
           task test:install               Install BATS if not present
         EOF

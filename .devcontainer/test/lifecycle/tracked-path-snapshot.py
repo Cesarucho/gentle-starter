@@ -59,9 +59,9 @@ def compare(before: Path, after: Path, limit: int) -> int:
         if before_records.get(path) != after_records.get(path)
     )
     for path in changed[:limit]:
-        print(f"[pi-lifecycle:error] changed tracked path: {path}", file=sys.stderr)
+        print(f"[starter-lifecycle:error] changed tracked path: {path}", file=sys.stderr)
     if len(changed) > limit:
-        print(f"[pi-lifecycle:error] {len(changed) - limit} additional changed tracked path(s) omitted", file=sys.stderr)
+        print(f"[starter-lifecycle:error] {len(changed) - limit} additional changed tracked path(s) omitted", file=sys.stderr)
     return bool(changed)
 
 

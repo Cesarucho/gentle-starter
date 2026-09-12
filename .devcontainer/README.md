@@ -16,11 +16,37 @@ links from there.
 | `docker-compose.yml` | Base service and default persistent binds. Independent `docker-compose.*.yml` files are opt-in. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
-| `test/` | BATS test suite. Run `task test:all` to verify the environment. |
+| `test/` | Starter maintainer tests, explicitly selected with `task test:starter`; not application tests. |
 | `pi-config/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
 | `opencode-config/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
+
+## Test ownership after initialization
+
+The project owner configures `tasks.test.cmds` in the root `Taskfile.yml` with
+the application's test command. Until then, `task test` fails with actionable
+instructions rather than reporting success or running starter tests.
+
+`task test:starter` explicitly runs the inherited maintainer suite:
+`test:starter:unit` checks starter behavior and distribution contracts;
+`test:starter:integration` checks core and selected installed tools. Editorial
+README/ADR/catalog checks belong to starter maintenance, not downstream apps,
+and may require source docs removed by initialization. The unit suite includes
+lifecycle/build fixtures; inspect it before running. No automatic profile or
+branch detection changes the routing.
+
+Deprecated aliases `test:unit`, `test:integration`, `test:test`, and `test:all`
+still select maintainer tests. `test:install` stays explicit. The removed
+`test:pi-lifecycle` is replaced by the explicitly invoked general
+`test:starter:lifecycle`; it does not prove Pi or optional host sockets and is not
+included in the starter suite. See [scope and costs](../docs/en/extending.md#explicit-base-lifecycle-proof).
+
+`task test:starter:clean` previews durable recovery for participating lifecycle and
+image-contract fixtures. Deletion requires explicit apply and one selected run;
+shared build cache is retained. See [ownership, recovery, and diagnostics retention](../docs/en/extending.md#recovering-test-owned-resources).
+`validate` and `install:doctor` are environment/repository
+checks, not proof that the application works.
 
 ## The four systems
 

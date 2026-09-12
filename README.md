@@ -225,7 +225,7 @@ Resolve merge conflicts manually and commit the resolution normally. Existing
 task deps:update          # From inside container, update the repository's approved version policy
 task container:rebuild    # From host, apply that policy to the development environment
 task validate
-task test
+task test:starter:integration # Check core and selected installed tools
 git diff                  # Review user intent and generated locks together
 ```
 
@@ -292,9 +292,30 @@ task validate
 # Strict validation, recommended inside the container
 task validate:full
 
-# Complete BATS test suite
+# Application tests: configure tasks.test.cmds in Taskfile.yml first
 task test
 ```
+
+### Test ownership
+
+`task test` belongs to your application. Until you replace `tasks.test.cmds` in
+`Taskfile.yml`, it exits nonzero with configuration instructions; it never runs
+the inherited starter suite. This is the same before and after `project:init`.
+
+Starter maintainers use `task test:starter`, or its `test:starter:unit` and
+`test:starter:integration` parts. These preserve behavior, security, installer,
+and distribution checks, including starter README/ADR/catalog expectations.
+The unit suite includes lifecycle/build fixtures: inspect it before execution.
+Derived applications are not required to satisfy starter editorial preferences.
+
+`test:unit`, `test:integration`, and `test:test` remain deprecated maintainer
+aliases. `test:all` now also resolves as a deprecated alias for `test:starter`
+(older guides advertised it before it existed). `test:install` remains explicit.
+The old `test:pi-lifecycle` task has been removed; use the general
+`test:starter:lifecycle` only for an explicitly authorized expensive base lifecycle
+proof, not Pi verification. It is excluded from both `task test` and
+`task test:starter`. See [lifecycle scope and costs](docs/en/extending.md#explicit-base-lifecycle-proof).
+`validate` and `install:doctor` check repository/environment health, not application correctness.
 
 ### Install catalog management
 

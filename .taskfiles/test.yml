@@ -10,13 +10,17 @@ tasks:
     cmds:
       - |
         cat <<'ENDHELP'
-        Testing tasks (BATS)
+        Starter maintainer testing tasks (BATS; not application tests)
 
           task test:install      Install BATS if not present
-          task test:unit         Run repository unit tests
-          task test:integration  Run integration tests for installed tools
-          task test:pi-lifecycle Run the isolated two-rebuild Pi lifecycle proof
-          task test              Run both unit and integration tests
+          task test:starter:unit         Run starter behavior and distribution contracts
+          task test:starter:integration  Check core and selected installed tools
+          task test:starter:lifecycle -- --daemon-visible-scratch ABSOLUTE_PARENT
+                                 Explicit expensive base build/start/connect/recreate proof
+          task test:starter:clean Preview registered test-run recovery (read-only)
+          task test:starter      Run both starter suites (may build or exercise lifecycle fixtures)
+          task test              Application-owned command; initially fails as not configured
+          Deprecated aliases: test:unit, test:integration, test:test, test:all
         ENDHELP
 
   install:
@@ -31,23 +35,47 @@ tasks:
           bash "${SCRIPT_DIR}/install/available/10-bats.sh"
         fi
 
-  unit:
-    desc: Run repository unit tests
+  starter:unit:
+    desc: Run starter maintainer behavior and distribution contracts (includes lifecycle fixtures)
     cmds:
       - bats {{.DEVCONTAINER_DIR}}/test/unit/*.bats
 
-  integration:
-    desc: Run integration tests for installed tools
+  starter:integration:
+    desc: Run starter maintainer checks for core and selected installed tools
     cmds:
       - bats {{.DEVCONTAINER_DIR}}/test/integration/tools.bats
 
-  pi-lifecycle:
-    desc: Run the isolated two-rebuild Pi Gentle lifecycle proof (expensive Docker test)
+  starter:lifecycle:
+    desc: Explicit base lifecycle proof (expensive; one build, start, recreate; cache may remain)
     cmds:
-      - bash {{.DEVCONTAINER_DIR}}/test/lifecycle/pi-gentle-two-rebuild.sh
+      - python3 {{.DEVCONTAINER_DIR}}/test/lifecycle/starter-lifecycle.py {{.CLI_ARGS}}
+
+  starter:clean:
+    desc: Preview registered test cleanup (deletion requires --apply --run UUID)
+    cmds:
+      - python3 {{.DEVCONTAINER_DIR}}/test/lifecycle/starter-test-clean.py {{.CLI_ARGS}}
+
+  starter:
+    desc: Run starter maintainer suites explicitly (not application tests)
+    cmds:
+      - task: starter:unit
+      - task: starter:integration
+
+  unit:
+    desc: Deprecated alias for test:starter:unit
+    cmds:
+      - 'printf "%s\n" "Deprecated: use task test:starter:unit" >&2'
+      - task: starter:unit
+
+  integration:
+    desc: Deprecated alias for test:starter:integration
+    cmds:
+      - 'printf "%s\n" "Deprecated: use task test:starter:integration" >&2'
+      - task: starter:integration
 
   test:
-    desc: Run all tests (unit + integration)
+    aliases: [all]
+    desc: Deprecated alias for test:starter
     cmds:
-      - task: unit
-      - task: integration
+      - 'printf "%s\n" "Deprecated: use task test:starter" >&2'
+      - task: starter

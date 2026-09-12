@@ -879,20 +879,11 @@ EOF
 
 @test "Docker build ARG persists as runtime Engram ENV" {
     command -v docker >/dev/null 2>&1 || skip "docker is unavailable"
-    docker info >/dev/null 2>&1 || skip "docker daemon is unavailable"
+    env -u DOCKER_CONTEXT DOCKER_HOST=unix:///var/run/docker.sock docker info >/dev/null 2>&1 || skip "local Docker daemon is unavailable"
 
-    image="gentle-tool-version-contract:${BATS_TEST_NUMBER}"
-    run docker build \
-        --quiet \
-        --target devcontainer-version-contract \
-        --build-arg ENGRAM_VERSION="9.9.9" \
-        --tag "${image}" \
-        "${SCRIPT_DIR}"
+    # Use a separate run root, not BATS_TEST_TMPDIR: BATS must not remove recovery evidence.
+    run env PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/test/lifecycle/image-contract.py" \
+        "${SCRIPT_DIR}/.." "${BATS_TMPDIR:-/tmp}"
+    printf '%s\n' "${output}"
     [ "$status" -eq 0 ]
-
-    run docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${image}"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"ENGRAM_VERSION=9.9.9"* ]]
-
-    docker image rm "${image}" >/dev/null
 }

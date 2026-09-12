@@ -92,8 +92,42 @@ task install:doctor
 task install:volumes
 task validate
 task validate:full
-task test
+task test:starter
 ```
+
+`task test` is application-owned and fails as not configured until the project
+owner replaces `tasks.test.cmds`. Starter editorial/distribution tests remain
+maintainer-only; derived applications need not satisfy them after initialization.
+The maintainer unit suite includes lifecycle/build fixtures: inspect and select
+safe tests when execution permissions are restricted. `validate` and
+`install:doctor` are not application test proof.
+
+`task test:starter:lifecycle -- --daemon-visible-scratch ABSOLUTE_PARENT` is a
+separate, explicitly authorized expensive base build/start/connect/recreate and
+managed-state/preservation proof. It is not a seventh test layer or included in
+`test:starter`/`validate:full`; it automates only those operational full-validation
+items. Initialization and optional Pi/SSH/audio/GUI integrations remain separate.
+Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
+See `docs/en/extending.md` for its deliberately reduced sandbox scenario.
+
+### Command decision guide
+
+| Need | Command | Effects, authorization, and evidence |
+| --- | --- | --- |
+| Application proof | `task test` | Application-owned; inspect the configured command and its effects first. |
+| Starter regression proof | `task test:starter` | Unit + integration only; inspect fixtures before authorizing builds or lifecycle operations. |
+| Repository checks | `task validate`, `task validate:full` | Not application or full runtime proof; inspect task effects before execution. |
+| Isolated operational proof | `task test:starter:lifecycle` | Separate explicit authorization, cost forecast, and daemon-visible scratch required; reduced base coverage only. |
+| Recover registered test resources | `task test:starter:clean` | Read-only preview by default; deletion requires explicit apply and one selected run. |
+| Work on the real environment | `task container:*` | Normal host workflow, not test cleanup; startup/restart can build. |
+
+After authorized sandbox work, use its automatic cleanup and review retained or
+failed outcomes. Recovery uses the same scoped engine for participating lifecycle
+and image-contract fixtures; it does not own arbitrary scripts or hook resources.
+Never use global Docker pruning as normal test recovery. Stop and report uncertain
+ownership, daemon mismatches, or permission failures rather than escalating cleanup.
+The helper is not a delivery gate or commit authorization. Human recovery examples
+and retention details live in `docs/en/extending.md#recovering-test-owned-resources`.
 
 Host-only `task container:*` commands should skip when run inside the active
 devcontainer. To verify a real host flow from inside a container, use a temporary
