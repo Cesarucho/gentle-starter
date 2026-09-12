@@ -408,10 +408,16 @@ cmd_volumes() {
 	WORKSPACE_DIR="${REPO_ROOT}"
 	# shellcheck source=/dev/null
 	source "${setup_volumes}"
+	local records_file
+	records_file="$(mktemp)" || return 1
+	if ! resolve_compose_volume_targets >"${records_file}"; then
+		rm -f "${records_file}"
+		return 1
+	fi
 
 	echo "=== install/ volume contract ==="
 	echo ""
-	echo "Bind mounts declared in .devcontainer/docker-compose.yml:"
+	echo "Desired bind mounts from the validated selected Compose manifest (not proof of applied mounts):"
 	echo ""
 
 	while IFS= read -r -d '' source_path && IFS= read -r -d '' target_path; do
@@ -424,7 +430,8 @@ cmd_volumes() {
 			printf "  %-25s -> %-30s (no mapping yet)\n" \
 				"${source_path}" "${target_path}"
 		fi
-	done < <(resolve_compose_volume_targets)
+	done <"${records_file}"
+	rm -f "${records_file}"
 
 	echo ""
 	echo "The mapping declares potential owners. During postCreate, only owners"

@@ -1,0 +1,9 @@
+services:
+  container-svc:
+    environment:
+      SSH_AUTH_SOCK: /ssh-agent
+    volumes:
+      - type: bind
+        source: ${SSH_AUTH_SOCK:?Missing SSH_AUTH_SOCK}
+        target: /ssh-agent
+        bind: { create_host_path: false }

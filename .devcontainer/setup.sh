@@ -13,6 +13,12 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
 
+# Validate desired inputs AND the creation-time identity before any runtime mutation.
+python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null
+if install_script_is_enabled "${SCRIPT_DIR}/install/available/20-tool-ssh-server.sh"; then
+	python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" ssh-server "${WORKSPACE_DIR}" >/dev/null
+fi
+
 # sudo chown -R ${UID}:${UID} ${HOME}/.codex
 
 build_gitignore_prune_args() {
@@ -136,7 +142,8 @@ setup_versioned_configs() {
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-pi-coding.sh"; then
 		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/agent" "${HOME}/.pi/agent"
 	fi
-	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-gentle-ai.sh"; then
+	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-pi-coding.sh" &&
+		install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-gentle-ai.sh"; then
 		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai" "${HOME}/.pi/gentle-ai"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/30-ai-opencode.sh"; then
@@ -234,10 +241,11 @@ repair_installed_volumes
 # ---------------------------------------------------------------------------
 # SSH server: start if the install script is enabled.
 # Detection: check for the symlink in 02-enabled/ (created by
-# task install:enable -- ssh, or manually). Disabling that canonical installer
+# task install:enable -- 20-tool-ssh-server, or manually). The persisted-key
+# Compose override is also required. Disabling that canonical installer
 # prevents both runtime preparation and service startup.
 # ---------------------------------------------------------------------------
-_ssh_installer="${SCRIPT_DIR}/install/available/20-tool-ssh.sh"
+_ssh_installer="${SCRIPT_DIR}/install/available/20-tool-ssh-server.sh"
 if install_script_is_enabled "${_ssh_installer}"; then
 	export -f seed_config_tree
 	WORKSPACE_DIR="${WORKSPACE_DIR}" DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"

@@ -40,7 +40,7 @@ prompt, enabling workflows like these:
 - **[OpenCode](https://opencode.ai/docs/)** as the default assisted-development
   interface.
 - **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** as an
-  alternative extensible harness.
+  opt-in alternative extensible harness (disabled by default).
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** for
   controlled Pi workflows alongside OpenCode.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** as local persistent memory inside the environment.
@@ -65,6 +65,7 @@ prompt, enabling workflows like these:
   Graphify MCP.
 - **Infrastructure/security:** OpenSSH server/client, Ansible Core, kubectl,
   Terraform, OpenTofu, Terragrunt, Pulumi, Gitleaks.
+- **Audio:** optional PulseAudio clients (`paplay`); host integration is separate.
 - **Agent extensions/browser:** Gentle Pi, Pi Subagents, Pi Intercom, Pi Web
   Access, Pi Lens, RPIV Todo, RPIV Ask User Question, RPIV BTW, Gentle Engram,
   Pi MCP Adapter, Pi Terminal Theme, Chromium, @playwright/cli.
@@ -86,10 +87,8 @@ On your PC you need:
   recommended; volume discovery also supports Kislyuk yq.
 - **[Python 3](https://www.python.org/downloads/)**
 
-> Alternatively, use an IDE with Dev Container support, such as
-> [VS Code](https://code.visualstudio.com/download),
-> [Cursor](https://cursor.com/downloads), or
-> [IntelliJ](https://www.jetbrains.com/idea/download/).
+An IDE is optional and does not replace these host requirements, including the
+Dev Container CLI.
 
 ## 🚀 Quick start
 
@@ -109,7 +108,11 @@ On your PC you need:
 
 ### Build and enter the environment
 
-1. In your **terminal**, run:
+No IDE is needed: use the terminal workflow below, including provider login.
+Task is the sole supported entry point for creating, building, and recreating
+the container; an IDE may only attach after `task container:up`.
+
+1. In your **host terminal**, from the project directory, run:
 
     ```bash
     task container:up         # it will build the image if needed
@@ -119,18 +122,19 @@ On your PC you need:
     > `container:up` derives `.env.d/` bind sources from Compose and creates them as the host user before Docker starts.
     > Dev Containers projects the host UID onto `ubuntu`, See [volume security](docs/en/install-volumes.md).
 
-    If you use an **IDE**, first run `task container:up` to prepare host bind
-    sources. Then use `Dev Containers: Reopen in Container` or its equivalent.
-
     The container tasks normalize the project directory name and deterministically
     generate one non-overlapping three-port block in `10000..59999`. They rewrite
     `APP_PORT`, `OPENCODE_PORT`, and `SSH_PORT` in both `.devcontainer/.env` and
     `.env` while preserving unrelated content. The mappings are app-to-same-port,
-    OpenCode-to-`4096`, and SSH-to-`22`. Because the mappings omit a host IP,
-    Docker publishes all three ports on all host interfaces—not only the LAN
+    OpenCode-to-`4096`, and optional SSH-to-`22`. Because the mappings omit a host IP,
+    Docker publishes selected ports on all host interfaces—not only the LAN
     interface. These generated values are authoritative on every container
     task, so edit the project name—not the generated port entries—to change the
     block. Docker reports host-port collisions normally.
+
+    Pi persistence, SSH agent forwarding, incoming SSH, and audio are independent
+    opt-in Compose files. See [optional integrations](docs/en/optional-integrations.md).
+    Changing mounts requires recreation; changing packages requires rebuilding.
 
     **Trusted networks only:** this exposure is intended for a trusted LAN/WLAN.
     MAC filtering is not a strong security boundary, and Docker port publication
@@ -144,7 +148,7 @@ On your PC you need:
     synchronize that setting into the runtime config, then quit and restart
     OpenCode; rebuilding alone does not overwrite an existing runtime config.
 
-2. Inside the container, you can use any tool normally. If you are using an **IDE**, look for the option to open its terminal.
+2. In the shell opened by `task container:connect`, use any tool normally:
 
     ```bash
     git status
@@ -168,6 +172,31 @@ On your PC you need:
     >_ Read skill add-tool add PostgreSQL 16 with a version-controlled
        `pg_hba.conf` and persistent data volume.
     ```
+
+### Optional: attach VS Code
+
+1. Install [VS Code](https://code.visualstudio.com/download) and its
+   **Dev Containers** extension on your host.
+2. Run `task container:up` from the project directory in your host terminal.
+3. In VS Code's Command Palette, run
+   **Dev Containers: Attach to Running Container...** and choose this project's
+   running container.
+4. Use **File > Open Folder...** to open the actual workspace inside the
+   container: `/home/ubuntu/<project-directory-name>`, for example
+   `/home/ubuntu/my-project-name` for a project cloned as `my-project-name`.
+   Task normalizes the project name, so use the resulting workspace name if
+   your directory name requires normalization.
+
+Use VS Code's integrated terminal for the same provider login and tools shown
+above. [Attaching to a running container](https://code.visualstudio.com/docs/devcontainers/attach-container)
+uses separate IDE configuration; do not assume all settings, extensions, or
+Features in the repository's `devcontainer.json` are applied by attaching.
+
+**Do not use the IDE's Reopen in Container or Rebuild Container actions.**
+These creation paths are unsupported because they bypass Task's host
+preparation. From your host terminal, use `task container:restart` to recreate
+the container from the existing image, or `task container:rebuild` to rebuild
+the software and recreate it. Then attach VS Code again.
 
 ## 🔄 Maintain your project
 

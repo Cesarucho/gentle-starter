@@ -7,6 +7,24 @@ setup() {
 run_ssh_runtime_installer() {
 	local root="$1"
 	mkdir -p "${root}/home" "${root}/bin" "${root}/target"
+	mkdir -p "${root}/.devcontainer/install/available" "${root}/.devcontainer/install/lib" \
+		"${root}/.devcontainer/install/02-enabled" "${root}/.taskfiles/scripts"
+	cp "${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${root}/.devcontainer/install/lib/"
+	cp -R "${REPO_ROOT}/.devcontainer/ssh-config" "${root}/.devcontainer/"
+	cp "${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml" "${root}/.devcontainer/"
+	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/"
+	ln -sf ../available/20-tool-ssh-server.sh "${root}/.devcontainer/install/02-enabled/29-server.sh"
+	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
+	local identity
+	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/docker-compose.ssh-server.yml" |
+		PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/.devcontainer/test/unit/manifest-fixture.py" "${root}")"
+	cat >"${root}/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+# No privilege escalation: allow only fixture destinations.
+[[ "${!#}" == "${FIXTURE_ROOT}/"* ]] || exit 97
+case "$1" in install|chmod) exec "$@" ;; *) exit 97 ;; esac
+EOF
 	cat >"${root}/bin/ssh-keygen" <<'EOF'
 #!/usr/bin/env bash
 if [ "${1:-}" = -l ]; then
@@ -24,13 +42,14 @@ while [ "$#" -gt 0 ]; do
 done
 exit 2
 EOF
-	chmod +x "${root}/bin/ssh-keygen"
+	chmod +x "${root}/bin/ssh-keygen" "${root}/bin/sudo"
 	run env HOME="${root}/home" PATH="${root}/bin:/usr/bin:/bin" \
-		WORKSPACE_DIR="${REPO_ROOT}" DEVCONTAINER_PHASE=runtime \
+		WORKSPACE_DIR="${root}" DEVCONTAINER_PHASE=runtime FIXTURE_ROOT="${root}" \
+		PYTHONDONTWRITEBYTECODE=1 GENTLE_VOLUME_MANIFEST_ID="${identity}" \
 		SSH_CONFIG_DIR="${root}/keys" SSH_START_WRAPPER_TARGET="${root}/target/start-sshd" \
 		SSHD_CONFIG_TARGET="${root}/target/sshd_config.gentle-starter" \
 		bash -c 'seed_config_tree() { :; }; export -f seed_config_tree; exec bash "$1"' _ \
-		"${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh.sh"
+		"${root}/.devcontainer/install/available/20-tool-ssh-server.sh"
 }
 
 @test "image-owned direct binaries have exact architecture digests" {
@@ -126,6 +145,10 @@ EOF
 	SSH_AUTHORIZED_KEYS='command="anything" ssh-ed25519 AAAAunsafe' run_ssh_runtime_installer "${root}"
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"unsupported or malformed public key"* ]]
+	[ "$(<"${root}/home/.ssh/authorized_keys")" = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestOnly lifecycle' ]
+	SSH_AUTHORIZED_KEYS='' run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ ! -e "${root}/home/.ssh/authorized_keys" ]
 }
 
 @test "SSH runtime fails closed when the home path violates StrictModes" {
@@ -153,7 +176,7 @@ EOF
 }
 
 @test "persistent SSH host keys use a host-prepared passive bind" {
-	local compose="${REPO_ROOT}/.devcontainer/docker-compose.yml"
+	local compose="${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml"
 	yq -e '.services."container-svc".volumes[] | select(.source == "../.env.d/.ssh-server" and .target == "/home/ubuntu/.ssh-server" and .bind.create_host_path == false)' "${compose}" >/dev/null
 	local scripts=(sentinel)
 	WORKSPACE_DIR="${REPO_ROOT}"

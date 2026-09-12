@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 @test "README documents the safe IDE startup and current product link" {
 	run grep -F 'https://github.com/Gentleman-Programming/gentle-ai' "${REPO_ROOT}/README.md"
 	[ "${status}" -eq 0 ]
-	run grep -F 'first run `task container:up`' "${REPO_ROOT}/README.md"
+	run grep -F 'an IDE may only attach after `task container:up`' "${REPO_ROOT}/README.md"
 	[ "${status}" -eq 0 ]
 }
 
@@ -41,6 +41,8 @@ readme_install_placement_inventory() {
 20-runtime-pnpm.sh|primary
 20-tool-devcontainer-cli.sh|primary
 20-tool-ssh.sh|details
+20-tool-ssh-server.sh|details
+20-tool-pulseaudio-utils.sh|details
 30-ai-engram.sh|primary
 30-ai-gentle-ai.sh|primary
 30-ai-opencode.sh|primary
@@ -139,6 +141,6 @@ first_prose_after_fence_line_count() {
 	deps_lines="$(printf '%s\n' "${deps_update}" | first_prose_after_fence_line_count)"
 	[ "${project_lines}" -gt 0 ] && [ "${project_lines}" -le 3 ]
 	[ "${container_lines}" -gt 0 ] && [ "${container_lines}" -le 3 ]
-	[ "${ide_lines}" -gt 0 ] && [ "${ide_lines}" -le 2 ]
+	[[ "${build_path}" == *'Do not use the IDE'* ]]
 	[ "${deps_lines}" -gt 0 ] && [ "${deps_lines}" -le 3 ]
 }

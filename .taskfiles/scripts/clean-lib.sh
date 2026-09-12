@@ -4,6 +4,7 @@ readonly CLEAN_MIGRATED_DOCS=(
 	"extending.md"
 	"install-tree.md"
 	"install-volumes.md"
+	"optional-integrations.md"
 	"configs.md"
 )
 
@@ -129,6 +130,7 @@ remains self-contained in derived projects.
 | [`extending.md`](./extending.md) | **Start here.** Comprehensive guide for extending the devcontainer. |
 | [`install-tree.md`](./install-tree.md) | Deep dive on the `install/` convention. |
 | [`install-volumes.md`](./install-volumes.md) | Deep dive on the volume repair contract. |
+| [`optional-integrations.md`](./optional-integrations.md) | Select optional integrations and prepare their volume contracts. |
 | [`configs.md`](./configs.md) | Deep dive on `seed_config_tree` and baseline config seeding. |
 
 These files are copied from `docs/en/` during starter identity cleanup.
@@ -138,10 +140,12 @@ EOF
 		-e 's|\.\./docs/en/extending\.md|./docs/extending.md|g' \
 		-e 's|\.\./docs/en/install-tree\.md|./docs/install-tree.md|g' \
 		-e 's|\.\./docs/en/install-volumes\.md|./docs/install-volumes.md|g' \
+		-e 's|\.\./docs/en/optional-integrations\.md|./docs/optional-integrations.md|g' \
 		-e 's|\.\./docs/en/configs\.md|./docs/configs.md|g' \
 		-e 's|docs/en/extending\.md|docs/extending.md|g' \
 		-e 's|docs/en/install-tree\.md|docs/install-tree.md|g' \
 		-e 's|docs/en/install-volumes\.md|docs/install-volumes.md|g' \
+		-e 's|docs/en/optional-integrations\.md|docs/optional-integrations.md|g' \
 		-e 's|docs/en/configs\.md|docs/configs.md|g' \
 		".devcontainer/README.md"
 

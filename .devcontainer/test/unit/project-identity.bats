@@ -54,7 +54,7 @@ EOF
 	printf 'OTHER=value\nSSH_PORT=9\n' >"${test_root}/.devcontainer/.env"
 
 	cd "${test_root}"
-	run task regenerate
+	run env FORCE_HOST_CONTEXT=1 task regenerate
 	[ "${status}" -eq 0 ]
 	app_port="$(bash .taskfiles/scripts/project-identity.sh --output code)"
 	expected="APP_NAME=identity-fixture
@@ -66,7 +66,7 @@ SSH_PORT=$((app_port + 2))"
 	grep -Fxq 'KEEP_ME=yes' .env
 	grep -Fxq 'OTHER=value' .devcontainer/.env
 	cp .env before
-	task regenerate
+	FORCE_HOST_CONTEXT=1 task regenerate
 	cmp -s before .env
 
 	rm -rf "${test_root%/Identity Fixture}"
@@ -77,13 +77,15 @@ SSH_PORT=$((app_port + 2))"
 
 	[[ "${compose}" == *'"${APP_PORT}:${APP_PORT}"'* ]]
 	[[ "${compose}" == *'"${OPENCODE_PORT}:4096"'* ]]
-	[[ "${compose}" == *'"${SSH_PORT}:22"'* ]]
+	[[ "${compose}" != *'"${SSH_PORT}:22"'* ]]
+	server="$(<"${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml")"
+	[[ "${server}" == *'"${SSH_PORT}:22"'* ]]
 	[[ "${compose}" != *'127.0.0.1:'* ]]
 	[[ "${compose}" != *'OPENCODE_SERVER_PORT'* ]]
 }
 
 @test "SSH guidance uses the generated host port and trusted-LAN address" {
-	installer="$(<"${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh.sh")"
+	installer="$(<"${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh-server.sh")"
 	help="$(<"${REPO_ROOT}/.taskfiles/ssh.yml")"
 
 	[[ "${installer}" == *'ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>'* ]]

@@ -6,7 +6,7 @@
 #   start-sshd              # start sshd (idempotent: no-op if already running)
 #   start-sshd --regenerate # regenerate host keys first, then start
 #
-# Requires openssh-server to be installed (see 20-tool-ssh.sh).
+# Requires the optional 20-tool-ssh-server.sh installer and server override.
 
 set -euo pipefail
 
@@ -61,7 +61,7 @@ stop_managed_sshd() {
 # --- sanity checks -------------------------------------------------------
 if [ ! -x "${SSHD_BIN}" ]; then
 	echo "[start-sshd] ERROR: sshd not found. Run the install script first:" >&2
-	echo "[start-sshd]   DEVCONTAINER_PHASE=build bash ~/.devcontainer-install/available/20-tool-ssh.sh" >&2
+	echo "[start-sshd]   Enable 20-tool-ssh-server and its Compose override, then task container:rebuild on the host." >&2
 	exit 1
 fi
 
@@ -133,8 +133,8 @@ sudo -n "${SSHD_BIN}" -f "${SSHD_CONFIG}" -o "PidFile=${SSHD_PID_FILE}" -e
 for ((attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt++)); do
 	if managed_sshd_is_running; then
 		echo "[start-sshd] sshd running on port 22. Connect from remote PC:"
-		echo "[start-sshd]   ssh -p 2222 ubuntu@<host-ip>"
-		echo "[start-sshd]   # Add your public key to ~/.ssh/authorized_keys first"
+		echo "[start-sshd]   ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>"
+		echo "[start-sshd]   # Configure SSH_AUTHORIZED_KEYS in .env before host Task creation"
 		exit 0
 	fi
 	sleep "${STARTUP_DELAY}"

@@ -71,7 +71,8 @@ Start with `docs/en/extending.md`; use the linked deep dives for each surface.
 ## Settled conventions
 
 - The project uses `ubuntu` as the sole devcontainer identity. Do not restore
-  `devuser`, `HOST_UID`, or `HOST_GID`.
+  `devuser` or `HOST_GID`. `HOST_UID` is generated only after the host guard,
+  exclusively to locate the optional host Pulse socket; it is not container identity.
 - Source scripts under `.devcontainer/install/` use mode `0755` intentionally.
 - Dockerfile group iteration is the load-bearing install order; directory
   prefixes are visual hints, while filename prefixes control in-group order.

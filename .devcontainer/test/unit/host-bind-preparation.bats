@@ -8,6 +8,21 @@ setup() {
 	cp "${REPO_ROOT}/.taskfiles/scripts/prepare-bind-mounts.sh" "${WORKSPACE}/.taskfiles/scripts/prepare-bind-mounts.sh" 2>/dev/null || true
 	cp "${REPO_ROOT}/.taskfiles/scripts/prepare-bind-mounts.py" "${WORKSPACE}/.taskfiles/scripts/prepare-bind-mounts.py"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" "${WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${WORKSPACE}/.taskfiles/scripts/"
+	printf '%s\n' '{"service":"container-svc","dockerComposeFile":["docker-compose.yml","fixture.yml"]}' >"${WORKSPACE}/.devcontainer/devcontainer.json"
+	printf '%s\n' 'services: {container-svc: {image: fixture:local, container_name: fixture}}' >"${WORKSPACE}/.devcontainer/fixture.yml"
+	: >"${WORKSPACE}/.env"
+	mkdir -p "${TEST_ROOT}/bin"
+	export REAL_DOCKER="$(command -v docker)"
+	cat >"${TEST_ROOT}/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1" = compose ]; then exec "${REAL_DOCKER}" "$@"; fi
+if [ "$1 $2" = 'container ls' ]; then exit 0; fi
+exit 97
+EOF
+	chmod +x "${TEST_ROOT}/bin/docker"
+	export PATH="${TEST_ROOT}/bin:${PATH}" FORCE_HOST_CONTEXT=1 PYTHONDONTWRITEBYTECODE=1
+	export APP_NAME=fixture APP_PORT=12000 OPENCODE_PORT=12001 SSH_PORT=12002 STATE_PATH=/external/fixture
 }
 
 teardown() {
@@ -70,7 +85,8 @@ YAML
 	for path in .env.d .env.d/.pi .env.d/.opencode .env.d/.opencode/share .env.d/.ssh-server; do
 		[ "$(stat -c '%u:%g:%a' -- "${WORKSPACE}/${path}")" = "$(id -u):$(id -g):755" ]
 	done
-	[ "$(find "${WORKSPACE}" -mindepth 1 -printf '%P\n' | sort)" = $'.devcontainer\n.devcontainer/docker-compose.yml\n.env.d\n.env.d/.opencode\n.env.d/.opencode/share\n.env.d/.pi\n.env.d/.ssh-server\n.taskfiles\n.taskfiles/scripts\n.taskfiles/scripts/prepare-bind-mounts.py\n.taskfiles/scripts/prepare-bind-mounts.sh\n.taskfiles/scripts/yq-compatibility.sh' ]
+	[ "$(find "${WORKSPACE}/.env.d" -mindepth 1 -printf '%P\n' | sort)" = $'.opencode\n.opencode/share\n.pi\n.ssh-server' ]
+	[ -s "${WORKSPACE}/.devcontainer/.volume-manifest.json" ]
 	before="$(metadata "${WORKSPACE}/.env.d")|$(metadata "${WORKSPACE}/.env.d/.opencode/share")"
 	sleep 1
 	run_preparation
@@ -123,7 +139,7 @@ YAML
 	[ "$(find "${WORKSPACE}/.env.d" -printf '%P|%u|%g|%m|%T@\n' | sort)|$(sha256sum "${WORKSPACE}/.env.d"/*/sentinel "${WORKSPACE}/.env.d/.opencode/share/sentinel" | sort)" = "${before}" ]
 }
 
-@test "only contained normalized relative binds with fail-closed creation are managed" {
+@test "unsafe creation flags fail before any managed paths are created" {
 	write_compose <<'YAML'
 services:
   container-svc:
@@ -137,11 +153,10 @@ services:
 YAML
 
 	run_preparation
-	[ "${status}" -eq 0 ]
-	[ -d "${WORKSPACE}/.env.d/inside" ]
+	[ "${status}" -ne 0 ]
+	[ ! -d "${WORKSPACE}/.env.d/inside" ]
 	[ ! -e "${TEST_ROOT}/escape" ]
 	[ ! -e "${WORKSPACE}/.env.d/docker-created" ]
-	[[ "${output}" == *"externally managed"* ]]
 }
 
 @test "symlink and regular-file collisions fail without mutating either object" {
@@ -167,20 +182,18 @@ YAML
 }
 
 @test "wrong ownership fails with exact-path non-recursive remediation" {
-	[ "$(id -u)" -ne 0 ] || skip "requires an unprivileged invoking user"
-	write_compose <<'YAML'
-services:
-  container-svc:
-    volumes:
-      - {type: bind, source: ../.env.d/.pi, target: /state, bind: {create_host_path: false}}
-YAML
 	mkdir -p "${WORKSPACE}/.env.d/.pi"
-	sudo chown 0:0 "${WORKSPACE}/.env.d/.pi"
-
-	run_preparation
+	# Change the expected owner, never actual ownership or privileges.
+	run python3 -c '
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("prep", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module.prepare_directory(sys.argv[2], (os.getuid() + 1, os.getgid()))
+' "${WORKSPACE}/.taskfiles/scripts/prepare-bind-mounts.py" "${WORKSPACE}/.env.d/.pi"
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"${WORKSPACE}/.env.d/.pi"* ]]
-	[[ "${output}" == *"sudo chown $(id -u):$(id -g) '${WORKSPACE}/.env.d/.pi'"* ]]
+	[[ "${output}" == *"sudo chown $(($(id -u) + 1)):$(id -g) '${WORKSPACE}/.env.d/.pi'"* ]]
 	[[ "${output}" != *"chown -R"* ]]
 }
 

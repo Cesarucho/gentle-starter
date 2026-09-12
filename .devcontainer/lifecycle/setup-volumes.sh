@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # setup-volumes.sh — volume-aware install repair.
 #
-# Sourced by setup.sh during the devcontainer postCreate hook. Parses
-# the bind mounts declared in docker-compose.yml and re-runs the
+# Sourced by setup.sh during the devcontainer postCreate hook. Validates
+# the host-resolved selected Compose volume manifest and re-runs the
 # install scripts that own mapped targets with DEVCONTAINER_PHASE=runtime.
 # Passive mounts intentionally have no mapping and receive no repair.
 # Each install script is idempotent (uses lib/common.sh's
@@ -13,16 +13,15 @@
 # they all have to agree for the repair to fire:
 #
 #   1. The bind mount itself: declared in long syntax under
-#      services.container-svc.volumes, e.g.
+#      the selected service's volumes, e.g.
 #        - type: bind
 #          source: ../.env.d/.postgresql
 #          target: /home/ubuntu/.postgresql
 #          bind: { create_host_path: false }
-#        - ${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent/socket   (SSH agent forwarding)
 #
 #   2. The target-to-script mapping: a case in
 #      compose_target_to_install_scripts() below, e.g.
-#        "${HOME}/.postgresql")
+#        "/home/ubuntu/.postgresql")
 #            scripts_ref+=("40-data-postgresql")
 #            ;;
 #
@@ -34,7 +33,7 @@
 #      only an ordering alias and need not match the catalog basename.
 #
 # To add a new installer-owned stateful volume (e.g. PostgreSQL data dir):
-#   a. Add the bind mount in docker-compose.yml.
+#   a. Add the bind mount in a selected Compose file and recreate through Task.
 #   b. Add a case for the new target path in
 #      compose_target_to_install_scripts() below.
 #   c. Add the install script in install/available/.
@@ -44,19 +43,17 @@
 # when the application itself owns and populates that state.
 #
 # Note: this file is meant to be sourced by setup.sh. It relies on
-# WORKSPACE_DIR, HOME, and UID being set by the caller. Running it
+# WORKSPACE_DIR being set by the caller. Ownership paths use configured ubuntu,
+# not the invoking host user's HOME or UID. Running it
 # directly will not work.
 
 LIFECYCLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-YQ_COMPATIBILITY_PATH="${WORKSPACE_DIR}/.taskfiles/scripts/yq-compatibility.sh"
-# shellcheck source=/dev/null
-source "${YQ_COMPATIBILITY_PATH}"
 
 # Emit NUL-terminated source and target fields for each bind mount.
 resolve_compose_volume_targets() {
-	local compose_file="${WORKSPACE_DIR}/.devcontainer/docker-compose.yml"
-	yq_compatibility_json '.services."container-svc".volumes // []' "${compose_file}" |
-		python3 "${LIFECYCLE_DIR}/compose-volume-records.py"
+	local records
+	records="$(python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" records "${WORKSPACE_DIR}")" || return 1
+	printf '%s' "${records}" | python3 "${LIFECYCLE_DIR}/compose-volume-records.py"
 }
 
 # Map a container-side target path to the install script base names
@@ -68,10 +65,10 @@ compose_target_to_install_scripts() {
 
 	scripts_ref=()
 	case "${target}" in
-	"${HOME}/.pi" | "/home/${UID}/.pi")
+	"/home/ubuntu/.pi")
 		scripts_ref+=("30-ai-pi-gentle")
 		;;
-	"${HOME}/.engram" | "/home/${UID}/.engram")
+	"/home/ubuntu/.engram")
 		scripts_ref+=("30-ai-engram")
 		;;
 	esac
@@ -101,17 +98,25 @@ install_script_is_enabled() {
 	return 1
 }
 
-# Iterate over bind-mount volume targets from docker-compose.yml and
+# Iterate over validated, applied bind-mount volume targets and
 # run the active install scripts that potentially own each mapped target,
 # with DEVCONTAINER_PHASE=runtime. Passive targets and disabled owners are
 # skipped. Each script is idempotent: it skips itself when the tool is already
 # installed, so a re-run on a populated volume is a no-op.
 repair_installed_volumes() {
+	python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null || return 1
 	local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
+	local records_file
+	records_file="$(mktemp)" || return 1
+	if ! resolve_compose_volume_targets >"${records_file}"; then
+		rm -f "${records_file}"
+		return 1
+	fi
 	local target_path
 	local scripts=()
 	local script
 	local script_path
+	local repair_status=0
 
 	while IFS= read -r -d '' _ && IFS= read -r -d '' target_path; do
 		compose_target_to_install_scripts "${target_path}" scripts
@@ -122,7 +127,12 @@ repair_installed_volumes() {
 				continue
 			fi
 			echo "Volume repair: ${target_path} -> ${script}.sh"
-			DEVCONTAINER_PHASE=runtime bash "${script_path}"
+			if ! DEVCONTAINER_PHASE=runtime bash "${script_path}"; then
+				repair_status=1
+				break 2
+			fi
 		done
-	done < <(resolve_compose_volume_targets)
+	done <"${records_file}"
+	rm -f "${records_file}"
+	return "${repair_status}"
 }

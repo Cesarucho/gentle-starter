@@ -11,12 +11,15 @@ tasks:
         Two use cases:
 
         A) AGENT FORWARDING (git push from container using host keys)
+          Select docker-compose.ssh-agent.yml in devcontainer.json and recreate.
+          Export the host agent socket in the shell that runs container tasks.
           task ssh:start     Start agent + add keys
           task ssh:check     Verify agent and GitHub connectivity
           task ssh:status    Current agent state
           task ssh:stop      Stop agent when done
 
         B) TRUSTED LAN ACCESS (SSH into the container through its Docker host)
+          Enable 20-tool-ssh-server and select docker-compose.ssh-server.yml.
           task ssh:register-keys   Auto-detect and register .pub keys
           task container:rebuild   Rebuild so keys get registered
 

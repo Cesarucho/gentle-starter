@@ -31,6 +31,21 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ -n "${guard_line}" ]
 	[ "${guard_line}" -lt "${prepare_line}" ]
 	[ "${prepare_line}" -lt "${up_line}" ]
+	env_line="$(grep -nF '. .devcontainer/.env' <<<"${task_definition}" | cut -d: -f1)"
+	[ "${env_line}" -lt "${prepare_line}" ]
+	[[ "${task_definition}" == *'export GENTLE_VOLUME_MANIFEST_ID'* ]]
+}
+
+@test "host UID generation is guarded and running containers do not bypass preparation" {
+	definition="$(awk '/^  ensure-identity-env:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  ensure-identity-env:/{exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+	guard="$(grep -nF 'if [ -f /.dockerenv ]' <<<"${definition}" | cut -d: -f1)"
+	uid="$(grep -nF 'host_uid="$(id -u)"' <<<"${definition}" | cut -d: -f1)"
+	[ "${guard}" -lt "${uid}" ]
+	[[ "${definition}" != *'HOST_GID'* ]]
+	definition="$(awk '/^  ensure-running:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  ensure-running:/{exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+	prepare="$(grep -nF 'prepare-bind-mounts.sh' <<<"${definition}" | cut -d: -f1)"
+	running="$(grep -nF 'if docker ps' <<<"${definition}" | cut -d: -f1)"
+	[ "${prepare}" -lt "${running}" ]
 }
 
 @test "container:rebuild runs remove build and up in exact order" {

@@ -28,23 +28,28 @@ tasks:
     silent: true
     cmds:
       - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          exit 0
+        fi
         app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
         app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
         opencode_port="$((app_port + 1))"
         ssh_port="$((app_port + 2))"
+        host_uid="$(id -u)"
 
         for env_file in ".devcontainer/.env" ".env"; do
           mkdir -p "$(dirname "$env_file")"
           touch "$env_file"
 
           tmp_file="$(mktemp)"
-          awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT)=/' "$env_file" > "$tmp_file"
+          awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT|HOST_UID)=/' "$env_file" > "$tmp_file"
           {
             cat "$tmp_file"
             printf 'APP_NAME=%s\n' "$app_name"
             printf 'APP_PORT=%s\n' "$app_port"
             printf 'OPENCODE_PORT=%s\n' "$opencode_port"
             printf 'SSH_PORT=%s\n' "$ssh_port"
+            printf 'HOST_UID=%s\n' "$host_uid"
           } > "$env_file"
           rm -f "$tmp_file"
         done
@@ -58,20 +63,20 @@ tasks:
         set -a
         . .devcontainer/.env
         set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
         devcontainer {{.ARGS}}
 
   resolve-container-name:
     silent: true
     cmds:
       - |
-        container="$(awk '$1 == "container_name:" { gsub(/^"|"$/, "", $2); print $2; exit }' .devcontainer/docker-compose.yml)"
-        project_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
-        container="$(printf '%s' "$container" | sed "s|\${APP_NAME}|$project_name|g")"
-        test -n "$container" || {
-          echo "missing devcontainer container_name" >&2
-          exit 1
-        }
-        printf '%s\n' "$container"
+        set -a
+        . .devcontainer/.env
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        python3 .taskfiles/scripts/compose-manifest.py name "{{.WORKSPACE}}"
 
   ensure-running:
     internal: true
@@ -79,6 +84,16 @@ tasks:
     cmds:
       - task: ensure-identity-env
       - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container entrypoints must be run on the host." >&2
+          exit 0
+        fi
+        set -a
+        . .devcontainer/.env
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        bash .taskfiles/scripts/prepare-bind-mounts.sh "{{.WORKSPACE}}" >/dev/null || exit 1
         container="$(task --silent container:resolve-container-name)"
         if docker ps --filter "name=^/${container}$" --filter "status=running" --quiet | grep -q .; then
           exit 0
@@ -116,6 +131,8 @@ tasks:
         set -a
         . .devcontainer/.env
         set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
         devcontainer build --workspace-folder {{.WORKSPACE}}
 
   up:
@@ -128,10 +145,13 @@ tasks:
           echo "[skip] container:up must be run on the host." >&2
           exit 0
         fi
-        bash .taskfiles/scripts/prepare-bind-mounts.sh "{{.WORKSPACE}}"
         set -a
         . .devcontainer/.env
         set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        GENTLE_VOLUME_MANIFEST_ID="$(bash .taskfiles/scripts/prepare-bind-mounts.sh "{{.WORKSPACE}}")" || exit 1
+        export GENTLE_VOLUME_MANIFEST_ID
         devcontainer up --workspace-folder {{.WORKSPACE}}
 
   rebuild:

@@ -1,11 +1,16 @@
 # Volumes and the install contract
 
 This document is the deep reference for the stateful-volume contract.
-Installer-owned targets tie together `docker-compose.yml`,
+Installer-owned targets tie together the ordered selected Compose files,
 `lifecycle/setup-volumes.sh`, and the `install/available/` scripts. Passive
 state mounts use only Compose because no installer owns or populates
 them. The TL;DR lives in the header of `lifecycle/setup-volumes.sh` and in the
 output of `task install:volumes`.
+
+See [optional integrations](./optional-integrations.md) for selection, schema-2
+manifest freshness, host socket prerequisites, and desired-versus-applied mount
+identity. Runtime consumers validate the host-published projection; they no
+longer parse the base Compose file.
 
 > **Looking for the comprehensive view?** Start at
 > [`docs/en/extending.md`](./extending.md), which covers install,
@@ -25,10 +30,10 @@ identical to this one (the source tree IS the manifest).
 ## The contract in one diagram
 
 ```text
-.docker-compose.yml              .devcontainer/lifecycle/setup-volumes.sh
+selected Compose → host manifest .devcontainer/lifecycle/setup-volumes.sh
 ┌──────────────────────────────┐         ┌─────────────────────────────────┐
 │ services.container-svc       │         │ resolve_compose_volume_targets │
-│   volumes:                   │ ──────▶ │   reads the volumes block,     │
+│   volumes:                   │ ──────▶ │   validates the manifest,     │
 │     - type/source/target/bind   │         │   emits alternating NUL-      │
 │       long-syntax entries      │         │   terminated source, target   │
 │     - .../opencode/share:...    │         │ compose_target_to_install_     │
@@ -114,7 +119,7 @@ After creation, the `postCreateCommand` runs `bash .devcontainer/setup.sh`:
 setup_versioned_configs         # copy enabled tools' missing baseline configs
 setup_pi_workspace_trust        # mark the workspace as trusted in trust.json
 repair_installed_volumes        # run enabled Pi Gentle and Engram state owners
-DEVCONTAINER_PHASE=runtime bash 20-tool-ssh.sh  # when SSH is enabled
+DEVCONTAINER_PHASE=runtime bash 20-tool-ssh-server.sh  # installer + override enabled
 start-sshd                      # after SSH runtime preparation
 ```
 
@@ -126,6 +131,7 @@ binary.
 Dev Containers runs with `remoteUser: ubuntu`; its numeric UID projection aligns
 the prepared host directories with the container development user. The project
 does not use `HOST_UID` or `HOST_GID` build plumbing.
+`HOST_UID` is only a host-generated locator for the optional Pulse socket.
 
 `repair_installed_volumes` iterates the targets from
 `resolve_compose_volume_targets` and, for each one, calls
@@ -177,13 +183,13 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
 
    ```bash
    case "${target}" in
-       "${HOME}/.pi"        | "/home/${UID}/.pi")
-           scripts_ref+=("30-ai-pi-coding" "30-ai-pi-gentle")
+        "/home/ubuntu/.pi")
+            scripts_ref+=("30-ai-pi-gentle")
            ;;
-       "${HOME}/.engram"    | "/home/${UID}/.engram")
+        "/home/ubuntu/.engram")
            scripts_ref+=("30-ai-engram")
            ;;
-       "${HOME}/.postgresql" | "/home/${UID}/.postgresql")
+        "/home/ubuntu/.postgresql")
            scripts_ref+=("40-data-postgresql")
            ;;
        esac

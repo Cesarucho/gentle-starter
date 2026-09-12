@@ -22,14 +22,14 @@ def managed_bind_sources(volumes, workspace):
             or bind.get("create_host_path") is not False
             or not source
             or "$" in source
-            or os.path.isabs(source)
+            or source == "external"
             or "\0" in source
         ):
             print(f"[bind-prep] externally managed: {source}")
             continue
 
         candidate = os.path.normpath(
-            os.path.abspath(os.path.join(workspace, ".devcontainer", source))
+            os.path.abspath(os.path.join(workspace, source))
         )
         try:
             contained = os.path.commonpath((managed_root, candidate)) == managed_root

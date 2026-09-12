@@ -1,0 +1,7 @@
+services:
+  container-svc:
+    volumes:
+      - type: bind
+        source: ../.env.d/.pi
+        target: /home/ubuntu/.pi
+        bind: { create_host_path: false }

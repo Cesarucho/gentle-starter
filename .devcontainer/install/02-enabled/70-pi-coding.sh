@@ -1,1 +1,0 @@
-../available/30-ai-pi-coding.sh

@@ -12,8 +12,8 @@ links from there.
 | Path | Purpose |
 |---|---|
 | `Dockerfile` | Base image + build-time setup. Iterates `install/01-core/`, `install/02-enabled/`, `install/03-hooks/` in order. |
-| `devcontainer.json` | VS Code Dev Containers integration. `postCreateCommand` runs `setup.sh`. |
-| `docker-compose.yml` | Service definition. Stateful bind mounts live here. |
+| `devcontainer.json` | Task-driven Dev Container CLI configuration and ordered Compose selection. IDEs attach only. |
+| `docker-compose.yml` | Base service and default persistent binds. Independent `docker-compose.*.yml` files are opt-in. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
 | `test/` | BATS test suite. Run `task test:all` to verify the environment. |
@@ -30,10 +30,13 @@ The devcontainer has four extension surfaces:
    dependencies. Adding a new tool or a new runtime lands here.
    Deep dive in [`docs/en/install-tree.md`](../docs/en/install-tree.md).
 
-2. **Stateful volumes** (`docker-compose.yml` + `lifecycle/setup-volumes.sh`)
+2. **Stateful volumes** (selected Compose files + `lifecycle/setup-volumes.sh`)
    — bind mounts that survive rebuilds. Installer-owned targets trigger
    their repair scripts; passive state mounts persist without repair.
    Deep dive in [`docs/en/install-volumes.md`](../docs/en/install-volumes.md).
+   Select optional Pi, SSH-agent, SSH-server, and audio integrations using
+   [`optional-integrations.md`](../docs/en/optional-integrations.md). Task prepares
+   a minimal host manifest; runtime rejects stale or unapplied mount identities.
 
 3. **Config files** (`<name>-config/` + `seed_config_tree` in
    `setup.sh`) — versioned baseline configs copied to the runtime

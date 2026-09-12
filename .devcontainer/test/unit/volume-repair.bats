@@ -20,10 +20,20 @@ setup() {
 		"${WORKSPACE}/.taskfiles/scripts/install.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${WORKSPACE}/.taskfiles/scripts/"
+	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.yml"}' >"${WORKSPACE}/.devcontainer/devcontainer.json"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.pi, target: /home/ubuntu/.pi, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
 	: >"${CALLS_FILE}"
 
 	write_installer "30-ai-pi-coding"
 	write_installer "30-ai-pi-gentle"
+}
+
+publish_manifest() {
+	GENTLE_VOLUME_MANIFEST_ID="$(yq '.services."container-svc".volumes' "${WORKSPACE}/.devcontainer/docker-compose.yml" |
+		PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/.devcontainer/test/unit/manifest-fixture.py" "${WORKSPACE}")"
+	export GENTLE_VOLUME_MANIFEST_ID PYTHONDONTWRITEBYTECODE=1
 }
 
 teardown() {
@@ -55,7 +65,7 @@ run_pi_volume_repair() {
 		bash -c '
 			source "$1"
 			resolve_compose_volume_targets() {
-				printf "../.env.d/.pi\0%s/.pi\0" "${HOME}"
+				printf ".env.d/.pi\0/home/ubuntu/.pi\0"
 			}
 			repair_installed_volumes
 		' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
@@ -115,7 +125,7 @@ run_pi_volume_repair() {
 	WORKSPACE_DIR="${WORKSPACE}"
 	source "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 
-	compose_target_to_install_scripts "/home/${UID}/.pi" scripts
+	compose_target_to_install_scripts "/home/ubuntu/.pi" scripts
 
 	[ "${scripts[*]}" = "30-ai-pi-gentle" ]
 }
@@ -134,6 +144,7 @@ services:
         source: named-state
         target: /var/lib/state
 YAML
+	publish_manifest
 
 	run env HOME="${HOME_DIR}" WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
@@ -143,7 +154,7 @@ YAML
 	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	[ "${status}" -eq 0 ]
-	[ "${output}" = "../.env.d/.pi|/home/ubuntu/.pi" ]
+	[ "${output}" = ".env.d/.pi|/home/ubuntu/.pi" ]
 }
 
 @test "volume parser transports odd long-syntax paths without delimiters or base64" {
@@ -153,6 +164,7 @@ services:
     volumes:
       - {type: bind, source: "../.env.d/a|b c", target: "${HOME_DIR}/.pi", bind: {create_host_path: false}}
 YAML
+	publish_manifest
 
 	run env HOME="${HOME_DIR}" WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
@@ -162,7 +174,7 @@ YAML
 	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 
 	[ "${status}" -eq 0 ]
-	[ "${output}" = "source=<../.env.d/a|b c> target=<${HOME_DIR}/.pi>" ]
+	[ "${output}" = "source=<.env.d/a|b c> target=<${HOME_DIR}/.pi>" ]
 }
 
 @test "install volume report preserves odd paths from structured transport" {
@@ -170,14 +182,15 @@ YAML
 services:
   container-svc:
     volumes:
-      - {type: bind, source: "../.env.d/a|b c", target: "${HOME_DIR}/.pi", bind: {create_host_path: false}}
+      - {type: bind, source: "../.env.d/a|b c", target: "/home/ubuntu/.pi", bind: {create_host_path: false}}
 YAML
+	publish_manifest
 
 	run env HOME="${HOME_DIR}" bash "${WORKSPACE}/.taskfiles/scripts/install.sh" volumes
 
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"../.env.d/a|b c"* ]]
-	[[ "${output}" == *"${HOME_DIR}/.pi"* ]]
+	[[ "${output}" == *".env.d/a|b c"* ]]
+	[[ "${output}" == *"/home/ubuntu/.pi"* ]]
 	[[ "${output}" == *"30-ai-pi-gentle"* ]]
 }
 

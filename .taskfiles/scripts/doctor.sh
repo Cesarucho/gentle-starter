@@ -90,13 +90,15 @@ is_devcontainer() {
 }
 
 extract_devcontainer_service() {
-	sed -n 's/^[[:space:]]*"service"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-		.devcontainer/devcontainer.json | head -n 1
+	python3 .taskfiles/scripts/compose-manifest.py service .
 }
 
 check_devcontainer_service() {
 	local service
-	service="$(extract_devcontainer_service)"
+	service="$(extract_devcontainer_service)" || {
+		fail "selected Compose manifest unavailable; run task container:up on the host"
+		return
+	}
 
 	if [ -z "${service}" ]; then
 		fail "could not read service from .devcontainer/devcontainer.json"
@@ -105,10 +107,10 @@ check_devcontainer_service() {
 
 	ok "devcontainer service configured: ${service}"
 
-	if grep -Eq "^[[:space:]]{2}${service}:" .devcontainer/docker-compose.yml; then
-		ok "docker-compose service exists: ${service}"
+	if python3 .taskfiles/scripts/compose-manifest.py check .; then
+		ok "selected Compose volume manifest is current (desired, not applied)"
 	else
-		fail "docker-compose service not found: ${service}"
+		fail "selected Compose volume manifest missing or stale; run task container:up on the host"
 	fi
 }
 
