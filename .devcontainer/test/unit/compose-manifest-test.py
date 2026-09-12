@@ -322,7 +322,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                        "GENTLE_VOLUME_MANIFEST_ID": "fixture-creation-identity"}
         for optional, expected in ((None, None), ("pi", "/home/ubuntu/.pi"),
                                    ("ssh-agent", "/ssh-agent"), ("ssh-server", "/home/ubuntu/.ssh-server"),
-                                   ("audio", "/tmp/pulse-native")):
+                                   ("audio", "/pulse-native")):
             files = ["docker-compose.yml"]
             if optional:
                 files.append(f"docker-compose.{optional}.yml")
@@ -330,18 +330,43 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             with patch.dict(os.environ, environment):
                 selected = manifest.compose_model(self.root)[3]
             targets = {volume["target"] for volume in selected["volumes"]}
-            optional_targets = targets & {"/home/ubuntu/.pi", "/ssh-agent", "/home/ubuntu/.ssh-server", "/tmp/pulse-native"}
+            optional_targets = targets & {"/home/ubuntu/.pi", "/ssh-agent", "/home/ubuntu/.ssh-server", "/pulse-native"}
             self.assertEqual(optional_targets, {expected} if expected else set())
             self.assertEqual(len(selected["ports"]), 3 if optional == "ssh-server" else 2)
             self.assertEqual(selected["environment"]["GENTLE_VOLUME_MANIFEST_ID"], "fixture-creation-identity")
             if optional == "audio":
-                self.assertEqual(selected["environment"]["PULSE_SERVER"], "unix:/tmp/pulse-native")
+                self.assertEqual(selected["environment"]["PULSE_SERVER"], "unix:/pulse-native")
                 audio = next(volume for volume in selected["volumes"] if volume["target"] == expected)
                 self.assertTrue(audio["read_only"])
                 self.assertEqual(audio["source"], "/run/user/1234/pulse/native")
             if optional == "ssh-agent":
                 self.assertEqual(selected["environment"]["SSH_AUTH_SOCK"], "/ssh-agent")
             manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+
+    def test_audio_stays_outside_dind_tmp_and_is_never_managed(self):
+        config = (ROOT / ".devcontainer/devcontainer.json").read_text()
+        self.assertRegex(config, r'(?m)^\s*"ghcr.io/devcontainers/features/docker-in-docker:3":\s*\{\}')
+        selected = manifest.read_compose_fragment(
+            ROOT / ".devcontainer/docker-compose.audio.yml")["services"]["container-svc"]
+        self.assertEqual(len(selected["volumes"]), 1)
+        audio = selected["volumes"][0]
+        # DinD's startup tmpfs over /tmp must not hide the socket bind.
+        self.assertNotIn(Path("/tmp"), (Path(audio["target"]), *Path(audio["target"]).parents))
+        self.assertEqual(audio["target"], "/pulse-native")
+        self.assertEqual(selected["environment"]["PULSE_SERVER"], f'unix:{audio["target"]}')
+        self.assertEqual(audio["source"], "/run/user/${HOST_UID:?Missing HOST_UID}/pulse/native")
+        self.assertEqual(audio["type"], "bind")
+        self.assertIs(audio["read_only"], True)
+        self.assertIs(audio["bind"]["create_host_path"], False)
+        audio["source"] = "/run/user/1234/pulse/native"
+        projected = manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+        record, = projected["volumes"]
+        self.assertEqual(record["source"], "external")
+        self.assertIs(record["managed"], False)
+        with contextlib.redirect_stdout(io.StringIO()):
+            for volumes in (selected["volumes"], projected["volumes"]):
+                self.assertEqual(list(prep.managed_bind_sources(volumes, str(self.root))), [])
+        self.assertFalse((self.root / ".env.d").exists())
 
     def test_real_compose_merge_and_interpolation_in_isolated_fixture(self):
         version = subprocess.run(["docker", "compose", "version"], capture_output=True)

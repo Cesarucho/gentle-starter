@@ -1,10 +1,10 @@
 services:
   container-svc:
     environment:
-      PULSE_SERVER: unix:/tmp/pulse-native
+      PULSE_SERVER: unix:/pulse-native
     volumes:
       - type: bind
         source: /run/user/${HOST_UID:?Missing HOST_UID}/pulse/native
-        target: /tmp/pulse-native
+        target: /pulse-native
         read_only: true
         bind: { create_host_path: false }

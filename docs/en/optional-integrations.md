@@ -18,7 +18,7 @@ are not supported creation paths.
 | `docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
 | `docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
 | `docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `20-tool-ssh-server` and rebuild |
-| `docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/tmp/pulse-native` | Enable `20-tool-pulseaudio-utils` for `paplay` and rebuild |
+| `docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `20-tool-pulseaudio-utils` for `paplay` and rebuild |
 
 The base retains Gentle AI, Engram, OpenCode, Git configuration, image/build,
 service identity, and application/OpenCode ports. All optional files start off.
@@ -43,6 +43,11 @@ no key migration or new credential persistence.
 guard; it is never container identity and there is no `HOST_GID`. The socket is
 read-only and uses `create_host_path: false`. Package availability does not prove
 socket permissions, server compatibility, or audible host playback.
+
+The container endpoint is `/pulse-native`, outside `/tmp`: Docker-in-Docker
+startup can mount tmpfs over `/tmp`, hiding socket binds beneath it. Apply this
+mount/environment correction with `task container:restart` on the host; it does
+not require rebuilding packages that are already installed.
 
 Neither socket integration promises universal Docker Desktop support. Confirm
 host OS, daemon socket sharing, server permissions, and session availability.
