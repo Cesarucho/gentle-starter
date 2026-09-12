@@ -254,10 +254,15 @@ empty and is documented in its own README.
 Three tasks tell you the live state:
 
 ```bash
-task install:list              # shows 01-core, 02-enabled, hooks, and the full available/ catalog with status
+task install:list              # shows core, enabled, hooks, and tools available to enable
 task install:doctor            # verifies lib/, templates/, enabled/ symlinks
 task install:volumes           # shows the volume contract (separate concern)
 ```
+
+The `available (not enabled)` section lists filenames without repeating their status.
+Dependency suffixes describe declarations, not verified runtime availability:
+`requires: installer.sh`, `requires image: 01-core/10-system.sh`, or
+`optional companion: installer.sh`. Multiple dependencies are separated by semicolons.
 
 The build log itself shows the execution order. After
 `task container:up`, `grep "Running: " /tmp/<your-build-log>.log`

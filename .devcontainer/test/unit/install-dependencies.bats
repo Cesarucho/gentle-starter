@@ -85,7 +85,7 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[ -f "${TEST_ROOT}/outside.sh" ]
 }
 
-@test "doctor accepts ordered Pi and npm dependencies and list describes companions" {
+@test "doctor accepts ordered Pi and npm dependencies and list reports no remaining tools" {
 	ln -s ../available/20-runtime-node.sh "${TEST_ROOT}/.devcontainer/install/02-enabled/30-node.sh"
 	ln -s ../available/30-ai-engram.sh "${TEST_ROOT}/.devcontainer/install/02-enabled/60-engram.sh"
 	ln -s ../available/30-ai-pi-coding.sh "${TEST_ROOT}/.devcontainer/install/02-enabled/70-pi-coding.sh"
@@ -96,5 +96,75 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[[ "$output" == *"ok: enabled installer dependencies"* ]]
 	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
 	[ "$status" -eq 0 ]
-	[[ "$output" == *"30-ai-engram.sh (enabled) [companion:30-ai-pi-coding.sh]"* ]]
+	[[ "$output" == *"  (no tools available to enable)"* ]]
+}
+
+@test "list excludes canonical targets enabled through custom aliases and keeps other sections" {
+	touch "${TEST_ROOT}/.devcontainer/install/01-core/core.sh" "${TEST_ROOT}/.devcontainer/install/03-hooks/hook.sh"
+	ln -s ../available/20-runtime-node.sh "${TEST_ROOT}/.devcontainer/install/02-enabled/25-custom-node.sh"
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"  core.sh"* ]]
+	[[ "$output" == *"  hook.sh"* ]]
+	[[ "$output" == *"25-custom-node.sh -> ../available/20-runtime-node.sh"* ]]
+	local available_section="${output#*available (}"
+	[[ "$available_section" != *$'\n  20-runtime-node.sh'* ]]
+	[[ "$available_section" == *"30-ai-engram.sh — optional companion: 30-ai-pi-coding.sh"* ]]
+}
+
+@test "list keeps broken and out-of-catalog aliases visible without hiding available tools" {
+	touch "${TEST_ROOT}/20-runtime-node.sh"
+	ln -s ../available/missing.sh "${TEST_ROOT}/.devcontainer/install/02-enabled/40-broken.sh"
+	ln -s "${TEST_ROOT}/20-runtime-node.sh" "${TEST_ROOT}/.devcontainer/install/02-enabled/50-outside.sh"
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"40-broken.sh -> ../available/missing.sh"* ]]
+	[[ "$output" == *"50-outside.sh -> ${TEST_ROOT}/20-runtime-node.sh"* ]]
+	[[ "$output" == *$'\n  20-runtime-node.sh\n'* ]]
+}
+
+@test "list shows plain disabled names and prerequisites without duplicate status" {
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'available (not enabled):\n  20-runtime-node.sh\n'* ]]
+	[[ "$output" == *$'\n  30-ai-pi-coding.sh — requires: 20-runtime-node.sh\n'* ]]
+	[[ "$output" != *".sh (not enabled)"* ]]
+	[[ "$output" != *"[enabled:"* ]]
+}
+
+@test "list distinguishes image requirements without checking their availability" {
+	touch "${TEST_ROOT}/.devcontainer/install/available/40-python-graphify.sh"
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'\n  40-python-graphify.sh — requires image: 01-core/10-system.sh\n'* ]]
+}
+
+@test "list separates multiple declared dependencies readably" {
+	printf '%s\n' \
+		'30-ai-pi-gentle.sh|enabled|20-runtime-node.sh|npm' \
+		'30-ai-pi-gentle.sh|image|01-core/10-system.sh|python3' \
+		>>"${TEST_ROOT}/.devcontainer/install/dependencies.conf"
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'\n  30-ai-pi-gentle.sh — requires: 30-ai-pi-coding.sh; requires: 20-runtime-node.sh; requires image: 01-core/10-system.sh\n'* ]]
+}
+
+@test "list keeps plain names when dependency metadata is missing" {
+	rm "${TEST_ROOT}/.devcontainer/install/dependencies.conf"
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'\n  30-ai-pi-coding.sh\n'* ]]
+	[[ "$output" != *" — "* ]]
+}
+
+@test "list preserves the presets alias and rejects unknown options" {
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
+	[ "$status" -eq 0 ]
+	local plain_output="$output"
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list --presets
+	[ "$status" -eq 0 ]
+	[ "$output" = "$plain_output" ]
+	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list --json
+	[ "$status" -eq 2 ]
+	[[ "$output" == *"ERROR: list accepts no arguments or the legacy --presets alias"* ]]
 }

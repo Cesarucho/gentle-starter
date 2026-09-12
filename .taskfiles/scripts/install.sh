@@ -13,9 +13,8 @@
 # Commands:
 #   help                       Show this help
 #   list [--presets]           List install scripts (01-core, 02-enabled,
-#                              03-hooks) and the full available/ catalog
-#                              with enabled/not enabled status. --presets
-#                              is kept as a no-op compatibility alias.
+#                              03-hooks) and available/ scripts not enabled.
+#                              --presets is kept as a no-op compatibility alias.
 #   enable NAME                Create an 02-enabled/ symlink to
 #                              available/NAME.sh
 #   disable NAME               Remove the 02-enabled/ symlink for NAME.sh
@@ -36,8 +35,8 @@ Usage:
 Commands:
   help                  Show this help
   list [--presets]      List install scripts (01-core, 02-enabled, 03-hooks)
-                        and the full available/ catalog with enabled/not enabled
-                        status. --presets is kept as a no-op compatibility alias.
+                        and available/ scripts not enabled. --presets is kept
+                        as a no-op compatibility alias.
   enable NAME           Create an 02-enabled/ symlink to available/NAME.sh
   disable NAME          Remove the 02-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
@@ -138,16 +137,19 @@ validate_enabled_dependencies() {
 }
 
 dependency_summary() {
-	local wanted="$1" consumer kind dependency command_name summaries=()
+	local wanted="$1" consumer kind dependency command_name label separator=' — '
 	[ -f "${DEPENDENCIES_FILE}" ] || return 0
 	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
 		[ "${consumer}" = "${wanted}" ] || continue
-		summaries+=("${kind}:${dependency}")
+		case "${kind}" in
+		enabled) label='requires' ;;
+		image) label='requires image' ;;
+		companion) label='optional companion' ;;
+		*) label="${kind}" ;;
+		esac
+		printf '%s%s: %s' "${separator}" "${label}" "${dependency}"
+		separator='; '
 	done <"${DEPENDENCIES_FILE}"
-	[ "${#summaries[@]}" -eq 0 ] || printf ' [%s]' "$(
-		IFS=,
-		echo "${summaries[*]}"
-	)"
 }
 
 enabled_dependents_for() {
@@ -207,18 +209,22 @@ cmd_list() {
 	fi
 
 	echo ""
-	echo "available (catálogo dinámico desde available/):"
+	echo "available (not enabled):"
 	if [ -d "${INSTALL_DIR}/available" ]; then
-		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | while read -r f; do
-			name="$(basename "${f}")"
-			if is_available_enabled "${name}"; then
-				printf '  %s (enabled)' "${name}"
-			else
-				printf '  %s (not enabled)' "${name}"
+		find "${INSTALL_DIR}/available" -maxdepth 1 -type f -print | sort | {
+			local remaining=0
+			while read -r f; do
+				name="$(basename "${f}")"
+				is_available_enabled "${name}" && continue
+				printf '  %s' "${name}"
+				dependency_summary "${name}"
+				printf '\n'
+				remaining=$((remaining + 1))
+			done
+			if [ "${remaining}" -eq 0 ]; then
+				echo "  (no tools available to enable)"
 			fi
-			dependency_summary "${name}"
-			printf '\n'
-		done
+		}
 	else
 		echo "  (directorio ausente)"
 	fi
