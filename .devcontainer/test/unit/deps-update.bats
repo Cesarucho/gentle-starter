@@ -9,6 +9,10 @@ setup() {
 	mkdir -p "${BIN_DIR}"
 	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${POLICY_FILE}"
 	sed -i -E '/^TOOL_(JAVA|NODE|PHP|KUBECTL|PLANTUML)_VERSION=/! s/^(TOOL_[A-Z0-9_]+_VERSION)=.*/\1="latest"/' "${POLICY_FILE}"
+	sed -i \
+		-e 's/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION="1.36.4"/' \
+		-e 's/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION="1.2026.8"/' \
+		"${POLICY_FILE}"
 	: >"${CALLS_FILE}"
 	export REPO_ROOT TEST_ROOT POLICY_FILE BIN_DIR CALLS_FILE
 	export PATH="${BIN_DIR}:${PATH}"
@@ -125,6 +129,7 @@ write_c4_archive_fixture() {
 
 write_curl_stub() {
 	local mode="$1"
+	local kubectl_response="${2:-v1.36.99}"
 	local configured_gentle_version
 	local pagination_page
 	configured_gentle_version="$(sed -n 's/^LOCK_GENTLE_AI_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
@@ -196,7 +201,9 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dlv_1.99.0_lin
   *releases.hashicorp.com/terraform/index.json)
     body='{"versions":{"1.98.0":{},"1.99.0":{},"2.0.0-beta.1":{}}}' ;;
   *dl.k8s.io/release/stable-1.36.txt)
-    body='v1.36.99' ;;
+    body='${kubectl_response}' ;;
+  *dl.k8s.io/release/stable-1.37.txt)
+    body='v1.37.99' ;;
   *codeload.github.com/plantuml-stdlib/C4-PlantUML*)
     if [ "${mode}" = c4_archive ]; then
       cp "${C4_ARCHIVE_FILE}" "\${output}"
@@ -300,6 +307,7 @@ EOF
 	grep -q "^LOCK_GENTLE_AI_SHA256_AMD64=\"${GENTLE_FIXTURE_NEW_SHA256_AMD64}\"$" "${POLICY_FILE}"
 	grep -q "^LOCK_GENTLE_AI_SHA256_ARM64=\"${GENTLE_FIXTURE_NEW_SHA256_ARM64}\"$" "${POLICY_FILE}"
 	grep -q '^LOCK_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
+	grep -q '^LOCK_KUBECTL_VERSION="1.36.99"$' "${POLICY_FILE}"
 	grep -q '^LOCK_PLANTUML_SHA256="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"$' "${POLICY_FILE}"
 	grep -q '^LOCK_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
 	grep -q "^LOCK_ARCHIFY_VERSION=\"${ARCHIFY_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
@@ -465,6 +473,74 @@ EOF
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
 	grep -q '^LOCK_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
+}
+
+@test "kubectl rejects provider responses outside the requested minor before continuing discovery" {
+	local response
+	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	for response in v1.37.99 v1.35.99 v2.36.99 v0.36.99; do
+		write_curl_stub success "${response}"
+		: >"${CALLS_FILE}"
+
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"kubectl channel 1.36 returned out-of-lane version '${response}'"* ]]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+		grep -Fq 'https://dl.k8s.io/release/stable-1.36.txt' "${CALLS_FILE}"
+		run grep -Fq "https://dl.k8s.io/release/${response}/" "${CALLS_FILE}"
+		[ "${status}" -eq 1 ]
+		run grep -Fq 'api.github.com/repos/plantuml/plantuml/' "${CALLS_FILE}"
+		[ "${status}" -eq 1 ]
+	done
+}
+
+@test "kubectl rejects malformed and prerelease channel responses without writing" {
+	local response
+	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	for response in 1.36.99 v1.36 v1.36.99-rc.1 v1.36.99+build; do
+		write_curl_stub success "${response}"
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"kubectl channel returned invalid version '${response}'"* ]]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	done
+}
+
+@test "kubectl preserves minimum floors and exact pin semantics within the selected minor" {
+	local intent
+	for intent in 1.36.100 =1.36.4; do
+		sed -i "s/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION=\"${intent}\"/" "${POLICY_FILE}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"LOCK_KUBECTL_VERSION candidate 1.36.99 escapes intent ${intent}"* ]]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	done
+	sed -i 's/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION="=1.36.99"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^LOCK_KUBECTL_VERSION="1.36.99"$' "${POLICY_FILE}"
+}
+
+@test "kubectl resolves a deliberately selected alternative minor independently of the live policy" {
+	sed -i 's/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION="1.37.4"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^LOCK_KUBECTL_VERSION="1.37.99"$' "${POLICY_FILE}"
+	grep -Fq 'https://dl.k8s.io/release/stable-1.37.txt' "${CALLS_FILE}"
+	run grep -Fq 'https://dl.k8s.io/release/stable-1.36.txt' "${CALLS_FILE}"
+	[ "${status}" -eq 1 ]
+}
+
+@test "PlantUML permits a deliberately selected alternative year and the latest escape" {
+	local intent
+	for intent in 1.2027.1 latest; do
+		sed -i "s/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION=\"${intent}\"/" "${POLICY_FILE}"
+		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		[ "${status}" -eq 0 ]
+		grep -q '^LOCK_PLANTUML_VERSION="1.2027.1"$' "${POLICY_FILE}"
+	done
 }
 
 @test "bare semantic baseline rejects older candidates and selects a newer compatible candidate" {

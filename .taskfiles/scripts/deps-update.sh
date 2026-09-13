@@ -263,6 +263,7 @@ latest_kubectl_version() {
 	version="${version//$'\r'/}"
 	version="${version//$'\n'/}"
 	[[ "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "kubectl channel returned invalid version '${version}'"
+	[[ "${version%.*}" == "v${lane}" ]] || fail "kubectl channel ${lane} returned out-of-lane version '${version}'"
 	printf '%s\n' "${version#v}"
 }
 
