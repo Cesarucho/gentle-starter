@@ -8,7 +8,7 @@ setup() {
 	cp "${ROOT}/.taskfiles/"*.yml "${FIXTURE}/.taskfiles/"
 }
 
-@test "post-init layout keeps application routing separate from explicit maintainer aliases" {
+@test "post-init layout keeps application routing separate from explicit maintainer tasks" {
 	[ ! -e "${FIXTURE}/README.md" ]
 	[ ! -e "${FIXTURE}/docs" ]
 	run task --exit-code --dir "${FIXTURE}" test
@@ -16,26 +16,29 @@ setup() {
 	[[ "${output}" == *"Application tests are not configured"* ]]
 	[[ "${output}" == *"tasks.test.cmds"* ]]
 
+	run task --dry --dir "${FIXTURE}" test:starter
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'bats .devcontainer/test/unit/*.bats'* ]]
+	[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
+	[[ "${output}" != *'starter-lifecycle.py'* ]]
+	[[ "${output}" != *'starter-test-clean.py'* ]]
+	run task --dry --dir "${FIXTURE}" test:starter:unit
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'bats .devcontainer/test/unit/*.bats'* ]]
+	[[ "${output}" != *'integration/tools.bats'* ]]
+	run task --dry --dir "${FIXTURE}" test:starter:integration
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
+	[[ "${output}" != *'test/unit/'* ]]
+}
+
+@test "removed maintainer aliases are unknown tasks" {
 	local route
-	for route in test:starter test:test test:all; do
+	for route in test:unit test:integration test:test test:all; do
 		run task --dry --dir "${FIXTURE}" "${route}"
-		[ "${status}" -eq 0 ]
-		[[ "${output}" == *'bats .devcontainer/test/unit/*.bats'* ]]
-		[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
-		[[ "${output}" != *'starter-lifecycle.py'* ]]
-		[[ "${output}" != *'starter-test-clean.py'* ]]
-	done
-	for route in test:starter:unit test:unit; do
-		run task --dry --dir "${FIXTURE}" "${route}"
-		[ "${status}" -eq 0 ]
-		[[ "${output}" == *'bats .devcontainer/test/unit/*.bats'* ]]
-		[[ "${output}" != *'integration/tools.bats'* ]]
-	done
-	for route in test:starter:integration test:integration; do
-		run task --dry --dir "${FIXTURE}" "${route}"
-		[ "${status}" -eq 0 ]
-		[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
-		[[ "${output}" != *'test/unit/'* ]]
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"does not exist"* ]]
+		[[ "${output}" != *'bats .devcontainer/test/'* ]]
 	done
 }
 

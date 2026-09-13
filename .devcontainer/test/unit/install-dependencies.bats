@@ -161,16 +161,15 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[[ "$output" != *" — "* ]]
 }
 
-@test "list preserves the presets alias and rejects unknown options" {
+@test "list rejects arguments including the removed presets flag" {
 	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list
 	[ "$status" -eq 0 ]
-	local plain_output="$output"
-	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list --presets
-	[ "$status" -eq 0 ]
-	[ "$output" = "$plain_output" ]
-	run bash "${TEST_ROOT}/.taskfiles/scripts/install.sh" list --json
-	[ "$status" -eq 2 ]
-	[[ "$output" == *"ERROR: list accepts no arguments or the legacy --presets alias"* ]]
+	local option
+	for option in --presets --json; do
+		run task --exit-code --dir "${TEST_ROOT}" install:list -- "${option}"
+		[ "$status" -eq 2 ]
+		[[ "$output" == *"ERROR: list accepts no arguments"* ]]
+	done
 }
 
 @test "core dependencies precede optional tools regardless of alias numbers" {

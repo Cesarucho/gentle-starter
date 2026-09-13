@@ -315,9 +315,7 @@ and distribution checks, including starter README/ADR/catalog expectations.
 The unit suite includes lifecycle/build fixtures: inspect it before execution.
 Derived applications are not required to satisfy starter editorial preferences.
 
-`test:unit`, `test:integration`, and `test:test` remain deprecated maintainer
-aliases. `test:all` now also resolves as a deprecated alias for `test:starter`
-(older guides advertised it before it existed). `test:install` remains explicit.
+`test:install` remains explicit.
 The old `test:pi-lifecycle` task has been removed; use the general
 `test:starter:lifecycle` only for an explicitly authorized expensive base lifecycle
 proof, not Pi verification. It is excluded from both `task test` and

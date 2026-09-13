@@ -304,8 +304,7 @@ task test:install      # install BATS if not present
 task test:help         # show available test tasks
 ```
 
-`test:unit`, `test:integration`, `test:test`, and `test:all` are deprecated
-maintainer aliases. The unit suite includes lifecycle/build fixtures; inspect
+The unit suite includes lifecycle/build fixtures; inspect
 tests before running them in a restricted environment. README/ADR/catalog
 checks remain starter-only and can require original distribution docs; derived
 applications need not satisfy them. `validate` and `install:doctor` are

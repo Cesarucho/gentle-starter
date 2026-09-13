@@ -20,7 +20,6 @@ tasks:
           task test:starter:clean Preview registered test-run recovery (read-only)
           task test:starter      Run both starter suites (may build or exercise lifecycle fixtures)
           task test              Application-owned command; initially fails as not configured
-          Deprecated aliases: test:unit, test:integration, test:test, test:all
         ENDHELP
 
   install:
@@ -60,22 +59,3 @@ tasks:
     cmds:
       - task: starter:unit
       - task: starter:integration
-
-  unit:
-    desc: Deprecated alias for test:starter:unit
-    cmds:
-      - 'printf "%s\n" "Deprecated: use task test:starter:unit" >&2'
-      - task: starter:unit
-
-  integration:
-    desc: Deprecated alias for test:starter:integration
-    cmds:
-      - 'printf "%s\n" "Deprecated: use task test:starter:integration" >&2'
-      - task: starter:integration
-
-  test:
-    aliases: [all]
-    desc: Deprecated alias for test:starter
-    cmds:
-      - 'printf "%s\n" "Deprecated: use task test:starter" >&2'
-      - task: starter

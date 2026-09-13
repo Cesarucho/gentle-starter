@@ -131,8 +131,6 @@ tasks:
           task test:starter               Run the starter maintainer suites explicitly
           task test:starter:unit          Run starter behavior and distribution contract tests
           task test:starter:integration   Check core and selected installed tools
-          task test:unit                  Deprecated alias for test:starter:unit
-          task test:integration           Deprecated alias for test:starter:integration
           task test:starter:lifecycle    Explicit expensive base lifecycle proof (see test:help)
           task test:starter:clean        Preview recovery of registered test-owned resources
           task test:install               Install BATS if not present

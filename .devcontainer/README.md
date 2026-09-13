@@ -36,8 +36,7 @@ and may require source docs removed by initialization. The unit suite includes
 lifecycle/build fixtures; inspect it before running. No automatic profile or
 branch detection changes the routing.
 
-Deprecated aliases `test:unit`, `test:integration`, `test:test`, and `test:all`
-still select maintainer tests. `test:install` stays explicit. The removed
+`test:install` stays explicit. The removed
 `test:pi-lifecycle` is replaced by the explicitly invoked general
 `test:starter:lifecycle`; it does not prove Pi or optional host sockets and is not
 included in the starter suite. See [scope and costs](../docs/en/extending.md#explicit-base-lifecycle-proof).

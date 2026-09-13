@@ -12,9 +12,8 @@
 #
 # Commands:
 #   help                       Show this help
-#   list [--presets]           List foundation, core tools, optional tools,
+#   list                       List foundation, core tools, optional tools,
 #                              hooks, and available/ scripts not active.
-#                              --presets is kept as a no-op compatibility alias.
 #   enable NAME                Create a 03-enabled/ symlink to
 #                              available/NAME.sh
 #   disable NAME               Remove the 03-enabled/ symlink for NAME.sh
@@ -36,9 +35,8 @@ Usage:
 
 Commands:
   help                  Show this help
-  list [--presets]      List foundation, mandatory core tools, optional tools, hooks
-                        and available/ scripts not enabled. --presets is kept
-                        as a no-op compatibility alias.
+  list                  List foundation, mandatory core tools, optional tools, hooks
+                        and available/ scripts not enabled.
   enable NAME           Create an optional 03-enabled/ symlink to available/NAME.sh
   disable NAME          Remove the optional 03-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
@@ -189,8 +187,8 @@ resolve_disable_target() {
 }
 
 cmd_list() {
-	if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "${1}" != "--presets" ]; }; then
-		echo "ERROR: list accepts no arguments or the legacy --presets alias" >&2
+	if [ "$#" -ne 0 ]; then
+		echo "ERROR: list accepts no arguments" >&2
 		usage >&2
 		exit 2
 	fi
