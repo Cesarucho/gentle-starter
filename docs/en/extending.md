@@ -414,6 +414,82 @@ the same ownership engine as explicit recovery below. Cleanup failure makes the
 test fail without replacing its separate stage/status diagnostic. SIGKILL cannot
 run a finalizer; the durable inventory supports later recovery instead.
 
+### Disposable container checks without mounts
+
+Use disposable containers for focused validation without changing the primary
+worktree or current container: inspect non-secret filesystem/configuration metadata,
+permissions, or process behavior; run a script, test suite, or CLI command; or check
+a minimal application, reproduction, or proof of concept.
+
+In Docker-in-Docker (DinD), the client must reach the intended running server daemon.
+The daemon hosts the containers; client-local paths are not automatically paths on
+that daemon's host. Build-context transfer and `docker cp` move reviewed inputs
+without host bind mounts; `docker exec` runs commands in the disposable container.
+Use a reviewed existing image or build a disposable image from a public-only context.
+This procedure is illustrative, not a complete harness or a new canonical Task mode.
+
+1. **Scope and authorize.** Freeze the image/context and synthetic fixtures; record
+   their identity. Exclude real data, HOME, credentials, auth/environment files, and
+   sockets. Do not mount the primary worktree or current container's state. Forecast
+   downloads, build/run time, disk use, and retained shared cache; obtain operational
+   authorization. Set bounded producer timeouts and an outer deadline with cleanup
+   headroom using the [timeout guidance](#execution-timeouts-for-operational-checks).
+2. **Register resources.** Assign unique owned names/tags and record resource IDs
+   incrementally in a durable inventory outside disposable scratch. Register work
+   before side effects and arrange cleanup for success, failure, and interruption.
+   If using this repository's `Run` engine, honor its source/daemon binding, collision
+   checks, ownership labels, exclusive lease, and producer registration contracts.
+   Labels alone do not enable canonical cleanup; an external registry needs its
+   matching driver. Existing lifecycle commands still require daemon-visible scratch.
+3. **Create, start, and execute.** Avoid binds and privileged mode. Default to
+   `--network none` where the workload permits; separately authorize bounded network
+   access, services, and published ports when needed, including build-time access.
+   Copy only reviewed fixtures. Use explicit intended user, HOME, and working
+   directory for `docker exec`, and report that identity with the result. Root is
+   legitimate for root-specific tests, administrative setup, or diagnosis; it does
+   not substitute for application proof under the application's intended user.
+   Never relax permissions or change ownership to mask a failure.
+4. **Capture and finalize.** Retain bounded public results and sanitized stage/exit
+   evidence, not secret output, full environment dumps, or unrestricted inspection
+   output. Keep build, execution/assertion, cleanup, and primary-preservation outcomes
+   separate. Build success or stdout alone is not a pass; blocked, failed,
+   not-tested, and interrupted/incomplete outcomes remain distinct. Record elapsed
+   time and successful steps before any bounded, authorized retry with a new frozen
+   candidate if corrected. Stop containers and remove only verified run-owned
+   resources; verify cleanup through the applicable
+   [recovery contracts](#recovering-test-owned-resources). Hard kills may prevent
+   finalization. Stop on uncertain ownership, daemon mismatch, or permission failure;
+   never use global pruning.
+
+Illustrative fragments **inside that registered, supervised workflow**, not a
+complete harness: `image`, `container`, and `run_id` are inventory-assigned identities;
+`fixture` and `results` are reviewed client-local input and empty output directories.
+The image already provides `check_user`, writable `check_home` and `check_dir`, `sh`,
+and `sleep infinity`, with no declared volumes. The fixture is readable by that user
+and supplies `check.sh`, which runs the selected check and writes only a bounded,
+public `result.txt`. The supervisor must capture exit status and finalize even if a
+command fails; registration, optional build, and finalizer implementation are omitted:
+
+```bash
+docker create --name "$container" --label "org.gentle-starter.test-run=$run_id" \
+  --network none --user "$check_user" --env "HOME=$check_home" \
+  --workdir "$check_dir" --entrypoint sleep "$image" infinity
+docker cp "$fixture/." "$container:$check_dir/"
+docker start "$container"
+docker exec --user "$check_user" --env "HOME=$check_home" --workdir "$check_dir" \
+  "$container" sh ./check.sh
+docker cp "$container:$check_dir/result.txt" "$results/result.txt"
+docker stop --time 10 "$container"
+```
+
+The finalizer must also remove the registered container and any exclusively owned
+image/resources, reporting deliberately retained shared cache separately. This
+proves only the selected workload and any explicitly asserted start/stop behavior:
+not canonical devcontainer or foundation-build equivalence, host binds, managed
+state, full-stack behavior, or other architectures. Volumes, recreation, and
+persistence require a separate explicit scenario; copying files out is not
+persistence proof.
+
 ### Execution timeouts for operational checks
 
 Before authorized network/build checks, explicitly set the timeout in the external
