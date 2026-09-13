@@ -4,7 +4,7 @@
 #
 # REQUIRES: 40-php-lang.sh (php must be installed first)
 #
-# Installs PHPUnit globally via Composer.
+# Installs image-managed PHPUnit via Composer in a shared, root-owned prefix.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,15 +29,21 @@ if devcontainer_has_cmd phpunit; then
 	exit 0
 fi
 
-devcontainer_log_info "Installing phpunit/phpunit@${PHPUNIT_VERSION} globally via composer"
-composer global require --quiet "phpunit/phpunit@${PHPUNIT_VERSION}"
-
-# Ensure composer's global bin dir is on PATH for the current user.
-# The installer prints the path; we use the conventional location.
-COMPOSER_BIN="${HOME}/.config/composer/vendor/bin"
-if [ -d "${COMPOSER_BIN}" ] && [ ! -L "/usr/local/bin/phpunit" ]; then
-	devcontainer_run_as_root ln -sfn "${COMPOSER_BIN}/phpunit" /usr/local/bin/phpunit
-fi
+devcontainer_log_info "Installing phpunit/phpunit:${PHPUNIT_VERSION} globally via composer"
+# Do not link into the build user's private HOME or modify user Composer config.
+PHPUNIT_COMPOSER_HOME="/usr/local/share/phpunit"
+(
+	umask 022
+	devcontainer_run_as_root env COMPOSER_HOME="${PHPUNIT_COMPOSER_HOME}" \
+		composer global require --quiet "phpunit/phpunit:${PHPUNIT_VERSION}"
+)
+COMPOSER_BIN="$(devcontainer_run_as_root env COMPOSER_HOME="${PHPUNIT_COMPOSER_HOME}" \
+	composer global config bin-dir --absolute)"
+[ -x "${COMPOSER_BIN}/phpunit" ] || {
+	devcontainer_log_error "phpunit install failed: binary missing from Composer bin-dir"
+	exit 1
+}
+devcontainer_run_as_root ln -sfn "${COMPOSER_BIN}/phpunit" /usr/local/bin/phpunit
 
 if devcontainer_has_cmd phpunit; then
 	devcontainer_log_info "phpunit installed: $(phpunit --version)"
