@@ -104,6 +104,21 @@ optional installer. Doctor rejects duplicate canonical targets across groups.
 `task install:list` displays these relationships and `task install:doctor`
 validates the active set. Engram remains standalone when Pi is disabled.
 
+#### Playwright user-owned provisioning
+
+Playwright's global npm packages, system dependencies, and `/opt/ms-playwright`
+preparation remain image-owned. Its CLI configuration and skills are initialized
+as `ubuntu`, with both `HOME` and the working directory set to the account's home.
+The upstream CLI creates `.playwright/cli.config.json` and installs its default
+skill under `.claude/skills/playwright-cli` relative to that working directory.
+
+Existing regular configuration and existing skill trees are preserved, including
+custom modes. Provisioning rejects symlinked destination components and a home
+that is itself a Git workspace, rather than following links or letting upstream
+modify unrelated Git configuration. Missing users or invalid homes fail closed.
+This is a fresh-image ownership fix: rebuild to apply it. It does not repair
+root-owned files retained from an older container or change runtime state mounts.
+
 ### `04-hooks/` — user extensions (visible to Git)
 
 Reserved for personal, project-agnostic extensions (a personal VPN
