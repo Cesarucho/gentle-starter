@@ -67,7 +67,8 @@ enter_clean_repository_root() {
 	if ! git var GIT_AUTHOR_IDENT >/dev/null 2>&1 || ! git var GIT_COMMITTER_IDENT >/dev/null 2>&1; then
 		fail "Git author and committer identity must be configured"
 	fi
-	git log --format=%s HEAD | grep -Fxq "${INITIALIZATION_COMMIT_MESSAGE}" && fail "project:init has already been committed in this branch's history"
+	# Consume all subjects so an early match cannot give git log SIGPIPE under pipefail.
+	git log --format=%s HEAD | grep -Fx "${INITIALIZATION_COMMIT_MESSAGE}" >/dev/null && fail "project:init has already been committed in this branch's history"
 	clean_validate_identity_cleanup || fail "identity cleanup contains unsafe paths"
 }
 

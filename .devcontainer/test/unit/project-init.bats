@@ -198,6 +198,44 @@ EOF
 	run_init main; [ "${status}" -ne 0 ]; [[ "${output}" == *"already been committed"* ]]; [ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${initialized_head}" ]
 }
 
+@test "long history refuses a second initialization before inputs or mutation" {
+	local padding subject i before history_head initialized_head branch_before index_before
+	# More than 2 MiB of subjects forces the early-exit reader to break the pipe.
+	printf -v padding '%8192s' ''
+	{
+		for ((i = 1; i <= 256; i++)); do
+			subject="chore: initialize project ${i}${padding// /x}"
+			printf 'commit refs/heads/dev\ncommitter Project Init Test <project-init@example.test> 1700000000 +0000\ndata %s\n%s\n' "${#subject}" "${subject}"
+			if [ "${i}" -eq 1 ]; then printf 'from %s\n' "${ORIGINAL_HEAD}"; fi
+			printf '\n'
+		done
+	} | git -C "${PROJECT_ROOT}" fast-import --quiet
+	git -C "${PROJECT_ROOT}" tag retained-long-history
+	history_head="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+
+	# Similar subjects must not prevent the first real initialization.
+	run_init main
+	[ "${status}" -eq 0 ]
+	[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD^)" = "${history_head}" ]
+	initialized_head="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
+
+	# Reproduce the old guard's real producer SIGPIPE without printing history.
+	run bash -o pipefail -c 'git -C "$1" log --format=%s HEAD | grep -Fxq "chore: initialize project"; printf "%s\n" "${PIPESTATUS[*]}"' _ "${PROJECT_ROOT}"
+	[ "${output}" = "141 0" ]
+
+	before="$(snapshot_repository)"
+	branch_before="$(git -C "${PROJECT_ROOT}" symbolic-ref HEAD)"
+	index_before="$(sha256sum "${PROJECT_ROOT}/.git/index")"
+	run bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh </dev/null' _ "${PROJECT_ROOT}"
+	[ "${status}" -eq 1 ]
+	[ "${output}" = "[error] project:init has already been committed in this branch's history" ]
+	[ "$(sha256sum "${PROJECT_ROOT}/.git/index")" = "${index_before}" ]
+	[ "$(snapshot_repository)" = "${before}" ]
+	[ "$(git -C "${PROJECT_ROOT}" symbolic-ref HEAD)" = "${branch_before}" ]
+	[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${initialized_head}" ]
+	[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain=v1 --untracked-files=all)" ]
+}
+
 @test "cancellation and dirty worktrees do not mutate the repository" {
 	run bash -c 'cd "$1" && printf "NO\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url ""' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${ORIGINAL_HEAD}" ]
