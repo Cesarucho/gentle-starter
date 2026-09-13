@@ -79,6 +79,9 @@ preferred_enabled_name() {
 	20-runtime-go.sh) printf '20-go.sh\n' ;;
 	20-runtime-node.sh) printf '30-node.sh\n' ;;
 	20-runtime-pnpm.sh) printf '40-pnpm.sh\n' ;;
+	40-php-lang.sh) printf '40-php-lang.sh\n' ;;
+	40-php-debug.sh) printf '41-php-debug.sh\n' ;;
+	40-php-test.sh) printf '42-php-test.sh\n' ;;
 	40-node-markdownlint.sh) printf '45-markdownlint.sh\n' ;;
 	40-cli-glow.sh) printf '46-glow.sh\n' ;;
 	20-tool-devcontainer-cli.sh) printf '50-devcontainer-cli.sh\n' ;;

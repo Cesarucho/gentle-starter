@@ -247,6 +247,34 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[ "$status" -eq 0 ]
 }
 
+@test "Task PHP activation orders canonical installers and remains idempotent" {
+	local install_dir="${TEST_ROOT}/.devcontainer/install" name
+	for name in lang debug test; do
+		cp "${REPO_ROOT}/.devcontainer/install/available/40-php-${name}.sh" "${install_dir}/available/"
+	done
+
+	for _ in 1 2; do
+		for name in lang debug test; do
+			run task --dir "${TEST_ROOT}" install:enable -- "40-php-${name}"
+			[ "$status" -eq 0 ]
+		done
+		local aliases=("${install_dir}/03-enabled/"*.sh)
+		[ "${#aliases[@]}" -eq 3 ]
+		[ "${aliases[0]##*/}" = 40-php-lang.sh ]
+		[ "${aliases[1]##*/}" = 41-php-debug.sh ]
+		[ "${aliases[2]##*/}" = 42-php-test.sh ]
+		for name in "${aliases[@]}"; do
+			[ -L "${name}" ]
+		done
+		[ "$(readlink -f "${aliases[0]}")" = "${install_dir}/available/40-php-lang.sh" ]
+		[ "$(readlink -f "${aliases[1]}")" = "${install_dir}/available/40-php-debug.sh" ]
+		[ "$(readlink -f "${aliases[2]}")" = "${install_dir}/available/40-php-test.sh" ]
+		run task --dir "${TEST_ROOT}" install:doctor
+		[ "$status" -eq 0 ]
+		[[ "$output" == *"ok: enabled installer dependencies"* ]]
+	done
+}
+
 @test "Task core guards and unknown enable fail without optional activation" {
 	ln -s ../available/20-runtime-node.sh "${TEST_ROOT}/.devcontainer/install/02-core-tools/99-node.sh"
 	for operation in enable disable; do
