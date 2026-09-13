@@ -137,17 +137,9 @@ check_skills() {
 }
 
 is_install_enabled() {
-	local script_name="$1"
-	local available=".devcontainer/install/available/${script_name}"
-	local link
-	[ -f "${available}" ] || return 1
-	for link in .devcontainer/install/02-enabled/*; do
-		if [ ! -L "${link}" ] || [ ! -e "${link}" ]; then
-			continue
-		fi
-		[ "$(readlink -f -- "${link}")" = "$(readlink -f -- "${available}")" ] && return 0
-	done
-	return 1
+	# shellcheck source=/dev/null
+	source .devcontainer/install/lib/activation.sh
+	devcontainer_install_is_active .devcontainer/install ".devcontainer/install/available/$1"
 }
 
 check_enabled_command() {

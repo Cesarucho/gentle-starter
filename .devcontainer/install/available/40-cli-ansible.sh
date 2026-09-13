@@ -2,7 +2,7 @@
 #
 # 40-cli-ansible.sh — install Ansible Core from Ubuntu packages.
 #
-# Opt-in CLI script for the install catalog. Enable it from 02-enabled/ when a
+# Opt-in CLI script for the install catalog. Enable it from 03-enabled/ when a
 # project needs Ansible in the default tool set.
 set -euo pipefail
 

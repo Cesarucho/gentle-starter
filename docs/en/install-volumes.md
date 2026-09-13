@@ -41,7 +41,7 @@ selected Compose → host manifest .devcontainer/lifecycle/setup-volumes.sh
                                          │                                 │
                                          │ repair_installed_volumes        │
                                          │   filters owners through        │
-                                         │   02-enabled, then runs each    │
+                                         │   core/optional active aliases  │
                                          │   active owner at runtime       │
                                          └──────────────┬──────────────────┘
                                                         │
@@ -57,7 +57,7 @@ selected Compose → host manifest .devcontainer/lifecycle/setup-volumes.sh
 
 For an **installer-owned target**, four pieces participate: the bind mount,
 the potential-owner mapping, the available installer, and an active symlink in
-`02-enabled/`. `compose_target_to_install_scripts` deliberately keeps listing
+`02-core-tools/` or `03-enabled/`. `compose_target_to_install_scripts` deliberately keeps listing
 potential owners even when one is disabled. At dispatch time, an owner runs
 only when a valid symlink—under any ordered alias—canonically resolves to its
 script in `available/`; broken symlinks never activate an owner. A **passive
@@ -136,7 +136,7 @@ does not use `HOST_UID` or `HOST_GID` build plumbing.
 `repair_installed_volumes` iterates the targets from
 `resolve_compose_volume_targets` and, for each one, calls
 `compose_target_to_install_scripts` to find the potential owning scripts. It
-then checks `02-enabled/` and runs only active owners with
+then checks both alias groups and runs only active owners with
 `DEVCONTAINER_PHASE=runtime`. An empty mapping is an intentional no-op for
 passive mounts, while a mapped but disabled owner is intentionally skipped.
 For active owners, the script's idempotency guard decides whether the call is a
@@ -195,10 +195,10 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
        esac
    ```
 
-4. **Enable the script** by linking from `02-enabled/`:
+4. **Enable the optional script** by linking from `03-enabled/`:
 
    ```bash
-   cd .devcontainer/install/02-enabled
+   cd .devcontainer/install/03-enabled
    ln -sfn ../available/40-data-postgresql.sh 40-data-postgresql.sh
    ```
 
@@ -209,7 +209,7 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
    ```
 
    The output should now show the postgresql target with its potential owning
-   script. Its valid `02-enabled/` symlink makes it active for postCreate
+   script. Its valid `03-enabled/` symlink makes it active for postCreate
    repair.
 
 6. **Rebuild and validate**:

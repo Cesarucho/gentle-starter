@@ -6,7 +6,7 @@
 #   - playwright library + chromium (headless browser for programmatic use)
 #   - @playwright/cli (CLI designed for coding agents with shell access)
 #
-# Opt in by linking from 02-enabled/: cd .devcontainer/install/02-enabled && ln -sfn ../available/50-browser-playwright.sh NN-browser-playwright.sh
+# Opt in by linking from 03-enabled/: cd .devcontainer/install/03-enabled && ln -sfn ../available/50-browser-playwright.sh NN-browser-playwright.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

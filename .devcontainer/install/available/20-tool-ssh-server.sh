@@ -20,7 +20,7 @@
 #   # From another device on the same trusted LAN/WLAN:
 #   ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>
 #
-# To enable: create symlink in 02-enabled/ (opt-in; not enabled by default)
+# To enable: create symlink in 03-enabled/ (optional; Compose selection is separate)
 
 set -euo pipefail
 

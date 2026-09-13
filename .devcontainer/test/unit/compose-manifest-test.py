@@ -227,15 +227,16 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
 
     def test_runtime_dispatch_is_checked_and_activation_is_canonical(self):
         for relative in (".devcontainer/lifecycle", ".devcontainer/install/available",
-                         ".devcontainer/install/02-enabled", ".taskfiles/scripts"):
+                         ".devcontainer/install/03-enabled", ".devcontainer/install/lib", ".taskfiles/scripts"):
             (self.root / relative).mkdir(parents=True, exist_ok=True)
         for relative in (".devcontainer/lifecycle/setup-volumes.sh",
+                         ".devcontainer/install/lib/activation.sh",
                          ".devcontainer/lifecycle/compose-volume-records.py",
                          ".taskfiles/scripts/compose-manifest.py"):
             shutil.copy2(ROOT / relative, self.root / relative)
         installer = self.root / ".devcontainer/install/available/30-ai-pi-gentle.sh"
         installer.write_text('#!/bin/bash\nprintf repaired >"$WORKSPACE_DIR/calls"\n')
-        link = self.root / ".devcontainer/install/02-enabled/47-custom.sh"
+        link = self.root / ".devcontainer/install/03-enabled/47-custom.sh"
         link.symlink_to("../available/30-ai-pi-gentle.sh")
         value = self.publish()
         environment = {**os.environ, "WORKSPACE_DIR": str(self.root), "GENTLE_VOLUME_MANIFEST_ID": "old"}
@@ -263,11 +264,42 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")
 
+    def test_core_config_seeding_copies_missing_files_without_pi_or_user_overwrite(self):
+        install = self.root / ".devcontainer/install"
+        for name in ("available", "02-core-tools", "03-enabled"):
+            (install / name).mkdir(parents=True)
+        for name in ("30-ai-opencode.sh", "30-ai-gentle-ai.sh"):
+            (install / "available" / name).write_text("# Never executed\n")
+            (install / "02-core-tools" / name).symlink_to("../available/" + name)
+        baseline = self.root / ".devcontainer/opencode-config"
+        (baseline / "nested").mkdir(parents=True)
+        (baseline / "nested/agent.md").write_text("baseline\n")
+        (baseline / "opencode.json").write_text("baseline config\n")
+        home = self.root / "home"
+        target = home / ".config/opencode"
+        target.mkdir(parents=True)
+        (target / "opencode.json").write_text("user config\n")
+        source = (ROOT / ".devcontainer/setup.sh").read_text()
+        seed = source[source.index("seed_config_tree() {"):source.index("\nrepair_user_local_parents()")]
+        setup = source[source.index("setup_versioned_configs() {"):source.index("\nsetup_pi_workspace_trust()")]
+        command = ('source "$1"; install_script_is_enabled() { '
+                   'devcontainer_install_is_active "$SCRIPT_DIR/install" "$1"; }; '
+                   + seed + setup + '\nsetup_versioned_configs\nsetup_versioned_configs')
+        result = subprocess.run(["bash", "-eu", "-c", command, "_",
+                                 str(ROOT / ".devcontainer/install/lib/activation.sh")],
+                                env={**os.environ, "HOME": str(home), "SCRIPT_DIR": str(self.root / ".devcontainer"),
+                                     "WORKSPACE_DIR": str(self.root)}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((target / "nested/agent.md").read_text(), "baseline\n")
+        self.assertFalse((target / "nested/agent.md").is_symlink())
+        self.assertEqual((target / "opencode.json").read_text(), "user config\n")
+        self.assertFalse((home / ".pi").exists())
+
     def test_server_requires_both_enabled_installer_and_persisted_override(self):
         installer = self.root / ".devcontainer/install/available/20-tool-ssh-server.sh"
         installer.parent.mkdir(parents=True)
         installer.write_text("# fixture\n")
-        enabled = self.root / ".devcontainer/install/02-enabled"
+        enabled = self.root / ".devcontainer/install/03-enabled"
         enabled.mkdir()
         server = self.root / ".devcontainer/docker-compose.ssh-server.yml"
         server.write_text("# fixture override\n")

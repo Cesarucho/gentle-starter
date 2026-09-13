@@ -9,15 +9,20 @@ setup() {
 
 	mkdir -p "${WORKSPACE}/.devcontainer/lifecycle" \
 		"${WORKSPACE}/.devcontainer/install/available" \
-		"${WORKSPACE}/.devcontainer/install/02-enabled" \
+		"${WORKSPACE}/.devcontainer/install/03-enabled" \
+		"${WORKSPACE}/.devcontainer/install/02-core-tools" \
+		"${WORKSPACE}/.devcontainer/install/lib" \
 		"${WORKSPACE}/.taskfiles/scripts" \
 		"${HOME_DIR}"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh" \
 		"${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${WORKSPACE}/.devcontainer/install/lib/"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/compose-volume-records.py" \
 		"${WORKSPACE}/.devcontainer/lifecycle/compose-volume-records.py"
 	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
 		"${WORKSPACE}/.taskfiles/scripts/install.sh"
+	cp "${REPO_ROOT}/.taskfiles/install.yml" "${WORKSPACE}/.taskfiles/"
+	printf 'version: "3"\nincludes:\n  install: ./.taskfiles/install.yml\n' >"${WORKSPACE}/Taskfile.yml"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${WORKSPACE}/.taskfiles/scripts/"
@@ -53,7 +58,7 @@ enable_installer_as() {
 	local name="$1"
 	local alias="$2"
 	ln -s "../available/${name}.sh" \
-		"${WORKSPACE}/.devcontainer/install/02-enabled/${alias}"
+		"${WORKSPACE}/.devcontainer/install/03-enabled/${alias}"
 }
 
 run_pi_volume_repair() {
@@ -71,12 +76,19 @@ run_pi_volume_repair() {
 		' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 }
 
-@test "OpenCode is enabled by default in ordered slot 55" {
-	local link="${REPO_ROOT}/.devcontainer/install/02-enabled/55-opencode.sh"
+@test "core activation resolves custom canonical aliases" {
+	write_installer "30-ai-opencode"
+	local link="${WORKSPACE}/.devcontainer/install/02-core-tools/47-custom.sh"
+	ln -s ../available/30-ai-opencode.sh "${link}"
 
 	[ -L "${link}" ]
 	[ "$(readlink "${link}")" = "../available/30-ai-opencode.sh" ]
 	[ -f "${link}" ]
+	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
+		source "$1"
+		install_script_is_enabled "$2"
+	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh" "${link}"
+	[ "${status}" -eq 0 ]
 }
 
 @test "enabling OpenCode recreates ordered slot 55" {
@@ -85,19 +97,19 @@ run_pi_volume_repair() {
 	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 30-ai-opencode
 
 	[ "${status}" -eq 0 ]
-	[ -L "${WORKSPACE}/.devcontainer/install/02-enabled/55-opencode.sh" ]
-	[ "$(readlink "${WORKSPACE}/.devcontainer/install/02-enabled/55-opencode.sh")" = "../available/30-ai-opencode.sh" ]
+	[ -L "${WORKSPACE}/.devcontainer/install/03-enabled/55-opencode.sh" ]
+	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/55-opencode.sh")" = "../available/30-ai-opencode.sh" ]
 }
 
 @test "enabling repairs a broken alias with a matching textual target basename" {
 	ln -s /does/not/exist/30-ai-pi-gentle.sh \
-		"${WORKSPACE}/.devcontainer/install/02-enabled/79-broken-gentle.sh"
+		"${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
 
 	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 30-ai-pi-gentle
 
 	[ "${status}" -eq 0 ]
-	[ -L "${WORKSPACE}/.devcontainer/install/02-enabled/80-pi-gentle.sh" ]
-	[ "$(readlink "${WORKSPACE}/.devcontainer/install/02-enabled/80-pi-gentle.sh")" = "../available/30-ai-pi-gentle.sh" ]
+	[ -L "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
+	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh")" = "../available/30-ai-pi-gentle.sh" ]
 	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
 		install_script_is_enabled "$2"
@@ -115,7 +127,7 @@ run_pi_volume_repair() {
 	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" disable 30-ai-pi-gentle
 
 	[ "${status}" -eq 0 ]
-	[ ! -L "${WORKSPACE}/.devcontainer/install/02-enabled/80-pi-gentle.sh" ]
+	[ ! -L "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
 	[ "$(cat "${sentinel}")" = "keep" ]
 }
 
@@ -211,9 +223,22 @@ YAML
 	[[ "${output}" != *"30-ai-pi-gentle.sh"* ]]
 }
 
+@test "core Engram owner is repaired with Pi disabled" {
+	write_installer "30-ai-engram"
+	ln -s ../available/30-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/47-memory.sh"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
+	run env WORKSPACE_DIR="${WORKSPACE}" VOLUME_REPAIR_CALLS_FILE="${CALLS_FILE}" bash -c '
+		source "$1"
+		repair_installed_volumes
+	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	[ "${status}" -eq 0 ]
+	[ "$(cat "${CALLS_FILE}")" = "30-ai-engram|runtime" ]
+}
+
 @test "broken enabled symlinks do not activate mapped installers" {
 	ln -s ../available/missing.sh \
-		"${WORKSPACE}/.devcontainer/install/02-enabled/48-broken.sh"
+		"${WORKSPACE}/.devcontainer/install/03-enabled/48-broken.sh"
 
 	run_pi_volume_repair
 
@@ -230,4 +255,32 @@ YAML
 	[ ! -s "${CALLS_FILE}" ]
 	[[ "${output}" != *"30-ai-pi-coding.sh"* ]]
 	[[ "${output}" != *"30-ai-pi-gentle.sh"* ]]
+}
+
+@test "Task volumes reports selected desired Engram ownership without dispatch" {
+	write_installer "30-ai-engram"
+	ln -s ../available/30-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/60-engram.sh"
+	printf '%s\n' '{"service":"container-svc","dockerComposeFile":["docker-compose.yml","optional.yml"]}' >"${WORKSPACE}/.devcontainer/devcontainer.json"
+	printf '%s\n' 'services: {}' >"${WORKSPACE}/.devcontainer/optional.yml"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
+	run env -u GENTLE_VOLUME_MANIFEST_ID task --dir "${WORKSPACE}" install:volumes
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"not proof of applied mounts"* ]]
+	[[ "$output" == *"owned by: 30-ai-engram"* ]]
+	[[ "$output" == *"a selected Compose file"* ]]
+	[ ! -s "${CALLS_FILE}" ]
+}
+
+@test "Task volumes fails before reporting a missing or stale manifest" {
+	printf '\n# changed selected input\n' >>"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	run task --dir "${WORKSPACE}" install:volumes
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"Stale volume manifest"* ]]
+	[[ "$output" != *"=== install/ volume contract ==="* ]]
+	rm "${WORKSPACE}/.devcontainer/.volume-manifest.json"
+	run task --dir "${WORKSPACE}" install:volumes
+	[ "$status" -ne 0 ]
+	[[ "$output" != *"=== install/ volume contract ==="* ]]
+	[ ! -s "${CALLS_FILE}" ]
 }

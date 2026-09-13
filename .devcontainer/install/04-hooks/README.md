@@ -1,7 +1,7 @@
-# `03-hooks/` — Personal install extensions
+# `04-hooks/` — Personal install extensions
 
 This directory is the **last** group the Docker build loop iterates
-(after `01-core/` and `02-enabled/`). Every executable `*.sh` you drop
+(after `01-foundation/`, `02-core-tools/`, and `03-enabled/`). Every `*.sh` you drop
 here is sourced and run during image build, in lexicographic order by
 filename. Use the same numeric-prefix convention as the other groups
 when the order matters (`00-`, `10-`, `20-`, …).
@@ -13,11 +13,11 @@ when the order matters (`00-`, `10-`, `20-`, …).
 - You want it to land in **every** rebuild of *your* devcontainer,
   but it should not be in the shared repo.
 - It does not belong in `available/` (opt-in for everyone) and
-  definitely not in `01-core/` (mandatory for everyone).
+  definitely not in `01-foundation/` or `02-core-tools/` (mandatory for everyone).
 
 If the tool is useful to the project, graduate it: copy it from
-`03-hooks/` into `available/`, refactor it to use `lib/common.sh`,
-and link it from `02-enabled/` so the next person benefits too.
+`04-hooks/` into `available/`, refactor it to use `lib/common.sh`,
+and link it from `03-enabled/` so the next person benefits too.
 
 ## Conventions
 
@@ -29,7 +29,7 @@ and link it from `02-enabled/` so the next person benefits too.
   in the image.
 - **Shebang + strict mode**: start with `#!/usr/bin/env bash` and
   `set -euo pipefail`. Drop `-u` only if you source SDKMAN (see
-  `02-enabled/20-runtime-java.sh` for the carve-out).
+  `available/20-runtime-java.sh` for the carve-out).
 - **Helpers**: `source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"`
   gives you logging, arch detection, `devcontainer_run_as_root`,
   `devcontainer_has_cmd` (for idempotency), and so on.
@@ -67,10 +67,7 @@ also want to see the contents of other ignored paths.
 
 ## The "order" question
 
-If you find yourself wanting a script in `03-hooks/` to run **before**
-something in `01-core/` or `02-enabled/`, that is a sign the script
-should move to one of those groups (probably `02-enabled/` if it is
-opt-in for the team, or `01-core/` if it is mandatory). The numeric
-prefix within a group controls in-group order; the *group order*
-itself is fixed by the Dockerfile's `for group in 01-core 02-enabled
-03-hooks` loop.
+If a hook must run **before** a tool, reconsider its group: use `03-enabled/`
+for optional project tools, or intentionally customize `02-core-tools/` and
+its matching Dockerfile COPY inputs for mandatory base tools. The filename
+controls in-group order; explicit Dockerfile runner calls fix group order.

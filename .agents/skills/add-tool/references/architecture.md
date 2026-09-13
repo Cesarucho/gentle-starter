@@ -6,9 +6,9 @@ Run `scripts/inspect-install-tree.sh` from this skill directory, then read the p
 
 ## Extension surfaces
 
-1. **Catalog:** `.devcontainer/install/available/` owns project installers. Start from the closest real installer; use the canonical repository template only as a skeleton. Do not place optional project tools in `01-core/` or personal tools in the versioned catalog.
-2. **Activation:** `.devcontainer/install/02-enabled/` is an ordering layer of symlinks. The target keeps a category-rich name; the link uses a unique discovered `NN-tool.sh` slot. Build order is Dockerfile group order, then lexical filename order.
-3. **Enable helper:** inspect `preferred_enabled_name` in the repository's install helper. Add a mapping and a contract test when a stable canonical enabled name is required; otherwise enabling may recreate the catalog basename and break intended order.
+1. **Catalog:** `.devcontainer/install/available/` owns both core and optional tool installers. Start from the closest real installer; use the canonical repository template only as a skeleton. `01-foundation/` is OS/bootstrap only; personal tools belong in `04-hooks/`.
+2. **Activation:** `02-core-tools/` holds mandatory canonical symlinks; `03-enabled/` holds optional symlinks. Targets keep category-rich names; aliases use discovered `NN-tool.sh` slots. Build order is explicit Dockerfile group order, then lexical filename order. Dependencies may cross from core to optional consumers, never the reverse. Reject duplicate canonical installers across groups.
+3. **Enable helper:** enable/disable modifies only `03-enabled/` and refuses core tools. Inspect `preferred_enabled_name` before choosing an optional alias. Intentional core customization must coordinate core aliases, selective Dockerfile source/helper COPY inputs, and their consistency tests. Keep project identity, optional selectors/sources, and hooks downstream of the cached `core-tools` stage.
 4. **Version policy:** `.devcontainer/tool-versions.conf` contains user-editable
    `TOOL_*_VERSION` intent followed by generated exact `LOCK_*` values and
    checksums. `deps:update` is the sole mutation authority. Installers retain

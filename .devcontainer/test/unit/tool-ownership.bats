@@ -8,13 +8,13 @@ run_ssh_runtime_installer() {
 	local root="$1"
 	mkdir -p "${root}/home" "${root}/bin" "${root}/target"
 	mkdir -p "${root}/.devcontainer/install/available" "${root}/.devcontainer/install/lib" \
-		"${root}/.devcontainer/install/02-enabled" "${root}/.taskfiles/scripts"
+		"${root}/.devcontainer/install/03-enabled" "${root}/.taskfiles/scripts"
 	cp "${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${root}/.devcontainer/install/lib/"
 	cp -R "${REPO_ROOT}/.devcontainer/ssh-config" "${root}/.devcontainer/"
 	cp "${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml" "${root}/.devcontainer/"
 	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/"
-	ln -sf ../available/20-tool-ssh-server.sh "${root}/.devcontainer/install/02-enabled/29-server.sh"
+	ln -sf ../available/20-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
 	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
 	local identity
 	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/docker-compose.ssh-server.yml" |

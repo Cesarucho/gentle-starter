@@ -45,7 +45,9 @@ EOF
 prepare_setup_sandbox() {
 	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/lifecycle" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/available" \
-		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/03-enabled" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/lib" \
 		"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested" \
 		"${SETUP_WORKSPACE}/.devcontainer/pi-config/agent" \
 		"${SETUP_WORKSPACE}/.devcontainer/pi-config/gentle-ai" \
@@ -56,7 +58,9 @@ prepare_setup_sandbox() {
 		"${HOME_DIR}/.gitconfig-volume" \
 		"${HOME_DIR}/.local/share/opencode"
 	cp "${REPO_ROOT}/.devcontainer/setup.sh" "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${SETUP_WORKSPACE}/.devcontainer/install/lib/"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/compose-volume-records.py" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/compose-volume-records.py"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/restore-tracked-modes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/restore-tracked-modes.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
@@ -106,7 +110,7 @@ printf 'engram-repair\n' >>"${SETUP_EVENTS_FILE}"
 EOF
 	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-engram.sh"
 	ln -s ../available/30-ai-engram.sh \
-		"${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/60-engram.sh"
+		"${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/60-engram.sh"
 	: >"${SETUP_CALLS_FILE}"
 	write_setup_command_stubs
 }
@@ -139,48 +143,34 @@ EOF
 	cat >"${BIN_DIR}/python3" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-[ "${1:-}" = "-" ]
-cat >/dev/null
-path="$2"
-owner="$3:$4"
-mode="$5"
-case "${path}" in
-"${HOME_DIR}/.pi")
-	printf '%s\n' "${owner}" >"${PI_OWNER_FILE}"
-	printf 'repair-pi\n' >>"${SETUP_EVENTS_FILE}"
-	if [ "$(/usr/bin/stat -c '%u' -- "${path}")" -eq 0 ]; then
-		/usr/bin/sudo -n /bin/chown "${owner}" "${path}"
-	fi
+case "${1:-}" in
+"${SETUP_WORKSPACE}/.taskfiles/scripts/compose-manifest.py")
+	[ "$#" -eq 3 ] && [ "$3" = "${SETUP_WORKSPACE}" ] || exit 2
+	# These tests isolate setup behavior, not creation-time manifest identity.
+	case "$2" in
+	runtime) exit 0 ;;
+	records)
+		if [ -n "${SETUP_VOLUME_TARGET:-}" ]; then
+			[[ "${SETUP_VOLUME_TARGET}" == "${HOME_DIR}/"* ]] || exit 2
+		fi
+		exec /usr/bin/python3 - <<'PY'
+import json
+import os
+
+target = os.environ.get("SETUP_VOLUME_TARGET", "")
+print(json.dumps([{"type": "bind", "source": "fixture-state", "target": target}] if target else []))
+PY
+		;;
+	*) exit 2 ;;
+	esac
 	;;
-"${HOME_DIR}/.engram")
-	printf '%s\n' "${owner}" >"${ENGRAM_OWNER_FILE}"
-	printf 'repair-engram\n' >>"${SETUP_EVENTS_FILE}"
-	if [ "$(/usr/bin/stat -c '%u' -- "${path}")" -eq 0 ]; then
-		/usr/bin/sudo -n /bin/chown "${owner}" "${path}"
-	fi
+"${SETUP_WORKSPACE}/.devcontainer/lifecycle/compose-volume-records.py")
+	[ "$#" -eq 1 ] || exit 2
+	exec /usr/bin/python3 "$@"
 	;;
-"${HOME_DIR}/.gitconfig-volume")
-	printf '%s\n' "${owner}" >"${GITCONFIG_OWNER_FILE}"
-	printf 'repair-gitconfig\n' >>"${SETUP_EVENTS_FILE}"
-	if [ "$(/usr/bin/stat -c '%u' -- "${path}")" -eq 0 ]; then
-		/usr/bin/sudo -n /bin/chown "${owner}" "${path}"
-	fi
-	;;
-"${HOME_DIR}/.local")
-	printf '%s\n' "${owner}" >"${LOCAL_OWNER_FILE}"
-	printf 'repair-local\n' >>"${SETUP_EVENTS_FILE}"
-	;;
-"${HOME_DIR}/.local/share")
-	printf '%s\n' "${owner}" >"${SHARE_OWNER_FILE}"
-	printf 'repair-share\n' >>"${SETUP_EVENTS_FILE}"
-	;;
-"${HOME_DIR}/.local/share/opencode")
-	printf '%s\n' "${owner}" >"${OPENCODE_OWNER_FILE}"
-	printf 'repair-opencode\n' >>"${SETUP_EVENTS_FILE}"
-	;;
-*) exit 2 ;;
+-) exec /usr/bin/python3 "$@" ;;
+*) printf 'Unsupported fixture Python invocation\n' >&2; exit 2 ;;
 esac
-/bin/chmod "${mode}" "${path}"
 EOF
 	cat >"${BIN_DIR}/cp" <<'EOF'
 #!/usr/bin/env bash
@@ -280,6 +270,9 @@ run_setup() {
 		OPENCODE_SENTINEL="${OPENCODE_SENTINEL}" \
 		OPENCODE_SETUP_CALLS_FILE="${SETUP_CALLS_FILE}" \
 		bash "${SETUP_WORKSPACE}/.devcontainer/setup.sh"
+	if [ "${status}" -ne 0 ]; then
+		printf 'setup exited %s; first 4096 output characters:\n%.4096s\n' "${status}" "${output}" >&2
+	fi
 }
 
 path_metadata() {
@@ -289,26 +282,28 @@ path_metadata() {
 @test "install enable repairs a broken alias with a matching textual target basename" {
 	local cli_workspace="${TEST_ROOT}/install-cli-workspace"
 	mkdir -p "${cli_workspace}/.devcontainer/install/available" \
-		"${cli_workspace}/.devcontainer/install/02-enabled" \
+		"${cli_workspace}/.devcontainer/install/03-enabled" \
+		"${cli_workspace}/.devcontainer/install/lib" \
 		"${cli_workspace}/.taskfiles/scripts"
 	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
 		"${cli_workspace}/.taskfiles/scripts/install.sh"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${cli_workspace}/.devcontainer/install/lib/"
 	printf '#!/usr/bin/env bash\n' \
 		>"${cli_workspace}/.devcontainer/install/available/30-ai-pi-gentle.sh"
 	ln -s /does/not/exist/30-ai-pi-gentle.sh \
-		"${cli_workspace}/.devcontainer/install/02-enabled/79-broken-gentle.sh"
+		"${cli_workspace}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
 
 	run bash "${cli_workspace}/.taskfiles/scripts/install.sh" enable 30-ai-pi-gentle
 
 	[ "${status}" -eq 0 ]
-	[ -L "${cli_workspace}/.devcontainer/install/02-enabled/80-pi-gentle.sh" ]
-	[ "$(readlink "${cli_workspace}/.devcontainer/install/02-enabled/80-pi-gentle.sh")" = \
+	[ -L "${cli_workspace}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
+	[ "$(readlink "${cli_workspace}/.devcontainer/install/03-enabled/80-pi-gentle.sh")" = \
 		"../available/30-ai-pi-gentle.sh" ]
 }
 
 @test "setup skips OpenCode when its canonical installer is not enabled" {
 	prepare_setup_sandbox
-	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/10-unrelated.sh"
+	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/03-enabled/10-unrelated.sh"
 	rm -rf "${HOME_DIR}/.config/opencode"
 
 	run_setup
@@ -397,7 +392,7 @@ path_metadata() {
 
 @test "setup seeds missing OpenCode config recursively and preserves existing user config" {
 	prepare_setup_sandbox
-	ln -s ../available/30-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/47-custom-opencode.sh"
+	ln -s ../available/30-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/47-custom-opencode.sh"
 
 	run_setup
 
@@ -412,20 +407,19 @@ path_metadata() {
 	[ "$(cat "${HOME_DIR}/.config/opencode/opencode.json")" = "user customisation" ]
 }
 
-@test "setup seeds Gentle AI config without Pi agent state when only Gentle AI is enabled" {
+@test "core Gentle AI does not seed Pi-owned config when Pi is disabled" {
 	prepare_setup_sandbox
-	ln -s ../available/30-ai-gentle-ai.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/47-custom-gentle.sh"
+	ln -s ../available/30-ai-gentle-ai.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/47-custom-gentle.sh"
 	rm -rf "${HOME_DIR}/.pi"
 
 	run_setup
 	[ "${status}" -eq 0 ]
-	[ "$(cat "${HOME_DIR}/.pi/gentle-ai/persona.json")" = "gentle baseline" ]
-	[ ! -e "${HOME_DIR}/.pi/agent" ]
+	[ ! -e "${HOME_DIR}/.pi" ]
 }
 
 @test "setup seeds Pi agent config and trust without Gentle AI when only Pi is enabled" {
 	prepare_setup_sandbox
-	ln -s ../available/30-ai-pi-coding.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/48-custom-pi.sh"
+	ln -s ../available/30-ai-pi-coding.sh "${SETUP_WORKSPACE}/.devcontainer/install/03-enabled/48-custom-pi.sh"
 	rm -rf "${HOME_DIR}/.pi"
 
 	run_setup
@@ -445,8 +439,8 @@ path_metadata() {
 
 @test "broken installer aliases do not activate Pi-owned config" {
 	prepare_setup_sandbox
-	ln -s ../available/missing-pi.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/70-pi-coding.sh"
-	ln -s ../available/missing-gentle.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-enabled/81-gentle-ai.sh"
+	ln -s ../available/missing-pi.sh "${SETUP_WORKSPACE}/.devcontainer/install/03-enabled/70-pi-coding.sh"
+	ln -s ../available/missing-gentle.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/81-gentle-ai.sh"
 	rm -rf "${HOME_DIR}/.pi"
 	run_setup
 	[ "${status}" -eq 0 ]

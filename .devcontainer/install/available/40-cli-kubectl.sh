@@ -2,7 +2,7 @@
 #
 # 40-cli-kubectl.sh — install kubectl from the official Kubernetes release.
 #
-# Opt-in CLI script for the install catalog. Enable it from 02-enabled/ when a
+# Opt-in CLI script for the install catalog. Enable it from 03-enabled/ when a
 # project needs kubectl in the default tool set.
 set -euo pipefail
 

@@ -8,22 +8,22 @@ tasks:
       - ./.taskfiles/scripts/install.sh help
 
   list:
-    desc: List install scripts (core, enabled, hooks) and available/ scripts not enabled
+    desc: List foundation, mandatory core tools, optional tools, hooks, and inactive catalog entries
     cmds:
       - ./.taskfiles/scripts/install.sh list {{.CLI_ARGS}}
 
   enable:
-    desc: Enable an available install script by symlinking it into enabled/
+    desc: Enable an optional installer in 03-enabled/ (mandatory core tools are protected)
     cmds:
       - ./.taskfiles/scripts/install.sh enable {{.CLI_ARGS}}
 
   disable:
-    desc: Disable an enabled install script by removing its enabled/ symlink
+    desc: Disable an optional installer by removing its 03-enabled/ symlink
     cmds:
       - ./.taskfiles/scripts/install.sh disable {{.CLI_ARGS}}
 
   doctor:
-    desc: Check install/ layout integrity (lib/, templates/, enabled/ symlinks, required directories)
+    desc: Check install layout, canonical core/optional aliases, duplicate targets, and dependency order
     cmds:
       - ./.taskfiles/scripts/install.sh doctor
 
@@ -33,6 +33,6 @@ tasks:
       - ./.taskfiles/scripts/install.sh versions-validate
 
   volumes:
-    desc: "Print the live volume contract: bind mounts from docker-compose.yml and the install scripts that own each target"
+    desc: Print desired bind mounts and potential owners from the validated selected Compose manifest
     cmds:
       - ./.taskfiles/scripts/install.sh volumes

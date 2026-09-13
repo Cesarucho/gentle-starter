@@ -4,6 +4,12 @@
 **Supersedes:** the legacy `.devcontainer/scripts/` layout and the
 `ln -sfn` config-seeding pattern in `setup.sh`
 
+**Current-layout note:** The directory names and three-group build sequence
+below are historical. The current layout adds mandatory tool aliases and cached
+`foundation` → `core-tools` → `devcontainer` stages. See the
+[current install guide](../install-tree.md) and [cache guide](../container-foundation.md).
+Canonical installers and copy-on-first-run config seeding remain unchanged.
+
 ## Context
 
 Before this refactor, the devcontainer had three issues that

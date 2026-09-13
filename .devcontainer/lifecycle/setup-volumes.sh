@@ -28,7 +28,7 @@
 #   3. The install script itself: lives in
 #      .devcontainer/install/available/40-data-postgresql.sh.
 #
-#   4. Active status: at least one valid symlink in install/02-enabled/
+#   4. Active status: a valid symlink in install/02-core-tools/ or 03-enabled/
 #      canonically resolves to that available script. The symlink name is
 #      only an ordering alias and need not match the catalog basename.
 #
@@ -37,7 +37,7 @@
 #   b. Add a case for the new target path in
 #      compose_target_to_install_scripts() below.
 #   c. Add the install script in install/available/.
-#   d. Link it from install/02-enabled/ if it should run by default.
+#   d. Link it from install/03-enabled/ if it should run by default.
 #
 # A passive state mount needs only the Compose entry. Leave it unmapped
 # when the application itself owns and populates that state.
@@ -48,6 +48,8 @@
 # directly will not work.
 
 LIFECYCLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${LIFECYCLE_DIR}/../install/lib/activation.sh"
 
 # Emit NUL-terminated source and target fields for each bind mount.
 resolve_compose_volume_targets() {
@@ -74,28 +76,11 @@ compose_target_to_install_scripts() {
 	esac
 }
 
-# Return success when any valid ordering alias in 02-enabled/ canonically
+# Return success when a valid core or optional ordering alias canonically
 # resolves to the requested available installer. Broken links and links to
 # other catalog entries do not activate the installer.
 install_script_is_enabled() {
-	local script_path="$1"
-	local enabled_root="${WORKSPACE_DIR}/.devcontainer/install/02-enabled"
-	local canonical_script
-	local link
-	local canonical_link
-
-	[ -f "${script_path}" ] || return 1
-	[ -d "${enabled_root}" ] || return 1
-	canonical_script="$(readlink -f -- "${script_path}")" || return 1
-
-	for link in "${enabled_root}/"*; do
-		[ -L "${link}" ] || continue
-		[ -e "${link}" ] || continue
-		canonical_link="$(readlink -f -- "${link}")" || continue
-		[ "${canonical_link}" = "${canonical_script}" ] && return 0
-	done
-
-	return 1
+	devcontainer_install_is_active "${WORKSPACE_DIR}/.devcontainer/install" "$1"
 }
 
 # Iterate over validated, applied bind-mount volume targets and

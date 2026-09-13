@@ -11,7 +11,7 @@ links from there.
 
 | Path | Purpose |
 |---|---|
-| `Dockerfile` | Base image + build-time setup. Iterates `install/01-core/`, `install/02-enabled/`, `install/03-hooks/` in order. |
+| `Dockerfile` | Cached foundation → core-tools → devcontainer stages. Runs `01-foundation/`, `02-core-tools/`, `03-enabled/`, then `04-hooks/`. |
 | `devcontainer.json` | Task-driven Dev Container CLI configuration and ordered Compose selection. IDEs attach only. |
 | `docker-compose.yml` | Base service and default persistent binds. Independent `docker-compose.*.yml` files are opt-in. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |

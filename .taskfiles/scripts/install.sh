@@ -4,20 +4,20 @@
 # Used by .taskfiles/install.yml. Not intended to be run directly,
 # but works fine that way too.
 #
-# The runtime groups carry a numeric prefix (01-core, 02-enabled,
-# 03-hooks) as a visual hint of execution order. The prefix is not
+# The runtime groups carry a numeric prefix (01-foundation, 02-core-tools,
+# 03-enabled, 04-hooks) as a visual hint of execution order. The prefix is not
 # load-bearing for ordering: the Dockerfile iterates the groups
 # explicitly, and within each group the Dockerfile sorts the entries
 # by filename.
 #
 # Commands:
 #   help                       Show this help
-#   list [--presets]           List install scripts (01-core, 02-enabled,
-#                              03-hooks) and available/ scripts not enabled.
+#   list [--presets]           List foundation, core tools, optional tools,
+#                              hooks, and available/ scripts not active.
 #                              --presets is kept as a no-op compatibility alias.
-#   enable NAME                Create an 02-enabled/ symlink to
+#   enable NAME                Create a 03-enabled/ symlink to
 #                              available/NAME.sh
-#   disable NAME               Remove the 02-enabled/ symlink for NAME.sh
+#   disable NAME               Remove the 03-enabled/ symlink for NAME.sh
 #   doctor                     Verify the install/ layout integrity
 #   versions-validate          Validate the declarative tool-version policy
 set -euo pipefail
@@ -26,6 +26,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 INSTALL_DIR="${REPO_ROOT}/.devcontainer/install"
 DEPENDENCIES_FILE="${INSTALL_DIR}/dependencies.conf"
+# shellcheck source=/dev/null
+source "${INSTALL_DIR}/lib/activation.sh"
 
 usage() {
 	cat <<'EOF'
@@ -34,17 +36,25 @@ Usage:
 
 Commands:
   help                  Show this help
-  list [--presets]      List install scripts (01-core, 02-enabled, 03-hooks)
+  list [--presets]      List foundation, mandatory core tools, optional tools, hooks
                         and available/ scripts not enabled. --presets is kept
                         as a no-op compatibility alias.
-  enable NAME           Create an 02-enabled/ symlink to available/NAME.sh
-  disable NAME          Remove the 02-enabled/ symlink for NAME.sh
+  enable NAME           Create an optional 03-enabled/ symlink to available/NAME.sh
+  disable NAME          Remove the optional 03-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
   versions-validate     Validate .devcontainer/tool-versions.conf
-  volumes               Print the live volume contract: bind mounts from
-                        docker-compose.yml and the install scripts that
-                        own each target
+  volumes               Print desired bind mounts and potential owners from
+                        the validated selected Compose manifest, not applied mounts
 EOF
+}
+
+validate_installer_name() {
+	case "$1" in
+	*/* | . | ..)
+		echo "ERROR: NAME must be a filename, not a path" >&2
+		return 1
+		;;
+	esac
 }
 
 # Resolve a script name (with or without .sh suffix) to its
@@ -85,33 +95,26 @@ preferred_enabled_name() {
 }
 
 enabled_link_names_for_base() {
-	local base="$1"
-	local available_path="${INSTALL_DIR}/available/${base}"
-	local canonical_available
-	local link
-	local canonical_link
-
-	[ -f "${available_path}" ] || return 0
-	[ -d "${INSTALL_DIR}/02-enabled" ] || return 0
-	canonical_available="$(readlink -f -- "${available_path}")" || return 0
-
-	for link in "${INSTALL_DIR}/02-enabled/"*; do
-		[ -L "${link}" ] || continue
-		[ -e "${link}" ] || continue
-		canonical_link="$(readlink -f -- "${link}")" || continue
-		if [ "${canonical_link}" = "${canonical_available}" ]; then
-			basename "${link}"
-		fi
-	done
+	local alias
+	while IFS= read -r alias; do
+		printf '%s\n' "${alias##*/}"
+	done < <(devcontainer_active_aliases "${INSTALL_DIR}" "${INSTALL_DIR}/available/$1" 03-enabled)
 }
 
 is_available_enabled() {
 	local base="$1"
-	enabled_link_names_for_base "${base}" | grep -q .
+	devcontainer_install_is_active "${INSTALL_DIR}" "${INSTALL_DIR}/available/${base}"
 }
 
 enabled_alias_for_base() {
-	enabled_link_names_for_base "$1" | sort | head -n 1
+	devcontainer_active_aliases "${INSTALL_DIR}" "${INSTALL_DIR}/available/$1" | sort | head -n 1
+}
+
+refuse_core_change() {
+	if devcontainer_install_is_active "${INSTALL_DIR}" "$1" 02-core-tools; then
+		echo "ERROR: ${1##*/} belongs to mandatory 02-core-tools; enable/disable changes only 03-enabled. To customize the base, edit the core aliases and matching Dockerfile COPY inputs intentionally." >&2
+		return 1
+	fi
 }
 
 validate_enabled_dependencies() {
@@ -164,21 +167,23 @@ enabled_dependents_for() {
 }
 
 resolve_disable_target() {
-	local name="$1" candidate canonical
+	local name="$1" candidate canonical group
 	if resolve_available "${name}"; then
 		return 0
 	fi
-	for candidate in "${name}" "${name}.sh"; do
-		candidate="${INSTALL_DIR}/02-enabled/${candidate}"
-		if [ ! -L "${candidate}" ] || [ ! -e "${candidate}" ]; then
-			continue
-		fi
-		canonical="$(readlink -f -- "${candidate}")" || continue
-		case "${canonical}" in
-		"${INSTALL_DIR}/available/"*.sh)
-			[ -f "${canonical}" ] && printf '%s\n' "${canonical}" && return 0
-			;;
-		esac
+	for group in 02-core-tools 03-enabled; do
+		for candidate in "${name}" "${name}.sh"; do
+			candidate="${INSTALL_DIR}/${group}/${candidate}"
+			if [ ! -L "${candidate}" ] || [ ! -e "${candidate}" ]; then
+				continue
+			fi
+			canonical="$(readlink -f -- "${candidate}")" || continue
+			case "${canonical}" in
+			"${INSTALL_DIR}/available/"*.sh)
+				[ -f "${canonical}" ] && printf '%s\n' "${canonical}" && return 0
+				;;
+			esac
+		done
 	done
 	return 1
 }
@@ -190,23 +195,30 @@ cmd_list() {
 		exit 2
 	fi
 
-	echo "01-core (obligatorio):"
-	if [ -d "${INSTALL_DIR}/01-core" ]; then
-		find "${INSTALL_DIR}/01-core" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
+	echo "01-foundation (mandatory bootstrap):"
+	if [ -d "${INSTALL_DIR}/01-foundation" ]; then
+		find "${INSTALL_DIR}/01-foundation" -maxdepth 1 -type f | sort | sed 's|.*/|  |'
 	else
 		echo "  (directorio ausente)"
 	fi
 
-	echo ""
-	echo "02-enabled (opt-in activos):"
-	if [ -d "${INSTALL_DIR}/02-enabled" ]; then
-		find "${INSTALL_DIR}/02-enabled" -maxdepth 1 -type l -print | sort | while read -r link; do
-			[ -L "${link}" ] || continue
-			printf "  %s -> %s\n" "$(basename "${link}")" "$(readlink "${link}")"
-		done
-	else
-		echo "  (directorio ausente)"
-	fi
+	local group
+	for group in 02-core-tools 03-enabled; do
+		echo ""
+		if [ "${group}" = 02-core-tools ]; then
+			echo "${group} (mandatory tools):"
+		else
+			echo "${group} (active optional tools):"
+		fi
+		if [ -d "${INSTALL_DIR}/${group}" ]; then
+			find "${INSTALL_DIR}/${group}" -maxdepth 1 -type l -print | sort | while read -r link; do
+				[ -L "${link}" ] || continue
+				printf "  %s -> %s\n" "$(basename "${link}")" "$(readlink "${link}")"
+			done
+		else
+			echo "  (directorio ausente)"
+		fi
+	done
 
 	echo ""
 	echo "available (not enabled):"
@@ -230,9 +242,9 @@ cmd_list() {
 	fi
 
 	echo ""
-	echo "03-hooks:"
-	if [ -d "${INSTALL_DIR}/03-hooks" ]; then
-		find "${INSTALL_DIR}/03-hooks" -maxdepth 1 -mindepth 1 | sort | sed 's|.*/|  |'
+	echo "04-hooks:"
+	if [ -d "${INSTALL_DIR}/04-hooks" ]; then
+		find "${INSTALL_DIR}/04-hooks" -maxdepth 1 -mindepth 1 | sort | sed 's|.*/|  |'
 	else
 		echo "  (directorio ausente)"
 	fi
@@ -247,6 +259,7 @@ cmd_enable() {
 		usage >&2
 		exit 2
 	fi
+	validate_installer_name "${name}" || exit 2
 
 	if ! source_path="$(resolve_available "${name}")"; then
 		echo "ERROR: ${name} not found under available/" >&2
@@ -255,6 +268,7 @@ cmd_enable() {
 
 	local base
 	base="$(basename "${source_path}")"
+	refuse_core_change "${source_path}" || exit 1
 
 	local link_name
 	link_name="$(preferred_enabled_name "${base}")"
@@ -265,11 +279,11 @@ cmd_enable() {
 	fi
 
 	(
-		cd "${INSTALL_DIR}/02-enabled"
+		cd "${INSTALL_DIR}/03-enabled"
 		ln -sfn "../available/${base}" "${link_name}"
 	)
 	if ! validate_enabled_dependencies; then
-		rm -f "${INSTALL_DIR}/02-enabled/${link_name}"
+		rm -f "${INSTALL_DIR}/03-enabled/${link_name}"
 		echo "ERROR: enable rolled back because installer dependencies are not satisfied" >&2
 		exit 1
 	fi
@@ -289,8 +303,10 @@ cmd_disable() {
 		usage >&2
 		exit 2
 	fi
+	validate_installer_name "${name}" || exit 2
 
 	if source_path="$(resolve_disable_target "${name}" 2>/dev/null)"; then
+		refuse_core_change "${source_path}" || exit 1
 		base="$(basename "${source_path}")"
 		dependents="$(enabled_dependents_for "${base}")"
 		if [ -n "${dependents}" ]; then
@@ -300,8 +316,8 @@ cmd_disable() {
 	fi
 
 	for candidate in "${name}" "${name}.sh"; do
-		if [ -L "${INSTALL_DIR}/02-enabled/${candidate}" ]; then
-			rm "${INSTALL_DIR}/02-enabled/${candidate}"
+		if [ -L "${INSTALL_DIR}/03-enabled/${candidate}" ]; then
+			rm "${INSTALL_DIR}/03-enabled/${candidate}"
 			echo "Disabled: ${candidate}"
 			removed=$((removed + 1))
 		fi
@@ -310,8 +326,8 @@ cmd_disable() {
 	if source_path="$(resolve_available "${name}" 2>/dev/null)"; then
 		while IFS= read -r enabled_name; do
 			[ -n "${enabled_name}" ] || continue
-			if [ -L "${INSTALL_DIR}/02-enabled/${enabled_name}" ]; then
-				rm "${INSTALL_DIR}/02-enabled/${enabled_name}"
+			if [ -L "${INSTALL_DIR}/03-enabled/${enabled_name}" ]; then
+				rm "${INSTALL_DIR}/03-enabled/${enabled_name}"
 				echo "Disabled: ${enabled_name}"
 				removed=$((removed + 1))
 			fi
@@ -346,21 +362,40 @@ cmd_doctor() {
 		echo "ok: templates/install-script.sh present"
 	fi
 
-	for required_dir in 01-core available 02-enabled 03-hooks lib templates; do
+	for required_dir in 01-foundation 02-core-tools available 03-enabled 04-hooks lib templates; do
 		if [ ! -d "${INSTALL_DIR}/${required_dir}" ]; then
 			echo "FAIL: directory ${required_dir}/ missing"
 			errors=$((errors + 1))
 		fi
 	done
 
-	if [ -d "${INSTALL_DIR}/02-enabled" ]; then
-		for link in "${INSTALL_DIR}/02-enabled/"*; do
-			if [ -L "${link}" ] && [ ! -e "${link}" ]; then
-				echo "FAIL: broken symlink 02-enabled/$(basename "${link}")"
+	local group link canonical available
+	local -A seen=()
+	available="$(readlink -f -- "${INSTALL_DIR}/available")"
+	for group in 02-core-tools 03-enabled; do
+		for link in "${INSTALL_DIR}/${group}/"*.sh; do
+			[ -e "${link}" ] || [ -L "${link}" ] || continue
+			if [ ! -L "${link}" ] || [ ! -f "${link}" ]; then
+				echo "FAIL: invalid or broken symlink ${group}/${link##*/}"
+				errors=$((errors + 1))
+				continue
+			fi
+			canonical="$(readlink -f -- "${link}")"
+			case "${canonical}" in
+			"${available}/"*.sh) ;;
+			*)
+				echo "FAIL: ${group}/${link##*/} must target an available shell installer"
+				errors=$((errors + 1))
+				continue
+				;;
+			esac
+			if [ -n "${seen[${canonical}]:-}" ]; then
+				echo "FAIL: duplicate installer ${group}/${link##*/}; already active as ${seen[${canonical}]}"
 				errors=$((errors + 1))
 			fi
+			seen["${canonical}"]="${group}/${link##*/}"
 		done
-	fi
+	done
 	if ! validate_enabled_dependencies; then
 		errors=$((errors + 1))
 	else
@@ -392,8 +427,8 @@ cmd_versions_validate() {
 	echo "ok: ${versions_file}"
 }
 
-# Print the live volume contract: the bind mounts docker-compose.yml
-# declares, the install scripts that own each target, and a step-by-step
+# Print the desired bind mounts from the validated selected Compose manifest,
+# the potential installer owners of each target, and a step-by-step
 # for adding a new stateful volume. Sources lifecycle/setup-volumes.sh for the
 # two functions that own the contract (parse + map).
 cmd_volumes() {
@@ -441,17 +476,17 @@ cmd_volumes() {
 
 	echo ""
 	echo "The mapping declares potential owners. During postCreate, only owners"
-	echo "with a valid symlink in install/02-enabled are run with"
+	echo "with a valid symlink in install/02-core-tools or install/03-enabled are run with"
 	echo "DEVCONTAINER_PHASE=runtime. Each script is idempotent."
 	echo ""
 	echo "To add a new stateful volume (e.g. PostgreSQL data dir):"
-	echo "  1. Add the bind mount to .devcontainer/docker-compose.yml."
+	echo "  1. Add the bind mount to a selected Compose file and recreate through Task."
 	echo "  2. Add a case for the new target path in"
 	echo "     compose_target_to_install_scripts in"
 	echo "     .devcontainer/lifecycle/setup-volumes.sh, listing the install script's"
 	echo "     base name (without the .sh extension)."
 	echo "  3. Add the install script in .devcontainer/install/available/."
-	echo "  4. Link it from .devcontainer/install/02-enabled/ if it should"
+	echo "  4. Link it from .devcontainer/install/03-enabled/ if it should"
 	echo "     run by default."
 }
 

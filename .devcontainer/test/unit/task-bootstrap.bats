@@ -4,7 +4,7 @@ setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	POLICY="${REPO_ROOT}/.devcontainer/tool-versions.conf"
 	UPDATER="${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
-	INSTALLER="${REPO_ROOT}/.devcontainer/install/01-core/15-task.sh"
+	INSTALLER="${REPO_ROOT}/.devcontainer/install/01-foundation/15-task.sh"
 	ADR="${REPO_ROOT}/docs/en/adr/0003-unified-tool-policy-ownership.md"
 }
 

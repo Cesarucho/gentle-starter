@@ -271,9 +271,10 @@ def main():
         manifest = load_manifest(workspace, runtime=command in {"runtime", "ssh-server"})
         if command == "ssh-server":
             installer = workspace / ".devcontainer/install/available/20-tool-ssh-server.sh"
-            enabled = workspace / ".devcontainer/install/02-enabled"
+            aliases = (link for group in ("02-core-tools", "03-enabled")
+                       for link in (workspace / ".devcontainer/install" / group).glob("*.sh"))
             if not installer.is_file() or not any(link.is_symlink() and link.resolve() == installer.resolve()
-                                                  for link in enabled.glob("*")):
+                                                  for link in aliases):
                 fail("SSH server installer is disabled")
             if (".devcontainer/docker-compose.ssh-server.yml" not in manifest["files"]
                     or not any(record.get("managed") is True

@@ -2,7 +2,7 @@
 #
 # 40-cli-terraform.sh — install Terraform from the official HashiCorp release.
 #
-# Opt-in CLI script for the install catalog. Enable it from 02-enabled/ when a
+# Opt-in CLI script for the install catalog. Enable it from 03-enabled/ when a
 # project needs Terraform in the default tool set.
 set -euo pipefail
 

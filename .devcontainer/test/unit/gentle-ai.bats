@@ -94,7 +94,16 @@ EOF
 write_doctor_stubs() {
     local doctor_bin="$1"
     local command_name
-    mkdir -p "${doctor_bin}"
+    mkdir -p "${doctor_bin}" "${FIXTURE_DIR}/.devcontainer/install/"{available,02-core-tools,lib} \
+        "${TEST_ROOT}/gitconfig-volume"
+    cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${FIXTURE_DIR}/.devcontainer/install/lib/"
+    touch "${FIXTURE_DIR}/.devcontainer/install/available/30-ai-gentle-ai.sh"
+    ln -s ../available/30-ai-gentle-ai.sh \
+        "${FIXTURE_DIR}/.devcontainer/install/02-core-tools/81-gentle-ai.sh"
+    printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.yml"}' \
+        >"${FIXTURE_DIR}/.devcontainer/devcontainer.json"
+    printf '%s\n' 'services: {container-svc: {volumes: []}}' \
+        >"${FIXTURE_DIR}/.devcontainer/docker-compose.yml"
 
     for command_name in task node npm pi engram gentle-ai; do
         cat >"${doctor_bin}/${command_name}" <<EOF
@@ -107,12 +116,30 @@ EOF
     cat >"${doctor_bin}/git" <<'EOF'
 #!/usr/bin/env bash
 if [ "${1:-}" = "rev-parse" ]; then
-    printf '%s\n' "${REPO_ROOT}"
+    printf '%s\n' "${FIXTURE_DIR}"
 else
     printf 'git version 2.43.0\n'
 fi
 EOF
-    chmod +x "${doctor_bin}/git"
+    cat >"${doctor_bin}/python3" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+    '.taskfiles/scripts/compose-manifest.py service .') printf 'container-svc\n' ;;
+    '.taskfiles/scripts/compose-manifest.py check .') exit 0 ;;
+    *) exit 1 ;;
+esac
+EOF
+    cat >"${TEST_ROOT}/doctor-env" <<'EOF'
+# Map the fixed container mount to a fixture without changing doctor checks.
+function [() {
+    if builtin [ "$#" -eq 3 ] && builtin [ "$1" = -d ] && builtin [ "$2" = /home/ubuntu/.gitconfig-volume ]; then
+        builtin [ -d "${TEST_ROOT}/gitconfig-volume" ]
+    else
+        builtin [ "$@"
+    fi
+}
+EOF
+    chmod +x "${doctor_bin}/git" "${doctor_bin}/python3"
 }
 
 write_installed_version() {
@@ -256,37 +283,42 @@ run_installer() {
     local doctor_bin="${TEST_ROOT}/doctor-bin"
     write_doctor_stubs "${doctor_bin}"
 
-    run env PATH="${doctor_bin}:/usr/bin:/bin" REPO_ROOT="${REPO_ROOT}" \
+    run env PATH="${doctor_bin}:/usr/bin:/bin" BASH_ENV="${TEST_ROOT}/doctor-env" \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
 
+    printf 'Doctor with Gentle AI (status %s):\n%s\n' "$status" "$output" >&2
     [ "$status" -eq 0 ]
     [[ "$output" == *'[ok] gentle-ai available:'* ]]
 
     rm -f "${doctor_bin}/gentle-ai"
-    run env PATH="${doctor_bin}:/usr/bin:/bin" REPO_ROOT="${REPO_ROOT}" \
+    run env PATH="${doctor_bin}:/usr/bin:/bin" BASH_ENV="${TEST_ROOT}/doctor-env" \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
 
+    printf 'Doctor without Gentle AI (status %s):\n%s\n' "$status" "$output" >&2
     [ "$status" -eq 1 ]
     [[ "$output" == *'[fail] gentle-ai not found'* ]]
+    [[ "$output" == *'Summary: 1 error(s),'* ]]
 }
 
 @test "install helper re-enables Gentle AI at canonical slot 81" {
     local sandbox="${TEST_ROOT}/install-helper"
     mkdir -p "${sandbox}/.taskfiles/scripts" \
         "${sandbox}/.devcontainer/install/available" \
-        "${sandbox}/.devcontainer/install/02-enabled"
+        "${sandbox}/.devcontainer/install/03-enabled" \
+        "${sandbox}/.devcontainer/install/lib"
     cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" "${sandbox}/.taskfiles/scripts/install.sh"
+    cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${sandbox}/.devcontainer/install/lib/"
     cp "${REPO_ROOT}/.devcontainer/install/available/30-ai-gentle-ai.sh" \
         "${sandbox}/.devcontainer/install/available/30-ai-gentle-ai.sh"
     ln -s ../available/30-ai-gentle-ai.sh \
-        "${sandbox}/.devcontainer/install/02-enabled/81-gentle-ai.sh"
+        "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh"
 
     run bash "${sandbox}/.taskfiles/scripts/install.sh" disable 30-ai-gentle-ai
     [ "$status" -eq 0 ]
     run bash "${sandbox}/.taskfiles/scripts/install.sh" enable 30-ai-gentle-ai
 
     [ "$status" -eq 0 ]
-    [ -L "${sandbox}/.devcontainer/install/02-enabled/81-gentle-ai.sh" ]
-    [ "$(readlink "${sandbox}/.devcontainer/install/02-enabled/81-gentle-ai.sh")" = '../available/30-ai-gentle-ai.sh' ]
-    [ ! -e "${sandbox}/.devcontainer/install/02-enabled/30-ai-gentle-ai.sh" ]
+    [ -L "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh" ]
+    [ "$(readlink "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh")" = '../available/30-ai-gentle-ai.sh' ]
+    [ ! -e "${sandbox}/.devcontainer/install/03-enabled/30-ai-gentle-ai.sh" ]
 }

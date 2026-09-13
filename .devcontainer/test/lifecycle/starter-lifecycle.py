@@ -88,7 +88,7 @@ def configure(root):
     }
     (root / ".devcontainer/devcontainer.json").write_text(json.dumps(config, indent=4) + "\n")
     disabled = {"30-ai-pi-coding.sh", "30-ai-pi-gentle.sh", "20-tool-ssh-server.sh"}
-    for link in (root / ".devcontainer/install/02-enabled").iterdir():
+    for link in (root / ".devcontainer/install/03-enabled").iterdir():
         if link.is_symlink() and link.resolve().name in disabled:
             link.unlink()
     for name in (".env", ".devcontainer/.env"):

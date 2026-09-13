@@ -6,8 +6,8 @@ setup() {
 	INSTALL_ROOT="${TEST_ROOT}/install"
 	BIN_DIR="${TEST_ROOT}/bin"
 	CALLS="${TEST_ROOT}/calls"
-	mkdir -p "${INSTALL_ROOT}/01-core" "${INSTALL_ROOT}/lib" "${BIN_DIR}"
-	cp "${REPO_ROOT}/.devcontainer/install/01-core/11-locale.sh" "${INSTALL_ROOT}/01-core/"
+	mkdir -p "${INSTALL_ROOT}/01-foundation" "${INSTALL_ROOT}/lib" "${BIN_DIR}"
+	cp "${REPO_ROOT}/.devcontainer/install/01-foundation/11-locale.sh" "${INSTALL_ROOT}/01-foundation/"
 	cat >"${INSTALL_ROOT}/lib/common.sh" <<'SH'
 devcontainer_log_info() { :; }
 devcontainer_log_error() { printf '%s\n' "$*" >&2; }
@@ -33,14 +33,14 @@ teardown() {
 run_locale_installer() {
 	run env PATH="${BIN_DIR}:${PATH}" CALLS="${CALLS}" \
 		DEVCONTAINER_LOCALE_GEN_FILE="${TEST_ROOT}/locale.gen" LOCALE="${1:-es_MX.UTF-8}" \
-		TZ=America/Mexico_City bash "${INSTALL_ROOT}/01-core/11-locale.sh"
+		TZ=America/Mexico_City bash "${INSTALL_ROOT}/01-foundation/11-locale.sh"
 }
 
 @test "locale generation is ordered after the package installer" {
-	mapfile -t core_scripts < <(find "${REPO_ROOT}/.devcontainer/install/01-core" -maxdepth 1 -type f -name '*.sh' -printf '%f\n' | sort)
+	mapfile -t core_scripts < <(find "${REPO_ROOT}/.devcontainer/install/01-foundation" -maxdepth 1 -type f -name '*.sh' -printf '%f\n' | sort)
 	[ "${core_scripts[0]}" = "00-pre-apt.sh" ]
 	[[ " ${core_scripts[*]} " == *" 10-system.sh 11-locale.sh 15-task.sh "* ]]
-	! grep -qE 'locale-gen|update-locale|dpkg-reconfigure' "${REPO_ROOT}/.devcontainer/install/01-core/00-pre-apt.sh"
+	! grep -qE 'locale-gen|update-locale|dpkg-reconfigure' "${REPO_ROOT}/.devcontainer/install/01-foundation/00-pre-apt.sh"
 }
 
 @test "default locale is enabled and activated" {
@@ -82,11 +82,11 @@ run_locale_installer() {
 @test "locale setup remains entirely inside the foundation cache boundary" {
 	foundation="$(awk '/^FROM \$\{IMAGE\} AS foundation$/{capture=1; next} capture && /^FROM /{exit} capture' "${REPO_ROOT}/.devcontainer/Dockerfile")"
 	[[ "${foundation}" == *'ARG LOCALE=es_MX.UTF-8'* ]]
-	[[ "${foundation}" == *'COPY install/01-core/'* ]]
+	[[ "${foundation}" == *'COPY install/01-foundation/'* ]]
 	[[ "${foundation}" != *'tool-versions.conf'* ]]
 	[[ "${foundation}" != *'ENV LANG=C.UTF-8'* ]]
 	[[ "${foundation}" != *'ENV LANGUAGE=C.UTF-8'* ]]
 	[[ "${foundation}" != *'ENV LC_ALL=C.UTF-8'* ]]
 	[[ "${foundation}" == *$'RUN LANG=C.UTF-8 LANGUAGE=C.UTF-8 LC_ALL=C.UTF-8 \\\n    chown '* ]]
-	[[ "${foundation}" == *$'run-installers.sh ./.devcontainer-install/01-core\n\nENV LANG=${LOCALE}\nENV LANGUAGE=${LOCALE}\nENV LC_ALL=${LOCALE}'* ]]
+	[[ "${foundation}" == *$'run-installers.sh ./.devcontainer-install/01-foundation\n\nENV LANG=${LOCALE}\nENV LANGUAGE=${LOCALE}\nENV LC_ALL=${LOCALE}'* ]]
 }

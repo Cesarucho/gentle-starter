@@ -4,7 +4,7 @@ globs:
   - AGENTS.md.TEMPLATE
   - CHANGELOG.md
   - .devcontainer/README.md
-  - .devcontainer/install/03-hooks/README.md
+  - .devcontainer/install/04-hooks/README.md
   - docs/en/**/*.md
 
 ignores:

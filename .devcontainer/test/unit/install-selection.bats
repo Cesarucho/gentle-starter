@@ -3,7 +3,7 @@
 setup() {
 	FIXTURE="${BATS_TEST_TMPDIR}/selection"
 	INSTALL="${FIXTURE}/install"
-	mkdir -p "${INSTALL}/available" "${INSTALL}/02-enabled" "${FIXTURE}/test/integration" "${FIXTURE}/bin"
+	mkdir -p "${INSTALL}/available" "${INSTALL}/02-core-tools" "${INSTALL}/03-enabled" "${FIXTURE}/test/integration" "${FIXTURE}/bin"
 	cp "${BATS_TEST_DIRNAME}/../integration/"{tools.bats,install-selection.sh} "${FIXTURE}/test/integration/"
 	printf '# Fixture source; never executed.\n' >"${INSTALL}/available/30-ai-gentle-ai.sh"
 	BATS_BIN="$(command -v bats)"
@@ -27,7 +27,7 @@ run_gentle_check() {
 }
 
 @test "custom alias selects the canonical installer and missing package fails" {
-	ln -s ../available/30-ai-gentle-ai.sh "${INSTALL}/02-enabled/47-custom.sh"
+	ln -s ../available/30-ai-gentle-ai.sh "${INSTALL}/02-core-tools/47-custom.sh"
 	run_gentle_check
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *'not ok 1 ai: Gentle AI is installed'* ]]
@@ -35,7 +35,7 @@ run_gentle_check() {
 }
 
 @test "custom alias accepts an installed working package without a fixed slot" {
-	ln -s ../available/30-ai-gentle-ai.sh "${INSTALL}/02-enabled/47-custom.sh"
+	ln -s ../available/30-ai-gentle-ai.sh "${INSTALL}/03-enabled/47-custom.sh"
 	# shellcheck disable=SC2016 # The fixture executable evaluates its own argument.
 	printf '#!/bin/bash\n[ "$1" = version ]\n' >"${FIXTURE}/bin/gentle-ai"
 	chmod +x "${FIXTURE}/bin/gentle-ai"
@@ -46,7 +46,7 @@ run_gentle_check() {
 }
 
 @test "broken activation is an error rather than a disabled skip" {
-	ln -s ../available/missing.sh "${INSTALL}/02-enabled/47-custom.sh"
+	ln -s ../available/missing.sh "${INSTALL}/02-core-tools/47-custom.sh"
 	run_gentle_check
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *'not ok 1 ai: Gentle AI is installed'* ]]

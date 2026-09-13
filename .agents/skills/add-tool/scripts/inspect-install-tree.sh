@@ -39,7 +39,9 @@ root = Path(sys.argv[1])
 output_format = sys.argv[2]
 install = root / ".devcontainer/install"
 available_dir = install / "available"
-enabled_dir = install / "02-enabled"
+activation_dirs = [install / "02-core-tools", install / "03-enabled"]
+activation_links = [link for directory in activation_dirs if directory.is_dir()
+                    for link in sorted(directory.iterdir())]
 canonical_available_dir = available_dir.resolve(strict=True) if available_dir.is_dir() else None
 
 def classify_alias(link):
@@ -62,8 +64,8 @@ def classify_alias(link):
 available = []
 for installer in sorted(available_dir.glob("*.sh")) if available_dir.is_dir() else []:
     aliases = []
-    if enabled_dir.is_dir():
-        for link in sorted(enabled_dir.iterdir()):
+    if activation_links:
+        for link in activation_links:
             if link.is_symlink():
                 try:
                     classification = classify_alias(link)
@@ -77,15 +79,16 @@ for installer in sorted(available_dir.glob("*.sh")) if available_dir.is_dir() el
 
 enabled = []
 slots = {}
-if enabled_dir.is_dir():
-    for link in sorted(enabled_dir.iterdir()):
+if activation_links:
+    for link in activation_links:
         if not link.is_symlink():
             continue
         item = classify_alias(link)
+        item["group"] = link.parent.name
         slot_match = re.match(r"^(\d+)-", link.name)
         slot = slot_match.group(1) if slot_match else None
         if slot:
-            slots.setdefault(slot, []).append(link.name)
+            slots.setdefault(f"{link.parent.name}/{slot}", []).append(link.name)
         item["slot"] = slot
         enabled.append(item)
 
@@ -148,7 +151,7 @@ else:
             suffix = f" [UNSAFE: {item['unsafe_reason']}]"
         else:
             suffix = ""
-        print(f"  {item['alias']} -> {item['target']}{suffix}")
+        print(f"  {item['group']}/{item['alias']} -> {item['target']}{suffix}")
     print("Broken aliases: " + (", ".join(facts["broken_aliases"]) or "none"))
     unsafe_text = ", ".join(f"{item['alias']}={item['reason']}" for item in facts["unsafe_aliases"])
     print("Unsafe aliases: " + (unsafe_text or "none"))

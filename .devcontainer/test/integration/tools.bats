@@ -26,7 +26,7 @@ load install-selection.sh
 }
 
 @test "core: GnuPG is installed by the always-on system layer" {
-    local system_installer="${BATS_TEST_DIRNAME}/../../install/01-core/10-system.sh"
+    local system_installer="${BATS_TEST_DIRNAME}/../../install/01-foundation/10-system.sh"
 
     command -v gpg >/dev/null
     run gpg --version

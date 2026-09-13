@@ -6,8 +6,9 @@ the repository. Human-facing details live in `README.md` and `docs/en/`.
 ## Project identity
 
 Gentle Starter is a ready-to-prompt devcontainer for the Gentle AI ecosystem.
-It builds an Ubuntu 24.04 environment with Pi, Gentle AI, Engram, Go, Java 25,
-pnpm, and a curated CLI catalog.
+It builds an Ubuntu 24.04 environment with mandatory OpenCode, Gentle AI,
+Engram, Bats, Node/npm, pnpm, markdownlint, Dev Container CLI, and Skills.
+Pi, Go, Java, and other catalog tools remain optional.
 
 At session start, inspect the current branch, `HEAD`, worktree, and remotes.
 Never rely on branch or commit metadata copied into documentation.
@@ -44,8 +45,11 @@ Never rely on branch or commit metadata copied into documentation.
 Gentle Starter has four coordinated extension surfaces:
 
 1. **Install tree** (`.devcontainer/install/`) — build-time scripts grouped as
-   `01-core/`, ordered symlinks in `02-enabled/`, and user hooks in `03-hooks/`.
-   Source installers live in `available/`.
+   `01-foundation/`, mandatory aliases in `02-core-tools/`, optional aliases in
+   `03-enabled/`, and user hooks in `04-hooks/`. Canonical tool installers live
+   in `available/`. Docker stages are `foundation` → `core-tools` → `devcontainer`.
+   Core aliases and selective Dockerfile source/helper COPY inputs must agree.
+   Keep project identity, optional sources/selectors, and hooks downstream of core.
 2. **Persistent state** — `task container:up` prepares managed `.env.d` bind
    sources as the host user before Docker starts; `.devcontainer/lifecycle/setup-volumes.sh`
    maps container targets to enabled owner scripts for runtime population.
@@ -76,9 +80,11 @@ Start with `docs/en/extending.md`; use the linked deep dives for each surface.
 - Source scripts under `.devcontainer/install/` use mode `0755` intentionally.
 - Dockerfile group iteration is the load-bearing install order; directory
   prefixes are visual hints, while filename prefixes control in-group order.
-- `02-enabled/` is an execution-order layer, not a taxonomy. Keep unique
+- `02-core-tools/` and `03-enabled/` are execution-order layers, not taxonomies. Keep unique
   `NN-tool.sh` aliases; category names belong in `available/`.
-- `03-hooks/` is intentionally visible to Git.
+- Enable/disable modifies only `03-enabled/` and refuses mandatory core tools.
+  Activation and dependency checks include both alias groups and respect group order.
+- `04-hooks/` is intentionally visible to Git.
 - `task env:backup`, `task env:restore`, and `task pi:diff-config` are deferred.
   Do not implement them without explicit approval.
 

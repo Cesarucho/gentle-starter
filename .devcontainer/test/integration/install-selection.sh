@@ -5,7 +5,7 @@ is_enabled_install() {
 	local install_dir="${BATS_TEST_DIRNAME}/../../install"
 	local expected link resolved
 	expected="$(realpath -e "${install_dir}/available/$1")" || return 2
-	for link in "${install_dir}/02-enabled/"*.sh; do
+	for link in "${install_dir}/02-core-tools/"*.sh "${install_dir}/03-enabled/"*.sh; do
 		[ -e "${link}" ] || [ -L "${link}" ] || continue
 		resolved="$(realpath -e "${link}")" || return 2
 		if [ "${resolved}" = "${expected}" ]; then

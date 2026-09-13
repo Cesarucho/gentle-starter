@@ -240,7 +240,7 @@ repair_installed_volumes
 
 # ---------------------------------------------------------------------------
 # SSH server: start if the install script is enabled.
-# Detection: check for the symlink in 02-enabled/ (created by
+# Detection: check for the symlink in 03-enabled/ (created by
 # task install:enable -- 20-tool-ssh-server, or manually). The persisted-key
 # Compose override is also required. Disabling that canonical installer
 # prevents both runtime preparation and service startup.

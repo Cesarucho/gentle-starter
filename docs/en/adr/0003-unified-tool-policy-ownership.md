@@ -3,6 +3,11 @@
 **Status:** Accepted, 2026-09-09
 **Supersedes:** Version ownership and update decisions in [ADR 0002](0002-centralized-tool-version-policy.md)
 
+**Path update:** The historical `01-core` bootstrap directory is now
+`01-foundation`; managed tool aliases run separately in `02-core-tools` or
+`03-enabled`. This does not change policy/updater ownership. See the
+[current install guide](../install-tree.md).
+
 ## Decision
 
 `.devcontainer/tool-versions.conf` is the single public policy file. Its top

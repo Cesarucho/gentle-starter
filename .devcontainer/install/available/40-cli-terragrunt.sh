@@ -2,7 +2,7 @@
 #
 # 40-cli-terragrunt.sh — install Terragrunt from the official GitHub release.
 #
-# Opt-in CLI script for the install catalog. Enable it from 02-enabled/ when a
+# Opt-in CLI script for the install catalog. Enable it from 03-enabled/ when a
 # project needs Terragrunt in the default tool set.
 set -euo pipefail
 

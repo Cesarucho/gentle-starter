@@ -201,16 +201,17 @@ EOF
 	local fixture_root
 	fixture_root="$(mktemp -d)"
 	mkdir -p "${fixture_root}/.devcontainer/install/available/not-an-installer" \
-		"${fixture_root}/.devcontainer/install/02-enabled" \
+		"${fixture_root}/.devcontainer/install/02-core-tools" \
+		"${fixture_root}/.devcontainer/install/03-enabled" \
 		"${fixture_root}/outside"
 	touch "${fixture_root}/.devcontainer/install/available/40-valid.sh" \
 		"${fixture_root}/outside/escape.sh"
 	ln -s "${fixture_root}/.devcontainer/install/available/40-valid.sh" \
-		"${fixture_root}/.devcontainer/install/02-enabled/40-valid.sh"
+		"${fixture_root}/.devcontainer/install/02-core-tools/40-valid.sh"
 	ln -s "${fixture_root}/outside/escape.sh" \
-		"${fixture_root}/.devcontainer/install/02-enabled/50-escape.sh"
+		"${fixture_root}/.devcontainer/install/03-enabled/50-escape.sh"
 	ln -s "../available/not-an-installer" \
-		"${fixture_root}/.devcontainer/install/02-enabled/60-directory.sh"
+		"${fixture_root}/.devcontainer/install/03-enabled/60-directory.sh"
 
 	run bash "${inspector}" --format=json "${fixture_root}"
 	[ "${status}" -eq 0 ]
@@ -251,12 +252,12 @@ EOF
 	local fixture_root
 	fixture_root="$(mktemp -d)"
 	mkdir -p "${fixture_root}/.devcontainer/install/available" \
-		"${fixture_root}/.devcontainer/install/02-enabled"
+		"${fixture_root}/.devcontainer/install/03-enabled"
 	touch "${fixture_root}/.devcontainer/install/available/40-one.sh" \
 		"${fixture_root}/.devcontainer/install/available/40-two.sh"
-	ln -s "../available/40-one.sh" "${fixture_root}/.devcontainer/install/02-enabled/50-one.sh"
-	ln -s "../available/40-two.sh" "${fixture_root}/.devcontainer/install/02-enabled/50-two.sh"
-	ln -s "../available/missing.sh" "${fixture_root}/.devcontainer/install/02-enabled/60-missing.sh"
+	ln -s "../available/40-one.sh" "${fixture_root}/.devcontainer/install/03-enabled/50-one.sh"
+	ln -s "../available/40-two.sh" "${fixture_root}/.devcontainer/install/03-enabled/50-two.sh"
+	ln -s "../available/missing.sh" "${fixture_root}/.devcontainer/install/03-enabled/60-missing.sh"
 
 	run bash "${inspector}" --format=json "${fixture_root}"
 	rm -rf "${fixture_root}"
@@ -264,15 +265,23 @@ EOF
 	[ "${status}" -eq 0 ]
 	printf '%s' "${output}" | jq -e '
 		(.broken_aliases == ["60-missing.sh"]) and
-		(.duplicate_slots["50"] == ["50-one.sh", "50-two.sh"]) and
+		(.duplicate_slots["03-enabled/50"] == ["50-one.sh", "50-two.sh"]) and
 		(.available[0].enabled_aliases == ["50-one.sh"])
 	' >/dev/null
 }
 
-@test "root test task executes the complete included aggregate" {
-	run bash -c "cd '${REPO_ROOT}' && task --dry test"
+@test "explicit starter test task includes both suites while root test stays application-owned" {
+	cp "${REPO_ROOT}/Taskfile.yml" "${TEST_ROOT}/Taskfile.yml"
+	cp "${REPO_ROOT}/.taskfiles/"*.yml "${TEST_ROOT}/.taskfiles/"
+	run task --dir "${TEST_ROOT}" --dry test:starter
 
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'test/unit/*.bats'* ]]
 	[[ "$output" == *'integration/tools.bats'* ]]
+
+	run task --dir "${TEST_ROOT}" --dry test
+
+	[ "$status" -eq 0 ]
+	[[ "$output" != *'test/unit/*.bats'* ]]
+	[[ "$output" != *'integration/tools.bats'* ]]
 }

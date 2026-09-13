@@ -4,7 +4,7 @@
 
 | Pattern | Closest repository example |
 | --- | --- |
-| Ubuntu apt distribution | `01-core/10-system.sh`, `40-cli-graphviz.sh` |
+| Ubuntu apt distribution | `01-foundation/10-system.sh`, `40-cli-graphviz.sh` |
 | Third-party apt/PPA | `20-runtime-node.sh`, `40-php-lang.sh`; do not copy Task's narrow core-bootstrap exception |
 | npm/pnpm global | `20-runtime-pnpm.sh`, `40-node-markdownlint.sh` |
 | Python isolated venv/pipx-like | `40-python-graphify.sh` |

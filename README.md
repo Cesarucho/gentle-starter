@@ -42,7 +42,7 @@ prompt, enabling workflows like these:
 - **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** as an
   opt-in alternative extensible harness (disabled by default).
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** for
-  controlled Pi workflows alongside OpenCode.
+  managed AI workflows alongside OpenCode, included in the mandatory core.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** as local persistent memory inside the environment.
 - **[Context7](https://github.com/upstash/context7)** integrated through MCP for current library documentation.
 - **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** based on [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
@@ -54,6 +54,13 @@ prompt, enabling workflows like these:
   **[Java 25](https://sdkman.io/jdks#tem)** installers in the opt-in catalog;
   Java uses [SDKMAN](https://sdkman.io/install) and Temurin by default.
 - **[pnpm](https://pnpm.io/installation)**, installed globally from the latest stable npm release.
+
+The shared core contains Bats, Node/npm, pnpm, markdownlint, Dev Container CLI,
+OpenCode, Engram, Gentle AI, and Skills. Its Docker stage is independent of
+project names, optional selectors, and hooks. `install:enable`/`install:disable`
+manage optional tools only; intentional core changes require editing the base.
+See [the install layout](docs/en/install-tree.md) and
+[cache boundaries](docs/en/container-foundation.md).
 
 <details>
 <summary>Additional tools in the install catalog</summary>
@@ -445,7 +452,7 @@ be versioned. It is currently used to mount data such as:
 
 ### 📥 Install system packages
 
-Edit `.devcontainer/install/01-core/10-system.sh` to add packages installed with
+Edit `.devcontainer/install/01-foundation/10-system.sh` to add packages installed with
 `apt` during the image build.
 
 ### 🌎 Update timezone and locales

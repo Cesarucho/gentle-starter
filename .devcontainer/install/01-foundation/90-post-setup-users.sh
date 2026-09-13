@@ -2,7 +2,7 @@
 #
 # 90-post-setup-users.sh — ensure the ubuntu user has passwordless sudo.
 #
-# Runs as part of 01-core/ during image build. The legacy version of
+# Runs as part of 01-foundation/ during image build. The legacy version of
 # this script (and its ARG-driven HOST_UID/HOST_GID plumbing) also
 # provisioned a host-mapped 'devuser'. That path was removed when the
 # project settled on the 'ubuntu' user as the single devcontainer

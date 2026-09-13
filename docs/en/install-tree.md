@@ -1,7 +1,7 @@
 # The install/ tree
 
 The `install/` directory under `.devcontainer/` is the catalog of
-scripts that the Docker build runs. The build iterates three runtime
+scripts that the Docker build runs. The build iterates four execution
 groups in order, each sorted by filename. This doc explains the
 convention and how to add a new install script.
 
@@ -13,61 +13,54 @@ interact, plus a worked example), see
 
 ```text
 .devcontainer/install/
-├── 01-core/                # mandatory, runs in every build
-├── 02-enabled/             # symlinks to active available/ scripts
-├── 03-hooks/               # user extensions (read its README first)
-├── available/              # opt-in catalog (numbered 00-99)
+├── 01-foundation/          # mandatory OS/bootstrap scripts
+├── 02-core-tools/          # mandatory symlinks to available/ scripts
+├── 03-enabled/             # optional symlinks to available/ scripts
+├── 04-hooks/               # user extensions (visible to Git)
+├── available/              # canonical core and optional installer bodies
 ├── lib/                    # shared helpers (common.sh)
 └── templates/              # install-script.sh template for new scripts
 ```
 
-## The three runtime groups
+## The four execution groups
 
-The Dockerfile's build loop is:
+The Dockerfile explicitly invokes the fail-fast runner in this order:
 
-```dockerfile
-for group in 01-core 02-enabled 03-hooks; do
-    find -L "./.devcontainer-install/${group}" -maxdepth 1 -type f -name "*.sh" \
-        | sort | while read -r script; do
-        DEVCONTAINER_PHASE=build bash "${script}"
-    done
-done
+```text
+foundation stage:   run-installers.sh 01-foundation
+core-tools stage:   run-installers.sh 02-core-tools
+devcontainer stage: run-installers.sh 03-enabled
+                    run-installers.sh 04-hooks
 ```
 
 Three things to notice:
 
-- **Group order is fixed by the Dockerfile**: `01-core/` runs first, then
-  `02-enabled/`, then `03-hooks/`. The numeric prefix is a *visual* hint
-  for the execution order; the load-bearing order is the Dockerfile's
-  `for` loop.
+- **Group order is fixed by explicit Dockerfile runner calls**, not by
+  comparing filenames across groups. Numeric directory prefixes are visual hints.
 - **Within each group, scripts are sorted by filename** (default `sort`
   order). The numeric prefix you put on each script controls the
-  in-group order. In `02-enabled/`, the convention is now an explicit
-  unique sequence (`10-bats.sh`, `30-node.sh`, ..., `90-skills.sh`) so
-  the execution order is readable at a glance.
-- **`-L` follows symlinks**, which is how `02-enabled/` (all symlinks
+  in-group order. Core and optional aliases use `NN-tool.sh` filenames.
+- **`-L` follows symlinks**, which is how both alias groups (all symlinks
   into `available/`) actually gets the script bodies to run.
 
-### `01-core/` — always runs
+### `01-foundation/` — mandatory OS/bootstrap
 
-The six core scripts today (00, 10, 11, 15, 90, 99) seed the timezone,
+The six foundation scripts (00, 10, 11, 15, 90, 99) seed the timezone,
 install base apt packages, generate the configured locale, finalize timezone
 data, install go-task, configure ubuntu sudoers, and perform final
-cleanup. They are mandatory. Adding a new core script means adding
-a new file with the right `NN-` prefix and committing it.
+cleanup. They are mandatory. Keep managed tool installers in `available/`,
+not in this OS/bootstrap layer.
 
 Go Task is the narrow external APT-managed core bootstrap exception described
-by [ADR 0003](adr/0003-unified-tool-policy-ownership.md). It remains in core and
+by [ADR 0003](adr/0003-unified-tool-policy-ownership.md). It remains in foundation and
 outside `TOOL_*`/`LOCK_*` policy because repository Task workflows and the
 foundation cache boundary depend on it. This existing exception is not a route
 for adding new unmanaged tools.
 
-### `02-enabled/` — opt-in, default active
+### `02-core-tools/` — mandatory shared tools
 
-Each entry in `02-enabled/` is a symlink to a script in `available/`.
-Default-active scripts use a unique `NN-name.sh` sequence whose only
-job is to make the build order explicit while the symlink target keeps
-its richer catalog name in `available/`.
+Each entry is a canonical symlink into `available/`. Eight essential tools
+plus their Node/npm prerequisite run in the cached `core-tools` stage.
 
 Current default order:
 
@@ -76,26 +69,27 @@ Current default order:
 30-node.sh
 40-pnpm.sh
 45-markdownlint.sh
-46-glow.sh
-50-browser-playwright.sh
 50-devcontainer-cli.sh
 55-opencode.sh
 60-engram.sh
-70-pi-coding.sh
-80-pi-gentle.sh
 81-gentle-ai.sh
 90-skills.sh
 ```
 
-The numeric gap is intentional: `20-go.sh` is currently disabled, and a
-missing slot is acceptable when a default-active tool is turned off.
-This ordering is intentional: `bats` runs first, `skills` runs last,
-Gentle AI runs after the Pi packages it can optionally configure,
-Node/npm-dependent tools stay after the Node runtime scripts, and small
-CLI additions such as `glow` can take the next free execution slot without
-renaming the rest of the layer. To disable one, run
-`task install:disable -- NAME`; to enable one, run
-`task install:enable -- NAME`.
+Node/npm precedes pnpm, markdownlint, the Dev Container CLI, and Skills.
+Engram and Gentle AI are standalone binaries; neither requires Go, Java, or Pi.
+Bats, OpenCode, and Engram use the shared archive helper and foundation Python 3.
+`install:enable` and `install:disable` refuse core tools. To intentionally
+customize the base, edit core aliases and the matching selective source/helper
+COPY inputs in the Dockerfile, then run the cache-boundary consistency tests.
+No generic test requires a fixed catalog or mandatory tool set.
+
+### `03-enabled/` — optional tools
+
+This group runs after all core tools. It retains SSH client, SSH server,
+PulseAudio clients, Glow, and Playwright in this checkout; Pi remains disabled.
+SSH server and audio still require their separately selected Compose overrides.
+Use `task install:disable -- NAME` or `task install:enable -- NAME` here.
 
 Disabling changes the active set for future image builds and postCreate
 repairs. It does not uninstall packages from the current container or delete
@@ -104,15 +98,17 @@ makes its future lifecycle work active again.
 
 `dependencies.conf` is the central activation contract. `enabled` dependencies
 must also be active and ordered earlier; `image` dependencies come from the
-base/core layer; `companion` entries describe optional runtime integration.
+foundation layer; `companion` entries describe optional runtime integration.
+Both alias groups satisfy activation; a core consumer cannot depend on a later
+optional installer. Doctor rejects duplicate canonical targets across groups.
 `task install:list` displays these relationships and `task install:doctor`
 validates the active set. Engram remains standalone when Pi is disabled.
 
-### `03-hooks/` — user extensions (gitignored)
+### `04-hooks/` — user extensions (visible to Git)
 
 Reserved for personal, project-agnostic extensions (a personal VPN
 cert installer, a site-specific CLI, etc.). The directory is empty
-by default and ships with a README. See `install/03-hooks/README.md`
+by default and ships with a README. See `install/04-hooks/README.md`
 for the contract.
 
 ## `available/` — the catalog
@@ -134,7 +130,7 @@ The numbering convention follows the spec's category ranges:
 
 Every script in `available/` is a self-contained install script
 with no expectation of being enabled. A script runs if and only if
-there is a symlink to it in `02-enabled/`.
+there is a symlink to it in `02-core-tools/` or `03-enabled/`.
 
 The numbering convention follows the spec's category ranges:
 
@@ -188,17 +184,17 @@ place it in `available/`. Builds and installers must not mutate policy.
 
 Three cases, in order of likelihood:
 
-When adding a new default-active symlink in `02-enabled/`, pick the next
+When adding a new default-active optional symlink in `03-enabled/`, pick the next
 free number in the sequence and keep the tool name only in the symlink
 filename (`NN-tool.sh`). Do **not** copy the category/type prefix from
-`available/` into `02-enabled/`; that extra information belongs to the
+`available/` into `03-enabled/`; that extra information belongs to the
 catalog script name, not the enabled ordering layer.
 
 ### Case 1: a new script for an existing tool (most common)
 
 You're adding a second Pi agent config script, or you want to split a
 large install into two smaller ones. No Dockerfile change, no
-`02-enabled/` change — just create a new file in `available/` with
+`03-enabled/` change — just create a new file in `available/` with
 the right prefix:
 
 ```text
@@ -207,10 +203,10 @@ the right prefix:
 ```
 
 `30-ai-` keeps the in-group order (`30-ai-pi-coding.sh` → `30-ai-pi-extras.sh`).
-If you want it active by default, link it from `02-enabled/`:
+If you want it active by default, link it from `03-enabled/`:
 
 ```bash
-cd .devcontainer/install/02-enabled
+cd .devcontainer/install/03-enabled
 ln -sfn ../available/30-ai-pi-extras.sh 75-pi-extras.sh
 ```
 
@@ -221,7 +217,7 @@ with `task install:enable -- 30-ai-pi-extras`.
 
 You're adding Redis, or kubectl, or any tool with a real install
 step (binary download, apt install, etc.). The script goes in
-`available/` with the right prefix and is linked from `02-enabled/`
+`available/` with the right prefix and is linked from `03-enabled/`
 for default activation.
 
 ```text
@@ -234,7 +230,7 @@ for default activation.
 cp .devcontainer/install/templates/install-script.sh \
    .devcontainer/install/available/20-runtime-kubectl.sh
 # fill in: download kubectl binary, verify, exit 0 if already present
-cd .devcontainer/install/02-enabled
+cd .devcontainer/install/03-enabled
 ln -sfn ../available/20-runtime-kubectl.sh 35-kubectl.sh
 ```
 
@@ -245,8 +241,8 @@ tool owns a stateful directory.
 ### Case 3: a personal / site-specific extension
 
 You want a script that runs at every build but only for *your*
-clone. Don't add it to `01-core/` (project-level) and don't add it
-to `available/` (catalog). Use `03-hooks/` instead, which ships
+clone. Don't add it to the mandatory groups and don't add it
+to `available/` (catalog). Use `04-hooks/` instead, which ships
 empty and is documented in its own README.
 
 ## How to verify the install tree
@@ -261,7 +257,7 @@ task install:volumes           # shows the volume contract (separate concern)
 
 The `available (not enabled)` section lists filenames without repeating their status.
 Dependency suffixes describe declarations, not verified runtime availability:
-`requires: installer.sh`, `requires image: 01-core/10-system.sh`, or
+`requires: installer.sh`, `requires image: 01-foundation/10-system.sh`, or
 `optional companion: installer.sh`. Multiple dependencies are separated by semicolons.
 
 The build log itself shows the execution order. After

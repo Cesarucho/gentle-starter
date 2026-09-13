@@ -76,7 +76,7 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	mapfile -t copy_directives < <(awk '$1 == "COPY" || $1 == "ADD" {$1=$1; print}' <<<"${foundation}")
 
 	[ "${#copy_directives[@]}" -eq 2 ]
-	[ "${copy_directives[0]}" = "COPY install/01-core/ ./.devcontainer-install/01-core/" ]
+	[ "${copy_directives[0]}" = "COPY install/01-foundation/ ./.devcontainer-install/01-foundation/" ]
 	[ "${copy_directives[1]}" = "COPY install/lib/common.sh install/lib/run-installers.sh ./.devcontainer-install/lib/" ]
 }
 
@@ -84,29 +84,68 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	cd "${REPO_ROOT}"
 	dockerfile="$(<.devcontainer/Dockerfile)"
 
-	[ "$(grep -c '&& ./.devcontainer-install/lib/run-installers.sh' <<<"${dockerfile}")" -eq 3 ]
+	[ "$(grep -c '&& ./.devcontainer-install/lib/run-installers.sh' <<<"${dockerfile}")" -eq 4 ]
 	[[ "${dockerfile}" != *'| sort | while'* ]]
 }
 
 @test "Dockerfile installs tool-specific inputs only downstream of foundation" {
 	cd "${REPO_ROOT}"
-	downstream="$(awk '/^FROM foundation AS devcontainer$/{capture=1} capture' .devcontainer/Dockerfile)"
+	downstream="$(awk '/^FROM foundation AS core-tools$/{capture=1} capture' .devcontainer/Dockerfile)"
 
 	[[ "${downstream}" == *"ARG ENGRAM_VERSION="* ]]
 	[[ "${downstream}" == *"COPY tool-versions.conf"* ]]
 	[[ "${downstream}" == *"COPY install/available/"* ]]
-	[[ "${downstream}" == *"COPY install/02-enabled/"* ]]
-	[[ "${downstream}" == *"COPY install/03-hooks/"* ]]
+	[[ "${downstream}" == *"COPY install/02-core-tools/"* ]]
+	[[ "${downstream}" == *"COPY install/03-enabled/"* ]]
+	[[ "${downstream}" == *"COPY install/04-hooks/"* ]]
 }
 
 @test "Dockerfile keeps the cheap version contract independent and synchronized" {
 	cd "${REPO_ROOT}"
 	contract="$(awk '/^FROM \$\{IMAGE\} AS devcontainer-version-contract$/{capture=1; next} capture && /^FROM /{exit} capture' .devcontainer/Dockerfile)"
-	devcontainer="$(awk '/^FROM foundation AS devcontainer$/{capture=1; next} capture' .devcontainer/Dockerfile)"
+	devcontainer="$(awk '/^FROM foundation AS core-tools$/{capture=1; next} capture' .devcontainer/Dockerfile)"
 	contract_variables="$(awk '$1 == "ARG" || ($1 == "ENV" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/) {print}' <<<"${contract}")"
 	devcontainer_variables="$(awk '$1 == "ARG" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/ || ($1 == "ENV" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/) {print}' <<<"${devcontainer}")"
 
-	[ "${contract_variables}" = "${devcontainer_variables}" ]
+	[ "$(sort <<<"${contract_variables}")" = "$(sort <<<"${devcontainer_variables}")" ]
 	[[ "${contract}" != *"COPY "* ]]
 	[[ "${contract}" != *"RUN "* ]]
+}
+
+@test "core cache inputs match canonical aliases and exclude project and optional inputs" {
+	run python3 - "${REPO_ROOT}" <<'PY'
+import re
+import shlex
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+context = root / ".devcontainer"
+dockerfile = (context / "Dockerfile").read_text()
+core = dockerfile.split("FROM foundation AS core-tools\n", 1)[1].split("\nFROM ", 1)[0]
+final = dockerfile.split("FROM core-tools AS devcontainer\n", 1)[1]
+foundation = dockerfile.split("AS foundation\n", 1)[1].split("\nFROM ", 1)[0]
+assert "APP_NAME" not in foundation + core
+assert "PLAYWRIGHT_VERSION" not in foundation + core
+assert "ARG APP_NAME=" in final and "ARG PLAYWRIGHT_VERSION=" in final
+assert "install/03-enabled" not in core and "install/04-hooks" not in core
+copies = [shlex.split(line)[1:-1] for line in core.splitlines() if line.startswith("COPY ")]
+sources = {source for instruction in copies for source in instruction}
+assert "install/available/" not in sources
+aliases = list((context / "install/02-core-tools").glob("*.sh"))
+assert all(alias.is_symlink() and alias.is_file() for alias in aliases)
+targets = {str(alias.resolve().relative_to(context)) for alias in aliases}
+assert len(targets) == len(aliases), "duplicate canonical core installer"
+assert targets == {source for source in sources if source.startswith("install/available/")}
+assert "tool-versions.conf" in sources and "install/02-core-tools/" in sources
+helpers = {"install/lib/common.sh", "install/lib/run-installers.sh"}
+helpers |= {source for source in sources if source.startswith("install/lib/")}
+for source in targets | helpers:
+    assert (context / source).is_file(), source
+    for helper in re.findall(r'\$\{SCRIPT_DIR\}/\.\./lib/([^"\s]+)', (context / source).read_text()):
+        assert "install/lib/" + helper in helpers, helper
+assert core.index("COPY install/02-core-tools/") < core.index("RUN ")
+assert final.index("COPY install/03-enabled/") < final.index("run-installers.sh ./.devcontainer-install/03-enabled")
+PY
+	[ "${status}" -eq 0 ]
 }

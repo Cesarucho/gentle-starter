@@ -33,7 +33,7 @@ doc, read this one.
 ```text
    BUILD PHASE (Dockerfile)                RUNTIME PHASE (setup.sh)
    ──────────────────────                ──────────────────────
-   for group in 01-core 02-enabled 03-hooks:
+   run groups: 01-foundation → 02-core-tools → 03-enabled → 04-hooks
        find each *.sh in group      ──▶  setup_versioned_configs
        DEVCONTAINER_PHASE=build            seed_config_tree
        bash "${script}"                     (Pi and OpenCode config)
@@ -89,7 +89,7 @@ devcontainer_log_info "redis installed: $(redis-cli --version)"
 Enable it for default activation:
 
 ```bash
-cd .devcontainer/install/02-enabled
+cd .devcontainer/install/03-enabled
 ln -sfn ../available/30-tool-redis.sh 30-tool-redis.sh
 ```
 
@@ -141,7 +141,7 @@ In `.devcontainer/lifecycle/setup-volumes.sh`'s `compose_target_to_install_scrip
 ### Step 4: verify
 
 ```bash
-task install:list          # shows 30-tool-redis in 02-enabled
+task install:list          # shows 30-tool-redis in 03-enabled
 task install:volumes       # shows ../.env.d/.redis -> /var/lib/redis owned by 30-tool-redis
 task container:rebuild     # builds with all three changes
 
@@ -163,7 +163,7 @@ and the postCreate hook re-seeds anything that was deleted.
 Copy `.devcontainer/install/templates/install-script.sh` to
 `.devcontainer/install/available/NN-categoria-tool.sh`, fill in
 the variables, install, and verify sections, and link from
-`02-enabled/` if it should be active by default. See
+`03-enabled/` if it should be active by default. See
 [install-tree.md](install-tree.md) for the full convention.
 
 ### How do I add a new stateful volume?
@@ -178,7 +178,7 @@ An installer-owned target additionally needs three pieces to agree:
    `compose_target_to_install_scripts` in
    `.devcontainer/lifecycle/setup-volumes.sh`.
 2. The runtime-safe install script in `.devcontainer/install/available/`.
-3. A valid symlink in `02-enabled/` when that potential owner should be active.
+3. A valid symlink in `02-core-tools/` or `03-enabled/` when that owner should be active.
 
 The mapping remains a declaration of potential owners. Runtime repair follows
 only enabled owners, regardless of their ordered alias name, and ignores broken
@@ -337,7 +337,7 @@ when run outside the devcontainer — this is by design; they need
 the lifecycle environment variables. The rest run anywhere.
 
 BATS itself is installed by the `10-bats.sh` script in
-`install/available/`, linked from `install/02-enabled/` for
+`install/available/`, linked from `install/03-enabled/` for
 default activation.
 
 ### Explicit base lifecycle proof
