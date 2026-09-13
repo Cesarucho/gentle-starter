@@ -414,7 +414,12 @@ EOF
 	done
 }
 
-@test "deps:update preserves every editable intent byte while replacing locks" {
+@test "deps:update preserves channels pins provider strings and exception floors byte for byte" {
+	sed -i \
+		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9"/' \
+		-e 's/^TOOL_PNPM_VERSION=.*/TOOL_PNPM_VERSION="9.9"/' \
+		-e 's/^TOOL_GRAPHIFY_VERSION=.*/TOOL_GRAPHIFY_VERSION="=9.9.9"/' \
+		"${POLICY_FILE}"
 	grep '^TOOL_' "${POLICY_FILE}" >"${TEST_ROOT}/intent-before"
 
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
@@ -422,6 +427,8 @@ EOF
 	[ "${status}" -eq 0 ]
 	grep '^TOOL_' "${POLICY_FILE}" >"${TEST_ROOT}/intent-after"
 	cmp -s "${TEST_ROOT}/intent-before" "${TEST_ROOT}/intent-after"
+	grep -q '^LOCK_KUBECTL_VERSION="1.36.99"$' "${POLICY_FILE}"
+	grep -q '^LOCK_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
 }
 
 @test "exact intents transition npm PyPI and GitHub asset locks to validated candidates" {
@@ -548,6 +555,92 @@ EOF
 	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^TOOL_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	[[ "${output}" == *"TOOL_VITEST_VERSION: 9.9.8 -> 9.9.9"* ]]
+}
+
+@test "baseline advancement covers direct releases and normalizes provider lock prefixes" {
+	sed -i \
+		-e 's/^TOOL_ENGRAM_VERSION=.*/TOOL_ENGRAM_VERSION="1.20.0"/' \
+		-e 's/^TOOL_TERRAFORM_VERSION=.*/TOOL_TERRAFORM_VERSION="1.16.1"/' \
+		-e 's/^TOOL_DELVE_VERSION=.*/TOOL_DELVE_VERSION="1.0.0"/' \
+		-e 's/^TOOL_GO_VERSION=.*/TOOL_GO_VERSION="9.0.0"/' \
+		"${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^TOOL_ENGRAM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^TOOL_TERRAFORM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^TOOL_DELVE_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
+	grep -q '^TOOL_GO_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_GO_VERSION="go9.9.9"$' "${POLICY_FILE}"
+}
+
+@test "baseline advancement catches up with an existing lock and is idempotent" {
+	sed -i \
+		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' \
+		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.9"/' \
+		"${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -q '^TOOL_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	[[ "${output}" == *"TOOL_VITEST_VERSION: 9.9.8 -> 9.9.9"* ]]
+	[[ "${output}" != *"LOCK_VITEST_VERSION:"* ]]
+	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"No changes."* ]]
+	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "baseline advancement rejects another major using the original floor without writing" {
+	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="8.0.0"/' "${POLICY_FILE}"
+	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"no stable candidate matching 8.0.0"* ]]
+	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "baseline advancement remains atomic when a later architecture checksum fails" {
+	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
+	write_curl_stub engram_bad_digest
+	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"has no valid SHA-256"* ]]
+	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "baseline scope guard rejects tampering and rechecks the original compatibility floor" {
+	local mutation
+	for mutation in unrelated wrong-baseline wrong-lock other-major; do
+		run bash -c '
+			source <(sed '\''$d'\'' "$1")
+			TEMP_DIR="$TEST_ROOT/scope"
+			mkdir -p "$TEMP_DIR"
+			MANAGED_KEYS=(LOCK_VITEST_VERSION)
+			replace_assignment "$POLICY_FILE" TOOL_VITEST_VERSION 9.9.8
+			CANDIDATES[LOCK_VITEST_VERSION]=9.9.9
+			candidate="$TEMP_DIR/candidate"
+			cp "$POLICY_FILE" "$candidate"
+			replace_assignment "$candidate" TOOL_VITEST_VERSION 9.9.9
+			replace_assignment "$candidate" LOCK_VITEST_VERSION 9.9.9
+			validate_scope "$POLICY_FILE" "$candidate"
+			case "$2" in
+			unrelated) replace_assignment "$candidate" TOOL_KUBECTL_VERSION 1.36.99 ;;
+			wrong-baseline) replace_assignment "$candidate" TOOL_VITEST_VERSION 9.9.10 ;;
+			wrong-lock) replace_assignment "$candidate" LOCK_VITEST_VERSION 9.9.10 ;;
+			other-major)
+				CANDIDATES[LOCK_VITEST_VERSION]=10.0.0
+				replace_assignment "$candidate" TOOL_VITEST_VERSION 10.0.0
+				replace_assignment "$candidate" LOCK_VITEST_VERSION 10.0.0 ;;
+			esac
+			validate_scope "$POLICY_FILE" "$candidate"
+		' _ "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" "${mutation}"
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"outside the approved key scope"* || "${output}" == *"changed resolved lock"* || "${output}" == *"escapes original intent"* ]]
+	done
 }
 
 @test "GitHub compatibility discovery continues beyond the first 100 releases" {

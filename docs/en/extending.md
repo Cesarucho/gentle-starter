@@ -320,6 +320,24 @@ enabled slot, rollback, and exact-version idempotency. Maintainers edit
 `TOOL_GENTLE_AI_VERSION`; `task deps:update` resolves accepted intent and
 atomically fills the exact version and both generated Linux digests from its
 Release Assets API.
+For registered conventional SemVer strategies (npm, PyPI, Composer, and direct
+releases, including Terraform), a complete bare `X.Y.Z` baseline advances with
+its lock. For example, an original `2.6.0` floor permits `2.7.0`, but not `3.0.0`;
+validation always uses the original intent before advancing it. This also applies
+when the lock already contains the resolved version. Bare `0.x.y` retains the
+existing same-major resolver policy.
+
+`latest`, major/minor lanes, `=` exact pins, and provider-specific strings retain
+their exact spelling. **kubectl and PlantUML are exceptions:** their three-part
+floors stay user-declared, with resolution constrained to the selected minor or
+year respectively. Node/PHP channels and SDKMAN candidates do not advance as
+SemVer baselines. No VCS/ref strategy is currently registered; unsupported refs
+still fail closed, and numeric-looking tags alone do not establish eligibility.
+
+One atomic replacement publishes the validated locks and eligible baselines;
+the summary reports both kinds of changes. An update is not installation or
+runtime test evidence. Review the diff before separately rebuilding and testing.
+
 Metadata or asset validation failure leaves the policy unchanged. These
 same-release-boundary digests support reproducible byte integrity; they are not
 independent publisher verification. Every editable intent is registered with

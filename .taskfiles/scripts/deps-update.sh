@@ -40,6 +40,7 @@ MANAGED_KEYS=(
 )
 
 declare -A CANDIDATES=()
+UPDATE_KEYS=()
 TEMP_DIR=""
 CANDIDATE_FILE=""
 
@@ -269,7 +270,41 @@ latest_kubectl_version() {
 
 policy_value() {
 	local key="$1"
-	sed -nE "s/^${key}=\"([^\"]+)\"$/\1/p" "${POLICY_FILE}"
+	sed -nE "s/^${key}=\"([^\"]+)\"$/\1/p" "${2:-${POLICY_FILE}}"
+}
+
+resolved_baseline() {
+	local key="$1" original="$2" intent_key intent strategy version
+	[[ "${key}" == LOCK_*_VERSION && "${key}" != LOCK_JAVA_REQUIRED_VERSION ]] || return 0
+	intent_key="$(intent_key_for_lock "${key}")"
+	strategy="$(strategy_for_key "${intent_key}")"
+	# These registered strategies use conventional SemVer, not provider channels.
+	case "${strategy}" in
+	semver | npm | github-v | composer) ;;
+	*) return 0 ;;
+	esac
+	intent="$(policy_value "${intent_key}" "${original}")"
+	[[ "${intent}" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]] || return 0
+	version="${CANDIDATES[${key}]}"
+	# Never let the advanced baseline authorize a previously incompatible candidate.
+	intent_accepts_version "${intent}" "${version}" "${strategy}" || fail "${key} candidate ${version} escapes original intent ${intent}"
+	version="${version#v}"
+	version="${version#go}"
+	require_stable_semver "${key}" "${version}"
+	validate_intent "${intent_key}" "${version}" "${strategy}"
+	printf '%s' "${version}"
+}
+
+prepare_baseline_updates() {
+	local key baseline intent_key
+	UPDATE_KEYS=("${MANAGED_KEYS[@]}")
+	for key in "${MANAGED_KEYS[@]}"; do
+		baseline="$(resolved_baseline "${key}" "${POLICY_FILE}")"
+		[ -n "${baseline}" ] || continue
+		intent_key="$(intent_key_for_lock "${key}")"
+		CANDIDATES["${intent_key}"]="${baseline}"
+		UPDATE_KEYS+=("${intent_key}")
+	done
 }
 
 validate_inventory() {
@@ -476,14 +511,22 @@ replace_assignment() {
 validate_scope() {
 	local original="$1"
 	local candidate="$2"
-	local pattern masked_original masked_candidate
+	local pattern masked_original masked_candidate key baseline expected
 	pattern="$(
 		IFS='|'
 		printf '%s' "${MANAGED_KEYS[*]}"
 	)"
 	masked_original="${TEMP_DIR}/original.unmanaged"
 	masked_candidate="${TEMP_DIR}/candidate.unmanaged"
-	grep -Ev "^(${pattern})=" "${original}" >"${masked_original}"
+	expected="${TEMP_DIR}/expected-policy"
+	cp "${original}" "${expected}"
+	for key in "${MANAGED_KEYS[@]}"; do
+		baseline="$(resolved_baseline "${key}" "${original}")"
+		[ -n "${baseline}" ] || continue
+		[ "$(policy_value "${key}" "${candidate}")" = "${CANDIDATES[${key}]}" ] || fail "candidate changed resolved lock ${key}"
+		replace_assignment "${expected}" "$(intent_key_for_lock "${key}")" "${baseline}"
+	done
+	grep -Ev "^(${pattern})=" "${expected}" >"${masked_original}"
 	grep -Ev "^(${pattern})=" "${candidate}" >"${masked_candidate}"
 	cmp -s "${masked_original}" "${masked_candidate}" || fail "candidate changed policy outside the approved key scope"
 }
@@ -498,7 +541,7 @@ publish_policy() {
 	CANDIDATE_FILE="$(mktemp "$(dirname "${POLICY_FILE}")/.tool-versions.conf.XXXXXX")"
 	cp "${POLICY_FILE}" "${CANDIDATE_FILE}"
 
-	for key in "${MANAGED_KEYS[@]}"; do
+	for key in "${UPDATE_KEYS[@]}"; do
 		[ -n "${CANDIDATES[${key}]:-}" ] || fail "candidate is missing ${key}"
 		replace_assignment "${CANDIDATE_FILE}" "${key}" "${CANDIDATES[${key}]}"
 	done
@@ -507,7 +550,7 @@ publish_policy() {
 	validate_policy "${CANDIDATE_FILE}"
 
 	printf '\nVersion policy updates:\n'
-	for key in "${MANAGED_KEYS[@]}"; do
+	for key in "${UPDATE_KEYS[@]}"; do
 		local old_value
 		old_value="$(sed -nE "s/^${key}=\"([^\"]+)\"$/\1/p" "${POLICY_FILE}")"
 		if [ "${old_value}" != "${CANDIDATES[${key}]}" ]; then
@@ -545,6 +588,7 @@ main() {
 	TEMP_DIR="$(mktemp -d)"
 	discover_candidates
 	apply_intent_contract
+	prepare_baseline_updates
 	publish_policy
 	printf "\nRun 'task container:rebuild' to apply these versions.\n"
 }
