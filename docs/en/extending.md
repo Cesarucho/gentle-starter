@@ -396,6 +396,35 @@ the same ownership engine as explicit recovery below. Cleanup failure makes the
 test fail without replacing its separate stage/status diagnostic. SIGKILL cannot
 run a finalizer; the durable inventory supports later recovery instead.
 
+### Execution timeouts for operational checks
+
+Before authorized network/build checks, explicitly set the timeout in the external
+execution tool or supervisor rather than relying on short defaults. Use these
+**starting guidelines**, not universal or code-enforced limits:
+
+| Planned work | Starting work budget |
+| --- | --- |
+| Each real `task deps:update` call | 10 minutes per call |
+| Combined updater + build + verification flow | 30 minutes for the flow |
+
+Adapt the budgets to cache state, network conditions, and download scope, and
+include them in the pre-launch cost forecast. These are external execution
+settings, not new Task flags or a claim that tasks expose configurable timeouts.
+Set the outer hard deadline beyond the planned work/soft budget, reserving time
+for graceful shutdown and cleanup. SIGKILL or another hard kill cannot guarantee
+that cleanup runs.
+
+When a run times out, report **interrupted/incomplete proof**, not automatically a
+provider, build, or functional bug. Record the interrupted stage, elapsed time,
+known outcomes, and cleanup status; preserve evidence from steps that already
+succeeded without labelling the interrupted run PASS. Inspect remaining processes
+and registered resources before a bounded continuation with a revised forecast
+and explicit timeout. Do not enter endless automatic reruns.
+
+If manual recovery is needed, use the
+[registered-resource recovery procedure](#recovering-test-owned-resources) within
+its ownership scope; never use global pruning as timeout recovery.
+
 ### Recovering test-owned resources
 
 Start with a read-only preview from the **original source worktree**:

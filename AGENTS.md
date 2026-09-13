@@ -116,6 +116,19 @@ items. Initialization and optional Pi/SSH/audio/GUI integrations remain separate
 Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
 See `docs/en/extending.md` for its deliberately reduced sandbox scenario.
 
+Explicitly set the external execution tool or supervisor timeout for network/build
+checks; do not rely on short defaults. Starting guidelines are 10 minutes per real
+`task deps:update` call and 30 minutes for a combined updater/build/verification
+flow, adjusted for cache, network, and download scope in the pre-launch forecast.
+These are not Task flags or enforced limits. Keep the outer hard deadline beyond
+the planned work/soft budget to allow graceful shutdown and cleanup; hard kills
+cannot guarantee cleanup. A timeout is incomplete proof, not automatically a
+provider, build, or functional bug: report stage, elapsed time, known outcomes,
+and cleanup status, preserving successful-step evidence. Inspect processes and
+registered resources before bounded continuation; never endlessly rerun or mark
+an interrupted run PASS. See
+[timeout guidance](docs/en/extending.md#execution-timeouts-for-operational-checks).
+
 ### Command decision guide
 
 | Need | Command | Effects, authorization, and evidence |
