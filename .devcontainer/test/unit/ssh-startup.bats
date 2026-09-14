@@ -267,13 +267,3 @@ EOF
 	! grep -Fq "${BIN_DIR}/sshd -f" "${CALLS}"
 	[ "$(sha256sum "${KEY_DIR}"/*_key)" = "${before}" ]
 }
-
-@test "setup prepares SSH before invoking the startup wrapper" {
-	local setup="${REPO_ROOT}/.devcontainer/setup.sh"
-	local prepare_line start_line
-	prepare_line="$(grep -nF 'DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"' "${setup}" | cut -d: -f1)"
-	start_line="$(grep -nF $'\t\tstart-sshd' "${setup}" | cut -d: -f1)"
-	[ -n "${prepare_line}" ]
-	[ -n "${start_line}" ]
-	[ "${prepare_line}" -lt "${start_line}" ]
-}

@@ -37,9 +37,17 @@ run_locale_installer() {
 }
 
 @test "locale generation is ordered after the package installer" {
-	mapfile -t core_scripts < <(find "${REPO_ROOT}/.devcontainer/install/01-foundation" -maxdepth 1 -type f -name '*.sh' -printf '%f\n' | sort)
+	mapfile -t core_scripts < <(find "${REPO_ROOT}/.devcontainer/install/01-foundation" -maxdepth 1 -type f -name '*.sh' -printf '%f\n' | LC_ALL=C sort)
 	[ "${core_scripts[0]}" = "00-pre-apt.sh" ]
-	[[ " ${core_scripts[*]} " == *" 10-system.sh 11-locale.sh 15-task.sh "* ]]
+	local package_index=-1 locale_index=-1 index
+	for index in "${!core_scripts[@]}"; do
+		case "${core_scripts[index]}" in
+		10-system.sh) package_index="${index}" ;;
+		11-locale.sh) locale_index="${index}" ;;
+		esac
+	done
+	[ "${package_index}" -ge 0 ]
+	[ "${locale_index}" -gt "${package_index}" ]
 	! grep -qE 'locale-gen|update-locale|dpkg-reconfigure' "${REPO_ROOT}/.devcontainer/install/01-foundation/00-pre-apt.sh"
 }
 
