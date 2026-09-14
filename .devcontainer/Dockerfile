@@ -42,6 +42,12 @@ ENV PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}
 FROM foundation AS core-tools
 ARG UID_NAME=ubuntu
 
+# User globals must not shadow the policy-managed CLI. pnpm 11+ uses bin/;
+# retain the home itself on PATH for older policy-selected pnpm releases.
+ENV PNPM_HOME=/home/${UID_NAME}/.local/share/pnpm
+ENV SHELL=/bin/bash
+ENV PATH=${PATH}:${PNPM_HOME}/bin:${PNPM_HOME}
+
 # Core overrides also propagate through the cheap version-contract target.
 ARG ENGRAM_VERSION=
 ARG NODE_MAJOR=

@@ -84,6 +84,19 @@ customize the base, edit core aliases and the matching selective source/helper
 COPY inputs in the Dockerfile, then run the cache-boundary consistency tests.
 No generic test requires a fixed catalog or mandatory tool set.
 
+#### pnpm user-global commands
+
+The image sets `PNPM_HOME=/home/ubuntu/.local/share/pnpm` and `SHELL=/bin/bash`.
+Run `pnpm add --global <package>` as `ubuntu`; no `pnpm setup` or `sudo` is needed.
+The installer creates ubuntu-owned home and `bin/` directories even when it reuses
+an installed pnpm. Both locations are on `PATH` (pnpm 11+ uses `bin/`), after
+system commands so user globals do not replace the policy-managed pnpm CLI.
+
+These user-installed packages are container-local, not managed bind state:
+they survive a restart but not container recreation. Use a versioned installer
+or hook for tools that must be reproducible. This does not change the npm provider
+or the centralized version policy for pnpm itself.
+
 ### `03-enabled/` — optional tools
 
 This group runs after all core tools. It retains SSH client, SSH server,

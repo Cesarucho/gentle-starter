@@ -119,6 +119,43 @@ load install-selection.sh
     [ "$status" -eq 0 ]
 }
 
+@test "node: pnpm image exports a writable user-global environment" {
+    skip_if_install_disabled "2010-runtime-pnpm.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
+    run bash --noprofile --norc -c '
+        [ "${PNPM_HOME:-}" = /home/ubuntu/.local/share/pnpm ] &&
+        [ "${SHELL:-}" = /bin/bash ] &&
+        [[ ":${PATH}:" == *":${PNPM_HOME}/bin:"* ]] &&
+        [[ ":${PATH}:" == *":${PNPM_HOME}:"* ]] &&
+        [ -w "${PNPM_HOME}" ] && [ -w "${PNPM_HOME}/bin" ] &&
+        [ "$(stat -c %U:%G "${PNPM_HOME}")" = ubuntu:ubuntu ] &&
+        [ "$(stat -c %U:%G "${PNPM_HOME}/bin")" = ubuntu:ubuntu ]
+    '
+    [ "$status" -eq 0 ]
+}
+
+@test "node: pnpm installs and runs an offline isolated user-global command" {
+    skip_if_install_disabled "2010-runtime-pnpm.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
+    local sandbox="${BATS_TEST_TMPDIR}/pnpm-global"
+    local cli
+    cli="$(command -v pnpm)"
+    mkdir -p "${sandbox}/home" "${sandbox}/package" "${sandbox}/pnpm/bin"
+    printf '%s\n' '{"name":"starter-global-fixture","version":"1.0.0","bin":{"starter-global-fixture":"cli.cjs"}}' >"${sandbox}/package/package.json"
+    printf '%s\n' '#!/usr/bin/env node' 'console.log("starter-global-ok")' >"${sandbox}/package/cli.cjs"
+    chmod +x "${sandbox}/package/cli.cjs"
+    run env -i HOME="${sandbox}/home" SHELL=/bin/bash \
+        PNPM_HOME="${sandbox}/pnpm" PATH="${PATH}:${sandbox}/pnpm/bin:${sandbox}/pnpm" \
+        XDG_CONFIG_HOME="${sandbox}/config" XDG_DATA_HOME="${sandbox}/data" \
+        XDG_CACHE_HOME="${sandbox}/cache" XDG_STATE_HOME="${sandbox}/state" \
+        bash --noprofile --norc -c '
+            set -eu
+            cd "$1"
+            "$2" add --global --offline --ignore-scripts --store-dir "$1/store" "$1/package"
+            [ "$(command -v pnpm)" = "$2" ]
+            [ "$(starter-global-fixture)" = starter-global-ok ]
+        ' bash "${sandbox}" "${cli}"
+    [ "$status" -eq 0 ]
+}
+
 # ---------------------------------------------------------------------------
 # Opt-in tools (require explicit task install:enable)
 # ---------------------------------------------------------------------------

@@ -22,6 +22,12 @@ fi
 
 devcontainer_require_cmd npm "Enable 2000-runtime-node.sh before pnpm." || exit 1
 
+# Provision user globals even when the npm-managed CLI can be reused.
+: "${UID_NAME:=ubuntu}"
+: "${PNPM_HOME:=/home/${UID_NAME}/.local/share/pnpm}"
+devcontainer_run_as_root install -d -m 0755 -o "${UID_NAME}" -g "${UID_NAME}" \
+	"${PNPM_HOME}" "${PNPM_HOME}/bin"
+
 if devcontainer_has_cmd pnpm; then
 	devcontainer_log_info "pnpm already installed: $(pnpm --version)"
 	exit 0
