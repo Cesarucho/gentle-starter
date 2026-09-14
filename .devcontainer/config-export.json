@@ -12,6 +12,7 @@
         "opencode-notifier.json",
         "tui.json",
         ".gentle-ai-default-agent.json",
+        ".gentle-ai-telemetry-runtime.json",
         "commands/**",
         "plugins/**",
         "profiles/**",
@@ -20,7 +21,6 @@
       ],
       "excluded": [
         "opencode.jsonc",
-        ".gentle-ai-telemetry-runtime.json",
         "**/.git/**",
         ".gitignore",
         "**/node_modules/**",

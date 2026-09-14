@@ -363,6 +363,81 @@ PY
   cmp "${FIXTURE}/legacy-before" "${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
 }
 
+@test "root telemetry diff and export preserve exact bytes and destination modes" {
+  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  initialize_git_fixture
+  local name=.gentle-ai-telemetry-runtime.json
+  local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
+  local state
+  for state in new modified; do
+    printf '{"fixture":"%s"}\r\n\x00' "$state" >"${runtime}/${name}"
+    cp "${runtime}/${name}" "${FIXTURE}/telemetry-before"
+    run task --exit-code --dir "${REPOSITORY_ROOT}" config:diff -- \
+      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"${state}: OpenCode: ${name}"* ]]
+    [[ "$output" == *"candidates=0"* ]]
+    run task --exit-code --dir "${REPOSITORY_ROOT}" config:export -- \
+      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Exported: files=1"* ]]
+    cmp "${FIXTURE}/telemetry-before" "${seed}/${name}"
+    cmp "${FIXTURE}/telemetry-before" "${runtime}/${name}"
+    if [ "$state" = new ]; then
+      [ "$(stat -c %a "${seed}/${name}")" = 644 ]
+      chmod 0600 "${seed}/${name}"
+    else
+      [ "$(stat -c %a "${seed}/${name}")" = 600 ]
+    fi
+    commit_fixture "export ${state} telemetry"
+    run_helper diff
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "root telemetry missing runtime is reported and export never deletes seed" {
+  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  local name=.gentle-ai-telemetry-runtime.json
+  local seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
+  printf 'fixture\r\n\x00' >"${seed}/${name}"
+  chmod 0600 "${seed}/${name}"
+  cp "${seed}/${name}" "${FIXTURE}/telemetry-before"
+  commit_fixture "seed telemetry"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"missing-runtime: OpenCode: ${name}"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=0"* ]]
+  cmp "${FIXTURE}/telemetry-before" "${seed}/${name}"
+  [ "$(stat -c %a "${seed}/${name}")" = 600 ]
+}
+
+@test "root telemetry exception retains explicit exclusions and rejects unsafe files" {
+  local name=.gentle-ai-telemetry-runtime.json
+  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.config/opencode/${name}"
+  run_helper diff
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"symlink is not allowed"* ]]
+  printf dirty >"${REPO_FIXTURE}/.devcontainer/opencode-config/${name}"
+  run_helper export
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"pending Git worktree or index changes"* ]]
+  [[ "$output" != *"symlink is not allowed"* ]]
+  python3 - "${REPO_FIXTURE}/.devcontainer/config-export.json" "$name" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["trees"][0]["excluded"].append(sys.argv[2])
+path.write_text(json.dumps(data))
+PY
+  run_helper diff
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"excluded-files=2"* ]]
+}
+
 @test "production manifest exports recursive portable config and excludes nested state before reads" {
   cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
   local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
@@ -380,10 +455,11 @@ PY
   done
   for boundary in .git auth.json credentials.json opencode.jsonc .gentle-ai-telemetry-runtime.json; do
     ln -s "${FIXTURE}/must-not-read" "${runtime}/plugins/${boundary}"
-    ln -s "${FIXTURE}/must-not-read" "${seed}/${boundary}"
+    mkdir -p "${seed}/plugins"
+    ln -s "${FIXTURE}/must-not-read" "${seed}/plugins/${boundary}"
   done
   ln -s "${FIXTURE}/must-not-read" "${runtime}/opencode.jsonc"
-  ln -s "${FIXTURE}/must-not-read" "${runtime}/.gentle-ai-telemetry-runtime.json"
+  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.pi/agent/.gentle-ai-telemetry-runtime.json"
   printf 'gitdir: private metadata' >"${runtime}/profiles/new/deep/.git"
   ln -s "${FIXTURE}/must-not-read" "${runtime}/prompts/new/node_modules"
   commit_fixture "excluded boundaries"
@@ -401,8 +477,8 @@ PY
     cmp "${runtime}/${tree}/new/deep/future.any" "${seed}/${tree}/new/deep/future.any"
   done
   [ ! -e "${seed}/skills/new/.git" ]
-  [ ! -e "${seed}/plugins/.git" ]
-  [ -L "${seed}/.gentle-ai-telemetry-runtime.json" ]
+  [ -L "${seed}/plugins/.git" ]
+  [ -L "${seed}/plugins/.gentle-ai-telemetry-runtime.json" ]
 }
 
 @test "candidate union includes seed files and deduplicates bounded paths on both sides" {

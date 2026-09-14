@@ -5,8 +5,8 @@
       "name": "OpenCode",
       "runtime": ".config/opencode",
       "seed": ".devcontainer/opencode-config",
-      "managed": ["AGENTS.md", "opencode.json", "opencode-non-sdd.json", "tui.json", "opencode-notifier.json", "commands/**", "plugins/**", "profiles/**", "prompts/**", "skills/**", "profile-versions/**", "auth.json"],
-      "excluded": ["opencode.jsonc", ".gentle-ai-telemetry-runtime.json", "**/.git/**", ".gitignore", "**/node_modules/**", "**/profile-versions/**", "**/auth.json", "**/credentials.json", "**/sessions/**", "**/state/**", "**/logs/**", "**/cache/**"]
+      "managed": ["AGENTS.md", "opencode.json", "opencode-non-sdd.json", "tui.json", "opencode-notifier.json", ".gentle-ai-telemetry-runtime.json", "commands/**", "plugins/**", "profiles/**", "prompts/**", "skills/**", "profile-versions/**", "auth.json"],
+      "excluded": ["opencode.jsonc", "**/.git/**", ".gitignore", "**/node_modules/**", "**/profile-versions/**", "**/auth.json", "**/credentials.json", "**/sessions/**", "**/state/**", "**/logs/**", "**/cache/**"]
     },
     {
       "name": "Pi Coding",

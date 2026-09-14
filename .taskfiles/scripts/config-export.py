@@ -20,8 +20,9 @@ EXIT_DIFFERENT = 1
 EXIT_ERROR = 2
 MAX_REPORTED_CANDIDATES = 50
 MANDATORY_EXCLUSIONS = (
-    "**/.git/**", "**/node_modules/**", "**/opencode.jsonc", "**/.gentle-ai-telemetry-runtime.json",
+    "**/.git/**", "**/node_modules/**", "**/opencode.jsonc",
 )
+TELEMETRY_RUNTIME = ".gentle-ai-telemetry-runtime.json"
 
 
 class ConfigError(Exception):
@@ -85,6 +86,10 @@ def pattern_matches(path: str, pattern: str) -> bool:
 
 
 def classification(relative: str, tree: Tree) -> str:
+    if TELEMETRY_RUNTIME in PurePosixPath(relative).parts and not (
+        tree.name == "OpenCode" and relative == TELEMETRY_RUNTIME and relative in tree.managed
+    ):
+        return "excluded"
     if any(pattern_matches(relative, pattern) for pattern in MANDATORY_EXCLUSIONS + tree.excluded):
         return "excluded"
     if any(pattern_matches(relative, pattern) for pattern in tree.managed):

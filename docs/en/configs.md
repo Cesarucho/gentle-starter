@@ -93,11 +93,16 @@ its unique settings are not merged into `opencode.json`. Existing runtime
 `~/.config/opencode/opencode.jsonc` files are left untouched and may remain
 active: neither export nor seeding automatically deletes them.
 
-The hidden `.gentle-ai-telemetry-runtime.json` is always excluded; public plugin
-source such as `plugins/telemetry-runtime.ts` remains managed configuration.
-`.git` (file or directory), `node_modules`, JSONC `opencode.jsonc`, and the hidden
-telemetry file are mandatory exclusions at any depth, even if a managed pattern
-would match. OpenCode's known credential, session, state, log, cache, and generated
+The root `~/.config/opencode/.gentle-ai-telemetry-runtime.json` is managed by both
+tasks and exports to `opencode-config/.gentle-ai-telemetry-runtime.json`. Missing
+runtime files are reported without deleting the seed. Export preserves exact bytes
+and the existing seed mode (new files use `0644`). The same hidden filename remains
+excluded below the OpenCode root and in other trees; this is not a general hidden
+state allowlist. Public plugin source such as `plugins/telemetry-runtime.ts` remains
+managed configuration.
+`.git` (file or directory), `node_modules`, and JSONC `opencode.jsonc` are mandatory
+exclusions at any depth, even if a managed pattern would match.
+OpenCode's known credential, session, state, log, cache, and generated
 profile-history boundaries are also excluded at any depth. Pi retains its
 owner-specific state exclusions. Manifest `**/boundary/**` patterns include the
 boundary itself at any depth, including the root and symlink entries, so exclusion
