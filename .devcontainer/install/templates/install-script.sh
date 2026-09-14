@@ -7,7 +7,7 @@
 #   * DEVCONTAINER_PHASE=runtime during container start (setup.sh)
 #
 # How to use this template:
-#   1. Copy it to .devcontainer/install/available/NN-categoria-tool.sh,
+#   1. Copy it to .devcontainer/install/available/BBPP-category-tool.sh,
 #      where NN is the global phase prefix (00-99) and the file name
 #      describes what gets installed.
 #   2. Fill the variables, idempotency check, install, and verify blocks

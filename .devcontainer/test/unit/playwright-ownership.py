@@ -10,7 +10,7 @@ import unittest
 
 
 REPO = Path(__file__).resolve().parents[3]
-INSTALLER = REPO / ".devcontainer/install/available/50-browser-playwright.sh"
+INSTALLER = REPO / ".devcontainer/install/available/2080-browser-playwright.sh"
 LOCKS = dict(re.findall(r'^LOCK_(PLAYWRIGHT(?:_CLI)?_VERSION)="([^"]+)"$',
                         (REPO / ".devcontainer/tool-versions.conf").read_text(), re.MULTILINE))
 

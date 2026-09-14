@@ -16,7 +16,8 @@ cleanup_installer_list() {
 
 installer_list="$(mktemp)"
 trap cleanup_installer_list EXIT HUP INT TERM
-find -L "${install_directory}" -maxdepth 1 -type f -name '*.sh' -print0 | sort -z >"${installer_list}"
+# Match the selection planner's bytewise filename order in every image locale.
+find -L "${install_directory}" -maxdepth 1 -type f -name '*.sh' -print0 | LC_ALL=C sort -z >"${installer_list}"
 mapfile -d '' installers <"${installer_list}"
 cleanup_installer_list
 installer_list=""

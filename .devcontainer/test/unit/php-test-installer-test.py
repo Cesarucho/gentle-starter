@@ -18,8 +18,8 @@ class PhpUnitInstallerTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         for name in ("available", "lib", "bin", "home"):
             (self.root / name).mkdir()
-        self.script = self.root / "available/40-php-test.sh"
-        shutil.copyfile(ROOT / ".devcontainer/install/available/40-php-test.sh", self.script)
+        self.script = self.root / "available/2320-php-test.sh"
+        shutil.copyfile(ROOT / ".devcontainer/install/available/2320-php-test.sh", self.script)
         (self.root / "bin/dirname").symlink_to("/usr/bin/dirname")
         (self.root / "resolved-bin").mkdir()
         (self.root / "resolved-bin/phpunit").write_text("fixture")

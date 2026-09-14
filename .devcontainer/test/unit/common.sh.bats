@@ -382,7 +382,7 @@ EOF
 
     run env -u JAVA_VERSION -u JAVA_REQUIRED_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
-        bash "${SCRIPT_DIR}/install/available/20-runtime-java.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/2200-runtime-java.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "${lines[0]}" = "JAVA_VERSION=25-tem" ]
@@ -399,7 +399,7 @@ EOF
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
         JAVA_VERSION="26-tem" \
         JAVA_REQUIRED_VERSION="26" \
-        bash "${SCRIPT_DIR}/install/available/20-runtime-java.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/2200-runtime-java.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "${lines[0]}" = "JAVA_VERSION=26-tem" ]
@@ -412,7 +412,7 @@ EOF
 
     run env -u ENGRAM_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
-        bash "${SCRIPT_DIR}/install/available/30-ai-engram.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/3010-ai-engram.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "ENGRAM_VERSION=1.17.0" ]
@@ -425,7 +425,7 @@ EOF
     run env \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" \
         ENGRAM_VERSION="9.9.9" \
-        bash "${SCRIPT_DIR}/install/available/30-ai-engram.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/3010-ai-engram.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "ENGRAM_VERSION=9.9.9" ]
@@ -435,12 +435,12 @@ EOF
     local policy_file="${BATS_TEST_TMPDIR}/phase-3a-tool-versions.conf"
     local case_entry script_name environment_name expected_version
     local -a cases=(
-        '30-ai-pi-coding.sh|PI_CODING_AGENT_VERSION|9.9.1'
-        '30-ai-skills.sh|SKILLS_VERSION|9.9.2'
-        '40-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION|9.9.3'
-        '40-node-mermaid.sh|MERMAID_CLI_VERSION|9.9.4'
-        '40-python-graphify.sh|GRAPHIFY_VERSION|9.9.5'
-        '50-browser-playwright.sh|PLAYWRIGHT_VERSION|9.9.6'
+        '3030-ai-pi-coding.sh|PI_CODING_AGENT_VERSION|9.9.1'
+        '3050-ai-skills.sh|SKILLS_VERSION|9.9.2'
+        '2020-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION|9.9.3'
+        '2050-node-mermaid.sh|MERMAID_CLI_VERSION|9.9.4'
+        '2400-python-graphify.sh|GRAPHIFY_VERSION|9.9.5'
+        '2080-browser-playwright.sh|PLAYWRIGHT_VERSION|9.9.6'
     )
 
     cat >"${policy_file}" <<'EOF'
@@ -460,7 +460,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+        if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
 			[ "$output" = "${environment_name}=${expected_version}"$'\n''PLAYWRIGHT_CLI_VERSION=9.9.7' ]
         else
             [ "$output" = "${environment_name}=${expected_version}" ]
@@ -472,12 +472,12 @@ EOF
     local policy_file="${SCRIPT_DIR}/tool-versions.conf"
     local case_entry script_name environment_name
     local -a cases=(
-        '30-ai-pi-coding.sh|PI_CODING_AGENT_VERSION'
-        '30-ai-skills.sh|SKILLS_VERSION'
-        '40-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION'
-        '40-node-mermaid.sh|MERMAID_CLI_VERSION'
-        '40-python-graphify.sh|GRAPHIFY_VERSION'
-        '50-browser-playwright.sh|PLAYWRIGHT_VERSION'
+        '3030-ai-pi-coding.sh|PI_CODING_AGENT_VERSION'
+        '3050-ai-skills.sh|SKILLS_VERSION'
+        '2020-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION'
+        '2050-node-mermaid.sh|MERMAID_CLI_VERSION'
+        '2400-python-graphify.sh|GRAPHIFY_VERSION'
+        '2080-browser-playwright.sh|PLAYWRIGHT_VERSION'
     )
 
     for case_entry in "${cases[@]}"; do
@@ -488,7 +488,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+        if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
 			expected_cli="$(sed -n 's/^LOCK_PLAYWRIGHT_CLI_VERSION="\([^"]*\)"$/\1/p' "${policy_file}")"
 			[ "$output" = "${environment_name}=9.9.9"$'\n'"PLAYWRIGHT_CLI_VERSION=${expected_cli}" ]
         else
@@ -501,15 +501,15 @@ EOF
     local policy_file="${BATS_TEST_TMPDIR}/phase-3b-tool-versions.conf"
     local case_entry script_name environment_name expected_version
     local -a cases=(
-        '40-cli-terraform.sh|TERRAFORM_VERSION|9.9.1'
-        '40-cli-gitleaks.sh|GITLEAKS_VERSION|9.9.2'
-        '40-cli-pulumi.sh|PULUMI_VERSION|9.9.3'
-        '40-cli-opentofu.sh|OPENTOFU_VERSION|9.9.4'
-        '40-cli-terragrunt.sh|TERRAGRUNT_VERSION|9.9.5'
-        '40-cli-kubectl.sh|KUBECTL_VERSION|9.9.6'
-        '40-cli-plantuml.sh|PLANTUML_VERSION|9.9.7'
-        '40-go-debug.sh|DELVE_VERSION|v9.9.8'
-        '30-ai-gentle-ai.sh|GENTLE_AI_VERSION|9.9.9'
+        '6040-cli-terraform.sh|TERRAFORM_VERSION|9.9.1'
+        '5010-cli-gitleaks.sh|GITLEAKS_VERSION|9.9.2'
+        '6030-cli-pulumi.sh|PULUMI_VERSION|9.9.3'
+        '6020-cli-opentofu.sh|OPENTOFU_VERSION|9.9.4'
+        '6050-cli-terragrunt.sh|TERRAGRUNT_VERSION|9.9.5'
+        '6010-cli-kubectl.sh|KUBECTL_VERSION|9.9.6'
+        '2210-cli-plantuml.sh|PLANTUML_VERSION|9.9.7'
+        '2110-go-debug.sh|DELVE_VERSION|v9.9.8'
+        '3020-ai-gentle-ai.sh|GENTLE_AI_VERSION|9.9.9'
     )
 
     cat >"${policy_file}" <<'EOF'
@@ -534,7 +534,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-		if [ "${script_name}" = "40-cli-plantuml.sh" ]; then
+		if [ "${script_name}" = "2210-cli-plantuml.sh" ]; then
 			[ "$output" = "${environment_name}=${expected_version}"$'\n''PLANTUML_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ]
 		else
         [ "$output" = "${environment_name}=${expected_version}" ]
@@ -546,15 +546,15 @@ EOF
     local policy_file="${SCRIPT_DIR}/tool-versions.conf"
     local case_entry script_name environment_name override_version
     local -a cases=(
-        '40-cli-terraform.sh|TERRAFORM_VERSION|8.8.1'
-        '40-cli-gitleaks.sh|GITLEAKS_VERSION|8.8.2'
-        '40-cli-pulumi.sh|PULUMI_VERSION|8.8.3'
-        '40-cli-opentofu.sh|OPENTOFU_VERSION|8.8.4'
-        '40-cli-terragrunt.sh|TERRAGRUNT_VERSION|8.8.5'
-        '40-cli-kubectl.sh|KUBECTL_VERSION|8.8.6'
-        '40-cli-plantuml.sh|PLANTUML_VERSION|8.8.7'
-        '40-go-debug.sh|DELVE_VERSION|v8.8.8'
-        '30-ai-gentle-ai.sh|GENTLE_AI_VERSION|8.8.9'
+        '6040-cli-terraform.sh|TERRAFORM_VERSION|8.8.1'
+        '5010-cli-gitleaks.sh|GITLEAKS_VERSION|8.8.2'
+        '6030-cli-pulumi.sh|PULUMI_VERSION|8.8.3'
+        '6020-cli-opentofu.sh|OPENTOFU_VERSION|8.8.4'
+        '6050-cli-terragrunt.sh|TERRAGRUNT_VERSION|8.8.5'
+        '6010-cli-kubectl.sh|KUBECTL_VERSION|8.8.6'
+        '2210-cli-plantuml.sh|PLANTUML_VERSION|8.8.7'
+        '2110-go-debug.sh|DELVE_VERSION|v8.8.8'
+        '3020-ai-gentle-ai.sh|GENTLE_AI_VERSION|8.8.9'
     )
 
     for case_entry in "${cases[@]}"; do
@@ -565,7 +565,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-		if [ "${script_name}" = "40-cli-plantuml.sh" ]; then
+		if [ "${script_name}" = "2210-cli-plantuml.sh" ]; then
 			[ "$output" = "${environment_name}=${override_version}"$'\n''PLANTUML_SHA256=0f77e5f769836b3dee340e207fe497c3e4c43e973d559e3c306915da9c32e34c' ]
 		else
         [ "$output" = "${environment_name}=${override_version}" ]
@@ -577,14 +577,14 @@ EOF
     local policy_file="${BATS_TEST_TMPDIR}/phase-3c-a-tool-versions.conf"
     local case_entry script_name environment_name expected_value
     local -a cases=(
-        '20-runtime-node.sh|NODE_MAJOR|99'
-        '20-runtime-go.sh|GO_VERSION|go9.9.1'
-        '20-runtime-pnpm.sh|PNPM_VERSION|9.9.2'
-        '40-node-test.sh|VITEST_VERSION|9.9.3'
-        '40-php-lang.sh|PHP_VERSION|9.9'
-        '40-php-test.sh|PHPUNIT_VERSION|99'
-        '50-browser-playwright.sh|PLAYWRIGHT_CLI_VERSION|9.9.4'
-        '20-tool-devcontainer-cli.sh|DEVCONTAINER_CLI_VERSION|9.9.5'
+        '2000-runtime-node.sh|NODE_MAJOR|99'
+        '2100-runtime-go.sh|GO_VERSION|go9.9.1'
+        '2010-runtime-pnpm.sh|PNPM_VERSION|9.9.2'
+        '2060-node-test.sh|VITEST_VERSION|9.9.3'
+        '2300-php-lang.sh|PHP_VERSION|9.9'
+        '2320-php-test.sh|PHPUNIT_VERSION|99'
+        '2080-browser-playwright.sh|PLAYWRIGHT_CLI_VERSION|9.9.4'
+        '2030-tool-devcontainer-cli.sh|DEVCONTAINER_CLI_VERSION|9.9.5'
     )
 
     cat >"${policy_file}" <<'EOF'
@@ -606,7 +606,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+        if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
 			[ "$output" = "PLAYWRIGHT_VERSION=9.9.6"$'\n'"${environment_name}=${expected_value}" ]
         else
             [ "$output" = "${environment_name}=${expected_value}" ]
@@ -619,14 +619,14 @@ EOF
     local case_entry script_name environment_name override_value playwright_version
 	playwright_version="$(awk -F '="' '$1 == "LOCK_PLAYWRIGHT_VERSION" { sub(/"$/, "", $2); print $2 }' "${policy_file}")"
     local -a cases=(
-        '20-runtime-node.sh|NODE_MAJOR|88'
-        '20-runtime-go.sh|GO_VERSION|go8.8.1'
-        '20-runtime-pnpm.sh|PNPM_VERSION|8.8.2'
-        '40-node-test.sh|VITEST_VERSION|8.8.3'
-        '40-php-lang.sh|PHP_VERSION|8.8'
-        '40-php-test.sh|PHPUNIT_VERSION|88'
-        '50-browser-playwright.sh|PLAYWRIGHT_CLI_VERSION|8.8.4'
-        '20-tool-devcontainer-cli.sh|DEVCONTAINER_CLI_VERSION|8.8.5'
+        '2000-runtime-node.sh|NODE_MAJOR|88'
+        '2100-runtime-go.sh|GO_VERSION|go8.8.1'
+        '2010-runtime-pnpm.sh|PNPM_VERSION|8.8.2'
+        '2060-node-test.sh|VITEST_VERSION|8.8.3'
+        '2300-php-lang.sh|PHP_VERSION|8.8'
+        '2320-php-test.sh|PHPUNIT_VERSION|88'
+        '2080-browser-playwright.sh|PLAYWRIGHT_CLI_VERSION|8.8.4'
+        '2030-tool-devcontainer-cli.sh|DEVCONTAINER_CLI_VERSION|8.8.5'
     )
 
     for case_entry in "${cases[@]}"; do
@@ -637,7 +637,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        if [ "${script_name}" = "50-browser-playwright.sh" ]; then
+        if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
             [ "$output" = "PLAYWRIGHT_VERSION=${playwright_version}"$'\n'"${environment_name}=${override_value}" ]
         else
             [ "$output" = "${environment_name}=${override_value}" ]
@@ -692,7 +692,7 @@ EOF
         -u PI_MCP_ADAPTER_VERSION \
         -u PI_TERMINAL_THEME_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
-        bash "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/3040-ai-pi-gentle.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "${expected_output}" ]
@@ -731,7 +731,7 @@ EOF
         GENTLE_ENGRAM_VERSION="8.8.9" \
         PI_MCP_ADAPTER_VERSION="8.8.10" \
         PI_TERMINAL_THEME_VERSION="8.8.12" \
-        bash "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/3040-ai-pi-gentle.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "${expected_output}" ]
@@ -781,7 +781,7 @@ EOF
         PATH="${stub_bin}:${PATH}" \
         PI_STUB_LOG="${pi_log}" \
         DEVCONTAINER_PHASE=runtime \
-        bash -c 'bash "$1" && bash "$1"' _ "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+        bash -c 'bash "$1" && bash "$1"' _ "${SCRIPT_DIR}/install/available/3040-ai-pi-gentle.sh"
 
     [ "$status" -eq 0 ]
     [ "$(grep -c '^remove npm:pi-powerline$' "${pi_log}")" -eq 1 ]
@@ -805,7 +805,7 @@ EOF
     run env HOME="${home_dir}" bash -c '
         cd "$1"
         exec bash "$2" --print-package-metadata "npm:gentle-pi@2.2.0"
-    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/3040-ai-pi-gentle.sh"
 
     [ "$status" -eq 0 ]
     [ "$output" = $'PACKAGE_NAME=gentle-pi\nPACKAGE_VERSION=2.2.0\nINSTALLED_VERSION=2.2.0' ]
@@ -821,7 +821,7 @@ EOF
     run env HOME="${home_dir}" bash -c '
         cd "$1"
         exec bash "$2" --print-package-metadata "npm:@juicesharp/rpiv-todo@1.20.0"
-    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/3040-ai-pi-gentle.sh"
 
     [ "$status" -eq 0 ]
     [ "$output" = $'PACKAGE_NAME=@juicesharp/rpiv-todo\nPACKAGE_VERSION=1.20.0\nINSTALLED_VERSION=1.20.0' ]
@@ -837,7 +837,7 @@ EOF
     run env HOME="${home_dir}" bash -c '
         cd "$1"
         exec bash "$2" --print-package-metadata "npm:@juicesharp/rpiv-ask-user-question@1.20.0"
-    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/30-ai-pi-gentle.sh"
+    ' _ "${work_dir}" "${SCRIPT_DIR}/install/available/3040-ai-pi-gentle.sh"
 
     [ "$status" -eq 0 ]
     [ "$output" = $'PACKAGE_NAME=@juicesharp/rpiv-ask-user-question\nPACKAGE_VERSION=1.20.0\nINSTALLED_VERSION=1.20.0' ]
@@ -850,7 +850,7 @@ EOF
 
     run env -u BATS_VERSION \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
-        bash "${SCRIPT_DIR}/install/available/10-bats.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/1000-test-bats.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "BATS_VERSION=9.9.2" ]
@@ -864,14 +864,14 @@ EOF
     run env \
         DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
         BATS_VERSION="8.8.2" \
-        bash "${SCRIPT_DIR}/install/available/10-bats.sh" --print-version-policy
+        bash "${SCRIPT_DIR}/install/available/1000-test-bats.sh" --print-version-policy
 
     [ "$status" -eq 0 ]
     [ "$output" = "BATS_VERSION=8.8.2" ]
 }
 
 @test "BATS installer consumes the resolved archive and generated checksum" {
-	installer="${SCRIPT_DIR}/install/available/10-bats.sh"
+	installer="${SCRIPT_DIR}/install/available/1000-test-bats.sh"
 	grep -q 'bats-core/archive/refs/tags/v${BATS_VERSION}.tar.gz' "${installer}"
 	grep -q 'BATS_SHA256="${LOCK_BATS_SHA256:?missing LOCK_BATS_SHA256}"' "${installer}"
 	! grep -q 'git clone' "${installer}"

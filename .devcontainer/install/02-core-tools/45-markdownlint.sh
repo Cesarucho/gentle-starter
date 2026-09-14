@@ -1,1 +1,0 @@
-../available/40-node-markdownlint.sh

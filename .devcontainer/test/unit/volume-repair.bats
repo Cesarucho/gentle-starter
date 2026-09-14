@@ -9,6 +9,7 @@ setup() {
 
 	mkdir -p "${WORKSPACE}/.devcontainer/lifecycle" \
 		"${WORKSPACE}/.devcontainer/install/available" \
+		"${WORKSPACE}/.devcontainer/install/01-foundation" \
 		"${WORKSPACE}/.devcontainer/install/03-enabled" \
 		"${WORKSPACE}/.devcontainer/install/02-core-tools" \
 		"${WORKSPACE}/.devcontainer/install/lib" \
@@ -17,6 +18,9 @@ setup() {
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh" \
 		"${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${WORKSPACE}/.devcontainer/install/lib/"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/selection.py" "${WORKSPACE}/.devcontainer/install/lib/"
+	printf 'FROM foundation AS core-tools\nCOPY install/02-core-tools/ /install/02-core-tools/\nFROM core-tools AS devcontainer\n' >"${WORKSPACE}/.devcontainer/Dockerfile"
+	touch "${WORKSPACE}/.devcontainer/install/dependencies.conf"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/compose-volume-records.py" \
 		"${WORKSPACE}/.devcontainer/lifecycle/compose-volume-records.py"
 	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
@@ -31,8 +35,8 @@ setup() {
 	publish_manifest
 	: >"${CALLS_FILE}"
 
-	write_installer "30-ai-pi-coding"
-	write_installer "30-ai-pi-gentle"
+	write_installer "3030-ai-pi-coding"
+	write_installer "3040-ai-pi-gentle"
 }
 
 publish_manifest() {
@@ -77,12 +81,12 @@ run_pi_volume_repair() {
 }
 
 @test "core activation resolves custom canonical aliases" {
-	write_installer "30-ai-opencode"
+	write_installer "3000-ai-opencode"
 	local link="${WORKSPACE}/.devcontainer/install/02-core-tools/47-custom.sh"
-	ln -s ../available/30-ai-opencode.sh "${link}"
+	ln -s ../available/3000-ai-opencode.sh "${link}"
 
 	[ -L "${link}" ]
-	[ "$(readlink "${link}")" = "../available/30-ai-opencode.sh" ]
+	[ "$(readlink "${link}")" = "../available/3000-ai-opencode.sh" ]
 	[ -f "${link}" ]
 	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
@@ -91,40 +95,41 @@ run_pi_volume_repair() {
 	[ "${status}" -eq 0 ]
 }
 
-@test "enabling OpenCode recreates ordered slot 55" {
-	write_installer "30-ai-opencode"
+@test "enabling an optional fixture uses its canonical basename" {
+	write_installer "3000-ai-opencode"
 
-	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 30-ai-opencode
+	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 3000-ai-opencode
 
 	[ "${status}" -eq 0 ]
-	[ -L "${WORKSPACE}/.devcontainer/install/03-enabled/55-opencode.sh" ]
-	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/55-opencode.sh")" = "../available/30-ai-opencode.sh" ]
+	[ -L "${WORKSPACE}/.devcontainer/install/03-enabled/3000-ai-opencode.sh" ]
+	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/3000-ai-opencode.sh")" = "../available/3000-ai-opencode.sh" ]
 }
 
-@test "enabling repairs a broken alias with a matching textual target basename" {
-	ln -s /does/not/exist/30-ai-pi-gentle.sh \
+@test "enabling rejects a broken alias even with a matching textual target basename" {
+	ln -s /does/not/exist/3040-ai-pi-gentle.sh \
 		"${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
 
-	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 30-ai-pi-gentle
+	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 3040-ai-pi-gentle
 
-	[ "${status}" -eq 0 ]
-	[ -L "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
-	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh")" = "../available/30-ai-pi-gentle.sh" ]
+	[ "${status}" -ne 0 ]
+	[[ "$output" == *"invalid or broken symlink"* ]]
+	[ ! -L "${WORKSPACE}/.devcontainer/install/03-enabled/3040-ai-pi-gentle.sh" ]
+	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-gentle.sh")" = /does/not/exist/3040-ai-pi-gentle.sh ]
 	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
 		install_script_is_enabled "$2"
 	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh" \
-		"${WORKSPACE}/.devcontainer/install/available/30-ai-pi-gentle.sh"
-	[ "${status}" -eq 0 ]
+		"${WORKSPACE}/.devcontainer/install/available/3040-ai-pi-gentle.sh"
+	[ "${status}" -ne 0 ]
 }
 
 @test "disabling Pi Gentle preserves persisted Pi state" {
 	local sentinel="${WORKSPACE}/.env.d/.pi/agent/npm/persisted-package"
 	mkdir -p "$(dirname "${sentinel}")"
 	printf 'keep\n' >"${sentinel}"
-	enable_installer_as "30-ai-pi-gentle" "80-pi-gentle.sh"
+	enable_installer_as "3040-ai-pi-gentle" "80-pi-gentle.sh"
 
-	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" disable 30-ai-pi-gentle
+	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" disable 3040-ai-pi-gentle
 
 	[ "${status}" -eq 0 ]
 	[ ! -L "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
@@ -139,7 +144,7 @@ run_pi_volume_repair() {
 
 	compose_target_to_install_scripts "/home/ubuntu/.pi" scripts
 
-	[ "${scripts[*]}" = "30-ai-pi-gentle" ]
+	[ "${scripts[*]}" = "3040-ai-pi-gentle" ]
 }
 
 @test "volume parser supports long syntax and ignores long-syntax named volumes" {
@@ -203,16 +208,16 @@ YAML
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *".env.d/a|b c"* ]]
 	[[ "${output}" == *"/home/ubuntu/.pi"* ]]
-	[[ "${output}" == *"30-ai-pi-gentle"* ]]
+	[[ "${output}" == *"3040-ai-pi-gentle"* ]]
 }
 
 @test "volume repair accepts an arbitrary enabled alias" {
-	enable_installer_as "30-ai-pi-gentle" "47-custom-gentle.sh"
+	enable_installer_as "3040-ai-pi-gentle" "47-custom-gentle.sh"
 
 	run_pi_volume_repair
 
 	[ "${status}" -eq 0 ]
-	[ "$(cat "${CALLS_FILE}")" = "30-ai-pi-gentle|runtime" ]
+	[ "$(cat "${CALLS_FILE}")" = "3040-ai-pi-gentle|runtime" ]
 }
 
 @test "volume repair skips a disabled mapped installer" {
@@ -220,12 +225,12 @@ YAML
 
 	[ "${status}" -eq 0 ]
 	[ ! -s "${CALLS_FILE}" ]
-	[[ "${output}" != *"30-ai-pi-gentle.sh"* ]]
+	[[ "${output}" != *"3040-ai-pi-gentle.sh"* ]]
 }
 
 @test "core Engram owner is repaired with Pi disabled" {
-	write_installer "30-ai-engram"
-	ln -s ../available/30-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/47-memory.sh"
+	write_installer "3010-ai-engram"
+	ln -s ../available/3010-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/47-memory.sh"
 	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
 	publish_manifest
 	run env WORKSPACE_DIR="${WORKSPACE}" VOLUME_REPAIR_CALLS_FILE="${CALLS_FILE}" bash -c '
@@ -233,7 +238,7 @@ YAML
 		repair_installed_volumes
 	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 	[ "${status}" -eq 0 ]
-	[ "$(cat "${CALLS_FILE}")" = "30-ai-engram|runtime" ]
+	[ "$(cat "${CALLS_FILE}")" = "3010-ai-engram|runtime" ]
 }
 
 @test "broken enabled symlinks do not activate mapped installers" {
@@ -247,19 +252,19 @@ YAML
 }
 
 @test "Pi Coding is image-owned and never dispatched for runtime volume repair" {
-	enable_installer_as "30-ai-pi-coding" "70-pi-coding.sh"
+	enable_installer_as "3030-ai-pi-coding" "70-pi-coding.sh"
 
 	run_pi_volume_repair
 
 	[ "${status}" -eq 0 ]
 	[ ! -s "${CALLS_FILE}" ]
-	[[ "${output}" != *"30-ai-pi-coding.sh"* ]]
-	[[ "${output}" != *"30-ai-pi-gentle.sh"* ]]
+	[[ "${output}" != *"3030-ai-pi-coding.sh"* ]]
+	[[ "${output}" != *"3040-ai-pi-gentle.sh"* ]]
 }
 
 @test "Task volumes reports selected desired Engram ownership without dispatch" {
-	write_installer "30-ai-engram"
-	ln -s ../available/30-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/60-engram.sh"
+	write_installer "3010-ai-engram"
+	ln -s ../available/3010-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/60-engram.sh"
 	printf '%s\n' '{"service":"container-svc","dockerComposeFile":["docker-compose.yml","optional.yml"]}' >"${WORKSPACE}/.devcontainer/devcontainer.json"
 	printf '%s\n' 'services: {}' >"${WORKSPACE}/.devcontainer/optional.yml"
 	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
@@ -267,7 +272,7 @@ YAML
 	run env -u GENTLE_VOLUME_MANIFEST_ID task --dir "${WORKSPACE}" install:volumes
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"not proof of applied mounts"* ]]
-	[[ "$output" == *"owned by: 30-ai-engram"* ]]
+	[[ "$output" == *"owned by: 3010-ai-engram"* ]]
 	[[ "$output" == *"a selected Compose file"* ]]
 	[ ! -s "${CALLS_FILE}" ]
 }

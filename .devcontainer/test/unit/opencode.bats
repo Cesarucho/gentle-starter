@@ -80,17 +80,17 @@ prepare_setup_sandbox() {
 	: >"${WORKSPACE_REPAIR_EVENTS_FILE}"
 	: >"${CHOWN_LOG_FILE}"
 	touch "${SETUP_WORKSPACE}/.devcontainer/docker-compose.yml"
-	cat >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-opencode.sh" <<'EOF'
+	cat >"${SETUP_WORKSPACE}/.devcontainer/install/available/3000-ai-opencode.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "${DEVCONTAINER_PHASE}" >>"${OPENCODE_SETUP_CALLS_FILE}"
 EOF
-	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-opencode.sh"
-	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-pi-coding.sh"
-	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-gentle-ai.sh"
-	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-pi-coding.sh" \
-		"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-gentle-ai.sh"
-	cat >"${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-engram.sh" <<'EOF'
+	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/3000-ai-opencode.sh"
+	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/3030-ai-pi-coding.sh"
+	printf '#!/usr/bin/env bash\n' >"${SETUP_WORKSPACE}/.devcontainer/install/available/3020-ai-gentle-ai.sh"
+	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/3030-ai-pi-coding.sh" \
+		"${SETUP_WORKSPACE}/.devcontainer/install/available/3020-ai-gentle-ai.sh"
+	cat >"${SETUP_WORKSPACE}/.devcontainer/install/available/3010-ai-engram.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 case "${SETUP_VOLUME_TARGET}" in
@@ -108,8 +108,8 @@ case "${SETUP_VOLUME_TARGET}" in
 esac
 printf 'engram-repair\n' >>"${SETUP_EVENTS_FILE}"
 EOF
-	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/30-ai-engram.sh"
-	ln -s ../available/30-ai-engram.sh \
+	chmod +x "${SETUP_WORKSPACE}/.devcontainer/install/available/3010-ai-engram.sh"
+	ln -s ../available/3010-ai-engram.sh \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/60-engram.sh"
 	: >"${SETUP_CALLS_FILE}"
 	write_setup_command_stubs
@@ -279,26 +279,30 @@ path_metadata() {
 	stat -c '%u:%g:%a' "$1"
 }
 
-@test "install enable repairs a broken alias with a matching textual target basename" {
+@test "install enable rejects a broken alias with a matching textual target basename" {
 	local cli_workspace="${TEST_ROOT}/install-cli-workspace"
 	mkdir -p "${cli_workspace}/.devcontainer/install/available" \
+		"${cli_workspace}/.devcontainer/install/01-foundation" \
+		"${cli_workspace}/.devcontainer/install/02-core-tools" \
 		"${cli_workspace}/.devcontainer/install/03-enabled" \
 		"${cli_workspace}/.devcontainer/install/lib" \
 		"${cli_workspace}/.taskfiles/scripts"
 	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
 		"${cli_workspace}/.taskfiles/scripts/install.sh"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${cli_workspace}/.devcontainer/install/lib/"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/selection.py" "${cli_workspace}/.devcontainer/install/lib/"
 	printf '#!/usr/bin/env bash\n' \
-		>"${cli_workspace}/.devcontainer/install/available/30-ai-pi-gentle.sh"
-	ln -s /does/not/exist/30-ai-pi-gentle.sh \
+		>"${cli_workspace}/.devcontainer/install/available/3040-ai-pi-gentle.sh"
+	ln -s /does/not/exist/3040-ai-pi-gentle.sh \
 		"${cli_workspace}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
 
-	run bash "${cli_workspace}/.taskfiles/scripts/install.sh" enable 30-ai-pi-gentle
+	run bash "${cli_workspace}/.taskfiles/scripts/install.sh" enable 3040-ai-pi-gentle
 
-	[ "${status}" -eq 0 ]
-	[ -L "${cli_workspace}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
-	[ "$(readlink "${cli_workspace}/.devcontainer/install/03-enabled/80-pi-gentle.sh")" = \
-		"../available/30-ai-pi-gentle.sh" ]
+	[ "${status}" -ne 0 ]
+	[[ "$output" == *"invalid or broken symlink"* ]]
+	[ ! -L "${cli_workspace}/.devcontainer/install/03-enabled/3040-ai-pi-gentle.sh" ]
+	[ "$(readlink "${cli_workspace}/.devcontainer/install/03-enabled/79-broken-gentle.sh")" = \
+		"/does/not/exist/3040-ai-pi-gentle.sh" ]
 }
 
 @test "setup skips OpenCode when its canonical installer is not enabled" {
@@ -392,7 +396,7 @@ path_metadata() {
 
 @test "setup seeds missing OpenCode config recursively and preserves existing user config" {
 	prepare_setup_sandbox
-	ln -s ../available/30-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/47-custom-opencode.sh"
+	ln -s ../available/3000-ai-opencode.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/47-custom-opencode.sh"
 
 	run_setup
 
@@ -409,7 +413,7 @@ path_metadata() {
 
 @test "core Gentle AI does not seed Pi-owned config when Pi is disabled" {
 	prepare_setup_sandbox
-	ln -s ../available/30-ai-gentle-ai.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/47-custom-gentle.sh"
+	ln -s ../available/3020-ai-gentle-ai.sh "${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools/47-custom-gentle.sh"
 	rm -rf "${HOME_DIR}/.pi"
 
 	run_setup
@@ -419,7 +423,7 @@ path_metadata() {
 
 @test "setup seeds Pi agent config and trust without Gentle AI when only Pi is enabled" {
 	prepare_setup_sandbox
-	ln -s ../available/30-ai-pi-coding.sh "${SETUP_WORKSPACE}/.devcontainer/install/03-enabled/48-custom-pi.sh"
+	ln -s ../available/3030-ai-pi-coding.sh "${SETUP_WORKSPACE}/.devcontainer/install/03-enabled/48-custom-pi.sh"
 	rm -rf "${HOME_DIR}/.pi"
 
 	run_setup

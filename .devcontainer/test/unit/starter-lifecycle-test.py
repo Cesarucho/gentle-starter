@@ -50,9 +50,9 @@ class LifecycleTests(unittest.TestCase):
                      ".devcontainer/docker-compose.audio.yml", ".taskfiles/scripts/compose-manifest.py"):
             shutil.copyfile(ROOT / name, self.root / name)
         links = self.root / ".devcontainer/install/03-enabled"
-        for name in ("30-ai-pi-coding.sh", "30-ai-pi-gentle.sh", "20-tool-ssh-server.sh", "30-ai-gentle-ai.sh"):
+        for name in ("3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh", "4010-tool-ssh-server.sh", "3020-ai-gentle-ai.sh"):
             (links / name).symlink_to("../available/" + name)
-        (self.root / ".devcontainer/install/02-core-tools/81-gentle-ai.sh").symlink_to("../available/30-ai-gentle-ai.sh")
+        (self.root / ".devcontainer/install/02-core-tools/3020-ai-gentle-ai.sh").symlink_to("../available/3020-ai-gentle-ai.sh")
 
     def test_base_selection_removes_optional_activation_and_private_mounts(self):
         self.fixture()
@@ -62,8 +62,8 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(len(config["mounts"]), 1)
         self.assertNotIn("SSH", json.dumps(config))
         self.assertNotIn("pulse", json.dumps(config))
-        self.assertEqual(sorted(p.name for p in (self.root / ".devcontainer/install/03-enabled").iterdir()), ["30-ai-gentle-ai.sh"])
-        self.assertTrue((self.root / ".devcontainer/install/02-core-tools/81-gentle-ai.sh").is_symlink())
+        self.assertEqual(sorted(p.name for p in (self.root / ".devcontainer/install/03-enabled").iterdir()), ["3020-ai-gentle-ai.sh"])
+        self.assertTrue((self.root / ".devcontainer/install/02-core-tools/3020-ai-gentle-ai.sh").is_symlink())
         self.assertEqual((self.root / ".env").read_bytes(), b"")
         self.assertEqual((self.root / ".devcontainer/.env").stat().st_mode & 0o777, 0o600)
 

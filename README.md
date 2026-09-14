@@ -329,10 +329,10 @@ proof, not Pi verification. It is excluded from both `task test` and
 task install:list
 
 # Enable a new tool from .devcontainer/install/available/
-task install:enable -- 40-php-lang
+task install:enable -- 2300-php-lang
 
 # Disable a tool for future builds and postCreate runs
-task install:disable -- 40-php-lang
+task install:disable -- 2300-php-lang
 
 # Verify install layout and symlink integrity
 task install:doctor

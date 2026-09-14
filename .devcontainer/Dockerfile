@@ -52,7 +52,7 @@ ENV NODE_MAJOR=${NODE_MAJOR}
 WORKDIR /home/${UID_NAME}
 COPY tool-versions.conf ./.devcontainer-install/tool-versions.conf
 COPY install/lib/tar-archive.sh ./.devcontainer-install/lib/
-COPY install/available/10-bats.sh install/available/20-runtime-node.sh install/available/20-runtime-pnpm.sh install/available/40-node-markdownlint.sh install/available/20-tool-devcontainer-cli.sh install/available/30-ai-opencode.sh install/available/30-ai-engram.sh install/available/30-ai-gentle-ai.sh install/available/30-ai-skills.sh ./.devcontainer-install/available/
+COPY install/available/1000-test-bats.sh install/available/2000-runtime-node.sh install/available/2010-runtime-pnpm.sh install/available/2020-node-markdownlint.sh install/available/2030-tool-devcontainer-cli.sh install/available/3000-ai-opencode.sh install/available/3010-ai-engram.sh install/available/3020-ai-gentle-ai.sh install/available/3050-ai-skills.sh ./.devcontainer-install/available/
 COPY install/02-core-tools/ ./.devcontainer-install/02-core-tools/
 
 RUN chown -R "${UID_NAME}:${UID_NAME}" ./.devcontainer-install \

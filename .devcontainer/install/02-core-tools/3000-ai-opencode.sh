@@ -1,0 +1,1 @@
+../available/3000-ai-opencode.sh

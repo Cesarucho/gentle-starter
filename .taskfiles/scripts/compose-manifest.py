@@ -270,7 +270,7 @@ def main():
     elif command in {"records", "runtime", "check", "ssh-server", "service"}:
         manifest = load_manifest(workspace, runtime=command in {"runtime", "ssh-server"})
         if command == "ssh-server":
-            installer = workspace / ".devcontainer/install/available/20-tool-ssh-server.sh"
+            installer = workspace / ".devcontainer/install/available/4010-tool-ssh-server.sh"
             aliases = (link for group in ("02-core-tools", "03-enabled")
                        for link in (workspace / ".devcontainer/install" / group).glob("*.sh"))
             if not installer.is_file() or not any(link.is_symlink() and link.resolve() == installer.resolve()

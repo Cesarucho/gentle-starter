@@ -48,9 +48,9 @@ selected Compose → host manifest .devcontainer/lifecycle/setup-volumes.sh
                                                         ▼
                                          .devcontainer/install/available/
                                          ┌─────────────────────────────────┐
-                                         │ 30-ai-pi-coding.sh              │
-                                         │ 30-ai-pi-gentle.sh              │
-                                         │ 30-ai-engram.sh                 │
+                                         │ 3030-ai-pi-coding.sh            │
+                                         │ 3040-ai-pi-gentle.sh            │
+                                         │ 3010-ai-engram.sh               │
                                          │ (yours here)                    │
                                          └─────────────────────────────────┘
 ```
@@ -119,7 +119,7 @@ After creation, the `postCreateCommand` runs `bash .devcontainer/setup.sh`:
 setup_versioned_configs         # copy enabled tools' missing baseline configs
 setup_pi_workspace_trust        # mark the workspace as trusted in trust.json
 repair_installed_volumes        # run enabled Pi Gentle and Engram state owners
-DEVCONTAINER_PHASE=runtime bash 20-tool-ssh-server.sh  # installer + override enabled
+DEVCONTAINER_PHASE=runtime bash 4010-tool-ssh-server.sh  # installer + override enabled
 start-sshd                      # after SSH runtime preparation
 ```
 
@@ -142,7 +142,7 @@ passive mounts, while a mapped but disabled owner is intentionally skipped.
 For active owners, the script's idempotency guard decides whether the call is a
 no-op or actually does work.
 
-For example, disabling `30-ai-pi-gentle` leaves the `.pi` mapping unchanged but
+For example, disabling `3040-ai-pi-gentle` leaves the `.pi` mapping unchanged but
 removes its only runtime repair owner. Pi Coding remains image-owned and is not
 dispatched by volume repair. Disable is non-destructive: it does not remove Pi
 packages already persisted in `.env.d/.pi`, and volume repair does not provide
@@ -184,10 +184,10 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
    ```bash
    case "${target}" in
         "/home/ubuntu/.pi")
-            scripts_ref+=("30-ai-pi-gentle")
+            scripts_ref+=("3040-ai-pi-gentle")
            ;;
         "/home/ubuntu/.engram")
-           scripts_ref+=("30-ai-engram")
+           scripts_ref+=("3010-ai-engram")
            ;;
         "/home/ubuntu/.postgresql")
            scripts_ref+=("40-data-postgresql")

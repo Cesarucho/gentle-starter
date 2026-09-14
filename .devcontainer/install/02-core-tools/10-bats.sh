@@ -1,1 +1,0 @@
-../available/10-bats.sh

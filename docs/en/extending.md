@@ -59,14 +59,14 @@ You're working on a project that uses Redis for caching. You want
 that you can version, and the data to survive across rebuilds.
 This touches the install, config, and volume surfaces.
 
-### Step 1: install — `install/available/30-tool-redis.sh`
+### Step 1: install — `install/available/7000-tool-redis.sh`
 
 The script downloads and installs the redis packages via apt. It
 skips itself if redis is already present.
 
 ```bash
 #!/usr/bin/env bash
-# 30-tool-redis.sh — install redis-server and redis-cli.
+# 7000-tool-redis.sh — install redis-server and redis-cli.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -90,7 +90,7 @@ Enable it for default activation:
 
 ```bash
 cd .devcontainer/install/03-enabled
-ln -sfn ../available/30-tool-redis.sh 30-tool-redis.sh
+ln -s ../available/7000-tool-redis.sh 7000-tool-redis.sh
 ```
 
 ### Step 2: config — `.devcontainer/redis-config/redis.conf`
@@ -134,15 +134,15 @@ In `.devcontainer/lifecycle/setup-volumes.sh`'s `compose_target_to_install_scrip
 
 ```bash
 "${HOME}/.redis" | "/var/lib/redis")
-    scripts_ref+=("30-tool-redis")
+    scripts_ref+=("7000-tool-redis")
     ;;
 ```
 
 ### Step 4: verify
 
 ```bash
-task install:list          # shows 30-tool-redis in 03-enabled
-task install:volumes       # shows ../.env.d/.redis -> /var/lib/redis owned by 30-tool-redis
+task install:list          # shows 7000-tool-redis in 03-enabled
+task install:volumes       # shows ../.env.d/.redis -> /var/lib/redis owned by 7000-tool-redis
 task container:rebuild     # builds with all three changes
 
 # inside the container:
@@ -161,10 +161,16 @@ and the postCreate hook re-seeds anything that was deleted.
 ### How do I add a new install script?
 
 Copy `.devcontainer/install/templates/install-script.sh` to
-`.devcontainer/install/available/NN-categoria-tool.sh`, fill in
-the variables, install, and verify sections, and link from
-`03-enabled/` if it should be active by default. See
-[install-tree.md](install-tree.md) for the full convention.
+`.devcontainer/install/available/BBPP-category-tool.sh`, fill in
+the variables, install, and verify sections, and preserve mode `0755`.
+Choose a related block and free two-digit position; full prefixes are unique,
+with gaps allowed. Declare prerequisites in `dependencies.conf`, then use
+`task install:enable -- BBPP-category-tool` for default optional activation.
+The helper creates canonical-named aliases for missing required dependencies,
+reuses core, and never activates companions. It validates the complete projection
+under a shared enable/disable lock before changing links. Valid custom aliases
+retain their names; execution remains layer first, filename second. See
+[install-tree.md](install-tree.md) for validation and rollback boundaries.
 
 ### How do I add a new stateful volume?
 
@@ -251,14 +257,14 @@ fi
 # runtime-only install steps here
 ```
 
-`30-ai-pi-gentle.sh` and `30-ai-engram.sh` are real examples of
+`3040-ai-pi-gentle.sh` and `3010-ai-engram.sh` are real examples of
 this pattern.
 
 ### What happens if I delete `.env.d/` and rebuild?
 
 The volume-repair contract kicks in for installer-owned targets.
 For `.env.d/.pi/`, `repair_installed_volumes` can re-run
-`30-ai-pi-gentle.sh` with `DEVCONTAINER_PHASE=runtime` when it is enabled; its
+`3040-ai-pi-gentle.sh` with `DEVCONTAINER_PHASE=runtime` when it is enabled; its
 idempotency guards decide what work is needed. Pi Coding is image-owned, while
 Pi Gentle remains the runtime owner of packages under `~/.pi`. Disabling it
 does not uninstall packages already persisted in `.env.d/.pi`. Passive
@@ -353,7 +359,7 @@ Two integration tests (`GOROOT` and `DEVCONTAINER_PHASE`) also skip
 when run outside the devcontainer — this is by design; they need
 the lifecycle environment variables. The rest run anywhere.
 
-BATS itself is installed by the `10-bats.sh` script in
+BATS itself is installed by the `1000-test-bats.sh` script in
 `install/available/`, linked from `install/03-enabled/` for
 default activation.
 
@@ -625,7 +631,7 @@ inside the container. See the migration section in
 ### The devcontainer CLI is missing on my host
 
 Inside the devcontainer image, `@devcontainers/cli` is a core
-dependency (script `20-tool-devcontainer-cli.sh`) — you don't need to
+dependency (script `2030-tool-devcontainer-cli.sh`) — you don't need to
 reinstall it inside the container.
 
 From the host, `task container:*` still requires the CLI to be

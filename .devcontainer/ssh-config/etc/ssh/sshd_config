@@ -1,5 +1,5 @@
 # sshd_config — hardened for devcontainer use
-# Installed as /etc/ssh/sshd_config.gentle-starter by 20-tool-ssh.sh.
+# Installed as /etc/ssh/sshd_config.gentle-starter by 4010-tool-ssh-server.sh.
 
 Port 22
 ListenAddress 0.0.0.0

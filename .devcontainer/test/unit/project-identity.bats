@@ -85,7 +85,7 @@ SSH_PORT=$((app_port + 2))"
 }
 
 @test "SSH guidance uses the generated host port and trusted-LAN address" {
-	installer="$(<"${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh-server.sh")"
+	installer="$(<"${REPO_ROOT}/.devcontainer/install/available/4010-tool-ssh-server.sh")"
 	help="$(<"${REPO_ROOT}/.taskfiles/ssh.yml")"
 
 	[[ "${installer}" == *'ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>'* ]]

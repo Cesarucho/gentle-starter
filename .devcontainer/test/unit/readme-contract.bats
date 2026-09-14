@@ -32,48 +32,6 @@ section_between() {
 	' "${REPO_ROOT}/README.md"
 }
 
-readme_install_placement_inventory() {
-	cat <<'EOF'
-10-bats.sh|details
-20-runtime-go.sh|primary
-20-runtime-java.sh|primary
-20-runtime-node.sh|details
-20-runtime-pnpm.sh|primary
-20-tool-devcontainer-cli.sh|primary
-20-tool-ssh.sh|details
-20-tool-ssh-server.sh|details
-20-tool-pulseaudio-utils.sh|details
-30-ai-engram.sh|primary
-30-ai-gentle-ai.sh|primary
-30-ai-opencode.sh|primary
-30-ai-pi-coding.sh|primary
-30-ai-pi-gentle.sh|details
-30-ai-skills.sh|primary
-40-cli-ansible.sh|details
-40-cli-c4-plantuml.sh|details
-40-cli-gitleaks.sh|details
-40-cli-glow.sh|details
-40-cli-graphviz.sh|details
-40-cli-kubectl.sh|details
-40-cli-opentofu.sh|details
-40-cli-plantuml.sh|details
-40-cli-pulumi.sh|details
-40-cli-terraform.sh|details
-40-cli-terragrunt.sh|details
-40-go-debug.sh|details
-40-node-contracts.sh|details
-40-node-archify.sh|details
-40-node-markdownlint.sh|details
-40-node-mermaid.sh|details
-40-node-test.sh|details
-40-php-debug.sh|details
-40-php-lang.sh|details
-40-php-test.sh|details
-40-python-graphify.sh|details
-50-browser-playwright.sh|details
-EOF
-}
-
 blockquote_line_count() {
 	awk '/^[[:space:]]*>[[:space:]]/ { count++ } END { print count + 0 }'
 }
@@ -107,16 +65,18 @@ first_prose_after_fence_line_count() {
 	[[ "${included}" == *'Run `task install:list` for the current catalog and activation state.'* ]]
 }
 
-@test "README install placement inventory uniquely covers every available installer" {
-	local inventory inventory_names available_names
-	inventory="$(readme_install_placement_inventory)"
-
-	[ "$(printf '%s\n' "${inventory}" | cut -d '|' -f 1 | sort | uniq -d | wc -l)" -eq 0 ]
-	[ "$(printf '%s\n' "${inventory}" | awk -F '|' 'NF != 2 || ($2 != "primary" && $2 != "details") { count++ } END { print count + 0 }')" -eq 0 ]
-
-	inventory_names="$(printf '%s\n' "${inventory}" | cut -d '|' -f 1 | sort)"
-	available_names="$(printf '%s\n' "${REPO_ROOT}"/.devcontainer/install/available/*.sh | xargs -n 1 basename | sort)"
-	[ "${inventory_names}" = "${available_names}" ]
+@test "README activation examples reference current catalog installers" {
+	run python3 - "${REPO_ROOT}" <<'PY'
+import re
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+names = re.findall(r"task install:(?:enable|disable) -- ([a-z0-9-]+)", (root / "README.md").read_text())
+assert names
+for name in names:
+    assert (root / ".devcontainer/install/available" / (name + ".sh")).is_file(), name
+PY
+	[ "${status}" -eq 0 ]
 }
 
 @test "README keeps maintenance commands in one section without legacy presets" {

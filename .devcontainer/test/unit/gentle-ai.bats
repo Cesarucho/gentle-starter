@@ -97,8 +97,8 @@ write_doctor_stubs() {
     mkdir -p "${doctor_bin}" "${FIXTURE_DIR}/.devcontainer/install/"{available,02-core-tools,lib} \
         "${TEST_ROOT}/gitconfig-volume"
     cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${FIXTURE_DIR}/.devcontainer/install/lib/"
-    touch "${FIXTURE_DIR}/.devcontainer/install/available/30-ai-gentle-ai.sh"
-    ln -s ../available/30-ai-gentle-ai.sh \
+    touch "${FIXTURE_DIR}/.devcontainer/install/available/3020-ai-gentle-ai.sh"
+    ln -s ../available/3020-ai-gentle-ai.sh \
         "${FIXTURE_DIR}/.devcontainer/install/02-core-tools/81-gentle-ai.sh"
     printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.yml"}' \
         >"${FIXTURE_DIR}/.devcontainer/devcontainer.json"
@@ -162,7 +162,7 @@ run_installer() {
         INVALID_INSTALLED_VERSION="${INVALID_INSTALLED_VERSION}" \
         GENTLE_AI_TEST_TRANSIENT_FAILURES="${GENTLE_AI_TEST_TRANSIENT_FAILURES:-0}" \
         GENTLE_AI_TEST_FAIL_INSTALLED_VERIFY="${GENTLE_AI_TEST_FAIL_INSTALLED_VERIFY:-0}" \
-        bash "${REPO_ROOT}/.devcontainer/install/available/30-ai-gentle-ai.sh"
+        bash "${REPO_ROOT}/.devcontainer/install/available/3020-ai-gentle-ai.sh"
 }
 
 @test "Gentle AI installer uses the pinned amd64 digest, replaces stale, and skips exact" {
@@ -300,25 +300,30 @@ run_installer() {
     [[ "$output" == *'Summary: 1 error(s),'* ]]
 }
 
-@test "install helper re-enables Gentle AI at canonical slot 81" {
+@test "install helper re-enables an optional fixture with its canonical basename" {
     local sandbox="${TEST_ROOT}/install-helper"
     mkdir -p "${sandbox}/.taskfiles/scripts" \
         "${sandbox}/.devcontainer/install/available" \
+        "${sandbox}/.devcontainer/install/01-foundation" \
+        "${sandbox}/.devcontainer/install/02-core-tools" \
         "${sandbox}/.devcontainer/install/03-enabled" \
         "${sandbox}/.devcontainer/install/lib"
     cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" "${sandbox}/.taskfiles/scripts/install.sh"
     cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${sandbox}/.devcontainer/install/lib/"
-    cp "${REPO_ROOT}/.devcontainer/install/available/30-ai-gentle-ai.sh" \
-        "${sandbox}/.devcontainer/install/available/30-ai-gentle-ai.sh"
-    ln -s ../available/30-ai-gentle-ai.sh \
+    cp "${REPO_ROOT}/.devcontainer/install/lib/selection.py" "${sandbox}/.devcontainer/install/lib/"
+    printf 'FROM foundation AS core-tools\nCOPY install/02-core-tools/ /install/02-core-tools/\nFROM core-tools AS devcontainer\n' >"${sandbox}/.devcontainer/Dockerfile"
+    touch "${sandbox}/.devcontainer/install/dependencies.conf"
+    cp "${REPO_ROOT}/.devcontainer/install/available/3020-ai-gentle-ai.sh" \
+        "${sandbox}/.devcontainer/install/available/3020-ai-gentle-ai.sh"
+    ln -s ../available/3020-ai-gentle-ai.sh \
         "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh"
 
-    run bash "${sandbox}/.taskfiles/scripts/install.sh" disable 30-ai-gentle-ai
+    run bash "${sandbox}/.taskfiles/scripts/install.sh" disable 3020-ai-gentle-ai
     [ "$status" -eq 0 ]
-    run bash "${sandbox}/.taskfiles/scripts/install.sh" enable 30-ai-gentle-ai
+    run bash "${sandbox}/.taskfiles/scripts/install.sh" enable 3020-ai-gentle-ai
 
     [ "$status" -eq 0 ]
-    [ -L "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh" ]
-    [ "$(readlink "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh")" = '../available/30-ai-gentle-ai.sh' ]
-    [ ! -e "${sandbox}/.devcontainer/install/03-enabled/30-ai-gentle-ai.sh" ]
+    [ -L "${sandbox}/.devcontainer/install/03-enabled/3020-ai-gentle-ai.sh" ]
+    [ "$(readlink "${sandbox}/.devcontainer/install/03-enabled/3020-ai-gentle-ai.sh")" = '../available/3020-ai-gentle-ai.sh' ]
+    [ ! -e "${sandbox}/.devcontainer/install/03-enabled/81-gentle-ai.sh" ]
 }

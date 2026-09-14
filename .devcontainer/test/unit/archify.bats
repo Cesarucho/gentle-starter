@@ -95,7 +95,7 @@ run_installer() {
 	run env ARCHIFY_VERSION="${ARCHIFY_VERSION_OVERRIDE:-${VERSION}}" \
 		ARCHIFY_SHA256="${ARCHIFY_SHA256_OVERRIDE-${SHA256}}" \
 		ARCHIFY_INSTALL_ROOT="${INSTALL_ROOT}" ARCHIFY_BIN="${ARCHIFY_BIN}" \
-		bash "${REPO_ROOT}/.devcontainer/install/available/40-node-archify.sh"
+		bash "${REPO_ROOT}/.devcontainer/install/available/2070-node-archify.sh"
 }
 
 write_stale_installation() {
@@ -117,7 +117,7 @@ assert_stale_installation_survives() {
 	printf '%s\n' 'LOCK_ARCHIFY_VERSION="1.2.3"' "LOCK_ARCHIFY_SHA256=\"$(printf 'a%.0s' {1..64})\"" >"${policy}"
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${policy}" ARCHIFY_VERSION=9.8.7 \
 		ARCHIFY_SHA256="$(printf 'b%.0s' {1..64})" \
-		bash "${REPO_ROOT}/.devcontainer/install/available/40-node-archify.sh" --print-version-policy
+		bash "${REPO_ROOT}/.devcontainer/install/available/2070-node-archify.sh" --print-version-policy
 	[ "$status" -eq 0 ]
 	[ "${lines[0]}" = "ARCHIFY_VERSION=9.8.7" ]
 	[ "${lines[1]}" = "ARCHIFY_SHA256=$(printf 'b%.0s' {1..64})" ]

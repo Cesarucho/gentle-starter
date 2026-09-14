@@ -40,12 +40,12 @@ load install-selection.sh
 }
 
 @test "selected: devcontainer CLI is installed" {
-    skip_if_install_disabled "20-tool-devcontainer-cli.sh" "task install:enable -- 20-tool-devcontainer-cli"
+    skip_if_install_disabled "2030-tool-devcontainer-cli.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
     command -v devcontainer >/dev/null
 }
 
 @test "selected: node is installed" {
-    skip_if_install_disabled "20-runtime-node.sh" "task install:enable -- 20-runtime-node"
+    skip_if_install_disabled "2000-runtime-node.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
     command -v node >/dev/null
 }
 
@@ -60,23 +60,23 @@ load install-selection.sh
 # ---------------------------------------------------------------------------
 
 @test "go: go is installed" {
-    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
+    skip_if_install_disabled "2100-runtime-go.sh" "task install:enable -- 2100-runtime-go"
     command -v go >/dev/null
 }
 
 @test "go: gofmt is installed" {
-    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
+    skip_if_install_disabled "2100-runtime-go.sh" "task install:enable -- 2100-runtime-go"
     command -v gofmt >/dev/null
 }
 
 @test "go: go version >= 1.20" {
-    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
+    skip_if_install_disabled "2100-runtime-go.sh" "task install:enable -- 2100-runtime-go"
     go_version=$(go version | grep -oE 'go[0-9]+\.[0-9]+\.[0-9]+' | sed 's/go//')
     printf '%s\n%s\n' "1.20.0" "${go_version}" | sort -V -C
 }
 
 @test "go: GOROOT is set" {
-    skip_if_install_disabled "20-runtime-go.sh" "task install:enable -- 20-runtime-go"
+    skip_if_install_disabled "2100-runtime-go.sh" "task install:enable -- 2100-runtime-go"
     # GOROOT is set by the Go install script during devcontainer setup.
     # Outside the devcontainer it may be unset; in that case skip.
     [ -n "${DEVCONTAINER_PHASE:-}" ] || skip "DEVCONTAINER_PHASE not set (run inside devcontainer)"
@@ -88,17 +88,17 @@ load install-selection.sh
 # ---------------------------------------------------------------------------
 
 @test "java: java is installed" {
-    skip_if_install_disabled "20-runtime-java.sh" "task install:enable -- 20-runtime-java"
+    skip_if_install_disabled "2200-runtime-java.sh" "task install:enable -- 2200-runtime-java"
     command -v java >/dev/null
 }
 
 @test "java: javac is installed" {
-    skip_if_install_disabled "20-runtime-java.sh" "task install:enable -- 20-runtime-java"
+    skip_if_install_disabled "2200-runtime-java.sh" "task install:enable -- 2200-runtime-java"
     command -v javac >/dev/null
 }
 
 @test "java: java version >= 21" {
-    skip_if_install_disabled "20-runtime-java.sh" "task install:enable -- 20-runtime-java"
+    skip_if_install_disabled "2200-runtime-java.sh" "task install:enable -- 2200-runtime-java"
     java_version=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
     printf '%s\n%s\n' "21" "${java_version}" | sort -V -C
 }
@@ -108,13 +108,13 @@ load install-selection.sh
 # ---------------------------------------------------------------------------
 
 @test "node: pnpm version >= 8" {
-    skip_if_install_disabled "20-runtime-pnpm.sh" "task install:enable -- 20-runtime-pnpm"
+    skip_if_install_disabled "2010-runtime-pnpm.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
     pnpm_version=$(pnpm --version)
     printf '%s\n%s\n' "8.0.0" "${pnpm_version}" | sort -V -C
 }
 
 @test "node: npm is functional" {
-    skip_if_install_disabled "20-runtime-node.sh" "task install:enable -- 20-runtime-node"
+    skip_if_install_disabled "2000-runtime-node.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
     run npm --version
     [ "$status" -eq 0 ]
 }
@@ -124,29 +124,29 @@ load install-selection.sh
 # ---------------------------------------------------------------------------
 
 @test "opt-in dlv: dlv is installed" {
-    skip_if_install_disabled "40-go-debug.sh" "task install:enable -- 40-go-debug"
+    skip_if_install_disabled "2110-go-debug.sh" "task install:enable -- 2110-go-debug"
     command -v dlv >/dev/null
 }
 
 @test "opt-in vitest: vitest is installed" {
-    skip_if_install_disabled "40-node-test.sh" "task install:enable -- 40-node-test"
+    skip_if_install_disabled "2060-node-test.sh" "task install:enable -- 2060-node-test"
     command -v vitest >/dev/null
 }
 
 @test "opt-in archify: Archify is healthy" {
-    skip_if_install_disabled "40-node-archify.sh" "task install:enable -- 40-node-archify"
+    skip_if_install_disabled "2070-node-archify.sh" "task install:enable -- 2070-node-archify"
     command -v archify >/dev/null
     run env ARCHIFY_UPDATE_CHECK_DISABLED=1 archify doctor
     [ "$status" -eq 0 ]
 }
 
 @test "opt-in php: php is installed" {
-    skip_if_install_disabled "40-php-lang.sh" "task install:enable -- 40-php-lang"
+    skip_if_install_disabled "2300-php-lang.sh" "task install:enable -- 2300-php-lang"
     command -v php >/dev/null
 }
 
 @test "opt-in phpunit: phpunit is installed" {
-    skip_if_install_disabled "40-php-test.sh" "task install:enable -- 40-php-test"
+    skip_if_install_disabled "2320-php-test.sh" "task install:enable -- 2320-php-test"
     command -v phpunit >/dev/null
 }
 
@@ -155,29 +155,29 @@ load install-selection.sh
 # ---------------------------------------------------------------------------
 
 @test "ai: pi is installed" {
-    skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
+    skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
     command -v pi >/dev/null
 }
 
 @test "ai: pi is executable" {
-    skip_if_install_disabled "30-ai-pi-coding.sh" "task install:enable -- 30-ai-pi-coding"
+    skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
     [ -x "$(command -v pi)" ]
 }
 
 @test "ai: engram is installed" {
-    skip_if_install_disabled "30-ai-engram.sh" "task install:enable -- 30-ai-engram"
+    skip_if_install_disabled "3010-ai-engram.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
     command -v engram >/dev/null
 }
 
 @test "ai: Gentle AI is installed" {
-    skip_if_install_disabled "30-ai-gentle-ai.sh" "task install:enable -- 30-ai-gentle-ai"
+    skip_if_install_disabled "3020-ai-gentle-ai.sh" "Restore the mandatory core alias and matching Dockerfile COPY input"
     command -v gentle-ai >/dev/null
     run gentle-ai version
     [ "$status" -eq 0 ]
 }
 
 @test "ai: skills directory exists" {
-    skip_if_install_disabled "30-ai-pi-gentle.sh" "task install:enable -- 30-ai-pi-gentle"
+    skip_if_install_disabled "3040-ai-pi-gentle.sh" "task install:enable -- 3040-ai-pi-gentle"
     [ -d "${HOME}/.pi/agent/skills" ] || [ -d "${HOME}/.pi/agent/npm/node_modules/gentle-pi/skills" ]
 }
 

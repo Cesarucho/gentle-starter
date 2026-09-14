@@ -4,15 +4,15 @@
 
 | Pattern | Closest repository example |
 | --- | --- |
-| Ubuntu apt distribution | `01-foundation/10-system.sh`, `40-cli-graphviz.sh` |
-| Third-party apt/PPA | `20-runtime-node.sh`, `40-php-lang.sh`; do not copy Task's narrow core-bootstrap exception |
-| npm/pnpm global | `20-runtime-pnpm.sh`, `40-node-markdownlint.sh` |
-| Python isolated venv/pipx-like | `40-python-graphify.sh` |
-| Go binary/build or prebuilt | `20-runtime-go.sh`, `40-go-debug.sh` |
-| PHP/Composer | `40-php-lang.sh`, `40-php-test.sh` |
-| SDK/provider manager | `20-runtime-java.sh` |
-| Direct GitHub release archive/binary | `30-ai-opencode.sh` (image-owned, checksum-verified), `30-ai-gentle-ai.sh`, `40-cli-gitleaks.sh` |
-| Runtime-only user install | `30-ai-engram.sh` |
+| Ubuntu apt distribution | `01-foundation/10-system.sh`, `5020-cli-graphviz.sh` |
+| Third-party apt/PPA | `2000-runtime-node.sh`, `2300-php-lang.sh`; do not copy Task's narrow core-bootstrap exception |
+| npm/pnpm global | `2010-runtime-pnpm.sh`, `2020-node-markdownlint.sh` |
+| Python isolated venv/pipx-like | `2400-python-graphify.sh` |
+| Go binary/build or prebuilt | `2100-runtime-go.sh`, `2110-go-debug.sh` |
+| PHP/Composer | `2300-php-lang.sh`, `2320-php-test.sh` |
+| SDK/provider manager | `2200-runtime-java.sh` |
+| Direct GitHub release archive/binary | `3000-ai-opencode.sh` (image-owned, checksum-verified), `3020-ai-gentle-ai.sh`, `5010-cli-gitleaks.sh` |
+| Runtime-only user install | `3010-ai-engram.sh` |
 
 Read the example and its focused unit/integration tests. Reuse `lib/common.sh`; do not copy a second framework into the skill.
 

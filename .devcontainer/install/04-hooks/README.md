@@ -29,7 +29,7 @@ and link it from `03-enabled/` so the next person benefits too.
   in the image.
 - **Shebang + strict mode**: start with `#!/usr/bin/env bash` and
   `set -euo pipefail`. Drop `-u` only if you source SDKMAN (see
-  `available/20-runtime-java.sh` for the carve-out).
+  `available/2200-runtime-java.sh` for the carve-out).
 - **Helpers**: `source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"`
   gives you logging, arch detection, `devcontainer_run_as_root`,
   `devcontainer_has_cmd` (for idempotency), and so on.

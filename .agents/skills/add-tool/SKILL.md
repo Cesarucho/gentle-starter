@@ -15,6 +15,8 @@ Use for repository-managed dev-tool additions/replacements, provider or mechanis
 
 - Run `scripts/inspect-install-tree.sh [repository]`; treat current files and closest real installer/tests as authoritative.
 - Select the execution group explicitly: OS/bootstrap in `01-foundation`, mandatory tool aliases in `02-core-tools`, optional aliases in `03-enabled`, personal hooks in `04-hooks`. Core changes require coordinated selective Dockerfile COPY inputs; enable/disable is optional-only.
+- Name catalog installers `BBPP-category-tool.sh`: related block `BB`, position `PP`, unique four-digit prefix; gaps are allowed. Generate aliases with the identical basename; preserve valid custom aliases and layer-first, filename-second order.
+- Declare real dependencies only in `dependencies.conf`. Enable the required transitive closure, reuse core, repair active consumers, and never autoactivate companions. Validate the whole projection under the shared enable/disable lock before mutation; roll back only operation-created links.
 - Keep installation, copy-on-first-run configuration, and mutable state separate. Classify state as none, passive, or installer-owned.
 - Preserve fail-closed architecture gates and host-prepared long-syntax binds with `create_host_path: false`; never repair bind-root ownership at runtime.
 - Obtain explicit approval before weakening trust or lifecycle controls.

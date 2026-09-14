@@ -80,10 +80,17 @@ Start with `docs/en/extending.md`; use the linked deep dives for each surface.
 - Source scripts under `.devcontainer/install/` use mode `0755` intentionally.
 - Dockerfile group iteration is the load-bearing install order; directory
   prefixes are visual hints, while filename prefixes control in-group order.
-- `02-core-tools/` and `03-enabled/` are execution-order layers, not taxonomies. Keep unique
-  `NN-tool.sh` aliases; category names belong in `available/`.
+- Catalog names use unique `BBPP-category-tool.sh` prefixes: related-tool block
+  `BB`, position `PP` from `00` to `99`, with gaps allowed. Generated aliases use
+  the identical canonical basename. Preserve valid custom aliases and actual
+  layer-first, filename-second execution order.
 - Enable/disable modifies only `03-enabled/` and refuses mandatory core tools.
-  Activation and dependency checks include both alias groups and respect group order.
+  `dependencies.conf` alone defines dependencies. Enable plans the required
+  transitive closure, reuses core, and repairs missing dependencies of active tools;
+  companions are never autoactivated. Validate the whole projected selection
+  before mutation under the shared lock; roll back only operation-created links.
+  Core aliases must match selective Dockerfile COPY inputs. Disable protects
+  active dependents and does not remove orphan prerequisites.
 - `04-hooks/` is intentionally visible to Git.
 - `task env:backup`, `task env:restore`, and `task pi:diff-config` are deferred.
   Do not implement them without explicit approval.

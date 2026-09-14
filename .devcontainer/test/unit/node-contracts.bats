@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
-    INSTALLER="${BATS_TEST_DIRNAME}/../../install/available/40-node-contracts.sh"
+    INSTALLER="${BATS_TEST_DIRNAME}/../../install/available/2040-node-contracts.sh"
     export TEST_ROOT="${BATS_TEST_TMPDIR}/contracts"
     mkdir -p "${TEST_ROOT}/global/@asyncapi/cli/lib/utils"
     export BASH_ENV="${TEST_ROOT}/closed-stubs.sh"

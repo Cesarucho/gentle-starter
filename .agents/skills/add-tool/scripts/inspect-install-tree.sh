@@ -62,7 +62,13 @@ def classify_alias(link):
     return {"alias": link.name, "target": target, "broken": False, "unsafe_reason": None}
 
 available = []
+catalog_prefixes = {}
+invalid_catalog_names = []
 for installer in sorted(available_dir.glob("*.sh")) if available_dir.is_dir() else []:
+    if re.fullmatch(r"[0-9]{4}-[a-z0-9]+-[a-z0-9]+(?:-[a-z0-9]+)*\.sh", installer.name):
+        catalog_prefixes.setdefault(installer.name[:4], []).append(installer.name)
+    else:
+        invalid_catalog_names.append(installer.name)
     aliases = []
     if activation_links:
         for link in activation_links:
@@ -120,6 +126,8 @@ facts = {
     "repository": str(root),
     "platform_assumption": "Ubuntu 24.04 / linux amd64-or-arm64; verify installer-specific support",
     "available": available,
+    "invalid_catalog_names": invalid_catalog_names,
+    "duplicate_catalog_prefixes": {prefix: names for prefix, names in catalog_prefixes.items() if len(names) > 1},
     "enabled": enabled,
     "broken_aliases": [item["alias"] for item in enabled if item["broken"]],
     "unsafe_aliases": [
@@ -143,6 +151,9 @@ else:
     print(f"Repository: {facts['repository']}")
     print(f"Assumption: {facts['platform_assumption']}")
     print(f"Available installers: {len(available)}")
+    print("Catalog naming: BBPP-category-tool.sh; generated aliases keep the canonical basename")
+    print("Invalid catalog names: " + (", ".join(invalid_catalog_names) or "none"))
+    print("Duplicate catalog prefixes: " + (", ".join(facts["duplicate_catalog_prefixes"]) or "none"))
     print(f"Enabled aliases: {len(enabled)}")
     for item in enabled:
         if item["broken"]:

@@ -14,8 +14,8 @@
 #   help                       Show this help
 #   list                       List foundation, core tools, optional tools,
 #                              hooks, and available/ scripts not active.
-#   enable NAME                Create a 03-enabled/ symlink to
-#                              available/NAME.sh
+#   enable NAME                Activate NAME and missing required dependencies
+#                              with canonical-named 03-enabled/ symlinks
 #   disable NAME               Remove the 03-enabled/ symlink for NAME.sh
 #   doctor                     Verify the install/ layout integrity
 #   versions-validate          Validate the declarative tool-version policy
@@ -37,7 +37,7 @@ Commands:
   help                  Show this help
   list                  List foundation, mandatory core tools, optional tools, hooks
                         and available/ scripts not enabled.
-  enable NAME           Create an optional 03-enabled/ symlink to available/NAME.sh
+  enable NAME           Activate NAME and required dependencies; reuse mandatory core
   disable NAME          Remove the optional 03-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
   versions-validate     Validate .devcontainer/tool-versions.conf
@@ -55,95 +55,19 @@ validate_installer_name() {
 	esac
 }
 
-# Resolve a script name (with or without .sh suffix) to its
-# absolute path under available/. Echoes the path; returns 1 if not
-# found. Accepts NAME or NAME.sh.
-resolve_available() {
-	local name="$1"
-
-	for candidate in "${name}" "${name}.sh"; do
-		if [ -f "${INSTALL_DIR}/available/${candidate}" ]; then
-			printf '%s\n' "${INSTALL_DIR}/available/${candidate}"
-			return 0
-		fi
-	done
-
-	return 1
-}
-
-preferred_enabled_name() {
-	local base="$1"
-
-	case "${base}" in
-	10-bats.sh) printf '10-bats.sh\n' ;;
-	20-runtime-go.sh) printf '20-go.sh\n' ;;
-	20-runtime-node.sh) printf '30-node.sh\n' ;;
-	20-runtime-pnpm.sh) printf '40-pnpm.sh\n' ;;
-	40-php-lang.sh) printf '40-php-lang.sh\n' ;;
-	40-php-debug.sh) printf '41-php-debug.sh\n' ;;
-	40-php-test.sh) printf '42-php-test.sh\n' ;;
-	40-node-markdownlint.sh) printf '45-markdownlint.sh\n' ;;
-	40-cli-glow.sh) printf '46-glow.sh\n' ;;
-	20-tool-devcontainer-cli.sh) printf '50-devcontainer-cli.sh\n' ;;
-	30-ai-opencode.sh) printf '55-opencode.sh\n' ;;
-	30-ai-engram.sh) printf '60-engram.sh\n' ;;
-	30-ai-pi-coding.sh) printf '70-pi-coding.sh\n' ;;
-	30-ai-pi-gentle.sh) printf '80-pi-gentle.sh\n' ;;
-	30-ai-gentle-ai.sh) printf '81-gentle-ai.sh\n' ;;
-	30-ai-skills.sh) printf '90-skills.sh\n' ;;
-	*) printf '%s\n' "${base}" ;;
-	esac
-}
-
-enabled_link_names_for_base() {
-	local alias
-	while IFS= read -r alias; do
-		printf '%s\n' "${alias##*/}"
-	done < <(devcontainer_active_aliases "${INSTALL_DIR}" "${INSTALL_DIR}/available/$1" 03-enabled)
-}
-
 is_available_enabled() {
 	local base="$1"
 	devcontainer_install_is_active "${INSTALL_DIR}" "${INSTALL_DIR}/available/${base}"
 }
 
-enabled_alias_for_base() {
-	devcontainer_active_aliases "${INSTALL_DIR}" "${INSTALL_DIR}/available/$1" | sort | head -n 1
-}
-
-refuse_core_change() {
-	if devcontainer_install_is_active "${INSTALL_DIR}" "$1" 02-core-tools; then
-		echo "ERROR: ${1##*/} belongs to mandatory 02-core-tools; enable/disable changes only 03-enabled. To customize the base, edit the core aliases and matching Dockerfile COPY inputs intentionally." >&2
-		return 1
-	fi
-}
-
 validate_enabled_dependencies() {
-	local errors=0 consumer kind dependency command_name consumer_alias dependency_alias
-	[ -f "${DEPENDENCIES_FILE}" ] || return 0
-	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
-		[[ "${consumer}" =~ ^[[:space:]]*(#|$) ]] && continue
-		[ "${kind}" = "enabled" ] || continue
-		is_available_enabled "${consumer}" || continue
-		if ! is_available_enabled "${dependency}"; then
-			echo "FAIL: ${consumer} requires enabled installer ${dependency} (${command_name})" >&2
-			errors=$((errors + 1))
-			continue
-		fi
-		consumer_alias="$(enabled_alias_for_base "${consumer}")"
-		dependency_alias="$(enabled_alias_for_base "${dependency}")"
-		if [[ "${dependency_alias}" > "${consumer_alias}" ]]; then
-			echo "FAIL: ${dependency} must run before ${consumer} (${dependency_alias} sorts after ${consumer_alias})" >&2
-			errors=$((errors + 1))
-		fi
-	done <"${DEPENDENCIES_FILE}"
-	[ "${errors}" -eq 0 ]
+	python3 "${INSTALL_DIR}/lib/selection.py" "${INSTALL_DIR}" validate
 }
 
 dependency_summary() {
-	local wanted="$1" consumer kind dependency command_name label separator=' — '
+	local wanted="$1" consumer kind dependency _command_name label separator=' — '
 	[ -f "${DEPENDENCIES_FILE}" ] || return 0
-	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
+	while IFS='|' read -r consumer kind dependency _command_name || [ -n "${consumer:-}" ]; do
 		[ "${consumer}" = "${wanted}" ] || continue
 		case "${kind}" in
 		enabled) label='requires' ;;
@@ -154,39 +78,6 @@ dependency_summary() {
 		printf '%s%s: %s' "${separator}" "${label}" "${dependency}"
 		separator='; '
 	done <"${DEPENDENCIES_FILE}"
-}
-
-enabled_dependents_for() {
-	local wanted="$1" consumer kind dependency command_name
-	[ -f "${DEPENDENCIES_FILE}" ] || return 0
-	while IFS='|' read -r consumer kind dependency command_name || [ -n "${consumer:-}" ]; do
-		if [ "${kind}" != "enabled" ] || [ "${dependency}" != "${wanted}" ]; then
-			continue
-		fi
-		is_available_enabled "${consumer}" && printf '%s\n' "${consumer}"
-	done <"${DEPENDENCIES_FILE}"
-}
-
-resolve_disable_target() {
-	local name="$1" candidate canonical group
-	if resolve_available "${name}"; then
-		return 0
-	fi
-	for group in 02-core-tools 03-enabled; do
-		for candidate in "${name}" "${name}.sh"; do
-			candidate="${INSTALL_DIR}/${group}/${candidate}"
-			if [ ! -L "${candidate}" ] || [ ! -e "${candidate}" ]; then
-				continue
-			fi
-			canonical="$(readlink -f -- "${candidate}")" || continue
-			case "${canonical}" in
-			"${INSTALL_DIR}/available/"*.sh)
-				[ -f "${canonical}" ] && printf '%s\n' "${canonical}" && return 0
-				;;
-			esac
-		done
-	done
-	return 1
 }
 
 cmd_list() {
@@ -252,93 +143,26 @@ cmd_list() {
 }
 
 cmd_enable() {
-	local name="$1"
-	local source_path
-
-	if [ -z "${name}" ]; then
+	if [ "$#" -ne 1 ] || [ -z "${1:-}" ]; then
 		echo "ERROR: enable requires a NAME argument" >&2
 		usage >&2
 		exit 2
 	fi
-	validate_installer_name "${name}" || exit 2
-
-	if ! source_path="$(resolve_available "${name}")"; then
-		echo "ERROR: ${name} not found under available/" >&2
-		exit 1
-	fi
-
-	local base
-	base="$(basename "${source_path}")"
-	refuse_core_change "${source_path}" || exit 1
-
-	local link_name
-	link_name="$(preferred_enabled_name "${base}")"
-
-	if is_available_enabled "${base}"; then
-		echo "${base} is already enabled"
-		return 0
-	fi
-
-	(
-		cd "${INSTALL_DIR}/03-enabled"
-		ln -sfn "../available/${base}" "${link_name}"
-	)
-	if ! validate_enabled_dependencies; then
-		rm -f "${INSTALL_DIR}/03-enabled/${link_name}"
-		echo "ERROR: enable rolled back because installer dependencies are not satisfied" >&2
-		exit 1
-	fi
-	echo "Enabled: enabled/${link_name} -> available/${base}"
+	validate_installer_name "$1" || exit 2
+	python3 "${INSTALL_DIR}/lib/selection.py" "${INSTALL_DIR}" enable "$1" || return 1
 	echo ""
 	echo "Next step: task container:rebuild"
 	echo "Note: install:enable changes the default tool set for future builds; it does not run the install script in the current container automatically."
 }
 
 cmd_disable() {
-	local name="$1"
-	local removed=0
-	local source_path base dependents
-
-	if [ -z "${name}" ]; then
+	if [ "$#" -ne 1 ] || [ -z "${1:-}" ]; then
 		echo "ERROR: disable requires a NAME argument" >&2
 		usage >&2
 		exit 2
 	fi
-	validate_installer_name "${name}" || exit 2
-
-	if source_path="$(resolve_disable_target "${name}" 2>/dev/null)"; then
-		refuse_core_change "${source_path}" || exit 1
-		base="$(basename "${source_path}")"
-		dependents="$(enabled_dependents_for "${base}")"
-		if [ -n "${dependents}" ]; then
-			echo "ERROR: cannot disable ${base}; required by enabled installer(s): ${dependents//$'\n'/, }" >&2
-			exit 1
-		fi
-	fi
-
-	for candidate in "${name}" "${name}.sh"; do
-		if [ -L "${INSTALL_DIR}/03-enabled/${candidate}" ]; then
-			rm "${INSTALL_DIR}/03-enabled/${candidate}"
-			echo "Disabled: ${candidate}"
-			removed=$((removed + 1))
-		fi
-	done
-
-	if source_path="$(resolve_available "${name}" 2>/dev/null)"; then
-		while IFS= read -r enabled_name; do
-			[ -n "${enabled_name}" ] || continue
-			if [ -L "${INSTALL_DIR}/03-enabled/${enabled_name}" ]; then
-				rm "${INSTALL_DIR}/03-enabled/${enabled_name}"
-				echo "Disabled: ${enabled_name}"
-				removed=$((removed + 1))
-			fi
-		done < <(enabled_link_names_for_base "$(basename "${source_path}")")
-	fi
-
-	if [ "${removed}" -eq 0 ]; then
-		echo "${name} is not enabled"
-		return 0
-	fi
+	validate_installer_name "$1" || exit 2
+	python3 "${INSTALL_DIR}/lib/selection.py" "${INSTALL_DIR}" disable "$1" || return 1
 
 	echo ""
 	echo "Next step: task container:rebuild"

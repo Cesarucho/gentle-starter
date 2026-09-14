@@ -19,7 +19,7 @@ tasks:
           task ssh:stop      Stop agent when done
 
         B) TRUSTED LAN ACCESS (SSH into the container through its Docker host)
-          Enable 20-tool-ssh-server and select docker-compose.ssh-server.yml.
+          Enable 4010-tool-ssh-server and select docker-compose.ssh-server.yml.
           task ssh:register-keys   Auto-detect and register .pub keys
           task container:rebuild   Rebuild so keys get registered
 

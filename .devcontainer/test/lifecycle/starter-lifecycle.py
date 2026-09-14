@@ -87,7 +87,7 @@ def configure(root):
         "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
     }
     (root / ".devcontainer/devcontainer.json").write_text(json.dumps(config, indent=4) + "\n")
-    disabled = {"30-ai-pi-coding.sh", "30-ai-pi-gentle.sh", "20-tool-ssh-server.sh"}
+    disabled = {"3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh", "4010-tool-ssh-server.sh"}
     for link in (root / ".devcontainer/install/03-enabled").iterdir():
         if link.is_symlink() and link.resolve().name in disabled:
             link.unlink()

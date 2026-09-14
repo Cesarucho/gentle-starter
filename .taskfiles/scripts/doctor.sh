@@ -187,14 +187,14 @@ run_container() {
 	check_command task
 	check_command node
 	check_command npm
-	check_enabled_command 30-ai-pi-coding.sh pi
-	check_enabled_command 30-ai-engram.sh engram
-	check_enabled_command 30-ai-gentle-ai.sh gentle-ai
+	check_enabled_command 3030-ai-pi-coding.sh pi
+	check_enabled_command 3010-ai-engram.sh engram
+	check_enabled_command 3020-ai-gentle-ai.sh gentle-ai
 	check_command gh optional
 	check_command playwright optional
 
-	if is_install_enabled 30-ai-pi-coding.sh || is_install_enabled 30-ai-pi-gentle.sh; then check_dir /home/ubuntu/.pi; fi
-	if is_install_enabled 30-ai-engram.sh; then check_dir /home/ubuntu/.engram; fi
+	if is_install_enabled 3030-ai-pi-coding.sh || is_install_enabled 3040-ai-pi-gentle.sh; then check_dir /home/ubuntu/.pi; fi
+	if is_install_enabled 3010-ai-engram.sh; then check_dir /home/ubuntu/.engram; fi
 	check_dir /home/ubuntu/.gitconfig-volume
 
 	if [ "$(id -un 2>/dev/null || true)" = "ubuntu" ]; then

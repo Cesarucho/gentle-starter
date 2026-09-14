@@ -6,7 +6,7 @@
 #   start-sshd              # start sshd (idempotent: no-op if already running)
 #   start-sshd --regenerate # regenerate host keys first, then start
 #
-# Requires the optional 20-tool-ssh-server.sh installer and server override.
+# Requires the optional 4010-tool-ssh-server.sh installer and server override.
 
 set -euo pipefail
 
@@ -61,7 +61,7 @@ stop_managed_sshd() {
 # --- sanity checks -------------------------------------------------------
 if [ ! -x "${SSHD_BIN}" ]; then
 	echo "[start-sshd] ERROR: sshd not found. Run the install script first:" >&2
-	echo "[start-sshd]   Enable 20-tool-ssh-server and its Compose override, then task container:rebuild on the host." >&2
+	echo "[start-sshd]   Enable 4010-tool-ssh-server and its Compose override, then task container:rebuild on the host." >&2
 	exit 1
 fi
 

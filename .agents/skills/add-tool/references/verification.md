@@ -31,7 +31,7 @@ Run directly applicable BATS files first. Validate changed shell with `bash -n`,
 ## Contract checklist
 
 - Catalog lists the tool dynamically; no expected-count assertion became stale.
-- Enabled symlink is relative, unbroken, uniquely ordered, and recreated at the intended `preferred_enabled_name` when disabled/enabled.
+- Generated symlinks are relative, unbroken, and use the identical canonical basename. Valid custom aliases retain their actual order. Test required closure, active-consumer repair, core reuse/missing-core refusal, companion exclusion, prewrite validation, lock serialization, collision preservation, and operation-owned rollback with small graph fixtures.
 - Policy parser accepts the new keys; environment precedence and architecture selection have isolated tests.
 - Doctor checks actual availability without performing installation.
 - Integration test skips when the canonical enabled link is absent and performs a meaningful version/function check when present.

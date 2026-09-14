@@ -70,7 +70,7 @@ The Dockerfile copies `tool-versions.conf` into `/home/ubuntu/.devcontainer-inst
 - Java intent is now `TOOL_JAVA_VERSION="25-tem"`; ADR 0003 defines its generated install and required locks.
 - Major channels, such as NodeSource's Node channel, use `*_MAJOR` when migrated.
 - `latest` remains explicit and non-reproducible; migration must not silently pin it.
-- Multi-tool installers consume multiple keys, as `40-node-contracts.sh` does.
+- Multi-tool installers consume multiple keys, as `2040-node-contracts.sh` does.
 - Artifacts without a CLI version command may use local markers. C4-PlantUML also centralizes its digest as the documented atomic-pair exception.
 - Ubuntu core apt packages receive no invented versions without a real repository or snapshot pinning policy.
 

@@ -711,14 +711,14 @@ EOF
 	configured_version="$(sed -n 's/^LOCK_C4_PLANTUML_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
-		"${REPO_ROOT}/.devcontainer/install/available/40-cli-c4-plantuml.sh" --print-version-policy
+		"${REPO_ROOT}/.devcontainer/install/available/2220-cli-c4-plantuml.sh" --print-version-policy
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"C4_PLANTUML_VERSION=${configured_version}"* ]]
 	[[ "${output}" == *"C4_PLANTUML_SHA256=$(printf '%064d' 1)"* ]]
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
 		C4_PLANTUML_VERSION="2.88.0" C4_PLANTUML_SHA256="$(printf '%064d' 2)" \
-		"${REPO_ROOT}/.devcontainer/install/available/40-cli-c4-plantuml.sh" --print-version-policy
+		"${REPO_ROOT}/.devcontainer/install/available/2220-cli-c4-plantuml.sh" --print-version-policy
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"C4_PLANTUML_VERSION=2.88.0"* ]]
 	[[ "${output}" == *"C4_PLANTUML_SHA256=$(printf '%064d' 2)"* ]]
@@ -737,7 +737,7 @@ EOF
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
 		C4_PLANTUML_INSTALL_DIR="${install_dir}" \
-		"${REPO_ROOT}/.devcontainer/install/available/40-cli-c4-plantuml.sh"
+		"${REPO_ROOT}/.devcontainer/install/available/2220-cli-c4-plantuml.sh"
 
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"Downloading C4-PlantUML ${expected_version}"* ]]
@@ -756,7 +756,7 @@ EOF
 
 	run env DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY_FILE}" \
 		C4_PLANTUML_INSTALL_DIR="${install_dir}" \
-		"${REPO_ROOT}/.devcontainer/install/available/40-cli-c4-plantuml.sh"
+		"${REPO_ROOT}/.devcontainer/install/available/2220-cli-c4-plantuml.sh"
 
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"already installed at ${install_dir}"* ]]

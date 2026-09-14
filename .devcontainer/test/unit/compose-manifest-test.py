@@ -234,10 +234,10 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                          ".devcontainer/lifecycle/compose-volume-records.py",
                          ".taskfiles/scripts/compose-manifest.py"):
             shutil.copy2(ROOT / relative, self.root / relative)
-        installer = self.root / ".devcontainer/install/available/30-ai-pi-gentle.sh"
+        installer = self.root / ".devcontainer/install/available/3040-ai-pi-gentle.sh"
         installer.write_text('#!/bin/bash\nprintf repaired >"$WORKSPACE_DIR/calls"\n')
         link = self.root / ".devcontainer/install/03-enabled/47-custom.sh"
-        link.symlink_to("../available/30-ai-pi-gentle.sh")
+        link.symlink_to("../available/3040-ai-pi-gentle.sh")
         value = self.publish()
         environment = {**os.environ, "WORKSPACE_DIR": str(self.root), "GENTLE_VOLUME_MANIFEST_ID": "old"}
         command = ["bash", "-c", 'source "$WORKSPACE_DIR/.devcontainer/lifecycle/setup-volumes.sh"; repair_installed_volumes']
@@ -257,7 +257,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
     def test_pi_seeding_is_gated_and_preserves_existing_state(self):
         source = (ROOT / ".devcontainer/setup.sh").read_text()
         function = source[source.index("setup_versioned_configs() {"):source.index("\nsetup_pi_workspace_trust()")]
-        command = ('install_script_is_enabled() { [[ "$1" == *30-ai-gentle-ai.sh ]]; }; '
+        command = ('install_script_is_enabled() { [[ "$1" == *3020-ai-gentle-ai.sh ]]; }; '
                    'seed_config_tree() { printf unexpected; }; ' + function + '\nsetup_versioned_configs')
         result = subprocess.run(["bash", "-c", command], env={**os.environ, "SCRIPT_DIR": str(self.root),
                                 "WORKSPACE_DIR": str(self.root)}, capture_output=True, text=True)
@@ -268,7 +268,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         install = self.root / ".devcontainer/install"
         for name in ("available", "02-core-tools", "03-enabled"):
             (install / name).mkdir(parents=True)
-        for name in ("30-ai-opencode.sh", "30-ai-gentle-ai.sh"):
+        for name in ("3000-ai-opencode.sh", "3020-ai-gentle-ai.sh"):
             (install / "available" / name).write_text("# Never executed\n")
             (install / "02-core-tools" / name).symlink_to("../available/" + name)
         baseline = self.root / ".devcontainer/opencode-config"
@@ -296,7 +296,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertFalse((home / ".pi").exists())
 
     def test_server_requires_both_enabled_installer_and_persisted_override(self):
-        installer = self.root / ".devcontainer/install/available/20-tool-ssh-server.sh"
+        installer = self.root / ".devcontainer/install/available/4010-tool-ssh-server.sh"
         installer.parent.mkdir(parents=True)
         installer.write_text("# fixture\n")
         enabled = self.root / ".devcontainer/install/03-enabled"
@@ -310,7 +310,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                 patch.object(manifest.sys, "argv", ["manifest", "ssh-server", str(self.root)]):
             with self.assertRaisesRegex(ValueError, "disabled"):
                 manifest.main()
-            (enabled / "29-custom.sh").symlink_to("../available/20-tool-ssh-server.sh")
+            (enabled / "29-custom.sh").symlink_to("../available/4010-tool-ssh-server.sh")
             with contextlib.redirect_stdout(io.StringIO()):
                 manifest.main()
             self.config.write_text('{"service":"custom","dockerComposeFile":"base.yml"}')
@@ -321,7 +321,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
 
     def test_optional_installers_are_downstream_and_do_not_install_each_other(self):
         available = ROOT / ".devcontainer/install/available"
-        for name in ("20-tool-ssh-server.sh", "20-tool-pulseaudio-utils.sh", "30-ai-pi-coding.sh", "30-ai-pi-gentle.sh"):
+        for name in ("4010-tool-ssh-server.sh", "4100-tool-pulseaudio-utils.sh", "3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh"):
             self.assertTrue((available / name).is_file())
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
@@ -332,9 +332,9 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             command.chmod(0o755)
         environment = {**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin", "CALLS": str(calls),
                        "DEVCONTAINER_PHASE": "build"}
-        for script, package in (("20-tool-ssh.sh", "openssh-client"),
-                                ("20-tool-ssh-server.sh", "openssh-server"),
-                                ("20-tool-pulseaudio-utils.sh", "pulseaudio-utils")):
+        for script, package in (("4000-tool-ssh.sh", "openssh-client"),
+                                ("4010-tool-ssh-server.sh", "openssh-server"),
+                                ("4100-tool-pulseaudio-utils.sh", "pulseaudio-utils")):
             calls.write_text("")
             result = subprocess.run(["bash", str(available / script)], env=environment, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)

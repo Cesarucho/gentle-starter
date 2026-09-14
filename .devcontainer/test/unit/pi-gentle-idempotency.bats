@@ -2,7 +2,7 @@
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-	INSTALLER="${REPO_ROOT}/.devcontainer/install/available/30-ai-pi-gentle.sh"
+	INSTALLER="${REPO_ROOT}/.devcontainer/install/available/3040-ai-pi-gentle.sh"
 	POLICY="${REPO_ROOT}/.devcontainer/tool-versions.conf"
 	TEST_ROOT="$(mktemp -d)"
 	HOME_DIR="${TEST_ROOT}/home"

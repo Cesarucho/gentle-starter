@@ -6,7 +6,7 @@ setup() {
 	INSTALL_DIR="${TEST_ROOT}/bin"
 	CALLS_FILE="${TEST_ROOT}/calls"
 	mkdir -p "${INSTALL_DIR}" "${TEST_ROOT}/install/available" "${TEST_ROOT}/install/lib"
-	cp "${REPO_ROOT}/.devcontainer/install/available/30-ai-engram.sh" "${TEST_ROOT}/install/available/"
+	cp "${REPO_ROOT}/.devcontainer/install/available/3010-ai-engram.sh" "${TEST_ROOT}/install/available/"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${TEST_ROOT}/install/lib/"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/tar-archive.sh" "${TEST_ROOT}/install/lib/"
 	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${TEST_ROOT}/tool-versions.conf"
@@ -29,7 +29,7 @@ run_installer() {
 		ENGRAM_PROFILE_FILE="${TEST_ROOT}/profile" ENGRAM_DATA_DIR="${TEST_ROOT}/data" \
 		ENGRAM_CALLS_FILE="${CALLS_FILE}" \
 		DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/tool-versions.conf" \
-		bash "${TEST_ROOT}/install/available/30-ai-engram.sh"
+		bash "${TEST_ROOT}/install/available/3010-ai-engram.sh"
 }
 
 @test "explicit Engram Pi setup succeeds standalone and warns when Pi is absent" {
@@ -39,7 +39,7 @@ run_installer() {
 		ENGRAM_INSTALL_DIR="${INSTALL_DIR}" ENGRAM_PROFILE_FILE="${TEST_ROOT}/profile" \
 		ENGRAM_DATA_DIR="${TEST_ROOT}/data" ENGRAM_CALLS_FILE="${CALLS_FILE}" \
 		DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/tool-versions.conf" \
-		/usr/bin/bash "${TEST_ROOT}/install/available/30-ai-engram.sh"
+		/usr/bin/bash "${TEST_ROOT}/install/available/3010-ai-engram.sh"
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"Engram is ready for standalone use"* ]]
 	[ ! -e "${CALLS_FILE}" ]
@@ -58,7 +58,7 @@ run_installer() {
 		ENGRAM_SETUP_PI=1 ENGRAM_INSTALL_DIR="${INSTALL_DIR}" ENGRAM_PROFILE_FILE="${TEST_ROOT}/profile" \
 		ENGRAM_DATA_DIR="${TEST_ROOT}/data" ENGRAM_CALLS_FILE="${CALLS_FILE}" ENGRAM_SETUP_FAIL=1 \
 		DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/tool-versions.conf" \
-		bash "${TEST_ROOT}/install/available/30-ai-engram.sh"
+		bash "${TEST_ROOT}/install/available/3010-ai-engram.sh"
 	[ "$status" -eq 42 ]
 }
 

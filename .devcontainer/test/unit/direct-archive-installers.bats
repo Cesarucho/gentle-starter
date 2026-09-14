@@ -178,7 +178,7 @@ EOF
 run_bats_installer() {
 	local digest="$1"
 	printf 'LOCK_BATS_VERSION="1.2.3"\nLOCK_BATS_SHA256="%s"\n' "${digest}" >"${POLICY}"
-	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 }
 
 run_direct_installer() {
@@ -187,10 +187,10 @@ run_direct_installer() {
 	[ "${digest_mode}" != mismatch ] || digest="$(printf '0%.0s' {1..64})"
 	if [ "${tool}" = opencode ]; then
 		printf 'LOCK_OPENCODE_VERSION="%s"\nLOCK_OPENCODE_SHA256_AMD64="%s"\nLOCK_OPENCODE_SHA256_ARM64="%s"\n' "${version}" "${digest}" "${digest}" >"${POLICY}"
-		run env PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" FIXTURE_MACHINE="${machine}" ARCHIVE_FIXTURE="${ARCHIVE}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" OPENCODE_INSTALL_DIR="${INSTALL_DIR}" bash "${REPO_ROOT}/.devcontainer/install/available/30-ai-opencode.sh"
+		run env PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" FIXTURE_MACHINE="${machine}" ARCHIVE_FIXTURE="${ARCHIVE}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" OPENCODE_INSTALL_DIR="${INSTALL_DIR}" bash "${REPO_ROOT}/.devcontainer/install/available/3000-ai-opencode.sh"
 	else
 		printf 'LOCK_ENGRAM_VERSION="%s"\nLOCK_ENGRAM_SHA256_AMD64="%s"\nLOCK_ENGRAM_SHA256_ARM64="%s"\n' "${version}" "${digest}" "${digest}" >"${POLICY}"
-		run env PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" FIXTURE_MACHINE="${machine}" ARCHIVE_FIXTURE="${ARCHIVE}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" ENGRAM_INSTALL_DIR="${INSTALL_DIR}" bash "${REPO_ROOT}/.devcontainer/install/available/30-ai-engram.sh"
+		run env PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" FIXTURE_MACHINE="${machine}" ARCHIVE_FIXTURE="${ARCHIVE}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" ENGRAM_INSTALL_DIR="${INSTALL_DIR}" bash "${REPO_ROOT}/.devcontainer/install/available/3010-ai-engram.sh"
 	fi
 }
 
@@ -313,7 +313,7 @@ run_direct_installer() {
 		digest="$(sha256sum "${ARCHIVE}" | awk '{print $1}')"
 		printf 'LOCK_BATS_VERSION="1.2.3"\nLOCK_BATS_SHA256="%s"\n' "${digest}" >"${POLICY}"
 		before="$(snapshot_tree "${INSTALL_DIR}")"
-		run env -u BATS_VERSION PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+		run env -u BATS_VERSION PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 		[ "${status}" -ne 0 ]
 		[ "$(snapshot_tree "${INSTALL_DIR}")" = "${before}" ]
 		assert_installer_temp_is_empty
@@ -326,7 +326,7 @@ run_direct_installer() {
 	before="$(snapshot_tree "${INSTALL_DIR}")"
 	printf 'LOCK_BATS_VERSION="1.2.3"\nLOCK_BATS_SHA256="%064d"\n' 0 >"${POLICY}"
 
-	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 
 	[ "${status}" -eq 0 ]
 	[ "$(snapshot_tree "${INSTALL_DIR}")" = "${before}" ]
@@ -367,7 +367,7 @@ run_direct_installer() {
 	write_bats_archive 1.2.3
 	digest="$(sha256sum "${ARCHIVE}" | awk '{print $1}')"
 	printf 'LOCK_BATS_VERSION="1.2.3"\nLOCK_BATS_SHA256="%s"\n' "${digest}" >"${POLICY}"
-	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 	[ "${status}" -eq 0 ]
 	[ "$(${INSTALL_DIR}/bin/bats --version)" = 'Bats 1.2.3' ]
 	[ "$(<"${INSTALL_DIR}/share/man/man7/bats.7")" = 'test file format manual' ]
@@ -379,14 +379,14 @@ run_direct_installer() {
 	write_bats_archive 1.2.3 extra-root
 	digest="$(sha256sum "${ARCHIVE}" | awk '{print $1}')"
 	sed -i "s/^LOCK_BATS_SHA256=.*/LOCK_BATS_SHA256=\"${digest}\"/" "${POLICY}"
-	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 	[ "${status}" -ne 0 ]
 	[ ! -e "${INSTALL_DIR}/bin/bats" ]
 	assert_installer_temp_is_empty
 
 	digest="$(printf '0%.0s' {1..64})"
 	sed -i "s/^LOCK_BATS_SHA256=.*/LOCK_BATS_SHA256=\"${digest}\"/" "${POLICY}"
-	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 	[ "${status}" -ne 0 ]
 	assert_installer_temp_is_empty
 }
@@ -401,7 +401,7 @@ run_direct_installer() {
 	digest="$(sha256sum "${ARCHIVE}" | awk '{print $1}')"
 	printf 'LOCK_BATS_VERSION="1.2.3"\nLOCK_BATS_SHA256="%s"\n' "${digest}" >"${POLICY}"
 
-	run env -u BATS_VERSION PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"unexpected staged BATS output: share/man/man7/unexpected.7"* ]]
@@ -422,7 +422,7 @@ if [[ "${1:-}" == */stage/share/man/man7/bats.7 ]]; then exit 73; fi
 exec /bin/mv "$@"
 EOF
 	chmod +x "${BIN_DIR}/mv"
-	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/10-bats.sh"
+	run env -u BATS_VERSION PATH="${INSTALL_DIR}/bin:${BIN_DIR}:/usr/bin:/bin" TMPDIR="${TEST_ROOT}/tmp" ARCHIVE_FIXTURE="${ARCHIVE}" BATS_INSTALL_DIR="${INSTALL_DIR}" DEVCONTAINER_PHASE=build DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}" bash "${REPO_ROOT}/.devcontainer/install/available/1000-test-bats.sh"
 	[ "${status}" -ne 0 ]
 	after="$(snapshot_tree "${INSTALL_DIR}")"
 	if [ "${after}" != "${before}" ]; then

@@ -31,7 +31,7 @@ tasks:
         else
           echo "Installing BATS..."
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/{{.DEVCONTAINER_DIR}}"
-          bash "${SCRIPT_DIR}/install/available/10-bats.sh"
+          bash "${SCRIPT_DIR}/install/available/1000-test-bats.sh"
         fi
 
   starter:unit:

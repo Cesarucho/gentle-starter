@@ -13,7 +13,7 @@ tasks:
       - ./.taskfiles/scripts/install.sh list {{.CLI_ARGS}}
 
   enable:
-    desc: Enable an optional installer in 03-enabled/ (mandatory core tools are protected)
+    desc: Enable an optional installer and its required dependencies (reuse protected core tools)
     cmds:
       - ./.taskfiles/scripts/install.sh enable {{.CLI_ARGS}}
 
@@ -23,7 +23,7 @@ tasks:
       - ./.taskfiles/scripts/install.sh disable {{.CLI_ARGS}}
 
   doctor:
-    desc: Check install layout, canonical core/optional aliases, duplicate targets, and dependency order
+    desc: Check BBPP catalog, aliases, core COPY consistency, dependency graph, and execution order
     cmds:
       - ./.taskfiles/scripts/install.sh doctor
 

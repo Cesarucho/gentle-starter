@@ -17,8 +17,8 @@ are not supported creation paths.
 | --- | --- | --- |
 | `docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
 | `docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
-| `docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `20-tool-ssh-server` and rebuild |
-| `docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `20-tool-pulseaudio-utils` for `paplay` and rebuild |
+| `docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server` and rebuild |
+| `docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `4100-tool-pulseaudio-utils` for `paplay` and rebuild |
 
 The base retains Gentle AI, Engram, OpenCode, Git configuration, image/build,
 service identity, and application/OpenCode ports. All optional files start off.

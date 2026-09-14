@@ -48,3 +48,11 @@ EOF
 	[ "${status}" -eq 1 ]
 	[[ "${output}" == *"Installer directory does not exist"* ]]
 }
+
+@test "installer runner matches bytewise custom alias order regardless of locale" {
+	write_installer 1000-tool-base.sh 0
+	write_installer 10-custom.sh 0
+	run env LC_ALL=es_MX.UTF-8 "${REPO_ROOT}/.devcontainer/install/lib/run-installers.sh" "${INSTALLERS}"
+	[ "$status" -eq 0 ]
+	[ "$(<"${LOG}")" = $'10-custom.sh:build\n1000-tool-base.sh:build' ]
+}

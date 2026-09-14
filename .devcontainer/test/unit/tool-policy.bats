@@ -52,7 +52,7 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 @test "installer fails closed when required lock data is missing" {
 	printf '%s\n' 'LOCK_PLAYWRIGHT_CLI_VERSION="0.1.19"' >"${TEST_ROOT}/policy"
 	run env -u PLAYWRIGHT_VERSION -u PLAYWRIGHT_CLI_VERSION DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/policy" \
-		bash "${REPO_ROOT}/.devcontainer/install/available/50-browser-playwright.sh" --print-version-policy
+		bash "${REPO_ROOT}/.devcontainer/install/available/2080-browser-playwright.sh" --print-version-policy
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"missing LOCK_PLAYWRIGHT_VERSION"* ]]
 }

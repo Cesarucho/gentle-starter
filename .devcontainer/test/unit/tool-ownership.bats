@@ -9,12 +9,12 @@ run_ssh_runtime_installer() {
 	mkdir -p "${root}/home" "${root}/bin" "${root}/target"
 	mkdir -p "${root}/.devcontainer/install/available" "${root}/.devcontainer/install/lib" \
 		"${root}/.devcontainer/install/03-enabled" "${root}/.taskfiles/scripts"
-	cp "${REPO_ROOT}/.devcontainer/install/available/20-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
+	cp "${REPO_ROOT}/.devcontainer/install/available/4010-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${root}/.devcontainer/install/lib/"
 	cp -R "${REPO_ROOT}/.devcontainer/ssh-config" "${root}/.devcontainer/"
 	cp "${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml" "${root}/.devcontainer/"
 	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/"
-	ln -sf ../available/20-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
+	ln -sf ../available/4010-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
 	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
 	local identity
 	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/docker-compose.ssh-server.yml" |
@@ -49,7 +49,7 @@ EOF
 		SSH_CONFIG_DIR="${root}/keys" SSH_START_WRAPPER_TARGET="${root}/target/start-sshd" \
 		SSHD_CONFIG_TARGET="${root}/target/sshd_config.gentle-starter" \
 		bash -c 'seed_config_tree() { :; }; export -f seed_config_tree; exec bash "$1"' _ \
-		"${root}/.devcontainer/install/available/20-tool-ssh-server.sh"
+		"${root}/.devcontainer/install/available/4010-tool-ssh-server.sh"
 }
 
 @test "image-owned direct binaries have exact architecture digests" {
@@ -76,7 +76,7 @@ EOF
 	chmod +x "${BATS_TEST_TMPDIR}/bin/curl"
 	run env DEVCONTAINER_PHASE=runtime CALLS="${calls}" \
 		PATH="${BATS_TEST_TMPDIR}/bin:/usr/bin:/bin" \
-		bash "${REPO_ROOT}/.devcontainer/install/available/30-ai-opencode.sh"
+		bash "${REPO_ROOT}/.devcontainer/install/available/3000-ai-opencode.sh"
 	[ "${status}" -eq 0 ]
 	[ ! -e "${calls}" ]
 	[[ "${output}" == *"image-owned"* ]]
@@ -92,7 +92,7 @@ EOF
 	chmod +x "${root}/bin/engram"
 	run env HOME="${root}/home" DEVCONTAINER_PHASE=runtime ENGRAM_SETUP_PI=0 \
 		ENGRAM_INSTALL_DIR="${root}/bin" ENGRAM_DATA_DIR="${root}/data" \
-		bash "${REPO_ROOT}/.devcontainer/install/available/30-ai-engram.sh"
+		bash "${REPO_ROOT}/.devcontainer/install/available/3010-ai-engram.sh"
 	[ "${status}" -eq 0 ]
 	[ -d "${root}/data" ]
 }
