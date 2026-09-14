@@ -13,7 +13,8 @@ links from there.
 |---|---|
 | `Dockerfile` | Cached foundation → core-tools → devcontainer stages. Runs `01-foundation/`, `02-core-tools/`, `03-enabled/`, then `04-hooks/`. |
 | `devcontainer.json` | Task-driven Dev Container CLI configuration and ordered Compose selection. IDEs attach only. |
-| `docker-compose.yml` | Base service and default persistent binds. Independent `docker-compose.*.yml` files are opt-in. |
+| `docker-compose.yml` | Base service, build, application port and manifest identity; always first. |
+| `compose-config/` | Active core-tools binds/OpenCode port and independently selected optional overrides, including disabled CodeGraph. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
 | `test/` | Starter maintainer tests, explicitly selected with `task test:starter`; not application tests. |

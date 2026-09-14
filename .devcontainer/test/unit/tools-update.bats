@@ -43,6 +43,65 @@ setup() {
 	write_forbidden_stub pi
 }
 
+@test "new CodeGraph lock is bootstrapped by the updater with an exact pin" {
+	sed -i '/^LOCK_CODEGRAPH_VERSION=/d; s/^TOOL_CODEGRAPH_VERSION=.*/TOOL_CODEGRAPH_VERSION="=1.6.0"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -eq 0 ]
+	[ "$(grep -c '^LOCK_CODEGRAPH_VERSION="1.6.0"$' "${POLICY_FILE}")" -eq 1 ]
+	grep -q '^TOOL_CODEGRAPH_VERSION="=1.6.0"$' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --validate
+	[ "$status" -eq 0 ]
+}
+
+@test "failed bootstrap keeps policy bytes and mode without a partial lock" {
+	sed -i '/^LOCK_CODEGRAPH_VERSION=/d' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	write_pnpm_stub prerelease
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -ne 0 ]
+	cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	[ "$(stat -c %a "${POLICY_FILE}")" = "$(stat -c %a "${TEST_ROOT}/before")" ]
+}
+
+@test "late provider failure does not publish a discovered initial lock" {
+	sed -i '/^LOCK_CODEGRAPH_VERSION=/d' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	write_curl_stub engram_bad_digest
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -ne 0 ]
+	grep -q 'pnpm view @colbymchenry/codegraph versions --json' "${CALLS_FILE}"
+	cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	[ "$(stat -c %a "${POLICY_FILE}")" = "$(stat -c %a "${TEST_ROOT}/before")" ]
+}
+
+@test "bootstrap keeps duplicate unknown and generated-section validation fail closed" {
+	for corruption in duplicate unknown layout; do
+		cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${POLICY_FILE}"
+		case "${corruption}" in
+		duplicate) printf 'LOCK_CODEGRAPH_VERSION="1.6.0"\n' >>"${POLICY_FILE}" ;;
+		unknown) printf 'LOCK_UNKNOWN_VERSION="1.0.0"\n' >>"${POLICY_FILE}" ;;
+		layout) printf 'TOOL_UNKNOWN_VERSION="latest"\n' >>"${POLICY_FILE}" ;;
+		esac
+		cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		[ "$status" -ne 0 ]
+		cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
+		[ ! -s "${CALLS_FILE}" ]
+	done
+}
+
+@test "bootstrap rejects missing intent and missing unregistered locks before discovery" {
+	for key in TOOL_CODEGRAPH_VERSION LOCK_SKILLS_VERSION; do
+		cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${POLICY_FILE}"
+		sed -i "/^${key}=/d" "${POLICY_FILE}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		[ "$status" -ne 0 ]
+		cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
+		[ ! -s "${CALLS_FILE}" ]
+	done
+}
+
 write_archify_archive() {
 	local version="$1"
 	local mode="$2"
@@ -77,7 +136,7 @@ printf 'pnpm %s\n' "\$*" >>"${CALLS_FILE}"
 if [ "${mode}" = prerelease ]; then
   printf '%s\n' '["9.9.9-beta.1"]'
 else
-  printf '%s\n' '["5.0.0","9.9.9","10.0.0"]'
+  printf '%s\n' '["1.6.0","5.0.0","9.9.9","10.0.0"]'
 fi
 EOF
 	chmod +x "${BIN_DIR}/pnpm"

@@ -198,7 +198,7 @@ module.prepare_directory(sys.argv[2], (os.getuid() + 1, os.getgid()))
 }
 
 @test "Compose managed binds fail closed while setup repair excludes the passive bind root" {
-	cp "${REPO_ROOT}/.devcontainer/docker-compose.yml" "${WORKSPACE}/.devcontainer/docker-compose.yml"
+	cp "${REPO_ROOT}/.devcontainer/compose-config/docker-compose-core-tools.yml" "${WORKSPACE}/.devcontainer/docker-compose.yml"
 	write_expected_managed_directories \
 		"${WORKSPACE}/.devcontainer/docker-compose.yml" \
 		"${TEST_ROOT}/expected-managed-directories"

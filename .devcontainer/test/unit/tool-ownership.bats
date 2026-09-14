@@ -12,12 +12,13 @@ run_ssh_runtime_installer() {
 	cp "${REPO_ROOT}/.devcontainer/install/available/4010-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${root}/.devcontainer/install/lib/"
 	cp -R "${REPO_ROOT}/.devcontainer/ssh-config" "${root}/.devcontainer/"
-	cp "${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml" "${root}/.devcontainer/"
+	mkdir -p "${root}/.devcontainer/compose-config"
+	cp "${REPO_ROOT}/.devcontainer/compose-config/docker-compose.ssh-server.yml" "${root}/.devcontainer/compose-config/"
 	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/"
 	ln -sf ../available/4010-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
-	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
+	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"compose-config/docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
 	local identity
-	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/docker-compose.ssh-server.yml" |
+	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/compose-config/docker-compose.ssh-server.yml" |
 		PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/.devcontainer/test/unit/manifest-fixture.py" "${root}")"
 	cat >"${root}/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
@@ -176,7 +177,7 @@ EOF
 }
 
 @test "persistent SSH host keys use a host-prepared passive bind" {
-	local compose="${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml"
+	local compose="${REPO_ROOT}/.devcontainer/compose-config/docker-compose.ssh-server.yml"
 	yq -e '.services."container-svc".volumes[] | select(.source == "../.env.d/.ssh-server" and .target == "/home/ubuntu/.ssh-server" and .bind.create_host_path == false)' "${compose}" >/dev/null
 	local scripts=(sentinel)
 	WORKSPACE_DIR="${REPO_ROOT}"

@@ -389,7 +389,8 @@ and persistent-state/error/source-preservation items, not a new test layer.
 Initialization proof and targeted Pi, SSH, audio, GUI integrations remain separate.
 
 The fixture copies current public source changes into independent Git metadata
-without remotes. In the **candidate only**, it selects `docker-compose.yml` and
+without remotes. In the **candidate only**, it selects `docker-compose.yml` plus
+`compose-config/docker-compose-core-tools.yml` and
 `container-svc`, retains the current base build and managed writable binds, and
 replaces the attach configuration with the standard workspace mount, ubuntu user,
 and setup command. Optional Compose overrides, custom attach settings, and CLI

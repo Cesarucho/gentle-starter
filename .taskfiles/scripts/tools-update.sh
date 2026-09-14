@@ -23,6 +23,7 @@ PACKAGE_SPECS=(
 	"LOCK_DEVCONTAINER_CLI_VERSION|@devcontainers/cli" "LOCK_VITEST_VERSION|vitest"
 	"LOCK_SPECTRAL_VERSION|@stoplight/spectral-cli" "LOCK_REDOCLY_VERSION|@redocly/cli"
 	"LOCK_ASYNCAPI_VERSION|@asyncapi/cli"
+	"LOCK_CODEGRAPH_VERSION|@colbymchenry/codegraph"
 )
 
 MANAGED_KEYS=(
@@ -37,7 +38,12 @@ MANAGED_KEYS=(
 	LOCK_TERRAFORM_VERSION LOCK_GITLEAKS_VERSION LOCK_PULUMI_VERSION LOCK_OPENTOFU_VERSION LOCK_TERRAGRUNT_VERSION LOCK_KUBECTL_VERSION
 	LOCK_PLANTUML_VERSION LOCK_PLANTUML_SHA256 LOCK_DELVE_VERSION LOCK_DELVE_SHA256_AMD64 LOCK_DELVE_SHA256_ARM64
 	LOCK_SPECTRAL_VERSION LOCK_REDOCLY_VERSION LOCK_ASYNCAPI_VERSION LOCK_ARCHIFY_VERSION LOCK_ARCHIFY_SHA256
+	LOCK_CODEGRAPH_VERSION
 )
+
+# Only newly introduced locks explicitly registered here may be bootstrapped.
+# Existing missing locks remain errors; this is not a selective update API.
+INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION)
 
 declare -A CANDIDATES=()
 UPDATE_KEYS=()
@@ -136,6 +142,7 @@ select_newest_stable_candidate() {
 
 strategy_for_key() {
 	case "$1" in
+	TOOL_CODEGRAPH_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
 	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
@@ -310,6 +317,10 @@ prepare_baseline_updates() {
 validate_inventory() {
 	local key intent_key
 	declare -A inventory=()
+	for key in "${INITIAL_LOCK_KEYS[@]}"; do
+		intent_key="$(intent_key_for_lock "${key}")"
+		validate_intent "${intent_key}" "$(policy_value "${intent_key}")" "$(strategy_for_key "${intent_key}")"
+	done
 
 	for key in "${MANAGED_KEYS[@]}"; do
 		inventory["${key}"]=$((${inventory["${key}"]:-0} + 1))
@@ -321,12 +332,26 @@ validate_inventory() {
 
 	for key in "${!inventory[@]}"; do
 		[ "${inventory[${key}]}" -eq 1 ] || fail "inventory key ${key} is classified more than once"
-		grep -q "^${key}=" "${POLICY_FILE}" || fail "inventory key ${key} is absent from the policy"
+		if ! grep -q "^${key}=" "${POLICY_FILE}"; then
+			if [ "${1:-}" != bootstrap ] || ! initial_lock_is_registered "${key}"; then
+				fail "inventory key ${key} is absent from the policy"
+			fi
+			intent_key="$(intent_key_for_lock "${key}")"
+			validate_intent "${intent_key}" "$(policy_value "${intent_key}")" "$(strategy_for_key "${intent_key}")"
+		fi
 	done
 
 	while IFS= read -r intent_key; do
 		validate_intent "${intent_key}" "$(policy_value "${intent_key}")" "$(strategy_for_key "${intent_key}")"
 	done < <(sed -nE 's/^(TOOL_[A-Z0-9_]+_VERSION)=.*/\1/p' "${POLICY_FILE}")
+}
+
+initial_lock_is_registered() {
+	local candidate
+	for candidate in "${INITIAL_LOCK_KEYS[@]}"; do
+		[ "$1" != "${candidate}" ] || return 0
+	done
+	return 1
 }
 
 discover_gentle_ai_digests() {
@@ -543,11 +568,16 @@ publish_policy() {
 
 	for key in "${UPDATE_KEYS[@]}"; do
 		[ -n "${CANDIDATES[${key}]:-}" ] || fail "candidate is missing ${key}"
-		replace_assignment "${CANDIDATE_FILE}" "${key}" "${CANDIDATES[${key}]}"
+		if ! grep -q "^${key}=" "${CANDIDATE_FILE}" && initial_lock_is_registered "${key}"; then
+			printf '%s="%s"\n' "${key}" "${CANDIDATES[${key}]}" >>"${CANDIDATE_FILE}"
+		else
+			replace_assignment "${CANDIDATE_FILE}" "${key}" "${CANDIDATES[${key}]}"
+		fi
 	done
 
 	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}"
 	validate_policy "${CANDIDATE_FILE}"
+	POLICY_FILE="${CANDIDATE_FILE}" validate_inventory
 
 	printf '\nVersion policy updates:\n'
 	for key in "${UPDATE_KEYS[@]}"; do
@@ -579,11 +609,17 @@ main() {
 	require_command sha256sum
 	require_command node
 	require_command unzip
-	validate_inventory
+	validate_policy "${POLICY_FILE}"
+	# Appending requires the generated section to follow all editable intent.
+	[ "$(grep -c '^# GENERATED LOCK' "${POLICY_FILE}")" -eq 1 ] || fail "expected one generated lock section"
+	awk '/^# GENERATED LOCK/ { generated=1 } generated && /^TOOL_/ { exit 1 } !generated && /^LOCK_/ { exit 1 }' "${POLICY_FILE}" ||
+		fail "generated locks must follow all editable intent"
 	if [ "${1:-}" = "--validate" ]; then
+		validate_inventory
 		printf 'ok: %s\n' "${POLICY_FILE}"
 		exit 0
 	fi
+	validate_inventory bootstrap
 
 	TEMP_DIR="$(mktemp -d)"
 	discover_candidates

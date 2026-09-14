@@ -76,9 +76,10 @@ SSH_PORT=$((app_port + 2))"
 	compose="$(<"${REPO_ROOT}/.devcontainer/docker-compose.yml")"
 
 	[[ "${compose}" == *'"${APP_PORT}:${APP_PORT}"'* ]]
-	[[ "${compose}" == *'"${OPENCODE_PORT}:4096"'* ]]
+	core="$(<"${REPO_ROOT}/.devcontainer/compose-config/docker-compose-core-tools.yml")"
+	[[ "${core}" == *'"${OPENCODE_PORT}:4096"'* ]]
 	[[ "${compose}" != *'"${SSH_PORT}:22"'* ]]
-	server="$(<"${REPO_ROOT}/.devcontainer/docker-compose.ssh-server.yml")"
+	server="$(<"${REPO_ROOT}/.devcontainer/compose-config/docker-compose.ssh-server.yml")"
 	[[ "${server}" == *'"${SSH_PORT}:22"'* ]]
 	[[ "${compose}" != *'127.0.0.1:'* ]]
 	[[ "${compose}" != *'OPENCODE_SERVER_PORT'* ]]

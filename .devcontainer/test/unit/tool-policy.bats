@@ -17,7 +17,7 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 
 @test "unknown tool intent fails closed" {
 	cp "${POLICY}" "${TEST_ROOT}/policy"
-	sed -i '/^LOCK_JAVA_INSTALL_VERSION=/i TOOL_UNKNOWN_VERSION="latest"' "${TEST_ROOT}/policy"
+	sed -i '/^# GENERATED LOCK/i TOOL_UNKNOWN_VERSION="latest"' "${TEST_ROOT}/policy"
 	run env DEPS_UPDATE_POLICY_FILE="${TEST_ROOT}/policy" "${UPDATER}" --validate
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"unknown tool strategy"* ]]

@@ -191,6 +191,20 @@ load install-selection.sh
 # AI tools
 # ---------------------------------------------------------------------------
 
+@test "ai: selected CodeGraph indexes and reopens an isolated project offline" {
+    skip_if_install_disabled "3060-ai-codegraph.sh" "task install:enable -- 3060-ai-codegraph"
+    command -v codegraph >/dev/null
+    local expected
+    expected="$(env -u CODEGRAPH_VERSION bash "${BATS_TEST_DIRNAME}/../../install/available/3060-ai-codegraph.sh" --print-version-policy)"
+    expected="${expected#CODEGRAPH_VERSION=}"
+    # Reuse verified loopback-only isolation, otherwise require a new namespace.
+    run python3 -B "${BATS_TEST_DIRNAME}/codegraph-fixture.py" --isolate "${expected}"
+    if [ "$status" -ne 0 ]; then
+        printf '%s\n' "$output" >&2
+    fi
+    [ "$status" -eq 0 ]
+}
+
 @test "ai: pi is installed" {
     skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
     command -v pi >/dev/null

@@ -2,6 +2,22 @@
 
 load install-fixture
 
+@test "CodeGraph activation reuses core Node without selecting Compose or other AI tools" {
+	for name in 2000-runtime-node 3060-ai-codegraph; do
+		printf '#!/usr/bin/env bash\nexit 99\n' >"${INSTALL}/available/${name}.sh"
+	done
+	printf '%s\n' '3060-ai-codegraph.sh|enabled|2000-runtime-node.sh|npm' >>"${INSTALL}/dependencies.conf"
+	ln -s ../available/2000-runtime-node.sh "${INSTALL}/02-core-tools/2000-runtime-node.sh"
+	printf 'FROM foundation AS core-tools\nCOPY install/available/2000-runtime-node.sh /install/available/\nCOPY install/02-core-tools/ /install/02-core-tools/\nFROM core-tools AS devcontainer\n' >"${FIXTURE}/.devcontainer/Dockerfile"
+	printf 'untouched selection\n' >"${FIXTURE}/.devcontainer/devcontainer.json"
+	activate enable 3060-ai-codegraph
+	[ "$status" -eq 0 ]
+	[ -L "${INSTALL}/03-enabled/3060-ai-codegraph.sh" ]
+	[ ! -e "${INSTALL}/03-enabled/2000-runtime-node.sh" ]
+	[ "$(<"${FIXTURE}/.devcontainer/devcontainer.json")" = 'untouched selection' ]
+	[ "$(find "${INSTALL}/03-enabled" -type l | wc -l)" -eq 1 ]
+}
+
 @test "doctor rejects active consumers with missing prerequisites" {
 	ln -s ../available/1020-tool-leaf.sh "${INSTALL}/03-enabled/99-custom.sh"
 	activate doctor

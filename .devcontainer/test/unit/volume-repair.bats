@@ -95,6 +95,17 @@ run_pi_volume_repair() {
 	[ "${status}" -eq 0 ]
 }
 
+@test "CodeGraph project database remains passive with its installer enabled" {
+	write_installer "3060-ai-codegraph"
+	enable_installer_as "3060-ai-codegraph" "3060-ai-codegraph.sh"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.codegraph, target: /home/ubuntu/project/.codegraph, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
+	run env WORKSPACE_DIR="${WORKSPACE}" VOLUME_REPAIR_CALLS_FILE="${CALLS_FILE}" \
+		bash -c 'source "$1"; repair_installed_volumes' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	[ "$status" -eq 0 ]
+	[ ! -s "${CALLS_FILE}" ]
+}
+
 @test "enabling an optional fixture uses its canonical basename" {
 	write_installer "3000-ai-opencode"
 

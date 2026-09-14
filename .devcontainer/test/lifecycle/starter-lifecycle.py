@@ -73,14 +73,15 @@ def snapshot(root):
 
 
 def configure(root):
-    """Select the public base only; do not merge Compose in Python."""
+    """Select the public base and core state; do not merge Compose in Python."""
     module = resolver(root)
     service, paths, _ = module.selection(root)
     base = root / ".devcontainer/docker-compose.yml"
     if paths[0] != base or service != "container-svc":
         raise ValueError("Base fixture requires docker-compose.yml first and service container-svc; review customization")
     config = {
-        "name": "starter-lifecycle", "dockerComposeFile": ["./docker-compose.yml"],
+        "name": "starter-lifecycle", "dockerComposeFile": [
+            "./docker-compose.yml", "./compose-config/docker-compose-core-tools.yml"],
         "service": service, "workspaceFolder": "/home/ubuntu/${localEnv:APP_NAME}",
         "overrideCommand": True, "remoteUser": "ubuntu",
         "mounts": ["source=${localWorkspaceFolder},target=/home/ubuntu/${localEnv:APP_NAME},type=bind"],
@@ -151,6 +152,11 @@ class Lifecycle:
         service_input = services["container-svc"]
         if service_input.get("env_file") != ["../.env"] or any(key in service_input for key in ("extends", "secrets", "configs")):
             raise ValueError("Base fixture accepts only synthetic ../.env; move file-backed integrations to overrides")
+        core = module.read_compose_fragment(
+            self.candidate / ".devcontainer/compose-config/docker-compose-core-tools.yml")
+        if (set(core) != {"services"} or set(core["services"]) != {"container-svc"}
+                or set(core["services"]["container-svc"]) - {"volumes", "ports"}):
+            raise ValueError("Core fixture accepts only container-svc volumes and ports")
         module, service, selected = self.resolve()
         _, paths, inputs = module.selection(self.candidate)
         fragment = module.read_compose_fragment(paths[0])

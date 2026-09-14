@@ -301,10 +301,11 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         installer.write_text("# fixture\n")
         enabled = self.root / ".devcontainer/install/03-enabled"
         enabled.mkdir()
-        server = self.root / ".devcontainer/docker-compose.ssh-server.yml"
+        server = self.root / ".devcontainer/compose-config/docker-compose.ssh-server.yml"
+        server.parent.mkdir()
         server.write_text("# fixture override\n")
         self.selected["volumes"] = [self.bind(str(self.root / ".env.d/.ssh-server"), "/home/ubuntu/.ssh-server")]
-        self.config.write_text('{"service":"custom","dockerComposeFile":["base.yml","docker-compose.ssh-server.yml"]}')
+        self.config.write_text('{"service":"custom","dockerComposeFile":["base.yml","compose-config/docker-compose.ssh-server.yml"]}')
         value = self.publish()
         with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}), \
                 patch.object(manifest.sys, "argv", ["manifest", "ssh-server", str(self.root)]):
@@ -344,6 +345,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         # Copy only public Compose/JSONC files; never read the real .env or state.
         for source in (ROOT / ".devcontainer").glob("docker-compose*.yml"):
             shutil.copy2(source, self.root / ".devcontainer" / source.name)
+        shutil.copytree(ROOT / ".devcontainer/compose-config", self.root / ".devcontainer/compose-config")
         base = self.root / ".devcontainer/docker-compose.yml"
         definition = manifest.read_compose_fragment(base)
         definition["services"]["container-svc"].setdefault("ports", []).append("15551:15551")
@@ -355,15 +357,24 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         base_ports = set()
         for optional, expected in ((None, None), ("pi", "/home/ubuntu/.pi"),
                                    ("ssh-agent", "/ssh-agent"), ("ssh-server", "/home/ubuntu/.ssh-server"),
-                                   ("audio", "/pulse-native")):
-            files = ["docker-compose.yml"]
+                                   ("audio", "/pulse-native"), ("codegraph", "/home/ubuntu/fixture/.codegraph")):
+            files = ["docker-compose.yml", "compose-config/docker-compose-core-tools.yml"]
             if optional:
-                files.append(f"docker-compose.{optional}.yml")
+                files.append(f"compose-config/docker-compose.{optional}.yml")
             self.config.write_text(json.dumps({"service": "container-svc", "dockerComposeFile": files}))
             with patch.dict(os.environ, environment):
                 selected = manifest.compose_model(self.root)[3]
             targets = {volume["target"] for volume in selected["volumes"]}
-            optional_targets = targets & {"/home/ubuntu/.pi", "/ssh-agent", "/home/ubuntu/.ssh-server", "/pulse-native"}
+            for volume in selected["volumes"]:
+                if volume["target"].startswith("/home/ubuntu/"):
+                    self.assertTrue(Path(volume["source"]).is_relative_to(self.root / ".env.d"))
+            if optional == "codegraph":
+                graph = next(volume for volume in selected["volumes"] if volume["target"] == expected)
+                self.assertEqual(graph["source"], str(self.root / ".env.d/.codegraph"))
+                records = manifest.project_manifest(self.root, *manifest.selection(self.root), selected)["volumes"]
+                managed = list(prep.managed_bind_sources(records, str(self.root)))
+                self.assertIn(str(self.root / ".env.d/.codegraph"), managed)
+            optional_targets = targets & {"/home/ubuntu/.pi", "/ssh-agent", "/home/ubuntu/.ssh-server", "/pulse-native", "/home/ubuntu/fixture/.codegraph"}
             self.assertEqual(optional_targets, {expected} if expected else set())
             ports = {(port["target"], port.get("published"), port.get("protocol", "tcp"),
                       port.get("host_ip")) for port in selected.get("ports", [])}
@@ -383,9 +394,35 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                 self.assertEqual(selected["environment"]["SSH_AUTH_SOCK"], "/ssh-agent")
             manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
 
+    def test_core_extraction_preserves_original_mounts_and_port(self):
+        base = manifest.read_compose_fragment(ROOT / ".devcontainer/docker-compose.yml")["services"]["container-svc"]
+        core = manifest.read_compose_fragment(
+            ROOT / ".devcontainer/compose-config/docker-compose-core-tools.yml")["services"]["container-svc"]
+        expected = [
+            (".engram", "/home/ubuntu/.engram"),
+            (".opencode/share", "/home/ubuntu/.local/share/opencode"),
+            (".gentle-ai", "/home/ubuntu/.gentle-ai"),
+            (".gitconfig", "/home/ubuntu/.gitconfig-volume"),
+        ]
+        self.assertEqual(core["volumes"], [self.bind(f"../.env.d/{source}", target) for source, target in expected])
+        self.assertEqual(core["ports"], ["${OPENCODE_PORT}:4096"])
+        self.assertNotIn("volumes", base)
+        self.assertEqual(base["ports"], ["${APP_PORT}:${APP_PORT}"])
+        self.assertEqual(base["env_file"], ["../.env"])
+        self.assertIn("GENTLE_VOLUME_MANIFEST_ID", base["environment"])
+
+    def test_default_selection_keeps_core_active_and_codegraph_disabled(self):
+        shutil.copytree(ROOT / ".devcontainer/compose-config", self.root / ".devcontainer/compose-config")
+        shutil.copyfile(ROOT / ".devcontainer/docker-compose.yml", self.root / ".devcontainer/docker-compose.yml")
+        self.config.write_text((ROOT / ".devcontainer/devcontainer.json").read_text())
+        paths = [str(path.relative_to(self.root / ".devcontainer")) for path in manifest.selection(self.root)[1]]
+        self.assertEqual(paths, ["docker-compose.yml", "compose-config/docker-compose-core-tools.yml",
+                                "compose-config/docker-compose.ssh-agent.yml",
+                                "compose-config/docker-compose.ssh-server.yml", "compose-config/docker-compose.audio.yml"])
+
     def test_audio_stays_outside_dind_tmp_and_is_never_managed(self):
         selected = manifest.read_compose_fragment(
-            ROOT / ".devcontainer/docker-compose.audio.yml")["services"]["container-svc"]
+            ROOT / ".devcontainer/compose-config/docker-compose.audio.yml")["services"]["container-svc"]
         self.assertEqual(len(selected["volumes"]), 1)
         audio = selected["volumes"][0]
         # DinD's startup tmpfs over /tmp must not hide the socket bind.

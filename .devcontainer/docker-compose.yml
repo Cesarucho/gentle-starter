@@ -8,35 +8,10 @@ services:
       args:
         APP_NAME: ${APP_NAME}
     privileged: true
-    # Task resolves selected Compose files and publishes a minimal volume manifest.
-    # Startup validates its applied identity. Installer-owned targets map to repair
-    # scripts; passive targets, such as OpenCode share state, intentionally
-    # have no mapping because the application populates them. Run
-    # `task install:volumes` to inspect the current contract end-to-end.
-    volumes:
-      # AI-TOOLS
-      - type: bind
-        source: ../.env.d/.engram
-        target: /home/ubuntu/.engram
-        bind: { create_host_path: false }
-      - type: bind
-        source: ../.env.d/.opencode/share
-        target: /home/ubuntu/.local/share/opencode
-        bind: { create_host_path: false }
-      - type: bind
-        source: ../.env.d/.gentle-ai
-        target: /home/ubuntu/.gentle-ai
-        bind: { create_host_path: false }
-      # GIT-CONFIG
-      - type: bind
-        source: ../.env.d/.gitconfig
-        target: /home/ubuntu/.gitconfig-volume
-        bind: { create_host_path: false }
     environment:
       # Task exports this after resolution; startup rejects an empty identity.
       GENTLE_VOLUME_MANIFEST_ID: ${GENTLE_VOLUME_MANIFEST_ID:-}
     ports:
       - "${APP_PORT}:${APP_PORT}" # App port
-      - "${OPENCODE_PORT}:4096"   # OpenCode server/web
     env_file:
       - ../.env

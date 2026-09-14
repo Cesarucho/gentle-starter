@@ -258,6 +258,16 @@
   "default_agent": "gentle-orchestrator",
   "lsp": true,
   "mcp": {
+    "codegraph": {
+      "type": "local",
+      "command": ["codegraph", "serve", "--mcp"],
+      "enabled": false,
+      "environment": {
+        "CODEGRAPH_TELEMETRY": "0",
+        "CODEGRAPH_NO_UPDATE_CHECK": "1",
+        "CODEGRAPH_NO_DOWNLOAD": "1"
+      }
+    },
     "context7": {
       "enabled": true,
       "type": "remote",

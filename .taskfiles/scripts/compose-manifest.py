@@ -276,7 +276,7 @@ def main():
             if not installer.is_file() or not any(link.is_symlink() and link.resolve() == installer.resolve()
                                                   for link in aliases):
                 fail("SSH server installer is disabled")
-            if (".devcontainer/docker-compose.ssh-server.yml" not in manifest["files"]
+            if (".devcontainer/compose-config/docker-compose.ssh-server.yml" not in manifest["files"]
                     or not any(record.get("managed") is True
                                and record["source"] == ".env.d/.ssh-server"
                                and record["target"] == "/home/ubuntu/.ssh-server"
