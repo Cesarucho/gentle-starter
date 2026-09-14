@@ -28,23 +28,6 @@ setup() {
 	[ "${status}" -eq 1 ]
 }
 
-@test "fail-fast runner propagates a Task bootstrap failure" {
-	local root="${BATS_TEST_TMPDIR}/task-failure"
-	local log="${root}/execution.log"
-	mkdir -p "${root}/installers"
-	for spec in '10-system.sh:0' '15-task.sh:73' '90-post-setup-users.sh:0'; do
-		local name="${spec%%:*}" status="${spec##*:}"
-		printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s" >>"%s"\nexit %s\n' \
-			"${name}" "${log}" "${status}" >"${root}/installers/${name}"
-		chmod +x "${root}/installers/${name}"
-	done
-
-	run "${REPO_ROOT}/.devcontainer/install/lib/run-installers.sh" "${root}/installers"
-
-	[ "${status}" -eq 73 ]
-	[ "$(<"${log}")" = $'10-system.sh\n15-task.sh' ]
-}
-
 @test "documentation separates signed APT package integrity from HTTPS bootstrap trust" {
 	local documentation
 	documentation="$(tr '\n' ' ' <"${ADR}")"

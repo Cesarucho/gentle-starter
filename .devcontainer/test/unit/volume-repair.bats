@@ -105,16 +105,10 @@ run_pi_volume_repair() {
 	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/3000-ai-opencode.sh")" = "../available/3000-ai-opencode.sh" ]
 }
 
-@test "enabling rejects a broken alias even with a matching textual target basename" {
+@test "runtime activation rejects a broken alias with a matching textual target basename" {
 	ln -s /does/not/exist/3040-ai-pi-gentle.sh \
 		"${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
 
-	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" enable 3040-ai-pi-gentle
-
-	[ "${status}" -ne 0 ]
-	[[ "$output" == *"invalid or broken symlink"* ]]
-	[ ! -L "${WORKSPACE}/.devcontainer/install/03-enabled/3040-ai-pi-gentle.sh" ]
-	[ "$(readlink "${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-gentle.sh")" = /does/not/exist/3040-ai-pi-gentle.sh ]
 	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
 		install_script_is_enabled "$2"

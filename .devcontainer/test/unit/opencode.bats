@@ -279,32 +279,6 @@ path_metadata() {
 	stat -c '%u:%g:%a' "$1"
 }
 
-@test "install enable rejects a broken alias with a matching textual target basename" {
-	local cli_workspace="${TEST_ROOT}/install-cli-workspace"
-	mkdir -p "${cli_workspace}/.devcontainer/install/available" \
-		"${cli_workspace}/.devcontainer/install/01-foundation" \
-		"${cli_workspace}/.devcontainer/install/02-core-tools" \
-		"${cli_workspace}/.devcontainer/install/03-enabled" \
-		"${cli_workspace}/.devcontainer/install/lib" \
-		"${cli_workspace}/.taskfiles/scripts"
-	cp "${REPO_ROOT}/.taskfiles/scripts/install.sh" \
-		"${cli_workspace}/.taskfiles/scripts/install.sh"
-	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${cli_workspace}/.devcontainer/install/lib/"
-	cp "${REPO_ROOT}/.devcontainer/install/lib/selection.py" "${cli_workspace}/.devcontainer/install/lib/"
-	printf '#!/usr/bin/env bash\n' \
-		>"${cli_workspace}/.devcontainer/install/available/3040-ai-pi-gentle.sh"
-	ln -s /does/not/exist/3040-ai-pi-gentle.sh \
-		"${cli_workspace}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
-
-	run bash "${cli_workspace}/.taskfiles/scripts/install.sh" enable 3040-ai-pi-gentle
-
-	[ "${status}" -ne 0 ]
-	[[ "$output" == *"invalid or broken symlink"* ]]
-	[ ! -L "${cli_workspace}/.devcontainer/install/03-enabled/3040-ai-pi-gentle.sh" ]
-	[ "$(readlink "${cli_workspace}/.devcontainer/install/03-enabled/79-broken-gentle.sh")" = \
-		"/does/not/exist/3040-ai-pi-gentle.sh" ]
-}
-
 @test "setup skips OpenCode when its canonical installer is not enabled" {
 	prepare_setup_sandbox
 	ln -s ../available/unrelated.sh "${SETUP_WORKSPACE}/.devcontainer/install/03-enabled/10-unrelated.sh"

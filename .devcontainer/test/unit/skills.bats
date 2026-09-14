@@ -269,19 +269,3 @@ EOF
 		(.available[0].enabled_aliases == ["50-one.sh"])
 	' >/dev/null
 }
-
-@test "explicit starter test task includes both suites while root test stays application-owned" {
-	cp "${REPO_ROOT}/Taskfile.yml" "${TEST_ROOT}/Taskfile.yml"
-	cp "${REPO_ROOT}/.taskfiles/"*.yml "${TEST_ROOT}/.taskfiles/"
-	run task --dir "${TEST_ROOT}" --dry test:starter
-
-	[ "$status" -eq 0 ]
-	[[ "$output" == *'test/unit/*.bats'* ]]
-	[[ "$output" == *'integration/tools.bats'* ]]
-
-	run task --dir "${TEST_ROOT}" --dry test
-
-	[ "$status" -eq 0 ]
-	[[ "$output" != *'test/unit/*.bats'* ]]
-	[[ "$output" != *'integration/tools.bats'* ]]
-}

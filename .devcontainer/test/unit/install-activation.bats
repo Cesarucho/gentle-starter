@@ -133,13 +133,14 @@ load install-fixture
 }
 
 @test "broken escaping and regular-file aliases are rejected by both operations" {
-	for target in ../available/missing.sh "${FIXTURE}/outside.sh"; do
+	for target in /does/not/exist/1020-tool-leaf.sh "${FIXTURE}/outside.sh"; do
 		touch "${FIXTURE}/outside.sh"
 		ln -s "$target" "${INSTALL}/03-enabled/99-unsafe.sh"
 		for operation in enable disable; do
 			activate "$operation" 1020-tool-leaf
 			[ "$status" -ne 0 ]
 			[ "$(readlink "${INSTALL}/03-enabled/99-unsafe.sh")" = "$target" ]
+			[ "$(ls -A "${INSTALL}/03-enabled")" = "99-unsafe.sh" ]
 		done
 		rm "${INSTALL}/03-enabled/99-unsafe.sh"
 	done
