@@ -70,7 +70,7 @@ The devcontainer has four extension surfaces:
 
 4. **Tool-version policy** (`tool-versions.conf`) — editable provider-specific
    `TOOL_*_VERSION` intent plus a final generated `LOCK_*` section. Only
-   `task deps:update` may modify it; builds and installers are read-only.
+   `task tools:update` may modify it; builds and installers are read-only.
 
 The comprehensive view (how the three systems interact, a worked
 example adding Redis end-to-end, and the FAQ) is in

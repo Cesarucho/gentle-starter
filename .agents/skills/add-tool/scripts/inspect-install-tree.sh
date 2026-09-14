@@ -116,7 +116,7 @@ path_candidates = {
     "host_prepare_python": root / ".taskfiles/scripts/prepare-bind-mounts.py",
     "state_owners": root / ".devcontainer/lifecycle/setup-volumes.sh",
     "install_helper": root / ".taskfiles/scripts/install.sh",
-    "updater": root / ".taskfiles/scripts/deps-update.sh",
+    "updater": root / ".taskfiles/scripts/tools-update.sh",
     "unit_tests": root / ".devcontainer/test/unit",
     "integration_tests": root / ".devcontainer/test/integration",
 }

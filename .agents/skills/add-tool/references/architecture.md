@@ -11,7 +11,7 @@ Run `scripts/inspect-install-tree.sh` from this skill directory, then read the p
 3. **Enable helper:** Enable/disable modifies only `03-enabled/` and refuses core tools. `dependencies.conf` alone defines real dependencies. Plan the required transitive closure even for active consumers, reuse existing core dependencies, and never autoactivate companions. Structurally validate image requirements without executing host installers. Validate the complete projected selection under the shared enable/disable directory lock before changing links; roll back only operation-created links. Disable protects active dependents and retains orphan prerequisites. Missing core must fail against selective Dockerfile COPY inputs, not be duplicated into optional. Intentional core customization coordinates those inputs and aliases; never broaden core COPY to the full catalog. Keep project identity, optional selectors/sources, and hooks downstream of the cached `core-tools` stage.
 4. **Version policy:** `.devcontainer/tool-versions.conf` contains user-editable
    `TOOL_*_VERSION` intent followed by generated exact `LOCK_*` values and
-   checksums. `deps:update` is the sole mutation authority. Installers retain
+   checksums. `tools:update` is the sole mutation authority. Installers retain
    URLs, paths, architecture gates, permissions, and verification, but never
    local version/checksum defaults or release discovery.
    Go Task is a narrow existing external APT-managed core bootstrap exception:

@@ -1,0 +1,7 @@
+version: "3"
+
+tasks:
+  update:
+    desc: Update managed TOOL_* intent and LOCK_* versions/checksums; installed tools change only after container:rebuild
+    cmds:
+      - ./.taskfiles/scripts/tools-update.sh

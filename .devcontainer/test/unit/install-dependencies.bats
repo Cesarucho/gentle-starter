@@ -92,7 +92,7 @@ load install-fixture
 
 @test "Task versions validation leaves policy unchanged with network commands disabled" {
 	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${FIXTURE}/.devcontainer/"
-	cp "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" "${FIXTURE}/.taskfiles/scripts/"
+	cp "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${FIXTURE}/.taskfiles/scripts/"
 	local before
 	before="$(sha256sum "${FIXTURE}/.devcontainer/tool-versions.conf")"
 	run env DEPS_UPDATE_CURL=false DEPS_UPDATE_PNPM=false DEPS_UPDATE_JQ=false task --dir "${FIXTURE}" install:versions:validate

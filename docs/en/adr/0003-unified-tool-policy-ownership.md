@@ -15,14 +15,14 @@ section contains only user-editable `TOOL_*_VERSION` intent. One clearly marked
 generated section at the end contains every exact resolution and digest under
 the `LOCK_*` namespace. Users never type generated values or checksums.
 
-`task deps:update` is the sole mutation authority. It validates every intent,
+`task tools:update` is the sole mutation authority. It validates every intent,
 uses an explicit provider strategy, accepts stable releases only, resolves exact
 versions, requires every mandatory architecture, validates assets, builds a
 complete candidate, and performs one atomic replacement. Failure preserves the
 original bytes and mode.
 
 Builds, installers, setup, postCreate, doctor, and validators are read-only
-consumers. `latest` is resolved only by `deps:update`. Installers consume the
+consumers. `latest` is resolved only by `tools:update`. Installers consume the
 generated resolutions and never carry local version or checksum defaults.
 
 Go Task is the narrow existing external APT-managed core bootstrap exception.
@@ -85,7 +85,7 @@ request failures, and the explicit pagination safety bound fail closed instead
 of publishing a partial result.
 
 ```bash
-task deps:update
+task tools:update
 task container:rebuild
 task validate
 task test

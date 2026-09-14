@@ -51,7 +51,7 @@ cleanup() {
 trap cleanup EXIT
 
 fail() {
-	printf 'deps:update: %s\n' "$*" >&2
+	printf 'tools:update: %s\n' "$*" >&2
 	exit 1
 }
 

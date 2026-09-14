@@ -58,7 +58,7 @@ Gentle Starter has four coordinated extension surfaces:
    runtime config symlinks; tools that atomically rewrite files break them.
 4. **Tool-version policy** (`.devcontainer/tool-versions.conf`) — keeps editable
    `TOOL_*_VERSION` intent above a final generated `LOCK_*` section.
-   `task deps:update` is the only mutation authority; builds and installers are
+   `task tools:update` is the only mutation authority; builds and installers are
    read-only and carry no local version/checksum defaults.
 
 Start with `docs/en/extending.md`; use the linked deep dives for each surface.
@@ -125,7 +125,7 @@ See `docs/en/extending.md` for its deliberately reduced sandbox scenario.
 
 Explicitly set the external execution tool or supervisor timeout for network/build
 checks; do not rely on short defaults. Starting guidelines are 10 minutes per real
-`task deps:update` call and 30 minutes for a combined updater/build/verification
+`task tools:update` call and 30 minutes for a combined updater/build/verification
 flow, adjusted for cache, network, and download scope in the pre-launch forecast.
 These are not Task flags or enforced limits. Keep the outer hard deadline beyond
 the planned work/soft budget to allow graceful shutdown and cleanup; hard kills

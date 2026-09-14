@@ -20,7 +20,7 @@ Use for repository-managed dev-tool additions/replacements, provider or mechanis
 - Keep installation, copy-on-first-run configuration, and mutable state separate. Classify state as none, passive, or installer-owned.
 - Preserve fail-closed architecture gates and host-prepared long-syntax binds with `create_host_path: false`; never repair bind-root ownership at runtime.
 - Obtain explicit approval before weakening trust or lifecycle controls.
-- Classify every tool by provider and intent strategy. Only `deps:update` may
+- Classify every tool by provider and intent strategy. Only `tools:update` may
   resolve versions or integrity and modify the single policy file.
 - Never add installer-local version/checksum defaults or build-time discovery.
 - Keep Compose selection independent from installer activation; do not integrate

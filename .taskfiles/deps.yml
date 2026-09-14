@@ -1,7 +1,0 @@
-version: "3"
-
-tasks:
-  update:
-    desc: Resolve editable tool intent into one generated lock section
-    cmds:
-      - ./.taskfiles/scripts/deps-update.sh

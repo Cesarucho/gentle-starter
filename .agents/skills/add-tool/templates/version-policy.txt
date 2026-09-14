@@ -1,5 +1,5 @@
 # Checklist example only. Register the intent, strategy, and lock outputs in
-# deps-update.sh before use. Users edit only TOOL_*_VERSION values.
+# tools-update.sh before use. Users edit only TOOL_*_VERSION values.
 
 TOOL_EXAMPLE_VERSION="1.2"
 

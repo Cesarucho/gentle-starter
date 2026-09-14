@@ -38,14 +38,14 @@ coupled Playwright components. Segment count alone is NEVER a strategy.
 
 Use names that match behavior:
 
-- `TOOL_*_VERSION`: user intent; `latest` is resolved only by `deps:update`.
+- `TOOL_*_VERSION`: user intent; `latest` is resolved only by `tools:update`.
 - `LOCK_*_VERSION`: exact package, provider candidate, or artifact.
 - `LOCK_*_REQUIRED_VERSION`: exact observable requirement.
 - `LOCK_*_MAJOR` or `LOCK_*_SERIES`: provider-owned exact channel representation.
 - `LOCK_*_SHA256*`: generated exact build integrity.
 
 For each new managed tool, add exactly one editable `TOOL_*_VERSION` intent,
-register a complete provider strategy in `deps:update`, and generate every exact
+register a complete provider strategy in `tools:update`, and generate every exact
 version, provider representation, and integrity value the installer needs as
 `LOCK_*`. Installers and other consumers may honor approved environment
 overrides, then consume required locks read-only and fail closed when they are
@@ -60,7 +60,7 @@ Discover supported repository and upstream architectures. Normalize host values 
 ## Update automation gate
 
 Every managed tool intent must have one safe, explicit strategy registered in
-`deps:update`. Discovery must be deterministic, stable-channel filtering
+`tools:update`. Discovery must be deterministic, stable-channel filtering
 explicit, and every coupled trust input updated in one atomic replacement.
 Reject intent when its provider cannot interpret it safely. If a provider
 cannot yet be implemented safely, fail the proposed managed addition and keep

@@ -229,16 +229,16 @@ Resolve merge conflicts manually and commit the resolution normally. Existing
 ### 📦 Update development tools
 
 ```bash
-task deps:update          # From inside container, update the repository's approved version policy
+task tools:update         # From inside container, update the repository's approved version policy
 task container:rebuild    # From host, apply that policy to the development environment
 task validate
 task test:starter:integration # Check core and selected installed tools
 git diff                  # Review user intent and generated locks together
 ```
 
-Edit only `TOOL_*_VERSION` fields. `deps:update` alone resolves stable exact versions,
-generates checksums, and atomically replaces the policy. Builds and installers are
-read-only; commit once after verification. See [ADR 0003](docs/en/adr/0003-unified-tool-policy-ownership.md).
+Edit only `TOOL_*_VERSION` fields. `tools:update` alone resolves stable exact versions,
+generates checksums, and atomically replaces the policy without updating installed tools.
+Builds and installers are read-only; rebuild to apply, then commit after verification. See [ADR 0003](docs/en/adr/0003-unified-tool-policy-ownership.md).
 
 ### ⚙️ Save OpenCode and Pi configuration changes
 

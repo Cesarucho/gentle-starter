@@ -7,8 +7,8 @@ includes:
     taskfile: ./.taskfiles/config.yml
   container:
     taskfile: ./.taskfiles/devcontainer.yml
-  deps:
-    taskfile: ./.taskfiles/deps.yml
+  tools:
+    taskfile: ./.taskfiles/tools.yml
   doctor:
     taskfile: ./.taskfiles/doctor.yml
   install:
@@ -73,7 +73,8 @@ tasks:
           task doctor                     Run doctor checks for the detected context
           task validate                   Run host-safe validation checks, excluding skills
           task validate:full              Run strict validation requiring shell quality tools
-          task deps:update                Resolve tool intent and regenerate exact locks
+          task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
+                                          Does not update installed tools; apply later with container:rebuild
           task clean                      Review, confirm, and remove project identity files
           task clean:identity             Explicit alias for project identity cleanup
           task --exit-code config:diff    Compare runtime configuration with its seed

@@ -3,12 +3,12 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	POLICY="${REPO_ROOT}/.devcontainer/tool-versions.conf"
-	UPDATER="${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	UPDATER="${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	INSTALLER="${REPO_ROOT}/.devcontainer/install/01-foundation/15-task.sh"
 	ADR="${REPO_ROOT}/docs/en/adr/0003-unified-tool-policy-ownership.md"
 }
 
-@test "Task remains outside TOOL and LOCK policy and deps:update inventory" {
+@test "Task remains outside TOOL and LOCK policy and tools:update inventory" {
 	run grep -Eq '^(TOOL_TASK_VERSION|LOCK_TASK_[A-Z0-9_]*)=' "${POLICY}"
 	[ "${status}" -eq 1 ]
 	run grep -Eq 'TOOL_TASK_VERSION|LOCK_TASK_' "${UPDATER}"

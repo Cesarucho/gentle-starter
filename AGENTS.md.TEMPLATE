@@ -3,7 +3,7 @@
 ## Tool policy contract
 
 `.devcontainer/tool-versions.conf` keeps editable `TOOL_*_VERSION` intent
-and generated exact resolutions/checksums. Only `task deps:update` may modify
+and generated exact resolutions/checksums. Only `task tools:update` may modify
 it. Builds, setup, validators, and installers are read-only consumers. Run the
 update, rebuild, validation, tests, and diff review before one final commit.
 

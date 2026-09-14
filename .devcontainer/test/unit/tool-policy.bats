@@ -3,7 +3,7 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	POLICY="${REPO_ROOT}/.devcontainer/tool-versions.conf"
-	UPDATER="${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	UPDATER="${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	TEST_ROOT="$(mktemp -d)"
 }
 
@@ -57,7 +57,7 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[[ "${output}" == *"missing LOCK_PLAYWRIGHT_VERSION"* ]]
 }
 
-@test "only deps-update owns policy replacement" {
+@test "only tools-update owns policy replacement" {
 	run grep -R -l -E '(^|[;&|])[[:space:]]*(mv|cp|install)[[:space:]].*tool-versions\.conf' \
 		"${REPO_ROOT}/.devcontainer/install" "${REPO_ROOT}/.devcontainer/setup.sh" "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
 	[ "${status}" -eq 1 ]

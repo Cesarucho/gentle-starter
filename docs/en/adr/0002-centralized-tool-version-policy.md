@@ -5,7 +5,7 @@
 > decisions. This document remains the historical centralization record.
 > All operational instructions below describe the 2026-08-24 transition and
 > are **not current guidance**. For current work, follow ADR 0003: users edit
-> only `TOOL_*_VERSION`; `task deps:update` alone generates trailing `LOCK_*`
+> only `TOOL_*_VERSION`; `task tools:update` alone generates trailing `LOCK_*`
 > resolutions and integrity; every consumer is read-only and fail-closed.
 
 **Status:** Accepted, 2026-08-24  

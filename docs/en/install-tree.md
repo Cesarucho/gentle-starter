@@ -221,7 +221,7 @@ new scripts. It has:
 - an install section (TODO) and a verify section
 
 Copy it, register its provider strategy and complete update unit in
-`deps-update.sh`, fill in the gaps, validate (`shellcheck` + `bash -n`), and
+`tools-update.sh`, fill in the gaps, validate (`shellcheck` + `bash -n`), and
 place it in `available/`. Builds and installers must not mutate policy.
 
 ## Adding a new install script

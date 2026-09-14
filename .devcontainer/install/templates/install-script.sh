@@ -20,7 +20,7 @@
 #      to fail. Verify with
 #      `tail -c 1 FILE` (empty output = OK) or fix with `echo >> FILE`.
 #   5. Register one editable TOOL_*_VERSION intent, an explicit provider
-#      strategy, and generated LOCK_* outputs in deps-update.sh.
+#      strategy, and generated LOCK_* outputs in tools-update.sh.
 #      Installers and builds MUST NOT resolve latest or rewrite policy.
 #
 # State and volumes:

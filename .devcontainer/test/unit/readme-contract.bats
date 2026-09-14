@@ -83,7 +83,7 @@ PY
 	[ "$(section_count '### Diagnostics and validation')" -eq 1 ]
 	[ "$(section_count '### ✅ Validate after maintenance')" -eq 0 ]
 	[ "$(section_count '### Dependency policy')" -eq 0 ]
-	[ "$(grep -c '^task deps:update' "${REPO_ROOT}/README.md")" -eq 1 ]
+	[ "$(grep -c '^task tools:update' "${REPO_ROOT}/README.md")" -eq 1 ]
 	[ "$(grep -c '^task install:list$' "${REPO_ROOT}/README.md")" -eq 1 ]
 	run grep -F 'task install:list -- --presets' "${REPO_ROOT}/README.md"
 	[ "${status}" -eq 1 ]

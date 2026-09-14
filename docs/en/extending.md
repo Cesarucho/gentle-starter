@@ -318,11 +318,11 @@ environment/repository checks, not application test proof.
 
 Unit tests live in `.devcontainer/test/unit/`: `common.sh.bats` covers
 `common.sh` helpers (phase detection, logging, fetching, version extraction,
-version comparison, idempotency), `deps-update.bats` covers the dependency
+version comparison, idempotency), `tools-update.bats` covers the tool-version
 policy updater and direct-release checksum behavior, and `gentle-ai.bats` covers
 Gentle AI's generated architecture digests, bounded download retries, canonical
 enabled slot, rollback, and exact-version idempotency. Maintainers edit
-`TOOL_GENTLE_AI_VERSION`; `task deps:update` resolves accepted intent and
+`TOOL_GENTLE_AI_VERSION`; `task tools:update` resolves accepted intent and
 atomically fills the exact version and both generated Linux digests from its
 Release Assets API.
 For registered conventional SemVer strategies (npm, PyPI, Composer, and direct
@@ -503,7 +503,7 @@ execution tool or supervisor rather than relying on short defaults. Use these
 
 | Planned work | Starting work budget |
 | --- | --- |
-| Each real `task deps:update` call | 10 minutes per call |
+| Each real `task tools:update` call | 10 minutes per call |
 | Combined updater + build + verification flow | 30 minutes for the flow |
 
 Adapt the budgets to cache state, network conditions, and download scope, and

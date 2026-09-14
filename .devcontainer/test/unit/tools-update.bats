@@ -94,7 +94,7 @@ EOF
 }
 
 write_expected_pnpm_calls() {
-	python3 - "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" "$1" <<'PY'
+	python3 - "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "$1" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 block = text.split("PACKAGE_SPECS=(", 1)[1].split("\n)", 1)[0]
@@ -290,10 +290,10 @@ EOF
 	chmod +x "${BIN_DIR}/curl"
 }
 
-@test "deps:update atomically updates the approved stable pins with pnpm metadata" {
+@test "tools:update atomically updates the approved stable pins with pnpm metadata" {
 	write_gentle_block "${TEST_ROOT}/gentle-before"
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"Run 'task container:rebuild' to apply these versions."* ]]
@@ -318,20 +318,20 @@ EOF
 	cmp -s "${TEST_ROOT}/expected-pnpm-calls" "${TEST_ROOT}/actual-pnpm-calls"
 }
 
-@test "deps:update rejects invalid Archify metadata atomically" {
+@test "tools:update rejects invalid Archify metadata atomically" {
 	local mode
 	for mode in archify_mutable archify_bad_digest archify_wrong_asset archify_wrong_url archify_prerelease archify_duplicate archify_malformed; do
 		write_curl_stub "${mode}"
 		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 		[ "${status}" -ne 0 ]
 		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 	done
 }
 
-@test "deps:update rejects invalid Archify candidate ZIPs at the intended validator" {
+@test "tools:update rejects invalid Archify candidate ZIPs at the intended validator" {
 	local mode expected_error
 	for mode in archify_download_digest archify_zip_layout archify_zip_version; do
 		case "${mode}" in
@@ -342,7 +342,7 @@ EOF
 		write_curl_stub "${mode}"
 		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 		[ "${status}" -ne 0 ]
 		[[ "${output}" == *"${expected_error}"* ]]
@@ -378,11 +378,11 @@ EOF
 	grep -q '^LOCK_OPENCODE_SHA256_AMD64=' "${policy}"
 }
 
-@test "deps:update keeps the selected Gentle AI version and atomically updates both digests" {
+@test "tools:update keeps the selected Gentle AI version and atomically updates both digests" {
 	seed_gentle_fixture
 	write_curl_stub success
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 0 ]
 	grep -q "^LOCK_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
@@ -391,30 +391,30 @@ EOF
 	[[ "${output}" == *"LOCK_GENTLE_AI_SHA256_AMD64"* ]]
 }
 
-@test "deps:update accepts an exact stable release when immutable metadata is unavailable" {
+@test "tools:update accepts an exact stable release when immutable metadata is unavailable" {
 	seed_gentle_fixture
 	write_curl_stub gentle_no_immutable
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 0 ]
 }
 
-@test "deps:update rejects invalid Gentle AI release metadata and assets without writing" {
+@test "tools:update rejects invalid Gentle AI release metadata and assets without writing" {
 	local mode
 	for mode in gentle_fail gentle_wrong_tag gentle_wrong_repository gentle_draft gentle_prerelease gentle_mutable gentle_bad_digest gentle_missing_asset gentle_wrong_asset_url gentle_duplicate; do
 		seed_gentle_fixture
 		write_curl_stub "${mode}"
 		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 		[ "${status}" -ne 0 ]
 		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 	done
 }
 
-@test "deps:update preserves channels pins provider strings and exception floors byte for byte" {
+@test "tools:update preserves channels pins provider strings and exception floors byte for byte" {
 	sed -i \
 		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9"/' \
 		-e 's/^TOOL_PNPM_VERSION=.*/TOOL_PNPM_VERSION="9.9"/' \
@@ -422,7 +422,7 @@ EOF
 		"${POLICY_FILE}"
 	grep '^TOOL_' "${POLICY_FILE}" >"${TEST_ROOT}/intent-before"
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 0 ]
 	grep '^TOOL_' "${POLICY_FILE}" >"${TEST_ROOT}/intent-after"
@@ -442,7 +442,7 @@ EOF
 		-e 's/^LOCK_ENGRAM_SHA256_AMD64=.*/LOCK_ENGRAM_SHA256_AMD64="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"/' \
 		-e 's/^LOCK_ENGRAM_SHA256_ARM64=.*/LOCK_ENGRAM_SHA256_ARM64="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"/' \
 		"${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^TOOL_VITEST_VERSION="=9.9.9"$' "${POLICY_FILE}"
 	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
@@ -463,7 +463,7 @@ EOF
 		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 		before_mode="$(stat -c %a "${POLICY_FILE}")"
 
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 		[ "${status}" -ne 0 ]
 		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -476,7 +476,7 @@ EOF
 		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9"/' \
 		-e 's/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION="1.2026"/' \
 		"${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
 	grep -q '^LOCK_PLANTUML_VERSION="1.2026.99"$' "${POLICY_FILE}"
@@ -489,7 +489,7 @@ EOF
 		write_curl_stub success "${response}"
 		: >"${CALLS_FILE}"
 
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 		[ "${status}" -ne 0 ]
 		[[ "${output}" == *"kubectl channel 1.36 returned out-of-lane version '${response}'"* ]]
@@ -507,7 +507,7 @@ EOF
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 	for response in 1.36.99 v1.36 v1.36.99-rc.1 v1.36.99+build; do
 		write_curl_stub success "${response}"
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 		[ "${status}" -ne 0 ]
 		[[ "${output}" == *"kubectl channel returned invalid version '${response}'"* ]]
 		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -519,20 +519,20 @@ EOF
 	for intent in 1.36.100 =1.36.4; do
 		sed -i "s/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION=\"${intent}\"/" "${POLICY_FILE}"
 		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 		[ "${status}" -ne 0 ]
 		[[ "${output}" == *"LOCK_KUBECTL_VERSION candidate 1.36.99 escapes intent ${intent}"* ]]
 		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 	done
 	sed -i 's/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION="=1.36.99"/' "${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_KUBECTL_VERSION="1.36.99"$' "${POLICY_FILE}"
 }
 
 @test "kubectl resolves a deliberately selected alternative minor independently of the live policy" {
 	sed -i 's/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION="1.37.4"/' "${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_KUBECTL_VERSION="1.37.99"$' "${POLICY_FILE}"
 	grep -Fq 'https://dl.k8s.io/release/stable-1.37.txt' "${CALLS_FILE}"
@@ -544,7 +544,7 @@ EOF
 	local intent
 	for intent in 1.2027.1 latest; do
 		sed -i "s/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION=\"${intent}\"/" "${POLICY_FILE}"
-		run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 		[ "${status}" -eq 0 ]
 		grep -q '^LOCK_PLANTUML_VERSION="1.2027.1"$' "${POLICY_FILE}"
 	done
@@ -552,7 +552,7 @@ EOF
 
 @test "bare semantic baseline rejects older candidates and selects a newer compatible candidate" {
 	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
 	grep -q '^TOOL_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
@@ -566,7 +566,7 @@ EOF
 		-e 's/^TOOL_DELVE_VERSION=.*/TOOL_DELVE_VERSION="1.0.0"/' \
 		-e 's/^TOOL_GO_VERSION=.*/TOOL_GO_VERSION="9.0.0"/' \
 		"${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^TOOL_ENGRAM_VERSION="1.99.0"$' "${POLICY_FILE}"
 	grep -q '^TOOL_TERRAFORM_VERSION="1.99.0"$' "${POLICY_FILE}"
@@ -581,13 +581,13 @@ EOF
 		-e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' \
 		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.9"/' \
 		"${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^TOOL_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
 	[[ "${output}" == *"TOOL_VITEST_VERSION: 9.9.8 -> 9.9.9"* ]]
 	[[ "${output}" != *"LOCK_VITEST_VERSION:"* ]]
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *"No changes."* ]]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -596,7 +596,7 @@ EOF
 @test "baseline advancement rejects another major using the original floor without writing" {
 	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="8.0.0"/' "${POLICY_FILE}"
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"no stable candidate matching 8.0.0"* ]]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -606,7 +606,7 @@ EOF
 	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
 	write_curl_stub engram_bad_digest
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"has no valid SHA-256"* ]]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -637,7 +637,7 @@ EOF
 				replace_assignment "$candidate" LOCK_VITEST_VERSION 10.0.0 ;;
 			esac
 			validate_scope "$POLICY_FILE" "$candidate"
-		' _ "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh" "${mutation}"
+		' _ "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${mutation}"
 		[ "${status}" -ne 0 ]
 		[[ "${output}" == *"outside the approved key scope"* || "${output}" == *"changed resolved lock"* || "${output}" == *"escapes original intent"* ]]
 	done
@@ -646,7 +646,7 @@ EOF
 @test "GitHub compatibility discovery continues beyond the first 100 releases" {
 	sed -i 's/^TOOL_GITLEAKS_VERSION=.*/TOOL_GITLEAKS_VERSION="8"/' "${POLICY_FILE}"
 	write_curl_stub github_pagination
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -q '^LOCK_GITLEAKS_VERSION="8.99.0"$' "${POLICY_FILE}"
 	grep -Fq 'api.github.com/repos/gitleaks/gitleaks/releases?per_page=100&page=2' "${CALLS_FILE}"
@@ -654,31 +654,31 @@ EOF
 
 @test "exact GitHub intent uses the exact release endpoint instead of a release listing" {
 	sed -i 's/^TOOL_BATS_VERSION=.*/TOOL_BATS_VERSION="=1.14.0"/' "${POLICY_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "${status}" -eq 0 ]
 	grep -Fq 'api.github.com/repos/bats-core/bats-core/releases/tags/v1.14.0' "${CALLS_FILE}"
 	! grep -Fq 'api.github.com/repos/bats-core/bats-core/releases?per_page=' "${CALLS_FILE}"
 	grep -q '^LOCK_BATS_VERSION="1.14.0"$' "${POLICY_FILE}"
 }
 
-@test "deps:update rejects prerelease package metadata without writing" {
+@test "tools:update rejects prerelease package metadata without writing" {
 	write_pnpm_stub prerelease
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"not a stable semantic version"* ]]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 }
 
-@test "deps:update leaves policy unchanged when direct release discovery fails" {
+@test "tools:update leaves policy unchanged when direct release discovery fails" {
 	write_curl_stub fail
 	chmod 0640 "${POLICY_FILE}"
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 	before_mode="$(stat -c %a "${POLICY_FILE}")"
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -ne 0 ]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -686,7 +686,7 @@ EOF
 	[ -z "$(find "${TEST_ROOT}" -maxdepth 1 -name '.tool-versions.conf.*' -print)" ]
 }
 
-@test "deps:update preserves policy bytes and mode when atomic publication fails" {
+@test "tools:update preserves policy bytes and mode when atomic publication fails" {
 	chmod 0640 "${POLICY_FILE}"
 	cp "${POLICY_FILE}" "${TEST_ROOT}/before"
 	cat >"${BIN_DIR}/mv" <<'EOF'
@@ -698,7 +698,7 @@ exec /bin/mv "$@"
 EOF
 	chmod +x "${BIN_DIR}/mv"
 
-	run "${REPO_ROOT}/.taskfiles/scripts/deps-update.sh"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 73 ]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
@@ -762,16 +762,18 @@ EOF
 	[[ "${output}" == *"already installed at ${install_dir}"* ]]
 }
 
-@test "public task surface exposes deps:update and removes legacy AI update tasks" {
+@test "public task surface exposes tools:update and removes legacy update tasks" {
 	run task --dir "${REPO_ROOT}" --list
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"deps:update"* ]]
+	[[ "${output}" == *"tools:update"* ]]
+	[[ "${output}" != *"deps:update"* ]]
 	[[ "${output}" != *"ai:update"* ]]
 	[[ "${output}" != *"ai:configure-models"* ]]
 
 	run task --dir "${REPO_ROOT}" help
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"task deps:update"* ]]
+	[[ "${output}" == *"task tools:update"* ]]
+	[[ "${output}" != *"task deps:update"* ]]
 	[[ "${output}" != *"task ai:update"* ]]
 	[[ "${output}" != *"task ai:configure-models"* ]]
 }
