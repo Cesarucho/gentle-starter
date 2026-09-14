@@ -3,9 +3,6 @@
   "agent": {
   },
   "default_agent": "gentle-orchestrator",
-  "keybinds": {
-    "scrollbar_toggle": "ctrl+shift+s"
-  },
   "lsp": true,
   "mcp": {
     "context7": {

@@ -1,5 +1,8 @@
 {
   "$schema": "https://opencode.ai/tui.json",
+  "keybinds": {
+    "scrollbar_toggle": "ctrl+shift+s"
+  },
   "plugin": [
     "opencode-subagent-statusline",
     "opencode-sdd-engram-manage"
