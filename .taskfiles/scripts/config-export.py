@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import stat
@@ -18,6 +19,9 @@ from typing import Iterator
 EXIT_DIFFERENT = 1
 EXIT_ERROR = 2
 MAX_REPORTED_CANDIDATES = 50
+MANDATORY_EXCLUSIONS = (
+    "**/.git/**", "**/node_modules/**", "**/opencode.jsonc", "**/.gentle-ai-telemetry-runtime.json",
+)
 
 
 class ConfigError(Exception):
@@ -31,6 +35,7 @@ class Tree:
     seed: Path
     managed: tuple[str, ...]
     excluded: tuple[str, ...]
+    owner: str | None = None
 
 
 @dataclass
@@ -40,18 +45,16 @@ class Report:
     modified: list[str] = field(default_factory=list)
     new: list[str] = field(default_factory=list)
     missing_runtime: list[str] = field(default_factory=list)
-    candidates: list[tuple[str, str]] = field(default_factory=list)
-    candidate_count: int = 0
+    candidates: dict[str, dict[str, str]] = field(default_factory=dict)
+    runtime_missing: bool = False
     excluded_files: int = 0
     excluded_directories: int = 0
 
     def differs(self) -> bool:
-        return bool(self.modified or self.new or self.missing_runtime or self.candidate_count)
+        return bool(self.modified or self.new or self.missing_runtime or self.candidates or self.runtime_missing)
 
-    def add_candidate(self, path: str, path_type: str) -> None:
-        self.candidate_count += 1
-        if len(self.candidates) < MAX_REPORTED_CANDIDATES:
-            self.candidates.append((path, path_type))
+    def add_candidate(self, path: str, path_type: str, side: str) -> None:
+        self.candidates.setdefault(path, {})[side] = path_type
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,9 @@ def safe_relative(value: object, label: str) -> str:
 
 
 def pattern_matches(path: str, pattern: str) -> bool:
+    if pattern.startswith("**/"):
+        parts = PurePosixPath(path).parts
+        return any(pattern_matches("/".join(parts[index:]), pattern[3:]) for index in range(len(parts)))
     if pattern.endswith("/**"):
         prefix = pattern[:-3].rstrip("/")
         return path == prefix or path.startswith(prefix + "/")
@@ -79,7 +85,7 @@ def pattern_matches(path: str, pattern: str) -> bool:
 
 
 def classification(relative: str, tree: Tree) -> str:
-    if any(pattern_matches(relative, pattern) for pattern in tree.excluded):
+    if any(pattern_matches(relative, pattern) for pattern in MANDATORY_EXCLUSIONS + tree.excluded):
         return "excluded"
     if any(pattern_matches(relative, pattern) for pattern in tree.managed):
         return "managed"
@@ -107,14 +113,21 @@ def validate_component_chain(path: Path, stop: Path, label: str) -> None:
             raise ConfigError(f"symlink is not allowed in {label}: {current}")
 
 
-def validate_root(path: Path, anchor: Path, label: str) -> None:
+def validate_root(path: Path, anchor: Path, label: str) -> bool:
     validate_component_chain(path, anchor, label)
-    if path.exists() and not path.is_dir():
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISDIR(mode):
         raise ConfigError(f"{label} is not a directory: {path}")
+    return True
 
 
-def walk_tree(root: Path, tree: Tree, report: Report) -> Iterator[tuple[str, Path, str]]:
-    if not root.exists():
+def walk_tree(root: Path, tree: Tree, report: Report, side: str) -> Iterator[tuple[str, Path, str]]:
+    try:
+        root.stat()
+    except FileNotFoundError:
         return
     pending = [root]
     while pending:
@@ -137,7 +150,7 @@ def walk_tree(root: Path, tree: Tree, report: Report) -> Iterator[tuple[str, Pat
                 raise ConfigError(f"symlink is not allowed in {tree.name}: {relative}")
             if entry.is_dir(follow_symlinks=False):
                 if kind == "candidate" and not is_manifest_container(relative, tree):
-                    report.add_candidate(relative, "directory")
+                    report.add_candidate(relative, "directory", side)
                     continue
                 pending.append(path)
                 continue
@@ -166,17 +179,20 @@ def inspect_tree(tree: Tree, home: Path, repo: Path) -> tuple[Report, list[Plann
     report = Report(tree.name)
     runtime_files: dict[str, Path] = {}
     seed_files: dict[str, Path] = {}
-    validate_root(tree.runtime, home, f"{tree.name} runtime root")
+    runtime_exists = validate_root(tree.runtime, home, f"{tree.name} runtime root")
+    report.runtime_missing = bool(tree.owner and not runtime_exists)
     validate_root(tree.seed, repo, f"{tree.name} seed root")
 
-    for relative, path, kind in walk_tree(tree.runtime, tree, report):
+    for relative, path, kind in walk_tree(tree.runtime, tree, report, "runtime"):
         if kind == "candidate":
-            report.add_candidate(relative, "file")
+            report.add_candidate(relative, "file", "runtime")
         else:
             runtime_files[relative] = path
-    for relative, path, kind in walk_tree(tree.seed, tree, report):
+    for relative, path, kind in walk_tree(tree.seed, tree, report, "seed"):
         if kind == "managed":
             seed_files[relative] = path
+        else:
+            report.add_candidate(relative, "file", "seed")
 
     copies: list[PlannedCopy] = []
     for relative in sorted(runtime_files.keys() | seed_files.keys()):
@@ -261,11 +277,54 @@ def parse_manifest(path: Path, home: Path, repo: Path) -> list[Tree]:
             raise ConfigError(f"{name} managed and excluded values must be lists")
         safe_managed = tuple(safe_relative(value, f"{name} managed pattern") for value in managed)
         safe_excluded = tuple(safe_relative(value, f"{name} excluded pattern") for value in excluded)
-        trees.append(Tree(name, home / runtime, repo / seed, safe_managed, safe_excluded))
+        owner = raw.get("owner")
+        if owner is not None and (not isinstance(owner, str) or not owner or "/" in owner):
+            raise ConfigError(f"{name} owner must be a canonical installer filename")
+        trees.append(Tree(name, home / runtime, repo / seed, safe_managed, safe_excluded, owner))
     return trees
 
 
+def participating_trees(trees: list[Tree], repo: Path) -> list[Tree]:
+    if not any(tree.owner for tree in trees):
+        return trees
+    # Import trusted sibling source, not executable code from --repo fixtures.
+    helper = Path(__file__).resolve().parents[2] / ".devcontainer/install/lib/selection.py"
+    spec = importlib.util.spec_from_file_location("installer_selection", helper)
+    if spec is None or spec.loader is None:
+        raise ConfigError(f"cannot load installer selection helper: {helper}")
+    selection = importlib.util.module_from_spec(spec)
+    previous = sys.dont_write_bytecode
+    try:
+        sys.dont_write_bytecode = True
+        spec.loader.exec_module(selection)
+    finally:
+        sys.dont_write_bytecode = previous
+    install = repo / ".devcontainer/install"
+    for directory in (install, install / "available", *(install / group for group in selection.GROUPS)):
+        if not validate_root(directory, repo, "installer selection directory"):
+            raise ConfigError(f"missing installer selection directory: {directory}")
+    try:
+        catalog = selection.read_catalog(install)
+        active = selection.read_selection(install, catalog)
+        selection.validate_core(install, catalog, active)
+        graph = selection.read_graph(install, catalog, active)
+        selection.validate_order(active, graph)
+    except (ValueError, RuntimeError) as error:
+        raise ConfigError(f"invalid installer selection: {error}") from error
+    participating = []
+    for tree in trees:
+        if tree.owner and tree.owner not in catalog:
+            raise ConfigError(f"{tree.name} owner is not in the installer catalog: {tree.owner}")
+        if tree.owner and not active.get(tree.owner, "").startswith("03-enabled/"):
+            print(f"skipped: {tree.name}: owner {tree.owner} is disabled")
+        else:
+            participating.append(tree)
+    return participating
+
+
 def seed_is_dirty(repo: Path, trees: list[Tree]) -> bool:
+    if not trees:
+        return False
     paths = [str(tree.seed.relative_to(repo)) for tree in trees]
     try:
         result = subprocess.run(
@@ -320,10 +379,16 @@ def print_report(reports: list[Report]) -> None:
         for item in (entry for report in reports for entry in getattr(report, attribute)):
             print(f"{label}: {item}")
     for report in reports:
-        for path, path_type in report.candidates:
-            print(f"candidate: {report.tree_name}: {path} ({path_type})")
+        if report.runtime_missing:
+            print(f"enabled-runtime-missing: {report.tree_name}: owner enabled but runtime config root is missing")
+        for path in sorted(report.candidates)[:MAX_REPORTED_CANDIDATES]:
+            sides = report.candidates[path]
+            details = "; ".join(f"{kind}; {side}" for side, kind in sides.items())
+            if len(set(sides.values())) == 1:
+                details = f"{next(iter(sides.values()))}; {', '.join(sides)}"
+            print(f"candidate: {report.tree_name}: {path} ({details})")
     totals = {field: sum(len(getattr(report, field)) for report in reports) for field in ("unchanged", "modified", "new", "missing_runtime")}
-    totals["candidates"] = sum(report.candidate_count for report in reports)
+    totals["candidates"] = sum(len(report.candidates) for report in reports)
     excluded_files = sum(report.excluded_files for report in reports)
     excluded_directories = sum(report.excluded_directories for report in reports)
     print(
@@ -332,7 +397,7 @@ def print_report(reports: list[Report]) -> None:
         f"missing-runtime={totals['missing_runtime']} candidates={totals['candidates']} "
         f"excluded-files={excluded_files} excluded-directories={excluded_directories}"
     )
-    if totals["candidates"] > sum(len(report.candidates) for report in reports):
+    if any(len(report.candidates) > MAX_REPORTED_CANDIDATES for report in reports):
         print(f"Candidate output limited to {MAX_REPORTED_CANDIDATES} paths per tree")
 
 
@@ -348,7 +413,7 @@ def main() -> int:
     manifest = arguments.manifest or repo / ".devcontainer/config-export.json"
 
     try:
-        trees = parse_manifest(manifest, home, repo)
+        trees = participating_trees(parse_manifest(manifest, home, repo), repo)
         if arguments.command == "export" and seed_is_dirty(repo, trees):
             raise ConfigError("export refused: a seed tree has pending Git worktree or index changes")
         inspected = [inspect_tree(tree, home, repo) for tree in trees]

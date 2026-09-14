@@ -5,15 +5,24 @@
       "name": "OpenCode",
       "runtime": ".config/opencode",
       "seed": ".devcontainer/opencode-config",
-      "managed": ["AGENTS.md", "opencode.json", "tui.json", "opencode-notifier.json", "commands/**", "profile-versions/**", "auth.json"],
-      "excluded": ["opencode.jsonc", ".git/**", ".gitignore", "profile-versions/**", "auth.json", "credentials.json", "sessions/**", "state/**"]
+      "managed": ["AGENTS.md", "opencode.json", "opencode-non-sdd.json", "tui.json", "opencode-notifier.json", "commands/**", "plugins/**", "profiles/**", "prompts/**", "skills/**", "profile-versions/**", "auth.json"],
+      "excluded": ["opencode.jsonc", ".gentle-ai-telemetry-runtime.json", "**/.git/**", ".gitignore", "**/node_modules/**", "**/profile-versions/**", "**/auth.json", "**/credentials.json", "**/sessions/**", "**/state/**", "**/logs/**", "**/cache/**"]
     },
     {
-      "name": "Pi",
-      "runtime": ".pi",
-      "seed": ".devcontainer/pi-config",
-      "managed": ["agent/settings.json", "agent/mcp.json", "agent/subagents.json"],
-      "excluded": ["agent/state/**", "agent/sessions/**", "agent/intercom/**", "agent/bin/**", "agent/chains/**", "agent/agents/**", "agent/gentle-ai/**", "agent/pi-pretty/**", "agent/auth.json", "agent/trust.json", "agent/APPEND_SYSTEM.md", "agent/models-store.json", "agent/mcp-cache.json", "agent/mcp-npx-cache.json", "agent/mcp.json.devcontainer-backup.*"]
+      "name": "Pi Coding",
+      "owner": "3030-ai-pi-coding.sh",
+      "runtime": ".pi/agent",
+      "seed": ".devcontainer/pi-config/agent",
+      "managed": ["settings.json", "mcp.json", "subagents.json"],
+      "excluded": ["state/**", "sessions/**", "intercom/**", "bin/**", "chains/**", "agents/**", "gentle-ai/**", "pi-pretty/**", "auth.json", "trust.json", "APPEND_SYSTEM.md", "models-store.json", "mcp-cache.json", "mcp-npx-cache.json", "mcp.json.devcontainer-backup.*"]
+    },
+    {
+      "name": "Pi Gentle",
+      "owner": "3040-ai-pi-gentle.sh",
+      "runtime": ".pi/gentle-ai",
+      "seed": ".devcontainer/pi-config/gentle-ai",
+      "managed": ["banner.json", "models.json", "models.openai.json", "models.opencode.json", "persona.json"],
+      "excluded": ["sessions/**", "state/**", "npm/**", "intercom/**", "run-history.jsonl", "logs/**", "pids/**", "cache/**", "caches/**"]
     }
   ]
 }

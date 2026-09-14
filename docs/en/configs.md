@@ -6,8 +6,8 @@
 copy-on-first-run (idempotent, preserves user customisations across
 rebuilds) and auto-escalates to `sudo` for targets outside `$HOME`.
 The built-in mappings split `pi-config/` by owner: `agent/` is seeded only
-when Pi Coding is enabled, while `gentle-ai/` is seeded independently when
-Gentle AI is enabled. OpenCode configuration is seeded only when OpenCode is enabled, to
+when Pi Coding is enabled, while `gentle-ai/` currently requires both Pi Coding
+and core Gentle AI (not Pi Gentle). OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 
@@ -22,8 +22,11 @@ task config:diff
 ```
 
 The command reports modified, new, and missing-runtime managed files. It also
-reports unmanaged candidates by path and type, while excluded runtime state is
-counted without reading or listing its contents. Exit status is `0` when the
+reports unmanaged candidates from runtime and seed by path, type, and side.
+The same relative candidate path is counted once per group, with at most 50 paths
+displayed per group. Unknown directories are reported without descending into
+them; excluded state is counted without reading or listing its contents.
+Exit status is `0` when the
 trees agree, `1` when review is needed, and `2` for manifest, security, or I/O
 errors. Automation that relies on those statuses must ask Task to preserve the
 helper exit code:
@@ -40,19 +43,67 @@ git diff -- .devcontainer/opencode-config .devcontainer/pi-config
 ```
 
 The runtime files are authoritative and are copied byte-for-byte. Export never
-deletes seed files: a missing runtime file remains only a report item. The
-operation refuses before writing when either seed tree has tracked, staged, or
-untracked changes. Unrelated repository changes do not block it.
+deletes seed files: a missing runtime file remains only a report item, including
+newly managed seed-only files. Manual seed edits are not export input. A deleted
+seed file can reappear from stale runtime configuration on a later explicit
+export after the seed deletion has been committed.
+
+Before inspecting runtime roots, export refuses if a participating seed area has
+tracked, staged, or untracked changes. Disabled Pi areas and unrelated repository
+changes do not block it. All participating roots and planned destinations are
+checked before any copies. Replacement is atomic **per file**, not across the
+batch: a later I/O failure can leave earlier copies applied. Existing destination
+modes are preserved; new files receive mode `0644`.
+
+### Participating configuration groups
+
+Both commands resolve the same groups once, before scanning configuration:
+
+| Group | Runtime → seed | Participation |
+| --- | --- | --- |
+| OpenCode | `~/.config/opencode/` → `.devcontainer/opencode-config/` | Always |
+| Pi Coding | `~/.pi/agent/` → `.devcontainer/pi-config/agent/` | `3030-ai-pi-coding.sh` enabled |
+| Pi Gentle | `~/.pi/gentle-ai/` → `.devcontainer/pi-config/gentle-ai/` | `3040-ai-pi-gentle.sh` enabled |
+
+Pi ownership requires a valid `03-enabled/` alias resolving to the canonical
+installer, including custom alias names. The shared installer catalog, core,
+dependency, and order checks run read-only; no binary/version probes, installer
+execution, or automatic installation is involved. Invalid or broken aliases and
+Pi Gentle without its Pi Coding dependency are errors, not disabled statuses.
+
+Disabled groups print `skipped` and their runtime and seed roots are not scanned,
+even if stale or unsafe. Skips alone do not require review. An enabled group whose
+runtime root is absent prints `enabled-runtime-missing` and makes diff return `1`,
+even with no seed files; permission or other I/O errors still return `2`. Export
+retains seed files and returns `0` on success, including when no copies are needed.
+
+This export ownership intentionally differs from the current bootstrap seeding
+gate for `pi-config/gentle-ai/` described above. Bootstrap is unchanged.
+
+### Managed paths and exclusions
 
 Both tasks use the same allowlist and exclusions in
-`.devcontainer/config-export.json`, including managed `opencode-notifier.json`.
+`.devcontainer/config-export.json`, including managed `opencode-notifier.json`
+and `opencode-non-sdd.json`. OpenCode `commands/`, `plugins/`, `profiles/`,
+`prompts/`, and `skills/` remain recursive: new portable files need no enumeration.
+Other root files remain candidates; neither Git tracking nor a `.json` extension
+makes them eligible for export. Candidates are never copied automatically.
 `opencode.jsonc` is excluded from both tasks and is no longer shipped as a seed;
 its unique settings are not merged into `opencode.json`. Existing runtime
 `~/.config/opencode/opencode.jsonc` files are left untouched and may remain
 active: neither export nor seeding automatically deletes them.
 
-Credentials, sessions, package stores, logs, caches, and generated profile
-history are excluded. Exclusions override managed patterns. Review every Git
+The hidden `.gentle-ai-telemetry-runtime.json` is always excluded; public plugin
+source such as `plugins/telemetry-runtime.ts` remains managed configuration.
+`.git` (file or directory), `node_modules`, JSONC `opencode.jsonc`, and the hidden
+telemetry file are mandatory exclusions at any depth, even if a managed pattern
+would match. OpenCode's known credential, session, state, log, cache, and generated
+profile-history boundaries are also excluded at any depth. Pi retains its
+owner-specific state exclusions. Manifest `**/boundary/**` patterns include the
+boundary itself at any depth, including the root and symlink entries, so exclusion
+happens before traversal or content reads.
+
+Exclusions override managed patterns. Review every Git
 diff before committing because allowlisted configuration may still contain
 project-specific or sensitive values.
 

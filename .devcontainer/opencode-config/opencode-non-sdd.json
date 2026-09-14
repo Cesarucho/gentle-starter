@@ -1,0 +1,42 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+  },
+  "default_agent": "gentle-orchestrator",
+  "keybinds": {
+    "scrollbar_toggle": "ctrl+shift+s"
+  },
+  "lsp": true,
+  "mcp": {
+    "context7": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "engram": {
+      "command": [
+        "engram",
+        "mcp",
+        "--tools=agent"
+      ],
+      "type": "local"
+    }
+  },
+  "permission": {
+    "edit": {
+      "*": "allow",
+      "~/**": "allow"
+    },
+    "external_directory": {
+      "*": "ask",
+      "/tmp/**": "allow"
+    }
+  },
+  "plugin": [
+    "@mohak34/opencode-notifier@latest"
+  ],
+  "server": {
+    "hostname": "0.0.0.0"
+  },
+  "share": "disabled"
+}

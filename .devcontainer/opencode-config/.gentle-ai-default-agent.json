@@ -2,5 +2,6 @@
   "schema": "gentle-ai.opencode-default-agent",
   "version": 1,
   "state": "managed",
-  "previous_state": "absent"
+  "previous_state": "value",
+  "previous_default": "gentle-orchestrator"
 }

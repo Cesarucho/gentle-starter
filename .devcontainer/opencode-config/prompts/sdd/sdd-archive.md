@@ -133,22 +133,35 @@ Do not start this step until the **Task Completion Gate** above passes.
 
 #### If Main Spec Exists (`openspec/specs/{domain}/spec.md`)
 
-Read the existing main spec and apply the delta:
+**Mandatory Native Composition (#4119):** never Read the main spec and apply
+ADDED/MODIFIED/REMOVED/RENAMED sections yourself. A model-driven Read/Edit
+merge is exactly how archive previously dropped unrelated requirements or
+left a delta unapplied while still reporting success. Composition MUST run
+through the native `sdd-archive-compose` command, which matches requirements
+by name (e.g., "### Requirement: Session Expiration"), preserves every
+unrelated requirement byte-for-byte, and applies RENAMED before MODIFIED
+before REMOVED before ADDED so a rename is visible to a same-change MODIFIED:
 
-```
-FOR EACH SECTION in delta spec:
-├── ADDED Requirements → Append to main spec's Requirements section
-├── MODIFIED Requirements → Replace the matching requirement in main spec
-├── REMOVED Requirements → Delete the matching requirement from main spec after recording Reason/Migration
-└── RENAMED Requirements → Rename the matching requirement while preserving scenarios unless the delta also modifies them
+```bash
+gentle-ai sdd-archive-compose \
+  --canonical "openspec/specs/{domain}/spec.md" \
+  --delta "openspec/changes/{change-name}/specs/{domain}/spec.md" \
+  --output "openspec/specs/{domain}/spec.md.compose-tmp" \
+&& mv "openspec/specs/{domain}/spec.md.compose-tmp" "openspec/specs/{domain}/spec.md"
 ```
 
-**Merge carefully:**
-- Match requirements by name (e.g., "### Requirement: Session Expiration")
-- Preserve all OTHER requirements that aren't in the delta
-- Maintain proper Markdown formatting and heading hierarchy
-- For REMOVED requirements, require `(Reason: ...)` and `(Migration: ...)` notes in the delta before deleting from main specs
-- For RENAMED requirements, require the old and new requirement names to be explicit
+- A nonzero exit means the command refused: it wrote nothing, and its stderr
+  names the exact section (ADDED/MODIFIED/REMOVED/RENAMED) and requirement it
+  could not apply (unknown requirement name, missing `(Reason: ...)` note,
+  duplicate ADDED name, or a malformed RENAMED heading). Treat this as a
+  blocking failure — STOP the phase and report `blocked` with that exact
+  message. Do NOT retry with a manual Read/Edit merge, and do NOT move the
+  change into the archive.
+- The `.compose-tmp` intermediate file plus `mv` keeps the write atomic: the
+  main spec is only ever replaced by a composition the command already
+  proved is complete, never by a partial write from a failed run.
+- Only a zero exit is composition evidence. Include the command invocation
+  in the phase result.
 
 #### If Main Spec Does NOT Exist
 
@@ -373,3 +386,14 @@ Generated artifacts (code, comments, UI copy, docs, specs, tests, commit message
 
 Before any Write/Edit whose content is an artifact, re-verify these artifact language rules.
 <!-- /gentle-ai:agent-language-contract -->
+
+<!-- gentle-ai:remote-authorization -->
+## Remote operation authorization
+
+Permission to develop locally does not authorize remote execution or file transfer. Before remote work, require explicit user authorization for the destination, operation, and credential/session to use. If any part is missing or ambiguous, ask and remain local; do not probe the destination to resolve the ambiguity.
+
+- Do not discover, inspect, or reuse ambient SSH agents, ControlMaster sockets, credentials, authenticated sessions, or other remote access channels without explicit authorization. Their availability is not permission to use them.
+- Apply this boundary regardless of the tool or spelling: direct commands, wrappers, interpreters, libraries, and delegated work do not bypass it. Pass the authorized scope to delegates; delegation cannot expand it.
+- Explicitly authorized remote work is allowed within that scope. Preserve stricter user instructions and runtime restrictions; do not weaken them or change approval settings to proceed.
+- Native ask rules are an additional runtime mechanism, not authorization inferred from local-development access. Automation modes and remembered approvals may suppress prompts. This behavioral contract is not a sandbox and does not guarantee a fresh human prompt for every execution.
+<!-- /gentle-ai:remote-authorization -->

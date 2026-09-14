@@ -10,6 +10,19 @@ setup() {
     "${REPO_FIXTURE}/.devcontainer/opencode-config" "${REPO_FIXTURE}/.devcontainer/pi-config"
   cp "${BATS_TEST_DIRNAME}/../fixtures/config-export.json" \
     "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  INSTALL_FIXTURE="${REPO_FIXTURE}/.devcontainer/install"
+  mkdir -p "${INSTALL_FIXTURE}/available" "${INSTALL_FIXTURE}/02-core-tools" \
+    "${INSTALL_FIXTURE}/03-enabled" "${HOME_FIXTURE}/.pi/agent" "${HOME_FIXTURE}/.pi/gentle-ai"
+  local name
+  for name in 3020-ai-gentle-ai.sh 3030-ai-pi-coding.sh 3040-ai-pi-gentle.sh; do
+    printf '#!/bin/sh\nexit 99\n' >"${INSTALL_FIXTURE}/available/${name}"
+  done
+  ln -s ../available/3020-ai-gentle-ai.sh "${INSTALL_FIXTURE}/02-core-tools/3020-ai-gentle-ai.sh"
+  ln -s ../available/3030-ai-pi-coding.sh "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  ln -s ../available/3040-ai-pi-gentle.sh "${INSTALL_FIXTURE}/03-enabled/7200-custom-gentle.sh"
+  printf '3040-ai-pi-gentle.sh|enabled|3030-ai-pi-coding.sh|pi\n' >"${INSTALL_FIXTURE}/dependencies.conf"
+  printf 'FROM fixture AS core-tools\nCOPY install/available/3020-ai-gentle-ai.sh /tmp/\n' \
+    >"${REPO_FIXTURE}/.devcontainer/Dockerfile"
 }
 
 # Read-only loader/filter tests do not need Git history. Export guards do.
@@ -55,7 +68,7 @@ commit_fixture() {
   [[ "$output" == *"modified: OpenCode: tui.json"* ]]
   [[ "$output" == *"new: OpenCode: commands/new.md"* ]]
   [[ "$output" == *"missing-runtime: OpenCode: AGENTS.md"* ]]
-  [[ "$output" == *"candidate: OpenCode: unknown.txt (file)"* ]]
+  [[ "$output" == *"candidate: OpenCode: unknown.txt (file; runtime)"* ]]
   [[ "$output" == *"unchanged=1"* ]]
 }
 
@@ -98,15 +111,15 @@ commit_fixture() {
 }
 
 @test "unknown candidate directories are reported once without traversal" {
-  mkdir -p "${HOME_FIXTURE}/.pi/generated/packages/deep"
+  mkdir -p "${HOME_FIXTURE}/.pi/agent/generated/packages/deep"
   for index in $(seq 1 200); do
-    printf 'generated' >"${HOME_FIXTURE}/.pi/generated/packages/deep/${index}.json"
+    printf 'generated' >"${HOME_FIXTURE}/.pi/agent/generated/packages/deep/${index}.json"
   done
 
   run_helper diff
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"candidate: Pi: generated (directory)"* ]]
+  [[ "$output" == *"candidate: Pi Coding: generated (directory; runtime)"* ]]
   [[ "$output" == *"candidates=1"* ]]
   [[ "$output" != *"packages"* ]]
   [[ "$output" != *"1.json"* ]]
@@ -140,7 +153,7 @@ commit_fixture() {
   run_helper diff
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"new: Pi: agent/subagents.json"* ]]
+  [[ "$output" == *"new: Pi Coding: subagents.json"* ]]
   [[ "$output" == *"candidates=0"* ]]
   [[ "$output" != *"APPEND_SYSTEM.md"* ]]
   [[ "$output" != *"models-store"* ]]
@@ -158,7 +171,7 @@ commit_fixture() {
   [[ "$output" != *"fixture-secret"* ]]
 }
 
-@test "consumer manifest can manage JSONC instead of excluding it" {
+@test "consumer manifest cannot override mandatory JSONC exclusion" {
   python3 - "${REPO_FIXTURE}/.devcontainer/config-export.json" <<'PY'
 import json
 import sys
@@ -171,8 +184,8 @@ path.write_text(json.dumps(data))
 PY
   printf '// consumer configuration\n{}' >"${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
   run_helper diff
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"new: OpenCode: opencode.jsonc"* ]]
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"new: OpenCode: opencode.jsonc"* ]]
   [[ "$output" == *"candidates=0"* ]]
 }
 
@@ -190,7 +203,8 @@ PY
   [ "$status" -eq 2 ]
 
   git -C "${REPO_FIXTURE}" reset -q --hard HEAD
-  printf 'untracked' >"${REPO_FIXTURE}/.devcontainer/pi-config/agent-new.txt"
+  mkdir -p "${REPO_FIXTURE}/.devcontainer/pi-config/agent"
+  printf 'untracked' >"${REPO_FIXTURE}/.devcontainer/pi-config/agent/agent-new.txt"
   run_helper export
   [ "$status" -eq 2 ]
 }
@@ -347,4 +361,238 @@ PY
   [[ "$output" == *"Exported: files=0"* ]]
   [ ! -e "${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.jsonc" ]
   cmp "${FIXTURE}/legacy-before" "${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
+}
+
+@test "production manifest exports recursive portable config and excludes nested state before reads" {
+  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
+  local tree boundary
+  printf 'portable\r\n' >"${runtime}/opencode-non-sdd.json"
+  printf 'keep seed only' >"${seed}/opencode-non-sdd.json"
+  for tree in commands plugins profiles prompts skills; do
+    mkdir -p "${runtime}/${tree}/new/deep"
+    printf 'portable' >"${runtime}/${tree}/new/deep/future.any"
+  done
+  printf 'public plugin' >"${runtime}/plugins/telemetry-runtime.ts"
+  for boundary in .git node_modules state sessions logs cache caches profile-versions; do
+    mkdir -p "${runtime}/skills/new/${boundary}"
+    ln -s "${FIXTURE}/must-not-read" "${runtime}/skills/new/${boundary}/secret"
+  done
+  for boundary in .git auth.json credentials.json opencode.jsonc .gentle-ai-telemetry-runtime.json; do
+    ln -s "${FIXTURE}/must-not-read" "${runtime}/plugins/${boundary}"
+    ln -s "${FIXTURE}/must-not-read" "${seed}/${boundary}"
+  done
+  ln -s "${FIXTURE}/must-not-read" "${runtime}/opencode.jsonc"
+  ln -s "${FIXTURE}/must-not-read" "${runtime}/.gentle-ai-telemetry-runtime.json"
+  printf 'gitdir: private metadata' >"${runtime}/profiles/new/deep/.git"
+  ln -s "${FIXTURE}/must-not-read" "${runtime}/prompts/new/node_modules"
+  commit_fixture "excluded boundaries"
+
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"modified: OpenCode: opencode-non-sdd.json"* ]]
+  [[ "$output" == *"new: OpenCode: plugins/telemetry-runtime.ts"* ]]
+  [[ "$output" == *"candidates=0"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=7"* ]]
+  cmp "${runtime}/opencode-non-sdd.json" "${seed}/opencode-non-sdd.json"
+  for tree in commands plugins profiles prompts skills; do
+    cmp "${runtime}/${tree}/new/deep/future.any" "${seed}/${tree}/new/deep/future.any"
+  done
+  [ ! -e "${seed}/skills/new/.git" ]
+  [ ! -e "${seed}/plugins/.git" ]
+  [ -L "${seed}/.gentle-ai-telemetry-runtime.json" ]
+}
+
+@test "candidate union includes seed files and deduplicates bounded paths on both sides" {
+  local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/opencode-config"
+  local index
+  for index in $(seq -w 1 60); do
+    printf 'not inspected' >"${runtime}/unknown-${index}.json"
+    printf 'not inspected' >"${seed}/unknown-${index}.json"
+  done
+  mkdir -p "${runtime}/unknown-dir" "${seed}/unknown-dir"
+  ln -s "${FIXTURE}/missing" "${runtime}/unknown-dir/ignored-link"
+  printf 'seed candidate' >"${seed}/seed-only.txt"
+  commit_fixture "candidates"
+
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"candidates=62"* ]]
+  [[ "$output" == *"(file; runtime, seed)"* ]]
+  [[ "$output" == *"Candidate output limited to 50 paths per tree"* ]]
+  [ "$(printf '%s\n' "$output" | grep -c '^candidate:')" -eq 50 ]
+  [[ "$output" != *"not inspected"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"candidates=62"* ]]
+  [[ "$output" == *"Exported: files=0"* ]]
+  [ -f "${seed}/seed-only.txt" ]
+}
+
+@test "seed-only candidates are reported with their side and managed files are never deleted" {
+  printf 'candidate' >"${REPO_FIXTURE}/.devcontainer/opencode-config/seed-only.json"
+  printf 'portable' >"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode-non-sdd.json"
+  commit_fixture "seed only"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"candidate: OpenCode: seed-only.json (file; seed)"* ]]
+  [[ "$output" == *"missing-runtime: OpenCode: opencode-non-sdd.json"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode-non-sdd.json")" = portable ]
+}
+
+@test "disabled Pi skips unsafe runtime and dirty seed without blocking OpenCode" {
+  rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh" "${INSTALL_FIXTURE}/03-enabled/7200-custom-gentle.sh"
+  rm -r "${HOME_FIXTURE}/.pi"
+  ln -s "${FIXTURE}/missing" "${HOME_FIXTURE}/.pi"
+  ln -s "${FIXTURE}/missing" "${REPO_FIXTURE}/.devcontainer/pi-config/agent"
+  printf portable >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"skipped: Pi Coding: owner 3030-ai-pi-coding.sh is disabled"* ]]
+  [[ "$output" == *"skipped: Pi Gentle: owner 3040-ai-pi-gentle.sh is disabled"* ]]
+  [[ "$output" == *"candidates=0"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json")" = portable ]
+  [ -L "${REPO_FIXTURE}/.devcontainer/pi-config/agent" ]
+  run_helper diff
+  [ "$status" -eq 0 ]
+}
+
+@test "Pi Coding custom alias does not activate Pi Gentle through core Gentle AI" {
+  rm "${INSTALL_FIXTURE}/03-enabled/7200-custom-gentle.sh"
+  printf agent >"${HOME_FIXTURE}/.pi/agent/settings.json"
+  ln -s "${FIXTURE}/missing" "${HOME_FIXTURE}/.pi/gentle-ai/unsafe"
+  mkdir -p "${REPO_FIXTURE}/.devcontainer/pi-config/gentle-ai"
+  printf dirty >"${REPO_FIXTURE}/.devcontainer/pi-config/gentle-ai/models.json"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"new: Pi Coding: settings.json"* ]]
+  [[ "$output" == *"skipped: Pi Gentle"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/pi-config/agent/settings.json")" = agent ]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/pi-config/gentle-ai/models.json")" = dirty ]
+}
+
+@test "both valid custom Pi aliases participate without executing installers or binaries" {
+  printf agent >"${HOME_FIXTURE}/.pi/agent/settings.json"
+  printf gentle >"${HOME_FIXTURE}/.pi/gentle-ai/models.json"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"new: Pi Coding: settings.json"* ]]
+  [[ "$output" == *"new: Pi Gentle: models.json"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=2"* ]]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/pi-config/gentle-ai/models.json")" = gentle ]
+}
+
+@test "invalid Pi selection errors before runtime inspection or writes" {
+  printf old >"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json"
+  commit_fixture "old config"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  local command
+  for command in diff export; do
+    run_helper "$command"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"requires enabled installer 3030-ai-pi-coding.sh"* ]]
+    [ "$(<"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json")" = old ]
+  done
+  ln -s ../available/missing.sh "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  run_helper diff
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"invalid or broken symlink"* ]]
+  rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  printf unsafe >"${FIXTURE}/outside.sh"
+  ln -s "${FIXTURE}/outside.sh" "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  run_helper export
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"must target an available shell installer"* ]]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json")" = old ]
+}
+
+@test "enabled missing runtime differs from disabled and never deletes the seed" {
+  rm -r "${HOME_FIXTURE}/.pi/agent"
+  mkdir -p "${REPO_FIXTURE}/.devcontainer/pi-config/agent"
+  printf keep >"${REPO_FIXTURE}/.devcontainer/pi-config/agent/settings.json"
+  commit_fixture "missing runtime"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"enabled-runtime-missing: Pi Coding"* ]]
+  [[ "$output" == *"missing-runtime: Pi Coding: settings.json"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/pi-config/agent/settings.json")" = keep ]
+  rm "${REPO_FIXTURE}/.devcontainer/pi-config/agent/settings.json"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"enabled-runtime-missing: Pi Coding"* ]]
+}
+
+@test "dirty participating Pi seed blocks export before unsafe runtime inspection" {
+  mkdir -p "${REPO_FIXTURE}/.devcontainer/pi-config/gentle-ai"
+  printf dirty >"${REPO_FIXTURE}/.devcontainer/pi-config/gentle-ai/models.json"
+  ln -s "${FIXTURE}/missing" "${HOME_FIXTURE}/.config/opencode/unsafe"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  run_helper export
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"pending Git worktree or index changes"* ]]
+  [[ "$output" != *"symlink is not allowed"* ]]
+  [ ! -e "${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json" ]
+}
+
+@test "diff does not probe binaries and propagates permission and traversal failures" {
+  run env PYTHONDONTWRITEBYTECODE=1 python3 - "${HELPER}" "${REPO_FIXTURE}" "${HOME_FIXTURE}" <<'PY'
+import os
+import runpy
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+helper, repo, home = sys.argv[1:]
+main = runpy.run_path(helper)["main"]
+sys.argv = [helper, "diff", "--repo", repo, "--home", home]
+with patch("subprocess.run", side_effect=AssertionError("unexpected binary probe")):
+    assert main() == 0
+    original_stat = Path.lstat
+    blocked = Path(home) / ".pi/agent"
+    def deny_root(path, *args, **kwargs):
+        if path == blocked:
+            raise PermissionError("fixture root permission denied")
+        return original_stat(path, *args, **kwargs)
+    with patch.object(Path, "lstat", deny_root):
+        assert main() == 2
+    original_scan = os.scandir
+    def deny_scan(path):
+        if Path(path) == blocked:
+            raise PermissionError("fixture traversal permission denied")
+        return original_scan(path)
+    with patch("os.scandir", deny_scan):
+        assert main() == 2
+PY
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"fixture root permission denied"* ]]
+  [[ "$output" == *"fixture traversal permission denied"* ]]
+  [[ "$output" != *"enabled-runtime-missing"* ]]
+}
+
+@test "enabled seed ancestor symlink cannot redirect planned copies outside the seed" {
+  printf old >"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  printf agent >"${HOME_FIXTURE}/.pi/agent/settings.json"
+  rmdir "${REPO_FIXTURE}/.devcontainer/pi-config"
+  mkdir -p "${FIXTURE}/outside/agent"
+  ln -s "${FIXTURE}/outside" "${REPO_FIXTURE}/.devcontainer/pi-config"
+  commit_fixture "redirected seed ancestor"
+  run_helper export
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"symlink is not allowed"* ]]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/opencode-config/opencode.json")" = old ]
+  [ ! -e "${FIXTURE}/outside/agent/settings.json" ]
 }

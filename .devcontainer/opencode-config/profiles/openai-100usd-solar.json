@@ -19,23 +19,8 @@
     "sdd-spec": "openai/gpt-5.6-terra",
     "sdd-tasks": "openai/gpt-5.6-terra",
     "sdd-verify": "openai/gpt-5.6-sol",
-    "jd-fix-agent-openai-100usd": "openai/gpt-5.6-sol",
-    "jd-judge-a-openai-100usd": "openai/gpt-5.6-sol",
-    "jd-judge-b-openai-100usd": "openai/gpt-5.3-codex-spark",
-    "sdd-apply-openai-100usd": "openai/gpt-5.6-sol",
-    "sdd-archive-openai-100usd": "openai/gpt-5.6-terra",
-    "sdd-design-openai-100usd": "openai/gpt-5.6-sol",
-    "sdd-explore-openai-100usd": "openai/gpt-5.6-terra",
-    "sdd-init-openai-100usd": "openai/gpt-5.6-luna",
-    "sdd-onboard-openai-100usd": "openai/gpt-5.6-sol",
-    "sdd-orchestrator-openai-100usd": "openai/gpt-5.6-sol",
-    "sdd-propose-openai-100usd": "openai/gpt-5.6-sol",
     "sdd-research": "openai/gpt-5.6-sol",
-    "sdd-research-openai-100usd": "openai/gpt-5.6-sol",
-    "sdd-spec-openai-100usd": "openai/gpt-5.6-terra",
-    "sdd-verify-openai-100usd": "openai/gpt-5.6-sol",
-    "sdd-tasks-openai-100usd": "openai/gpt-5.6-terra",
-    "gentle-orchestrator": "openai/gpt-5.6-sol"
+    "gentle-orchestrator": "openai/gpt-5.6-astra"
   },
   "configs": {
     "jd-fix-agent": {
@@ -93,51 +78,6 @@
       "reasoningEffort": "medium"
     },
     "sdd-verify": {
-      "reasoningEffort": "high"
-    },
-    "jd-fix-agent-openai-100usd": {
-      "reasoningEffort": "medium"
-    },
-    "jd-judge-a-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "jd-judge-b-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-apply-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-archive-openai-100usd": {
-      "reasoningEffort": "medium"
-    },
-    "sdd-design-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-explore-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-init-openai-100usd": {
-      "reasoningEffort": "low"
-    },
-    "sdd-onboard-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-orchestrator-openai-100usd": {
-      "reasoningEffort": "low"
-    },
-    "sdd-propose-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-verify-openai-100usd": {
-      "reasoningEffort": "high"
-    },
-    "sdd-tasks-openai-100usd": {
-      "reasoningEffort": "medium"
-    },
-    "sdd-spec-openai-100usd": {
-      "reasoningEffort": "medium"
-    },
-    "sdd-research-openai-100usd": {
       "reasoningEffort": "high"
     },
     "sdd-research": {

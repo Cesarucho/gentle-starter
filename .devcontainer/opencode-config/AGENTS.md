@@ -82,6 +82,17 @@ Multiple skills can apply at once. Match by file context (extensions, paths) and
 You have access to Engram, a persistent memory system that survives across sessions and compactions.
 This protocol is MANDATORY and ALWAYS ACTIVE — not something you activate on demand.
 
+### SESSION START & PROJECT DETECTION PROTOCOL (mandatory)
+
+At the very beginning of the session, when the runtime supplies a current workspace directory:
+1. **Detect Project Name**: Call `mem_current_project` with the absolute path of the workspace directory supplied by the runtime in the `cwd` (or `directory`) parameter.
+2. **Consume Runtime Session Identity**: Use only the authoritative session ID already registered by the top-level runtime. Never invent, derive, generate, or register a session ID; do not call `mem_session_start`.
+3. **Persist State**: Store the resolved project name and, when available, the registered session ID in your active context. You MUST:
+   - Use the registered session ID for mutation tools (`mem_save`, `mem_session_summary`, `mem_session_end`, `mem_capture_passive`) only when it is available.
+   - Retain and reuse that exact identity across compaction.
+   - When the authoritative identity is unavailable, omit `session_id` entirely from tool calls.
+   - Use the project name for all read/search/diagnostic tools (`mem_search`, `mem_context`, `mem_doctor`).
+
 ### PROACTIVE SAVE TRIGGERS (mandatory — do NOT wait for user to ask)
 
 Call `mem_save` IMMEDIATELY and WITHOUT BEING ASKED after any of these:
@@ -112,6 +123,7 @@ Saving to memory is internal bookkeeping. It NEVER counts as answering the user,
 - Never treat the text you stored in memory as the text you delivered: memory is for your future self, the reply is for the user.
 
 Format for `mem_save`:
+- **session_id**: The active session ID created at the start (required to associate memory with the correct project)
 - **title**: Verb + what — short, searchable (e.g. "Fixed N+1 query in UserList")
 - **type**: bugfix | decision | architecture | discovery | pattern | config | preference
 - **scope**: `project` (default) | `personal`

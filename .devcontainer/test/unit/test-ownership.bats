@@ -82,6 +82,8 @@ PY
 @test "selected reusable tests run without deleted starter root docs" {
 	mkdir -p "${FIXTURE}/.taskfiles/scripts" "${FIXTURE}/.devcontainer/test/unit" \
 		"${FIXTURE}/.devcontainer/test/fixtures"
+	mkdir -p "${FIXTURE}/.devcontainer/install/lib"
+	cp "${ROOT}/.devcontainer/install/lib/selection.py" "${FIXTURE}/.devcontainer/install/lib/"
 	local file
 	for file in compose-manifest.py prepare-bind-mounts.py clean-lib.sh config-export.py; do
 		cp "${ROOT}/.taskfiles/scripts/${file}" "${FIXTURE}/.taskfiles/scripts/"
@@ -95,7 +97,7 @@ PY
 		ManifestTests.test_external_sources_are_never_prepared
 	printf '%s\n' "${output}"
 	[ "${status}" -eq 0 ]
-	run bats --filter '^(diff classifies|consumer manifest can manage JSONC)' \
+	run bats --filter '^(diff classifies|consumer manifest cannot override mandatory JSONC)' \
 		"${FIXTURE}/.devcontainer/test/unit/config-export.bats"
 	printf '%s\n' "${output}"
 	[ "${status}" -eq 0 ]

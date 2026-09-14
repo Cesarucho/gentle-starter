@@ -1,0 +1,90 @@
+{
+  "models": {
+    "jd-judge-a": "openai/gpt-5.6-astra",
+    "jd-fix-agent": "openai/gpt-5.6-terra",
+    "jd-judge-b": "openai/gpt-5.6-astra",
+    "review-readability": "openai/gpt-5.6-astra",
+    "review-refuter": "openai/gpt-5.6-astra",
+    "review-reliability": "openai/gpt-5.6-astra",
+    "review-resilience": "openai/gpt-5.6-terra",
+    "review-risk": "openai/gpt-5.6-astra",
+    "review-validator": "openai/gpt-5.6-astra",
+    "sdd-apply": "openai/gpt-5.6-terra",
+    "sdd-archive": "openai/gpt-5.6-luna",
+    "sdd-design": "openai/gpt-5.6-astra",
+    "sdd-explore": "openai/gpt-5.6-terra",
+    "sdd-init": "openai/gpt-5.6-sol",
+    "sdd-onboard": "openai/gpt-5.6-sol",
+    "sdd-propose": "openai/gpt-5.6-astra",
+    "sdd-spec": "openai/gpt-5.6-terra",
+    "sdd-tasks": "openai/gpt-5.6-terra",
+    "sdd-verify": "openai/gpt-5.6-astra",
+    "sdd-research": "openai/gpt-5.6-astra",
+    "gentle-orchestrator": "openai/gpt-5.6-astra"
+  },
+  "configs": {
+    "jd-fix-agent": {
+      "reasoningEffort": "high"
+    },
+    "jd-judge-a": {
+      "reasoningEffort": "low"
+    },
+    "jd-judge-b": {
+      "reasoningEffort": "low"
+    },
+    "review-readability": {
+      "reasoningEffort": "low"
+    },
+    "review-refuter": {
+      "reasoningEffort": "low"
+    },
+    "review-reliability": {
+      "reasoningEffort": "low"
+    },
+    "review-resilience": {
+      "reasoningEffort": "low"
+    },
+    "review-risk": {
+      "reasoningEffort": "low"
+    },
+    "review-validator": {
+      "reasoningEffort": "low"
+    },
+    "sdd-apply": {
+      "reasoningEffort": "high"
+    },
+    "sdd-archive": {
+      "reasoningEffort": "high"
+    },
+    "sdd-design": {
+      "reasoningEffort": "low"
+    },
+    "sdd-explore": {
+      "reasoningEffort": "high"
+    },
+    "sdd-init": {
+      "reasoningEffort": "medium"
+    },
+    "sdd-onboard": {
+      "reasoningEffort": "medium"
+    },
+    "sdd-propose": {
+      "reasoningEffort": "low"
+    },
+    "sdd-spec": {
+      "reasoningEffort": "high"
+    },
+    "sdd-tasks": {
+      "reasoningEffort": "high"
+    },
+    "sdd-verify": {
+      "reasoningEffort": "low"
+    },
+    "sdd-research": {
+      "reasoningEffort": "low"
+    },
+    "gentle-orchestrator": {
+      "reasoningEffort": "low"
+    }
+  }
+}
