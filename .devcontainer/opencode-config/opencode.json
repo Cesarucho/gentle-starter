@@ -713,6 +713,7 @@
     },
     "external_directory": {
       "*": "ask",
+      "/home/ubuntu/.claude/skills/**": "allow",
       "/home/ubuntu/.config/opencode/**": "allow",
       "/home/ubuntu/.engram/**": "allow",
       "/home/ubuntu/.gentle-ai/**": "allow",

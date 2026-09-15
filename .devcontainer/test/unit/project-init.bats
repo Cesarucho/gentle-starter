@@ -4,7 +4,7 @@ setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	TEST_ROOT="$(mktemp -d)"; PROJECT_ROOT="${TEST_ROOT}/project"
 	mkdir -p "${PROJECT_ROOT}/.taskfiles/scripts" "${PROJECT_ROOT}/.devcontainer/docs" "${PROJECT_ROOT}/docs/en" "${PROJECT_ROOT}/.agents"
-	cp "${REPO_ROOT}/.taskfiles/scripts/"{project-init.sh,clean-lib.sh} "${PROJECT_ROOT}/.taskfiles/scripts/"
+	cp "${REPO_ROOT}/.taskfiles/scripts/"{project-init.sh,clean-lib.sh,clean.sh} "${PROJECT_ROOT}/.taskfiles/scripts/"
 	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/project-init.sh"
 	printf '# Starter\n' >"${PROJECT_ROOT}/README.md"; printf '# Agents\n' >"${PROJECT_ROOT}/AGENTS.md"
 	printf '# Project\n<PROJECT_NAME>\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE"; printf '# Example\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE"
@@ -121,6 +121,12 @@ snapshot_repository() {
 }
 
 @test "failure after branch and remote changes restores exact repository state" {
+	mkdir -p "${PROJECT_ROOT}/docs/en/adr" "${PROJECT_ROOT}/.devcontainer/docs/adr"
+	printf 'source policy\n' >"${PROJECT_ROOT}/docs/en/adr/0003-unified-tool-policy-ownership.md"
+	printf 'existing policy\n' >"${PROJECT_ROOT}/.devcontainer/docs/adr/0003-unified-tool-policy-ownership.md"
+	printf 'historical policy\n' >"${PROJECT_ROOT}/docs/en/adr/0002-centralized-tool-version-policy.md"
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "add policy fixtures"
 	git -C "${PROJECT_ROOT}" remote add origin git@github.com:Cesarucho/gentle-starter.git
 	git -C "${PROJECT_ROOT}" config branch.dev.remote origin; git -C "${PROJECT_ROOT}" config branch.dev.merge refs/heads/dev
 	git -C "${PROJECT_ROOT}" branch retained; git -C "${PROJECT_ROOT}" tag retained-v1
@@ -133,6 +139,74 @@ EOF
 	chmod +x "${TEST_ROOT}/bin/git"
 	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -ne 0 ]; [ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
+	grep -Fxq 'existing policy' "${PROJECT_ROOT}/.devcontainer/docs/adr/0003-unified-tool-policy-ownership.md"
+	[ ! -e "${PROJECT_ROOT}/.devcontainer/docs/adr/0002-centralized-tool-version-policy.md" ]
+}
+
+@test "cleanup retains neutral examples and resolves migrated local documentation links" {
+	cp -R "${REPO_ROOT}/docs/en/." "${PROJECT_ROOT}/docs/en/"
+	cp "${REPO_ROOT}/.devcontainer/README.md" "${PROJECT_ROOT}/.devcontainer/README.md"
+	cp "${REPO_ROOT}/.env.example" "${PROJECT_ROOT}/.env.example"
+	run bash -c 'cd "$1" && printf "y\n" | bash .taskfiles/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
+	[ "${status}" -eq 0 ]
+	[ ! -e "${PROJECT_ROOT}/AGENTS.md" ]
+	[ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
+	[ ! -e "${PROJECT_ROOT}/docs" ]
+	cmp "${REPO_ROOT}/.env.example" "${PROJECT_ROOT}/.env.example"
+	grep -Fxq '# ENGRAM_PROJECT=your-project' "${PROJECT_ROOT}/.env.example"
+	grep -Fxq '# ENGRAM_CLOUD_ALLOWED_PROJECTS=your-project' "${PROJECT_ROOT}/.env.example"
+	! grep -qi 'gentle.starter' "${PROJECT_ROOT}/.env.example"
+	run python3 - "${PROJECT_ROOT}/.devcontainer" <<'PY'
+import re
+import sys
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+root = Path(sys.argv[1])
+documents = [root / "README.md", *sorted((root / "docs").rglob("*.md"))]
+assert len(documents) == 9, documents
+for document in documents:
+    for target in re.findall(r"\]\(([^\s)]+)\)", document.read_text()):
+        link = urlsplit(target)
+        if link.scheme or link.netloc or not link.path:
+            continue
+        destination = document.parent / unquote(link.path)
+        assert destination.exists(), f"{document}: missing {target}"
+PY
+	[ "${status}" -eq 0 ]
+	run bash "${PROJECT_ROOT}/.taskfiles/scripts/clean.sh" help
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'AGENTS.md.TEMPLATE.EXAMPLE'* ]]
+	[[ "${output}" == *'AGENTS.md is not generated'* ]]
+	[[ "${output}" != *'it is copied to AGENTS.md'* ]]
+}
+
+@test "initialization rejects unsafe policy migration paths before mutation" {
+	local path kind before
+	for path in docs/en/adr .devcontainer/docs/adr docs/en/adr/0003-unified-tool-policy-ownership.md .devcontainer/docs/adr/0003-unified-tool-policy-ownership.md; do
+		for kind in symlink wrong-type; do
+			mkdir -p "$(dirname "${PROJECT_ROOT}/${path}")"
+			if [ "${kind}" = symlink ]; then
+				ln -s "${TEST_ROOT}/outside" "${PROJECT_ROOT}/${path}"
+			elif [[ "${path}" == *.md ]]; then
+				mkdir -p "${PROJECT_ROOT}/${path}"
+				printf 'keep\n' >"${PROJECT_ROOT}/${path}/marker"
+			else
+				printf 'keep\n' >"${PROJECT_ROOT}/${path}"
+			fi
+			git -C "${PROJECT_ROOT}" add -A
+			git -C "${PROJECT_ROOT}" commit -qm "add unsafe path fixture"
+			before="$(snapshot_repository)"
+			run_init main
+			[ "${status}" -ne 0 ]
+			[[ "${output}" == *"identity cleanup"* ]]
+			[ "$(snapshot_repository)" = "${before}" ]
+			[ ! -e "${TEST_ROOT}/outside" ]
+			rm -rf "${PROJECT_ROOT:?}/${path}"
+			git -C "${PROJECT_ROOT}" add -A
+			git -C "${PROJECT_ROOT}" commit -qm "remove unsafe path fixture"
+		done
+	done
 }
 
 @test "failure rollback restores symbolic remote HEAD without ref collisions" {

@@ -23,6 +23,7 @@ About clean:identity:
   DELETED (identity):
     - README.md
     - AGENTS.md
+    - AGENTS.md.TEMPLATE.EXAMPLE
     - docs/
     - CHANGELOG.md
     - .github/               (if present)
@@ -41,10 +42,10 @@ About clean:identity:
     - .devcontainer/         dev environment
 
   After running:
-    - if AGENTS.md.TEMPLATE exists, it is copied to AGENTS.md
+    - AGENTS.md.TEMPLATE is preserved; AGENTS.md is not generated
     - .devcontainer/README.md is rewritten to use .devcontainer/docs/
-    - selected docs/en/*.md guides are copied to .devcontainer/docs/
-    - adapt AGENTS.md placeholders and delete optional sections
+    - selected docs/en/ guides and linked policy ADRs are copied to .devcontainer/docs/
+    - adapt, rename, or copy AGENTS.md.TEMPLATE manually if you want AGENTS.md
     - review .env.example  (APP_NAME, APP_PORT, APP_IMAGE)
     - review or create OpenSpec config if your project uses OpenSpec
     - optionally delete AGENTS.md.TEMPLATE once AGENTS.md is final

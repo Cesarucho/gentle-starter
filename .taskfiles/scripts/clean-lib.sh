@@ -6,6 +6,8 @@ readonly CLEAN_MIGRATED_DOCS=(
 	"install-volumes.md"
 	"optional-integrations.md"
 	"configs.md"
+	"adr/0002-centralized-tool-version-policy.md"
+	"adr/0003-unified-tool-policy-ownership.md"
 )
 
 clean_identity_items() {
@@ -80,6 +82,8 @@ clean_validate_identity_cleanup() {
 	clean_reject_symlink_or_unexpected_type ".devcontainer/docs" directory
 	clean_reject_symlink_or_unexpected_type "docs" directory
 	clean_reject_symlink_or_unexpected_type "docs/en" directory
+	clean_reject_symlink_or_unexpected_type "docs/en/adr" directory
+	clean_reject_symlink_or_unexpected_type ".devcontainer/docs/adr" directory
 	clean_reject_symlink_or_unexpected_type "AGENTS.md.TEMPLATE" file
 
 	for doc in "${CLEAN_MIGRATED_DOCS[@]}"; do
@@ -110,6 +114,7 @@ clean_migrate_devcontainer_docs() {
 
 	for doc in "${CLEAN_MIGRATED_DOCS[@]}"; do
 		if [ -f "${source_dir}/${doc}" ]; then
+			mkdir -p "$(dirname "${target_dir}/${doc}")"
 			cp "${source_dir}/${doc}" "${target_dir}/${doc}"
 			migrated=true
 		else
@@ -132,6 +137,7 @@ remains self-contained in derived projects.
 | [`install-volumes.md`](./install-volumes.md) | Deep dive on the volume repair contract. |
 | [`optional-integrations.md`](./optional-integrations.md) | Select optional integrations and prepare their volume contracts. |
 | [`configs.md`](./configs.md) | Deep dive on `seed_config_tree` and baseline config seeding. |
+| [`ADR 0003`](./adr/0003-unified-tool-policy-ownership.md) | Current tool-policy ownership, with its linked historical ADR 0002. |
 
 These files are copied from `docs/en/` during starter identity cleanup.
 EOF
