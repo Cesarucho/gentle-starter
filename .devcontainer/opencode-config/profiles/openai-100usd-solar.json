@@ -20,7 +20,7 @@
     "sdd-tasks": "openai/gpt-5.6-terra",
     "sdd-verify": "openai/gpt-5.6-sol",
     "sdd-research": "openai/gpt-5.6-sol",
-    "gentle-orchestrator": "openai/gpt-5.6-astra"
+    "gentle-orchestrator": "openai/gpt-6-astra"
   },
   "configs": {
     "jd-fix-agent": {

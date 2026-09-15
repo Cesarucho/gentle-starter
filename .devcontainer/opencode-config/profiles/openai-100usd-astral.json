@@ -1,26 +1,26 @@
 {
   "models": {
-    "jd-judge-a": "openai/gpt-5.6-astra",
+    "jd-judge-a": "openai/gpt-6-astra",
     "jd-fix-agent": "openai/gpt-5.6-terra",
-    "jd-judge-b": "openai/gpt-5.6-astra",
-    "review-readability": "openai/gpt-5.6-astra",
-    "review-refuter": "openai/gpt-5.6-astra",
-    "review-reliability": "openai/gpt-5.6-astra",
+    "jd-judge-b": "openai/gpt-6-astra",
+    "review-readability": "openai/gpt-6-astra",
+    "review-refuter": "openai/gpt-6-astra",
+    "review-reliability": "openai/gpt-6-astra",
     "review-resilience": "openai/gpt-5.6-terra",
-    "review-risk": "openai/gpt-5.6-astra",
-    "review-validator": "openai/gpt-5.6-astra",
+    "review-risk": "openai/gpt-6-astra",
+    "review-validator": "openai/gpt-6-astra",
     "sdd-apply": "openai/gpt-5.6-terra",
     "sdd-archive": "openai/gpt-5.6-luna",
-    "sdd-design": "openai/gpt-5.6-astra",
+    "sdd-design": "openai/gpt-6-astra",
     "sdd-explore": "openai/gpt-5.6-terra",
     "sdd-init": "openai/gpt-5.6-sol",
     "sdd-onboard": "openai/gpt-5.6-sol",
-    "sdd-propose": "openai/gpt-5.6-astra",
+    "sdd-propose": "openai/gpt-6-astra",
     "sdd-spec": "openai/gpt-5.6-terra",
     "sdd-tasks": "openai/gpt-5.6-terra",
-    "sdd-verify": "openai/gpt-5.6-astra",
-    "sdd-research": "openai/gpt-5.6-astra",
-    "gentle-orchestrator": "openai/gpt-5.6-astra"
+    "sdd-verify": "openai/gpt-6-astra",
+    "sdd-research": "openai/gpt-6-astra",
+    "gentle-orchestrator": "openai/gpt-6-astra"
   },
   "configs": {
     "jd-fix-agent": {
