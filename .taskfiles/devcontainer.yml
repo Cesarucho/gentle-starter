@@ -17,7 +17,8 @@ tasks:
           task container:build      Build devcontainer
           task container:up         Start devcontainer
           task container:connect    Open bash inside devcontainer
-          task container:opencode   Continue OpenCode inside devcontainer
+          task container:opencode   Continue the direct OpenCode TUI
+          task container:opencode:server  Attach; stop only the task-owned server on exit
           task container:pi         Open pi inside devcontainer
           task container:engram     Open Engram TUI inside devcontainer
           task container:rm         Force-remove devcontainer container
@@ -104,7 +105,7 @@ tasks:
 
   # Guards: most container tasks must run on the host.
   # They check for /.dockerenv which only exists inside the container.
-  # connect/opencode/pi/engram are fine inside the container (no-op or connect to nested).
+  # connect/opencode/opencode:server/pi/engram connect through the Dev Container CLI.
 
   rm:
     desc: Force-remove the devcontainer service container
@@ -187,13 +188,22 @@ tasks:
           ARGS: exec --workspace-folder {{.WORKSPACE}} bash
 
   opencode:
-    desc: Continue OpenCode inside devcontainer
+    desc: Continue the direct OpenCode TUI inside devcontainer
     interactive: true
     cmds:
       - task: ensure-running
       - task: run-devcontainer
         vars:
           ARGS: exec --workspace-folder {{.WORKSPACE}} opencode --continue
+
+  opencode:server:
+    desc: Attach to OpenCode, stopping only the server started by this task
+    interactive: true
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} bash .taskfiles/scripts/opencode-server.sh
 
   pi:
     desc: Connect to Pi inside devcontainer

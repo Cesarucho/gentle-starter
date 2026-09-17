@@ -7,18 +7,42 @@
 
 REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 
-@test "container:opencode continues OpenCode in the default devcontainer workspace" {
+@test "container:opencode continues the direct TUI in the default devcontainer workspace" {
 	cd "${REPO_ROOT}"
 
 	run task --dry container:opencode
 
 	[ "${status}" -eq 0 ]
 
-	task_definition="$(awk '/^  opencode:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  opencode:/{exit} capture' .taskfiles/devcontainer.yml)"
+	task_definition="$(awk '/^  opencode:$/{capture=1} capture && /^  [[:alnum:]:-]+:/ && !/^  opencode:$/{exit} capture' .taskfiles/devcontainer.yml)"
 	[[ "${task_definition}" == *"interactive: true"* ]]
-	[[ "${task_definition}" == *"- task: ensure-running"* ]]
-	[[ "${task_definition}" == *"- task: run-devcontainer"* ]]
-	[[ "${task_definition}" == *"ARGS: exec --workspace-folder {{.WORKSPACE}} opencode --continue"* ]]
+	[[ "${task_definition}" == *'    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} opencode --continue' ]]
+}
+
+@test "container:opencode:server supervises OpenCode in the default devcontainer workspace" {
+	cd "${REPO_ROOT}"
+
+	run task --dry container:opencode:server
+
+	[ "${status}" -eq 0 ]
+
+	task_definition="$(awk '/^  opencode:server:$/{capture=1} capture && /^  [[:alnum:]:-]+:/ && !/^  opencode:server:$/{exit} capture' .taskfiles/devcontainer.yml)"
+	[[ "${task_definition}" == *"interactive: true"* ]]
+	[[ "${task_definition}" == *'    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} bash .taskfiles/scripts/opencode-server.sh' ]]
+}
+
+@test "OpenCode supervisor passes isolated mocked lifecycle contracts" {
+	run python3 "${REPO_ROOT}/.devcontainer/test/unit/opencode-server-test.py"
+	printf '%s\n' "${output}"
+	[ "${status}" -eq 0 ]
 }
 
 @test "container:up prepares managed bind sources after the host guard and before startup" {

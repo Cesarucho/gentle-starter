@@ -30,12 +30,15 @@ The project is designed to provide a clean base structure before launching any
 prompt, enabling workflows like these:
 
 ```shell
-1. git clone repo  --> rename project-foo --> docker-steps --> prompt "create ..."
-2. git clone repo  --> rename project-bar --> docker-steps --> prompt "design ..."
-3. copy/paste repo --> rename project-baz --> docker-steps --> prompt "research ..."
+1. git clone repo  --> rename project-foo --> automated-steps --> prompt "create ..."
+2. git clone repo  --> rename project-bar --> automated-steps --> prompt "design ..."
+3. copy/paste repo --> rename project-baz --> automated-steps --> prompt "research ..."
 ```
 
 ## 📦 What's included?
+
+The environment combines mandatory core tools with opt-in catalog tools and
+integrations—not everything below is installed by default.
 
 - **[OpenCode](https://opencode.ai/docs/)** as the default assisted-development
   interface.
@@ -44,40 +47,101 @@ prompt, enabling workflows like these:
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** for
   managed AI workflows alongside OpenCode, included in the mandatory core.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** as local persistent memory inside the environment.
-- **[Context7](https://github.com/upstash/context7)** integrated through MCP for current library documentation.
 - **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** based on [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
-- **[Docker Compose](https://docs.docker.com/compose/install/)** to build and run the environment.
 - **[Taskfile](https://taskfile.dev/installation/)** to centralize common commands.
-- **Versioned skills**, a base set that you can update and customize.
-- **[Playwright](https://playwright.dev/docs/intro#installing-playwright)** for optional e2e tests.
-- **[Go](https://go.dev/doc/install)** and
-  **[Java 25](https://sdkman.io/jdks#tem)** installers in the opt-in catalog;
-  Java uses [SDKMAN](https://sdkman.io/install) and Temurin by default.
-- **[pnpm](https://pnpm.io/installation)**, installed globally from the latest stable npm release.
 
-The shared core contains Bats, Node/npm, pnpm, markdownlint, Dev Container CLI,
-OpenCode, Engram, Gentle AI, and Skills. Its Docker stage is independent of
-project names, optional selectors, and hooks. `install:enable`/`install:disable`
-manage optional tools only; intentional core changes require editing the base.
-See [the install layout](docs/en/install-tree.md) and
-[cache boundaries](docs/en/container-foundation.md).
+You can activate catalog tools or add your own installers, with or without AI. See
+[the install layout](docs/en/install-tree.md) and [cache boundaries](docs/en/container-foundation.md).
+Run `task install:list` for the authoritative catalog and activation state.
 
 <details>
-<summary>Additional tools in the install catalog</summary>
+<summary>Supporting tools and optional extensions list: 👇🏼</summary>
 
-- **Runtimes/testing:** Node.js, npm, Bats, PHP, Composer, PHPUnit, Xdebug,
-  Vitest, Delve.
-- **Docs/APIs/diagrams:** markdownlint-cli2, Glow, Spectral CLI, Redocly CLI,
-  AsyncAPI CLI, Mermaid CLI, Archify, Graphviz, PlantUML, C4-PlantUML, Graphify,
-  Graphify MCP.
-- **Infrastructure/security:** OpenSSH server/client, Ansible Core, kubectl,
-  Terraform, OpenTofu, Terragrunt, Pulumi, Gitleaks.
-- **Audio:** optional PulseAudio clients (`paplay`); host integration is separate.
-- **Agent extensions/browser:** Gentle Pi, Pi Subagents, Pi Intercom, Pi Web
-  Access, Pi Lens, RPIV Todo, RPIV Ask User Question, RPIV BTW, Gentle Engram,
-  Pi MCP Adapter, Pi Terminal Theme, Chromium, @playwright/cli.
+### Environment and packages
 
-Run `task install:list` for the current catalog and activation state.
+| Tool | Purpose |
+| --- | --- |
+| [Node.js](https://nodejs.org/) | Run JavaScript programs and command-line development tools |
+| [npm](https://www.npmjs.com/) | Install, publish, and manage JavaScript package dependencies |
+| [pnpm](https://pnpm.io/) | Install and manage packages with a fast, workspace-aware workflow |
+| [Go](https://go.dev/) | Compile and run Go applications and developer tools |
+| [Java 25](https://sdkman.io/jdks#tem) | Run and build JVM applications with the optional toolchain |
+| [SDKMAN](https://sdkman.io/) | Install and switch between Java SDK versions per environment |
+| [Temurin](https://adoptium.net/temurin/) | Provide the default OpenJDK distribution for Java development |
+| [PHP](https://www.php.net/) | Run PHP applications and command-line scripts |
+| [Composer](https://getcomposer.org/) | Install and manage PHP application dependencies |
+
+### Testing and debugging
+
+| Tool | Purpose |
+| --- | --- |
+| [Bats](https://github.com/bats-core/bats-core) | Exercise shell scripts with readable Bash test cases |
+| [PHPUnit](https://phpunit.de/) | Run unit and integration tests for PHP code |
+| [Xdebug](https://xdebug.org/) | Inspect PHP execution with breakpoints and runtime diagnostics |
+| [Vitest](https://vitest.dev/) | Run fast JavaScript and TypeScript unit tests |
+| [Delve](https://github.com/go-delve/delve) | Debug Go programs with breakpoints and stack inspection |
+| [Playwright](https://playwright.dev/) | Automate browser scenarios for end-to-end testing |
+| [Chromium](https://www.chromium.org/) | Provide a browser runtime for automated test sessions |
+| [@playwright/cli](https://www.npmjs.com/package/@playwright/cli) | Control browser sessions from agent workflows |
+
+### Documentation, APIs and diagrams
+
+| Tool | Purpose |
+| --- | --- |
+| [Context7](https://github.com/upstash/context7) | Retrieve current library documentation through MCP requests |
+| [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2) | Check Markdown style and formatting in documentation |
+| [Glow](https://github.com/charmbracelet/glow) | Read and preview Markdown directly in a terminal |
+| [Spectral CLI](https://www.npmjs.com/package/@stoplight/spectral-cli) | Lint API descriptions against reusable quality rules |
+| [Redocly CLI](https://www.npmjs.com/package/@redocly/cli) | Validate, bundle, and preview OpenAPI descriptions |
+| [AsyncAPI CLI](https://www.npmjs.com/package/@asyncapi/cli) | Validate and work with event-driven API descriptions |
+| [Mermaid CLI](https://www.npmjs.com/package/@mermaid-js/mermaid-cli) | Render text-defined diagrams for documentation and reviews |
+| [Archify](https://github.com/tt-a1i/archify) | Explore interactive diagrams for software architecture |
+| [Graphviz](https://graphviz.org/) | Generate graphs from structured relationships and data |
+| [PlantUML](https://plantuml.com/) | Create diagrams from concise text-based definitions |
+| [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) | Model software architecture with C4 diagram conventions |
+| [Graphify](https://pypi.org/project/graphifyy/) | Build and inspect knowledge graphs from connected concepts |
+| [Graphify MCP](https://pypi.org/project/graphifyy/) | Expose graph operations to MCP-compatible clients |
+
+### Infrastructure and security
+
+| Tool | Purpose |
+| --- | --- |
+| [Docker Compose](https://docs.docker.com/compose/) | Build and run isolated application containers |
+| [OpenSSH](https://www.openssh.com/) | Connect to hosts and provide secure remote shell access |
+| [Ansible Core](https://docs.ansible.com/ansible-core/) | Automate repeatable configuration and deployment tasks |
+| [kubectl](https://kubernetes.io/docs/reference/kubectl/) | Inspect and manage resources in Kubernetes clusters |
+| [Terraform](https://developer.hashicorp.com/terraform) | Define and provision infrastructure from declarative configuration |
+| [OpenTofu](https://opentofu.org/) | Provision infrastructure with an open-source declarative workflow |
+| [Terragrunt](https://github.com/gruntwork-io/terragrunt) | Coordinate reusable infrastructure configurations and deployments |
+| [Pulumi](https://github.com/pulumi/pulumi) | Provision cloud resources using general-purpose languages |
+| [Gitleaks](https://github.com/gitleaks/gitleaks) | Scan repositories for accidentally committed secrets |
+
+### Skills and agent extensions
+
+| Tool | Purpose |
+| --- | --- |
+| [Skills CLI](https://github.com/vercel-labs/skills) | Install, update, and validate reusable agent skills |
+| [Gentle Pi](https://www.npmjs.com/package/gentle-pi) | Extend Pi workflows with Gentle AI integrations |
+| [Pi Subagents](https://www.npmjs.com/package/pi-subagents) | Run delegated Pi tasks through reusable subagent support |
+| [Pi Intercom](https://www.npmjs.com/package/pi-intercom) | Exchange messages between Pi workflows and agents |
+| [Pi Web Access](https://www.npmjs.com/package/pi-web-access) | Give Pi workflows controlled access to web resources |
+| [Pi Lens](https://www.npmjs.com/package/pi-lens) | Provide real-time feedback while reviewing code changes |
+| [RPIV Todo](https://www.npmjs.com/package/@juicesharp/rpiv-todo) | Track implementation tasks within Pi workflows |
+| [RPIV Ask User Question](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) | Collect structured answers from users during Pi workflows |
+| [RPIV BTW](https://www.npmjs.com/package/@juicesharp/rpiv-btw) | Handle side questions without interrupting the main task |
+| [Gentle Engram](https://www.npmjs.com/package/gentle-engram) | Connect Pi workflows to persistent project memory |
+| [Pi MCP Adapter](https://www.npmjs.com/package/pi-mcp-adapter) | Connect Pi to MCP servers and their tools |
+| [Pi Terminal Theme](https://www.npmjs.com/package/pi-terminal-theme) | Customize terminal appearance for Pi sessions |
+
+### Audio
+
+| Tool | Purpose |
+| --- | --- |
+| [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) | Provide optional audio playback clients such as `paplay` |
+
+Versioned skills provide a customizable base: external packages are tracked in
+`skills-lock.json`; repository-authored skills live in `.agents/skills/` and
+`.agents/local-skills.txt`. Host audio integration is separate from audio clients.
 
 </details>
 
@@ -94,8 +158,8 @@ On your PC you need:
   recommended; volume discovery also supports Kislyuk yq.
 - **[Python 3](https://www.python.org/downloads/)**
 
-An IDE is optional and does not replace these host requirements, including the
-Dev Container CLI.
+An IDE is optional and **does not replace** these host requirements.
+`attach to running container` is the only supported method.
 
 ## 🚀 Quick start
 
@@ -104,106 +168,76 @@ Dev Container CLI.
 1. On your PC:
 
     ```bash
-    git clone https://github.com/Cesarucho/gentle-starter.git <my-project-name>
-    cd <my-project-name>
+    git clone https://github.com/Cesarucho/gentle-starter.git <my-project>
+    cd <my-project>
     cp .env.example .env
-    task project:init         # optional: configure the project and commit cleanup
+    task project:init         # Remove the 'gentle-starter' identity and take ownership of the repository
     ```
 
-    > `task project:init` is optional and one-time for a clean repository with Git identity configured. It prompts for a branch
-    > and optional project `origin`, then configures canonical `upstream`; use exact `INIT` or `task project:init -- --dry-run`.
+    > `task project:init` is a recommended one-time option for creating a clean identity repository. After confirming
+    > the `branch` and `origin` prompts, you'll have the foundation of the repository to start your own project
+    > You can see the details with `task project:init -- --dry-run`.
 
 ### Build and enter the environment
 
-No IDE is needed: use the terminal workflow below, including provider login.
-Task is the sole supported entry point for creating, building, and recreating
-the container; an IDE may only attach after `task container:up`.
+Use the terminal workflow below. `Task` is the sole supported entry point in the life-cycle of a container
+(build, create, run, stop, remove, restart, and more); an IDE may only attach after `task container:up`.
 
 1. In your **host terminal**, from the project directory, run:
 
     ```bash
     task container:up         # it will build the image if needed
-    task container:connect
+
+    # choose a "connect" method:
+    task container:connect    # interactive terminal with bash
+    task container:opencode   # directly to the ai-​agent application
     ```
 
-    > `container:up` derives `.env.d/` bind sources from Compose and creates them as the host user before Docker starts.
-    > Dev Containers projects the host UID onto `ubuntu`, See [volume security](docs/en/install-volumes.md).
-
-    The container tasks normalize the project directory name and deterministically
-    generate one non-overlapping three-port block in `10000..59999`. They rewrite
-    `APP_PORT`, `OPENCODE_PORT`, and `SSH_PORT` in both `.devcontainer/.env` and
-    `.env` while preserving unrelated content. The mappings are app-to-same-port,
-    OpenCode-to-`4096`, and optional SSH-to-`22`. Because the mappings omit a host IP,
-    Docker publishes selected ports on all host interfaces—not only the LAN
-    interface. These generated values are authoritative on every container
-    task, so edit the project name—not the generated port entries—to change the
-    block. Docker reports host-port collisions normally.
-
-    Pi persistence, SSH agent forwarding, incoming SSH, and audio are independent
-    opt-in Compose files. See [optional integrations](docs/en/optional-integrations.md).
-    Changing mounts requires recreation; changing packages requires rebuilding.
-
-    **Trusted networks only:** this exposure is intended for a trusted LAN/WLAN.
-    MAC filtering is not a strong security boundary, and Docker port publication
-    can bypass firewall behavior you may otherwise expect. OpenCode may be
-    unauthenticated. Do not configure router port forwarding or expose these
-    ports to the public Internet. Use Tailscale or an equivalent authenticated
-    private network before any remote Internet access.
-
-    The versioned `server.hostname: 0.0.0.0` OpenCode setting is copied only when
-    `~/.config/opencode` is first seeded. For an existing container, explicitly
-    synchronize that setting into the runtime config, then quit and restart
-    OpenCode; rebuilding alone does not overwrite an existing runtime config.
-
-2. In the shell opened by `task container:connect`, use any tool normally:
+2. If you chose `container:connect`, use any tool normally:
 
     ```bash
     git status
     engram --version
     gentle-ai --version
     opencode --version
-    ```
 
-3. Connect your AI provider and start OpenCode:
-
-    ```bash
     opencode auth login       # choose and authenticate a provider
-    opencode                  # open the default interface
+    opencode -c               # open the ai-​​agent from the last session.
     ```
 
-    Example prompts:
+3. If you chose `container:opencode` or executed `opencode -c` inside of container, you can start with:
+
+    choose and authenticate a provider
+    ```bash
+    >_ /connect
+    ```
+
+    and prompting, examples:
 
     ```text
-    >_ Read @AGENTS.md.TEMPLATE and help me create AGENTS.md by filling in the placeholders.
+    >_ Read @AGENTS.md.TEMPLATE and help me create AGENTS.md for my own proyect.
 
-    >_ Read skill add-tool add PostgreSQL 16 with a version-controlled
+    >_ Use "add-tool" skill for add PostgreSQL-16 with a version-controlled
        `pg_hba.conf` and persistent data volume.
     ```
 
-### Optional: attach VS Code
+### Optional: attach container to IDE Code
 
-1. Install [VS Code](https://code.visualstudio.com/download) and its
+1. Install IDE, for example [VS Code](https://code.visualstudio.com/download) and its
    **Dev Containers** extension on your host.
-2. Run `task container:up` from the project directory in your host terminal.
-3. In VS Code's Command Palette, run
-   **Dev Containers: Attach to Running Container...** and choose this project's
+2. Run `task container:up` from the project directory **in your host terminal**, it can be
+   the IDE terminal too.
+3. In VS Code's Command Palette (`ctrl + shift + p`), run
+   `Dev Containers: Attach to Running Container...` and choose this project's
    running container.
 4. Use **File > Open Folder...** to open the actual workspace inside the
-   container: `/home/ubuntu/<project-directory-name>`, for example
-   `/home/ubuntu/my-project-name` for a project cloned as `my-project-name`.
-   Task normalizes the project name, so use the resulting workspace name if
-   your directory name requires normalization.
-
-Use VS Code's integrated terminal for the same provider login and tools shown
-above. [Attaching to a running container](https://code.visualstudio.com/docs/devcontainers/attach-container)
-uses separate IDE configuration; do not assume all settings, extensions, or
-Features in the repository's `devcontainer.json` are applied by attaching.
+   container: `/home/ubuntu/<project-name>`.
 
 **Do not use the IDE's Reopen in Container or Rebuild Container actions.**
 These creation paths are unsupported because they bypass Task's host
 preparation. From your host terminal, use `task container:restart` to recreate
 the container from the existing image, or `task container:rebuild` to rebuild
-the software and recreate it. Then attach VS Code again.
+the software and recreate it. Then [attach VS Code](https://code.visualstudio.com/docs/devcontainers/attach-container) again.
 
 ## 🔄 Maintain your project
 
@@ -221,19 +255,13 @@ git merge upstream/main
 Resolve merge conflicts manually and commit the resolution normally. Existing
 `origin` and branch upstream settings remain under project-owner control.
 
-> GitHub repositories created with **Use this template** do not share commit
-> ancestry with this repository, so they cannot use this merge workflow
-> directly. Clone or fork instead. If a shallow clone lacks the merge base, run
-> `git fetch --unshallow upstream` before merging.
-
 ### 📦 Update development tools
 
 ```bash
 task tools:update         # From inside container, update the repository's approved version policy
-task container:rebuild    # From host, apply that policy to the development environment
-task validate
-task test:starter:integration # Check core and selected installed tools
 git diff                  # Review user intent and generated locks together
+task container:rebuild    # From host, apply that policy to the development environment
+task validate:full        # Inside container
 ```
 
 Edit only `TOOL_*_VERSION` fields. `tools:update` alone resolves stable exact versions,
@@ -242,8 +270,8 @@ Builds and installers are read-only; rebuild to apply, then commit after verific
 
 ### ⚙️ Save OpenCode and Pi configuration changes
 
-Run these commands **inside the container** after changing OpenCode or Pi
-settings:
+**Runtime files are the source of truth**. But during normal use, we often change our preferences;
+if we want to keep them as a base, we export them as part of our repository structure:
 
 ```bash
 # 1. Compare runtime configuration with the repository seed
@@ -256,14 +284,12 @@ task config:export
 git diff -- .devcontainer/opencode-config .devcontainer/pi-config
 ```
 
-`config:export` copies configuration in this direction:
+`config:export` copies configuration in **container runtime → repository directory** direction:
 
 ```text
-~/.config/opencode → .devcontainer/opencode-config
-~/.pi              → .devcontainer/pi-config
+/home/ubuntu/.config/opencode → .devcontainer/opencode-config
+/home/ubuntu/.pi              → .devcontainer/pi-config
 ```
-
-The runtime files are the source of truth. Export:
 
 - copies managed files byte for byte;
 - never deletes seed files;
@@ -303,26 +329,7 @@ task validate:full
 task test
 ```
 
-### Test ownership
-
-`task test` belongs to your application. Until you replace `tasks.test.cmds` in
-`Taskfile.yml`, it exits nonzero with configuration instructions; it never runs
-the inherited starter suite. This is the same before and after `project:init`.
-
-Starter maintainers use `task test:starter`, or its `test:starter:unit` and
-`test:starter:integration` parts. These preserve behavior, security, installer,
-and distribution checks, including starter README/ADR/catalog expectations.
-The unit suite includes lifecycle/build fixtures: inspect it before execution.
-Derived applications are not required to satisfy starter editorial preferences.
-
-`test:install` remains explicit.
-The old `test:pi-lifecycle` task has been removed; use the general
-`test:starter:lifecycle` only for an explicitly authorized expensive base lifecycle
-proof, not Pi verification. It is excluded from both `task test` and
-`task test:starter`. See [lifecycle scope and costs](docs/en/extending.md#explicit-base-lifecycle-proof).
-`validate` and `install:doctor` check repository/environment health, not application correctness.
-
-### Install catalog management
+### Install tools catalog management
 
 ```bash
 # Show install scripts and the full dynamic catalog from .devcontainer/install/available/
@@ -363,11 +370,19 @@ task container:rebuild      # remove, build, and start
 
 ```bash
 # These tasks auto-start the devcontainer if it is not running
-task container:connect      # open a shell; run `opencode` inside
-task container:opencode     # continue OpenCode using `opencode --continue`
-task container:pi           # connect to Pi using `pi --continue`
-task container:engram       # connect to the Engram TUI
+task container:connect          # open a shell; run `opencode` inside
+task container:opencode         # direct TUI using `opencode --continue`
+task container:opencode:server  # attach to a reused or task-owned OpenCode server
+task container:pi               # connect to Pi using `pi --continue`
+task container:engram           # connect to the Engram TUI
 ```
+
+> `container:opencode:server` up the server mode, so you can connect from
+> web-browser/application using `http://<IP>:<OPENCODE_PORT>/` address.
+> `IP` can be: localhost, 127.0.0.1 or LAN/WLAN IP
+
+> Also you can configure a optional credentials in `.env` file to set
+> `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
 
 ### Skills and quality
 

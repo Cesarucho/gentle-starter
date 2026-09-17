@@ -117,7 +117,8 @@ tasks:
           task container:rebuild          Remove, build, and start devcontainer
           task container:restart          Remove and start devcontainer
           task container:connect          Open bash inside devcontainer
-          task container:opencode         Continue OpenCode inside devcontainer
+          task container:opencode         Continue the direct OpenCode TUI
+          task container:opencode:server  Attach; stop only the task-owned server on exit
           task container:pi               Connect to Pi inside devcontainer
           task container:engram           Connect to Engram TUI inside devcontainer
 
