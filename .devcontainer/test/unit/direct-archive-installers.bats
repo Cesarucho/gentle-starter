@@ -87,6 +87,7 @@ EOF
 write_binary_archive() {
 	local name="$1" version="$2" mode="${3:-normal}"
 	local root="${TEST_ROOT}/archive-root"
+	local -a entries=("${name}")
 	rm -rf "${root}"
 	mkdir -p "${root}"
 	cat >"${root}/${name}" <<EOF
@@ -98,19 +99,21 @@ EOF
 		printf 'changelog\n' >"${root}/CHANGELOG.md"
 		printf 'license\n' >"${root}/LICENSE"
 		printf 'readme\n' >"${root}/README.md"
+		entries=(CHANGELOG.md LICENSE README.md "${name}")
 	fi
 	case "${mode}" in
-	duplicate) cp "${root}/${name}" "${root}/extra" ;;
+	duplicate) entries+=("${name}") ;;
+	metadata)
+		printf 'notice\n' >"${root}/NOTICE"
+		printf '{"format":"spdx"}\n' >"${root}/SBOM.spdx.json"
+		entries+=(NOTICE SBOM.spdx.json)
+		;;
 	symlink) rm "${root}/${name}"; ln -s target "${root}/${name}" ;;
 	traversal) tar -czf "${ARCHIVE}" --transform='s|^|../|' -C "${root}" "${name}"; return ;;
 	execution-fail) printf '#!/usr/bin/env bash\nexit 42\n' >"${root}/${name}" ;;
 	signal) printf '#!/usr/bin/env bash\nkill -TERM "$PPID"\nsleep 1\n' >"${root}/${name}" ;;
 	esac
-	if [ "${mode}" = duplicate ]; then
-		tar -czf "${ARCHIVE}" -C "${root}" $([ "${name}" = engram ] && printf 'CHANGELOG.md LICENSE README.md ') "${name}" extra
-	else
-		tar -czf "${ARCHIVE}" -C "${root}" $([ "${name}" = engram ] && printf 'CHANGELOG.md LICENSE README.md ') "${name}"
-	fi
+	tar -czf "${ARCHIVE}" -C "${root}" "${entries[@]}"
 }
 
 write_adversarial_archive() {
@@ -128,6 +131,7 @@ with tarfile.open(archive, "w:gz") as bundle:
         info.size = len(body)
         bundle.addfile(info, io.BytesIO(body))
     if mode == "traversal": regular("../" + canonical)
+    elif mode == "absolute": regular("/" + canonical)
     elif mode == "symlink":
         info = tarfile.TarInfo(canonical); info.type = tarfile.SYMTYPE; info.linkname = "target"; bundle.addfile(info)
     elif mode == "hardlink":
@@ -136,6 +140,7 @@ with tarfile.open(archive, "w:gz") as bundle:
         info = tarfile.TarInfo(canonical); info.type = tarfile.FIFOTYPE; bundle.addfile(info)
     elif mode == "duplicate": regular(canonical); regular(canonical)
     elif mode == "extra-root": regular(canonical); regular("unexpected/file")
+    elif mode == "missing": regular(root + "NOTICE")
 PY
 }
 
@@ -216,6 +221,14 @@ run_direct_installer() {
 	done
 }
 
+@test "Engram build accepts safe extra root metadata" {
+	write_binary_archive engram 1.2.3 metadata
+	run_direct_installer engram x86_64 1.2.3
+	[ "${status}" -eq 0 ]
+	[ "$("${INSTALL_DIR}/engram" version)" = "engram version 1.2.3" ]
+	assert_installer_temp_is_empty
+}
+
 @test "direct installers reject malformed layouts and preserve installed bytes and mode" {
 	for tool in opencode engram; do
 		printf 'preserved\n' >"${INSTALL_DIR}/${tool}"
@@ -288,7 +301,7 @@ run_direct_installer() {
 	for tool in opencode engram; do
 		printf 'preserved\n' >"${INSTALL_DIR}/${tool}"
 		chmod 0751 "${INSTALL_DIR}/${tool}"
-		for mode in traversal symlink hardlink special duplicate extra-root; do
+		for mode in traversal symlink hardlink special duplicate extra-root missing; do
 			write_adversarial_archive "${tool}" "${mode}"
 			before="$(snapshot_tree "${INSTALL_DIR}")"
 			run_direct_installer "${tool}" x86_64 1.2.3
@@ -298,6 +311,18 @@ run_direct_installer() {
 			assert_installer_temp_is_empty
 		done
 	done
+}
+
+@test "Engram archive validator rejects an absolute-path entry" {
+	write_adversarial_archive engram absolute
+
+	run bash -c 'source "$1"; devcontainer_validate_engram_tar "$2" "$3"' _ \
+		"${REPO_ROOT}/.devcontainer/install/lib/tar-archive.sh" "${ARCHIVE}" "${INSTALL_DIR}"
+
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"Engram archive has an unsafe or unexpected layout"* ]]
+	[ ! -e "${INSTALL_DIR}/engram" ]
+	assert_installer_temp_is_empty
 }
 
 @test "BATS rejects every unsafe tar entry before staging or publication" {

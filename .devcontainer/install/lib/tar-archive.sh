@@ -31,21 +31,27 @@ devcontainer_validate_engram_tar() {
 	python3 - "${archive}" <<'PY'
 import pathlib, sys, tarfile
 
-expected = {"CHANGELOG.md", "LICENSE", "README.md", "engram"}
 with tarfile.open(sys.argv[1], "r:gz") as bundle:
-    members = bundle.getmembers()
-    names = [member.name for member in members]
-    if len(names) != len(set(names)):
-        raise SystemExit("Engram archive contains duplicate entries")
-    if set(names) != expected:
-        raise SystemExit("Engram archive has an unexpected layout")
-    for member in members:
+    names = set()
+    binary_count = 0
+    for member in bundle.getmembers():
         path = pathlib.PurePosixPath(member.name)
-        if path.is_absolute() or ".." in path.parts or not member.isfile() or member.islnk() or member.issym():
+        normalized = path.as_posix()
+        if normalized in names:
+            raise SystemExit("Engram archive contains duplicate entries")
+        names.add(normalized)
+        if (path.is_absolute() or ".." in path.parts or len(path.parts) != 1
+                or member.name != normalized):
+            raise SystemExit("Engram archive has an unsafe or unexpected layout")
+        if not member.isfile() or member.islnk() or member.issym():
             raise SystemExit("Engram archive entries must be regular root files")
+        if normalized == "engram":
+            binary_count += 1
+    if binary_count != 1:
+        raise SystemExit("Engram archive must contain exactly one regular root engram binary")
 PY
 	mkdir -p "${destination}"
-	tar -xzf "${archive}" -C "${destination}" -- CHANGELOG.md LICENSE README.md engram
+	tar -xzf "${archive}" -C "${destination}" -- engram
 }
 
 devcontainer_validate_rooted_tar() {
