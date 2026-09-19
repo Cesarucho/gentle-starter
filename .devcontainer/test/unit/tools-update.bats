@@ -19,7 +19,11 @@ setup() {
 	export DEPS_UPDATE_POLICY_FILE="${POLICY_FILE}"
 	export DEPS_UPDATE_PNPM="${BIN_DIR}/pnpm"
 	export DEPS_UPDATE_CURL="${BIN_DIR}/curl"
+	export DEPS_UPDATE_SLEEP="${BIN_DIR}/sleep"
+	export DEPS_UPDATE_GH="${BIN_DIR}/gh"
 	export DEPS_UPDATE_COMMON_SH="${REPO_ROOT}/.devcontainer/install/lib/common.sh"
+	unset GH_TOKEN
+	unset TOOLS_UPDATE_USE_GH_AUTH
 	GENTLE_FIXTURE_VERSION="1.2.3"
 	GENTLE_FIXTURE_NEW_VERSION="1.2.4"
 	GENTLE_FIXTURE_SHA256_AMD64="$(printf 'a%.0s' {1..64})"
@@ -39,6 +43,8 @@ setup() {
 	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" normal
 	write_pnpm_stub stable
 	write_curl_stub success
+	write_sleep_stub
+	write_forbidden_stub gh
 	write_forbidden_stub npm
 	write_forbidden_stub pi
 }
@@ -142,6 +148,14 @@ EOF
 	chmod +x "${BIN_DIR}/pnpm"
 }
 
+write_sleep_stub() {
+	cat >"${BIN_DIR}/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf 'sleep %s\n' "$*" >>"${CALLS_FILE}"
+EOF
+	chmod +x "${BIN_DIR}/sleep"
+}
+
 write_forbidden_stub() {
 	local command_name="$1"
 	cat >"${BIN_DIR}/${command_name}" <<EOF
@@ -150,6 +164,25 @@ printf '${command_name} %s\n' "\$*" >>"${CALLS_FILE}"
 exit 99
 EOF
 	chmod +x "${BIN_DIR}/${command_name}"
+}
+
+write_gh_stub() {
+	local mode="$1"
+	cat >"${BIN_DIR}/gh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'gh %s\n' "\$*" >>"${CALLS_FILE}"
+case "${mode}" in
+token)
+  [ "\$*" = 'auth token --hostname github.com' ] || exit 64
+  printf '%s\n' 'gh-fixture-token' ;;
+empty)
+  [ "\$*" = 'auth token --hostname github.com' ] || exit 64 ;;
+fail) exit 70 ;;
+*) exit 64 ;;
+esac
+EOF
+	chmod +x "${BIN_DIR}/gh"
 }
 
 write_expected_pnpm_calls() {
@@ -200,22 +233,63 @@ PY
 	cat >"${BIN_DIR}/curl" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'curl %s\n' "\$*" >>"${CALLS_FILE}"
-output=""
-url=""
-while [ "\$#" -gt 0 ]; do
-  case "\$1" in
-    -o) output="\$2"; shift 2 ;;
-    -*) shift ;;
-    *) url="\$1"; shift ;;
-  esac
-done
+	printf 'curl %s\n' "\$*" >>"${CALLS_FILE}"
+	output=""
+	headers=""
+	writeout=""
+	url=""
+	while [ "\$#" -gt 0 ]; do
+	  case "\$1" in
+	    -o) output="\$2"; shift 2 ;;
+	    -D) headers="\$2"; shift 2 ;;
+	    -w) writeout="\$2"; shift 2 ;;
+	    -H)
+	      if [ "\$2" = @- ]; then
+	        IFS= read -r authorization_header
+	        case "\${authorization_header}" in
+	          'Authorization: Bearer '*) printf '%s\n' 'header Authorization: Bearer [redacted]' >>"${CALLS_FILE}" ;;
+	          *) printf '%s\n' 'invalid stdin authorization header' >&2; exit 64 ;;
+	        esac
+	      else
+	        printf 'header %s\n' "\$2" >>"${CALLS_FILE}"
+	      fi
+	      shift 2 ;;
+	    -*) shift ;;
+	    *) url="\$1"; shift ;;
+	  esac
+	done
+	response_status=200
+	response_headers=""
+if [ "${mode}" = github_403_retry ] && [[ "\${url}" == *api.github.com* ]]; then
+  attempts_file="${TEST_ROOT}/github-api-attempts"
+  attempts=0
+  [ ! -f "\${attempts_file}" ] || attempts="\$(cat "\${attempts_file}")"
+  attempts=\$((attempts + 1))
+  printf '%s' "\${attempts}" >"\${attempts_file}"
+  if [ "\${attempts}" -eq 1 ]; then
+    body='{"message":"API rate limit exceeded"}'
+    response_status=403
+    response_headers='HTTP/2 403 Forbidden\r
+Retry-After: 1\r
+X-RateLimit-Remaining: 0\r
+X-GitHub-Request-Id: retry-fixture\r
+'
+  fi
+elif [ "${mode}" = github_403_unretryable ] && [[ "\${url}" == *api.github.com* ]]; then
+  body='{"message":"Forbidden by fixture"}'
+  response_status=403
+  response_headers='HTTP/2 403 Forbidden\r
+X-RateLimit-Remaining: 10\r
+X-GitHub-Request-Id: denied-fixture\r
+'
+fi
 if [ "${mode}" = fail ] && [[ "\${url}" == *releases.hashicorp.com* ]]; then
   exit 22
 fi
 if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-ai* ]]; then
   exit 22
 fi
+if [ "\${response_status}" -eq 200 ]; then
 case "\${url}" in
 	*pypi.org/pypi/graphifyy/json) body='{"releases":{"9.9.9":{},"10.0.0":{}}}' ;;
 	*repo.packagist.org/p2/phpunit/phpunit.json) body='{"packages":{"phpunit/phpunit":[{"version":"10.99.0","version_normalized":"10.99.0.0"}]}}' ;;
@@ -340,10 +414,17 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dlv_1.99.0_lin
     fi ;;
   *) echo "unexpected URL: \${url}" >&2; exit 64 ;;
 esac
+fi
 if [ -n "\${output}" ]; then
   printf '%s' "\${body}" >"\${output}"
 else
   printf '%s\n' "\${body}"
+fi
+if [ -n "\${headers}" ]; then
+  printf '%b' "\${response_headers}" >"\${headers}"
+fi
+if [ -n "\${writeout}" ]; then
+  printf '%s' "\${response_status}"
 fi
 EOF
 	chmod +x "${BIN_DIR}/curl"
@@ -718,6 +799,126 @@ EOF
 	grep -Fq 'api.github.com/repos/bats-core/bats-core/releases/tags/v1.14.0' "${CALLS_FILE}"
 	! grep -Fq 'api.github.com/repos/bats-core/bats-core/releases?per_page=' "${CALLS_FILE}"
 	grep -q '^LOCK_BATS_VERSION="1.14.0"$' "${POLICY_FILE}"
+}
+
+@test "GitHub API requests identify the updater and retry a bounded rate limit response" {
+	write_curl_stub github_403_retry
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -eq 0 ]
+	grep -Fq 'header Accept: application/vnd.github+json' "${CALLS_FILE}"
+	grep -Fq 'header X-GitHub-Api-Version: 2026-03-10' "${CALLS_FILE}"
+	grep -Fq 'header User-Agent: gentle-starter-tools-update' "${CALLS_FILE}"
+	grep -Fq 'sleep 1' "${CALLS_FILE}"
+	[ "$(grep -c 'Gentleman-Programming/gentle-ai/releases?per_page=100&page=1' "${CALLS_FILE}")" -eq 2 ]
+	[[ "${output}" == *"GitHub API rate limit"* ]]
+}
+
+@test "GitHub API sends a non-empty GH_TOKEN without exposing it" {
+	secret_marker='fixture-secret-not-for-output'
+	export GH_TOKEN="${secret_marker}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	unset GH_TOKEN
+	[ "${status}" -eq 0 ]
+	update_output="${output}"
+	grep -Fq 'header Authorization: Bearer [redacted]' "${CALLS_FILE}"
+	run grep -Fq "${secret_marker}" "${CALLS_FILE}"
+	[ "${status}" -ne 0 ]
+	[[ "${update_output}" != *"${secret_marker}"* ]]
+}
+
+@test "GitHub API preserves GH_TOKEN precedence over opted-in gh authentication" {
+	secret_marker='fixture-direct-token'
+	export GH_TOKEN="${secret_marker}"
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	unset GH_TOKEN TOOLS_UPDATE_USE_GH_AUTH
+	[ "${status}" -eq 0 ]
+	grep -Fq 'header Authorization: Bearer [redacted]' "${CALLS_FILE}"
+	run grep -Fq 'gh auth token' "${CALLS_FILE}"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" != *"${secret_marker}"* ]]
+}
+
+@test "GitHub API does not probe gh without explicit opt-in" {
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -eq 0 ]
+	run grep -Fq 'gh auth token' "${CALLS_FILE}"
+	[ "${status}" -ne 0 ]
+}
+
+@test "GitHub API uses an opted-in github.com gh token without disclosure" {
+	write_gh_stub token
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	unset TOOLS_UPDATE_USE_GH_AUTH
+	[ "${status}" -eq 0 ]
+	grep -Fq 'gh auth token --hostname github.com' "${CALLS_FILE}"
+	grep -Fq 'header Authorization: Bearer [redacted]' "${CALLS_FILE}"
+	run grep -Fq 'gh-fixture-token' "${CALLS_FILE}"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" != *'gh-fixture-token'* ]]
+}
+
+@test "GitHub API rejects invalid gh authentication opt-in before discovery" {
+	local direct_token
+	for direct_token in unset present; do
+		export TOOLS_UPDATE_USE_GH_AUTH=enabled
+		if [ "${direct_token}" = present ]; then
+			export GH_TOKEN='fixture-direct-token'
+		fi
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		unset GH_TOKEN TOOLS_UPDATE_USE_GH_AUTH
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *'TOOLS_UPDATE_USE_GH_AUTH must be unset or 1'* ]]
+		[ ! -s "${CALLS_FILE}" ]
+	done
+}
+
+@test "GitHub API fails closed when opted-in gh authentication is unavailable, fails, or is empty" {
+	local mode expected_error
+	for mode in unavailable fail empty; do
+		case "${mode}" in
+		unavailable)
+			export DEPS_UPDATE_GH="${BIN_DIR}/missing-gh"
+			expected_error='gh is unavailable' ;;
+		fail)
+			write_gh_stub fail
+			expected_error='gh auth token failed' ;;
+		empty)
+			write_gh_stub empty
+			expected_error='gh auth token returned no token' ;;
+		esac
+		export TOOLS_UPDATE_USE_GH_AUTH=1
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		unset TOOLS_UPDATE_USE_GH_AUTH
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"${expected_error}"* ]]
+		[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 0 ]
+		: >"${CALLS_FILE}"
+		export DEPS_UPDATE_GH="${BIN_DIR}/gh"
+	done
+}
+
+@test "GitHub API preserves anonymous requests for an empty GH_TOKEN" {
+	export GH_TOKEN=''
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	unset GH_TOKEN
+	[ "${status}" -eq 0 ]
+	run grep -Fq 'Authorization: Bearer' "${CALLS_FILE}"
+	[ "${status}" -ne 0 ]
+}
+
+@test "GitHub API 403 diagnostics fail closed without retry when no retry signal exists" {
+	write_curl_stub github_403_unretryable
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"HTTP 403"* ]]
+	[[ "${output}" == *"request_id=denied-fixture"* ]]
+	[[ "${output}" == *"rate_remaining=10"* ]]
+	[[ "${output}" == *"message=Forbidden by fixture"* ]]
+	! grep -Fq 'sleep ' "${CALLS_FILE}"
+	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 }
 
 @test "tools:update rejects prerelease package metadata without writing" {

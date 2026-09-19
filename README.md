@@ -268,6 +268,20 @@ Edit only `TOOL_*_VERSION` fields. `tools:update` alone resolves stable exact ve
 generates checksums, and atomically replaces the policy without updating installed tools.
 Builds and installers are read-only; rebuild to apply, then commit after verification. See [ADR 0003](docs/en/adr/0003-unified-tool-policy-ownership.md).
 
+If GitHub rate limits anonymous discovery, use an existing GitHub CLI
+authentication explicitly:
+
+```bash
+TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
+```
+
+The opt-in is limited to `github.com`. A non-empty `GH_TOKEN` takes precedence;
+otherwise the opt-in resolves `gh auth token` for `github.com`. Without the opt-in,
+the updater remains anonymous and does not invoke `gh`. Any value other than `1`
+fails safely. Resolved tokens are sent only as an HTTPS GitHub API authorization
+header through curl standard input and are not written to the version policy or
+diagnostic output.
+
 ### ⚙️ Save OpenCode and Pi configuration changes
 
 **Runtime files are the source of truth**. But during normal use, we often change our preferences;

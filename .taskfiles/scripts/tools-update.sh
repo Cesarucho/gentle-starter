@@ -9,6 +9,12 @@ ARCHIFY_ARCHIVE_SH="${DEPS_UPDATE_ARCHIFY_ARCHIVE_SH:-${WORKSPACE}/.devcontainer
 PNPM_BIN="${DEPS_UPDATE_PNPM:-pnpm}"
 CURL_BIN="${DEPS_UPDATE_CURL:-curl}"
 JQ_BIN="${DEPS_UPDATE_JQ:-jq}"
+SLEEP_BIN="${DEPS_UPDATE_SLEEP:-sleep}"
+GH_BIN="${DEPS_UPDATE_GH:-gh}"
+GITHUB_API_VERSION="${DEPS_UPDATE_GITHUB_API_VERSION:-2026-03-10}"
+GITHUB_API_USER_AGENT="${DEPS_UPDATE_GITHUB_API_USER_AGENT:-gentle-starter-tools-update}"
+GITHUB_API_MAX_RETRIES="${DEPS_UPDATE_GITHUB_API_MAX_RETRIES:-1}"
+GITHUB_API_MAX_RETRY_SECONDS="${DEPS_UPDATE_GITHUB_API_MAX_RETRY_SECONDS:-60}"
 
 PACKAGE_SPECS=(
 	"LOCK_PNPM_VERSION|pnpm" "LOCK_PI_CODING_AGENT_VERSION|@earendil-works/pi-coding-agent"
@@ -49,6 +55,7 @@ declare -A CANDIDATES=()
 UPDATE_KEYS=()
 TEMP_DIR=""
 CANDIDATE_FILE=""
+GITHUB_API_TOKEN=""
 
 cleanup() {
 	[ -z "${CANDIDATE_FILE}" ] || rm -f "${CANDIDATE_FILE}"
@@ -63,6 +70,22 @@ fail() {
 
 require_command() {
 	command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
+}
+
+resolve_github_api_token() {
+	local public_opt_in="${TOOLS_UPDATE_USE_GH_AUTH:-}"
+
+	case "${public_opt_in}" in '' | 1) ;; *) fail "TOOLS_UPDATE_USE_GH_AUTH must be unset or 1" ;; esac
+
+	if [ -n "${GH_TOKEN:-}" ]; then
+		GITHUB_API_TOKEN="${GH_TOKEN}"
+		return 0
+	fi
+	[ "${public_opt_in}" = 1 ] || return 0
+	command -v "${GH_BIN}" >/dev/null 2>&1 || fail "GitHub CLI authentication was requested but gh is unavailable"
+	GITHUB_API_TOKEN="$("${GH_BIN}" auth token --hostname github.com 2>/dev/null)" ||
+		fail "GitHub CLI authentication was requested but gh auth token failed"
+	[ -n "${GITHUB_API_TOKEN}" ] || fail "GitHub CLI authentication was requested but gh auth token returned no token"
 }
 
 stable_semver() {
@@ -183,6 +206,82 @@ fetch_url_to_file() {
 	"${CURL_BIN}" -fsSL -o "$2" "$1"
 }
 
+github_api_request() {
+	local url="$1" headers="$2" body="$3"
+	if [ -n "${GITHUB_API_TOKEN}" ]; then
+		printf 'Authorization: Bearer %s\n' "${GITHUB_API_TOKEN}" |
+			"${CURL_BIN}" -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' \
+				-H 'Accept: application/vnd.github+json' \
+				-H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
+				-H "User-Agent: ${GITHUB_API_USER_AGENT}" \
+				-H '@-' \
+				"${url}"
+	else
+		"${CURL_BIN}" -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' \
+			-H 'Accept: application/vnd.github+json' \
+			-H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
+			-H "User-Agent: ${GITHUB_API_USER_AGENT}" \
+			"${url}"
+	fi
+}
+
+github_header_value() {
+	local headers="$1" name="$2"
+	awk -F ': *' -v name="${name}" 'tolower($1) == tolower(name) { value=$2 } END { sub(/\r$/, "", value); print value }' "${headers}"
+}
+
+github_retry_seconds() {
+	local headers="$1" remaining retry_after reset now seconds
+	remaining="$(github_header_value "${headers}" X-RateLimit-Remaining)"
+	retry_after="$(github_header_value "${headers}" Retry-After)"
+	reset="$(github_header_value "${headers}" X-RateLimit-Reset)"
+	if [[ "${retry_after}" =~ ^[0-9]+$ ]]; then
+		printf '%s\n' "${retry_after}"
+		return 0
+	fi
+	if [ "${remaining}" = 0 ] && [[ "${reset}" =~ ^[0-9]+$ ]]; then
+		now="$(date +%s)"
+		seconds=$((reset - now))
+		[ "${seconds}" -gt 0 ] || seconds=0
+		printf '%s\n' "${seconds}"
+		return 0
+	fi
+	return 1
+}
+
+fetch_github_api_url() {
+	local url="$1" attempt=0 headers body status curl_status retry_seconds message request_id remaining reset retry_after
+	while :; do
+		headers="$(mktemp "${TEMP_DIR}/github-headers.XXXXXX")"
+		body="$(mktemp "${TEMP_DIR}/github-body.XXXXXX")"
+		curl_status=0
+		status="$(github_api_request "${url}" "${headers}" "${body}")" || curl_status=$?
+		if [ "${curl_status}" -eq 0 ] && [[ "${status}" =~ ^2[0-9][0-9]$ ]]; then
+			cat "${body}"
+			rm -f "${headers}" "${body}"
+			return 0
+		fi
+
+		request_id="$(github_header_value "${headers}" X-GitHub-Request-Id)"
+		remaining="$(github_header_value "${headers}" X-RateLimit-Remaining)"
+		reset="$(github_header_value "${headers}" X-RateLimit-Reset)"
+		retry_after="$(github_header_value "${headers}" Retry-After)"
+		message="$("${JQ_BIN}" -r 'if type == "object" and (.message? | type == "string") then .message else empty end' "${body}" 2>/dev/null || true)"
+		message="${message//$'\n'/ }"
+
+		if [ "${status}" = 403 ] && [ "${attempt}" -lt "${GITHUB_API_MAX_RETRIES}" ] && retry_seconds="$(github_retry_seconds "${headers}")" && [ "${retry_seconds}" -le "${GITHUB_API_MAX_RETRY_SECONDS}" ]; then
+			printf 'tools:update: GitHub API rate limit for %s; retrying once in %ss (request_id=%s)\n' "${url}" "${retry_seconds}" "${request_id:-unknown}" >&2
+			rm -f "${headers}" "${body}"
+			"${SLEEP_BIN}" "${retry_seconds}"
+			attempt=$((attempt + 1))
+			continue
+		fi
+
+		rm -f "${headers}" "${body}"
+		fail "GitHub API request failed for ${url}: HTTP ${status:-transport-error}; curl_status=${curl_status}; request_id=${request_id:-unknown}; rate_remaining=${remaining:-unknown}; rate_reset=${reset:-unknown}; retry_after=${retry_after:-none}; message=${message:-none}"
+	done
+}
+
 latest_package_version() {
 	local package_name="$1" intent="$2"
 	local version
@@ -219,7 +318,7 @@ latest_github_release() {
 		exact_tag="v${intent#=}"
 		# jq evaluates $tag; the shell must not expand it.
 		# shellcheck disable=SC2016
-		releases="$(fetch_url "https://api.github.com/repos/${repository}/releases/tags/${exact_tag}" | "${JQ_BIN}" -ec --arg tag "${exact_tag}" 'if type == "object" and .tag_name == $tag and .draft == false and .prerelease == false then [.] else error("invalid exact stable release") end')" || fail "exact GitHub release ${repository}@${exact_tag} is missing or unstable"
+		releases="$(fetch_github_api_url "https://api.github.com/repos/${repository}/releases/tags/${exact_tag}" | "${JQ_BIN}" -ec --arg tag "${exact_tag}" 'if type == "object" and .tag_name == $tag and .draft == false and .prerelease == false then [.] else error("invalid exact stable release") end')" || fail "exact GitHub release ${repository}@${exact_tag} is missing or unstable"
 	else
 		releases="$(fetch_github_release_pages "${repository}" | "${JQ_BIN}" -sc '.')"
 	fi
@@ -245,7 +344,7 @@ validate_unique_github_release_tags() {
 fetch_github_release_pages() {
 	local repository="$1" page=1 page_json count
 	while [ "${page}" -le 100 ]; do
-		page_json="$(fetch_url "https://api.github.com/repos/${repository}/releases?per_page=100&page=${page}")" || fail "GitHub release page ${page} failed for ${repository}"
+		page_json="$(fetch_github_api_url "https://api.github.com/repos/${repository}/releases?per_page=100&page=${page}")" || fail "GitHub release page ${page} failed for ${repository}"
 		count="$(printf '%s' "${page_json}" | "${JQ_BIN}" -er 'if type == "array" then length else error("expected release array") end')" || fail "GitHub returned invalid release page ${page} for ${repository}"
 		printf '%s' "${page_json}" | "${JQ_BIN}" -c '.[]'
 		[ "${count}" -eq 100 ] || return 0
@@ -359,7 +458,7 @@ discover_gentle_ai_digests() {
 	version="${CANDIDATES[LOCK_GENTLE_AI_VERSION]}"
 	require_stable_semver LOCK_GENTLE_AI_VERSION "${version}"
 	release_url="https://api.github.com/repos/Gentleman-Programming/gentle-ai/releases/tags/v${version}"
-	release_json="$(fetch_url "${release_url}")"
+	release_json="$(fetch_github_api_url "${release_url}")"
 
 	# jq variables are intentionally evaluated by jq, not the shell.
 	# shellcheck disable=SC2016
@@ -388,7 +487,7 @@ discover_archify_release() {
 	if [[ "${intent}" == =* ]]; then
 		# jq evaluates $tag; the shell must not expand it.
 		# shellcheck disable=SC2016
-		releases="$(fetch_url "https://api.github.com/repos/tt-a1i/archify/releases/tags/v${intent#=}" | "${JQ_BIN}" -ec --arg tag "v${intent#=}" 'if type == "object" and .tag_name == $tag and .draft == false and .prerelease == false then [.] else error("invalid exact stable release") end')" || fail "exact Archify release is missing or unstable"
+		releases="$(fetch_github_api_url "https://api.github.com/repos/tt-a1i/archify/releases/tags/v${intent#=}" | "${JQ_BIN}" -ec --arg tag "v${intent#=}" 'if type == "object" and .tag_name == $tag and .draft == false and .prerelease == false then [.] else error("invalid exact stable release") end')" || fail "exact Archify release is missing or unstable"
 	else
 		releases="$(fetch_github_release_pages tt-a1i/archify | "${JQ_BIN}" -sc '.')"
 	fi
@@ -423,7 +522,7 @@ discover_archify_release() {
 discover_github_binary_release() {
 	local key="$1" repository="$2" version="$3" asset_template="$4"
 	local release_json architecture asset_arch asset_name digest
-	release_json="$(fetch_url "https://api.github.com/repos/${repository}/releases/tags/v${version}")"
+	release_json="$(fetch_github_api_url "https://api.github.com/repos/${repository}/releases/tags/v${version}")"
 	# jq variables are evaluated by jq, not by the shell.
 	# shellcheck disable=SC2016
 	printf '%s' "${release_json}" | "${JQ_BIN}" -e --arg tag "v${version}" \
@@ -603,9 +702,11 @@ main() {
 	[ -f "${POLICY_FILE}" ] || fail "policy file not found: ${POLICY_FILE}"
 	[ -f "${COMMON_SH}" ] || fail "common installer library not found: ${COMMON_SH}"
 	[ -f "${ARCHIFY_ARCHIVE_SH}" ] || fail "Archify archive validator not found: ${ARCHIFY_ARCHIVE_SH}"
+	resolve_github_api_token
 	require_command "${PNPM_BIN}"
 	require_command "${CURL_BIN}"
 	require_command "${JQ_BIN}"
+	require_command "${SLEEP_BIN}"
 	require_command sha256sum
 	require_command node
 	require_command unzip

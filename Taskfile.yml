@@ -75,6 +75,7 @@ tasks:
           task validate:full              Run strict validation requiring shell quality tools
           task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
                                           Does not update installed tools; apply later with container:rebuild
+                                          Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
           task clean                      Review, confirm, and remove project identity files
           task clean:identity             Explicit alias for project identity cleanup
           task --exit-code config:diff    Compare runtime configuration with its seed
