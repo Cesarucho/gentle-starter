@@ -28,7 +28,7 @@ PY
 
 devcontainer_validate_engram_tar() {
 	local archive="$1" destination="$2"
-	python3 - "${archive}" <<'PY'
+	python3 - "${archive}" <<'PY' || return 1
 import pathlib, sys, tarfile
 
 with tarfile.open(sys.argv[1], "r:gz") as bundle:
@@ -40,11 +40,11 @@ with tarfile.open(sys.argv[1], "r:gz") as bundle:
         if normalized in names:
             raise SystemExit("Engram archive contains duplicate entries")
         names.add(normalized)
-        if (path.is_absolute() or ".." in path.parts or len(path.parts) != 1
+        if (path.is_absolute() or ".." in path.parts or not path.parts
                 or member.name != normalized):
             raise SystemExit("Engram archive has an unsafe or unexpected layout")
         if not member.isfile() or member.islnk() or member.issym():
-            raise SystemExit("Engram archive entries must be regular root files")
+            raise SystemExit("Engram archive entries must be regular files")
         if normalized == "engram":
             binary_count += 1
     if binary_count != 1:

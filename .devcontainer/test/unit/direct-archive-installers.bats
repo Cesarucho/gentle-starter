@@ -116,6 +116,20 @@ EOF
 	tar -czf "${ARCHIVE}" -C "${root}" "${entries[@]}"
 }
 
+write_engram_v2_archive() {
+	local version="$1" root="${TEST_ROOT}/engram-v2-root"
+	rm -rf "${root}"
+	mkdir -p "${root}/tools"
+	cat >"${root}/engram" <<EOF
+#!/usr/bin/env bash
+printf 'engram version ${version}\n'
+EOF
+	printf 'Write-Output "cloud sync"\n' >"${root}/tools/cloud-sync-projects.ps1"
+	printf '#!/usr/bin/env bash\nprintf "cloud sync\\n"\n' >"${root}/tools/cloud-sync-projects.sh"
+	chmod +x "${root}/engram" "${root}/tools/cloud-sync-projects.ps1" "${root}/tools/cloud-sync-projects.sh"
+	tar -czf "${ARCHIVE}" -C "${root}" engram tools/cloud-sync-projects.ps1 tools/cloud-sync-projects.sh
+}
+
 write_adversarial_archive() {
 	local tool="$1" mode="$2" rooted="${3:-no}"
 	python3 - "${ARCHIVE}" "${tool}" "${mode}" "${rooted}" <<'PY'
@@ -141,6 +155,18 @@ with tarfile.open(archive, "w:gz") as bundle:
     elif mode == "duplicate": regular(canonical); regular(canonical)
     elif mode == "extra-root": regular(canonical); regular("unexpected/file")
     elif mode == "missing": regular(root + "NOTICE")
+    elif mode.startswith("nested-"):
+        regular(canonical)
+        nested_mode = mode.removeprefix("nested-")
+        if nested_mode == "traversal": regular("tools/../unexpected")
+        elif nested_mode == "absolute": regular("/tools/unexpected")
+        elif nested_mode == "symlink":
+            info = tarfile.TarInfo("tools/unexpected"); info.type = tarfile.SYMTYPE; info.linkname = "target"; bundle.addfile(info)
+        elif nested_mode == "hardlink":
+            info = tarfile.TarInfo("tools/unexpected"); info.type = tarfile.LNKTYPE; info.linkname = "target"; bundle.addfile(info)
+        elif nested_mode == "special":
+            info = tarfile.TarInfo("tools/unexpected"); info.type = tarfile.FIFOTYPE; bundle.addfile(info)
+        elif nested_mode == "duplicate": regular("tools/unexpected"); regular("tools/unexpected")
 PY
 }
 
@@ -223,6 +249,23 @@ run_direct_installer() {
 
 @test "Engram build accepts safe extra root metadata" {
 	write_binary_archive engram 1.2.3 metadata
+	run_direct_installer engram x86_64 1.2.3
+	[ "${status}" -eq 0 ]
+	[ "$("${INSTALL_DIR}/engram" version)" = "engram version 1.2.3" ]
+	assert_installer_temp_is_empty
+}
+
+@test "Engram accepts the observed v2 nested-file manifest and extracts only the root binary" {
+	write_engram_v2_archive 1.2.3
+
+	run bash -c 'source "$1"; devcontainer_validate_engram_tar "$2" "$3"' _ \
+		"${REPO_ROOT}/.devcontainer/install/lib/tar-archive.sh" "${ARCHIVE}" "${TEST_ROOT}/extract"
+
+	[ "${status}" -eq 0 ]
+	[ -x "${TEST_ROOT}/extract/engram" ]
+	[ ! -e "${TEST_ROOT}/extract/tools" ]
+
+	rm -rf "${TEST_ROOT}/extract"
 	run_direct_installer engram x86_64 1.2.3
 	[ "${status}" -eq 0 ]
 	[ "$("${INSTALL_DIR}/engram" version)" = "engram version 1.2.3" ]
@@ -323,6 +366,20 @@ run_direct_installer() {
 	[[ "${output}" == *"Engram archive has an unsafe or unexpected layout"* ]]
 	[ ! -e "${INSTALL_DIR}/engram" ]
 	assert_installer_temp_is_empty
+}
+
+@test "Engram archive validator rejects unsafe nested entries" {
+	local mode
+	for mode in traversal absolute symlink hardlink special duplicate; do
+		write_adversarial_archive engram "nested-${mode}"
+
+		run bash -c 'source "$1"; devcontainer_validate_engram_tar "$2" "$3"' _ \
+			"${REPO_ROOT}/.devcontainer/install/lib/tar-archive.sh" "${ARCHIVE}" "${INSTALL_DIR}"
+
+		[ "${status}" -ne 0 ]
+		[ ! -e "${INSTALL_DIR}/engram" ]
+		assert_installer_temp_is_empty
+	done
 }
 
 @test "BATS rejects every unsafe tar entry before staging or publication" {
