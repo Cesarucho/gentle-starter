@@ -6,14 +6,18 @@
   "lsp": true,
   "mcp": {
     "codegraph": {
-      "type": "local",
-      "command": ["codegraph", "serve", "--mcp"],
+      "command": [
+        "codegraph",
+        "serve",
+        "--mcp"
+      ],
       "enabled": false,
       "environment": {
-        "CODEGRAPH_TELEMETRY": "0",
+        "CODEGRAPH_NO_DOWNLOAD": "1",
         "CODEGRAPH_NO_UPDATE_CHECK": "1",
-        "CODEGRAPH_NO_DOWNLOAD": "1"
-      }
+        "CODEGRAPH_TELEMETRY": "0"
+      },
+      "type": "local"
     },
     "context7": {
       "enabled": true,
