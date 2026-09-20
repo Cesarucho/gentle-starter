@@ -52,7 +52,7 @@ integrations—not everything below is installed by default.
 
 You can activate catalog tools or add your own installers, with or without AI. See
 [the install layout](docs/en/install-tree.md) and [cache boundaries](docs/en/container-foundation.md).
-Run `task install:list` for the authoritative catalog and activation state.
+Run `task install:list` for the current catalog and activation state.
 
 <details>
 <summary>Supporting tools and optional extensions list: 👇🏼</summary>
@@ -281,6 +281,11 @@ the updater remains anonymous and does not invoke `gh`. Any value other than `1`
 fails safely. Resolved tokens are sent only as an HTTPS GitHub API authorization
 header through curl standard input and are not written to the version policy or
 diagnostic output.
+
+GitHub REST discovery responses are regenerated in the private local cache at
+`${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/` and
+use ETags to avoid unchanged requests. It contains no credentials and can be
+safely cleared with `rm -rf` when a fresh discovery is needed.
 
 ### ⚙️ Save OpenCode and Pi configuration changes
 

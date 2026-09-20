@@ -6,6 +6,7 @@ setup() {
 	POLICY_FILE="${TEST_ROOT}/tool-versions.conf"
 	BIN_DIR="${TEST_ROOT}/bin"
 	CALLS_FILE="${TEST_ROOT}/calls"
+	GITHUB_API_CACHE_DIR="${TEST_ROOT}/github-api-cache"
 	mkdir -p "${BIN_DIR}"
 	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${POLICY_FILE}"
 	sed -i -E '/^TOOL_(JAVA|NODE|PHP|KUBECTL|PLANTUML)_VERSION=/! s/^(TOOL_[A-Z0-9_]+_VERSION)=.*/\1="latest"/' "${POLICY_FILE}"
@@ -14,13 +15,14 @@ setup() {
 		-e 's/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION="1.2026.8"/' \
 		"${POLICY_FILE}"
 	: >"${CALLS_FILE}"
-	export REPO_ROOT TEST_ROOT POLICY_FILE BIN_DIR CALLS_FILE
+	export REPO_ROOT TEST_ROOT POLICY_FILE BIN_DIR CALLS_FILE GITHUB_API_CACHE_DIR
 	export PATH="${BIN_DIR}:${PATH}"
 	export DEPS_UPDATE_POLICY_FILE="${POLICY_FILE}"
 	export DEPS_UPDATE_PNPM="${BIN_DIR}/pnpm"
 	export DEPS_UPDATE_CURL="${BIN_DIR}/curl"
 	export DEPS_UPDATE_SLEEP="${BIN_DIR}/sleep"
 	export DEPS_UPDATE_GH="${BIN_DIR}/gh"
+	export DEPS_UPDATE_GITHUB_API_CACHE_DIR="${GITHUB_API_CACHE_DIR}"
 	export DEPS_UPDATE_COMMON_SH="${REPO_ROOT}/.devcontainer/install/lib/common.sh"
 	unset GH_TOKEN
 	unset TOOLS_UPDATE_USE_GH_AUTH
@@ -238,6 +240,7 @@ set -euo pipefail
 	headers=""
 	writeout=""
 	url=""
+	conditional_etag=0
 	while [ "\$#" -gt 0 ]; do
 	  case "\$1" in
 	    -o) output="\$2"; shift 2 ;;
@@ -252,6 +255,7 @@ set -euo pipefail
 	        esac
 	      else
 	        printf 'header %s\n' "\$2" >>"${CALLS_FILE}"
+	        [ "\$2" != 'If-None-Match: "fixture-cache-etag"' ] || conditional_etag=1
 	      fi
 	      shift 2 ;;
 	    -*) shift ;;
@@ -260,7 +264,19 @@ set -euo pipefail
 	done
 	response_status=200
 	response_headers=""
-if [ "${mode}" = github_403_retry ] && [[ "\${url}" == *api.github.com* ]]; then
+	body=""
+if [ "${mode}" = github_etag_304 ] && [[ "\${url}" == *api.github.com* ]]; then
+  if [ -f "${TEST_ROOT}/github-etag-phase" ] && [ "\${conditional_etag}" -eq 1 ]; then
+    response_status=304
+    response_headers='HTTP/2 304 Not Modified\r
+X-GitHub-Request-Id: etag-fixture\r
+'
+  else
+    response_headers='HTTP/2 200 OK\r
+ETag: "fixture-cache-etag"\r
+'
+  fi
+elif [ "${mode}" = github_403_retry ] && [[ "\${url}" == *api.github.com* ]]; then
   attempts_file="${TEST_ROOT}/github-api-attempts"
   attempts=0
   [ ! -f "\${attempts_file}" ] || attempts="\$(cat "\${attempts_file}")"
@@ -813,8 +829,68 @@ EOF
 	[[ "${output}" == *"GitHub API rate limit"* ]]
 }
 
+@test "GitHub API 200 responses create a private opaque ETag cache without temporary files" {
+	write_curl_stub github_etag_304
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -eq 0 ]
+	[ "$(stat -c %a "${GITHUB_API_CACHE_DIR}")" = 700 ]
+	[ "$(find "${GITHUB_API_CACHE_DIR}" -maxdepth 1 -name '*.body' -type f | wc -l)" -gt 0 ]
+	[ "$(find "${GITHUB_API_CACHE_DIR}" -maxdepth 1 -name '*.etag' -type f | wc -l)" -gt 0 ]
+	[ -z "$(find "${GITHUB_API_CACHE_DIR}" -maxdepth 1 -name '.github-api-*' -print)" ]
+	while IFS= read -r cache_file; do
+		[ "$(stat -c %a "${cache_file}")" = 600 ]
+		[[ "$(basename "${cache_file}")" =~ ^[0-9a-f]{64}\.(body|etag)$ ]]
+	done < <(find "${GITHUB_API_CACHE_DIR}" -maxdepth 1 -type f -print)
+}
+
+@test "GitHub API sends If-None-Match and validates cached bodies after a 304" {
+	write_curl_stub github_etag_304
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -eq 0 ]
+	touch "${TEST_ROOT}/github-etag-phase"
+	: >"${CALLS_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *"No changes."* ]]
+	grep -Fq 'header If-None-Match: "fixture-cache-etag"' "${CALLS_FILE}"
+}
+
+@test "GitHub API 304 fails closed for missing or corrupt cached response bodies" {
+	local corruption
+	for corruption in missing corrupt; do
+		write_curl_stub github_etag_304
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		[ "${status}" -eq 0 ]
+		cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+		if [ "${corruption}" = missing ]; then
+			find "${GITHUB_API_CACHE_DIR}" -name '*.body' -delete
+		else
+			find "${GITHUB_API_CACHE_DIR}" -name '*.body' -exec sh -c 'printf invalid >"$1"' _ {} \;
+		fi
+		touch "${TEST_ROOT}/github-etag-phase"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		[ "${status}" -ne 0 ]
+		cmp -s "${POLICY_FILE}" "${TEST_ROOT}/before"
+		if [ "${corruption}" = missing ]; then
+			[[ "${output}" == *"cached response body is missing or malformed"* ]]
+		fi
+		rm -rf "${GITHUB_API_CACHE_DIR}" "${TEST_ROOT}/github-etag-phase"
+	done
+}
+
+@test "GitHub API cache miss plus transport failure fails closed without publishing" {
+	write_curl_stub gentle_fail
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"GitHub API request failed"* ]]
+	cmp -s "${POLICY_FILE}" "${TEST_ROOT}/before"
+	[ ! -d "${GITHUB_API_CACHE_DIR}" ]
+}
+
 @test "GitHub API sends a non-empty GH_TOKEN without exposing it" {
 	secret_marker='fixture-secret-not-for-output'
+	write_curl_stub github_etag_304
 	export GH_TOKEN="${secret_marker}"
 	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	unset GH_TOKEN
@@ -822,6 +898,8 @@ EOF
 	update_output="${output}"
 	grep -Fq 'header Authorization: Bearer [redacted]' "${CALLS_FILE}"
 	run grep -Fq "${secret_marker}" "${CALLS_FILE}"
+	[ "${status}" -ne 0 ]
+	run grep -R -F "${secret_marker}" "${GITHUB_API_CACHE_DIR}"
 	[ "${status}" -ne 0 ]
 	[[ "${update_output}" != *"${secret_marker}"* ]]
 }

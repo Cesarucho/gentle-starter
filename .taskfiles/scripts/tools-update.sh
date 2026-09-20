@@ -15,6 +15,7 @@ GITHUB_API_VERSION="${DEPS_UPDATE_GITHUB_API_VERSION:-2026-03-10}"
 GITHUB_API_USER_AGENT="${DEPS_UPDATE_GITHUB_API_USER_AGENT:-gentle-starter-tools-update}"
 GITHUB_API_MAX_RETRIES="${DEPS_UPDATE_GITHUB_API_MAX_RETRIES:-1}"
 GITHUB_API_MAX_RETRY_SECONDS="${DEPS_UPDATE_GITHUB_API_MAX_RETRY_SECONDS:-60}"
+GITHUB_API_CACHE_DIR="${DEPS_UPDATE_GITHUB_API_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/gentle-starter/tools-update/github-api}"
 
 PACKAGE_SPECS=(
 	"LOCK_PNPM_VERSION|pnpm" "LOCK_PI_CODING_AGENT_VERSION|@earendil-works/pi-coding-agent"
@@ -207,20 +208,22 @@ fetch_url_to_file() {
 }
 
 github_api_request() {
-	local url="$1" headers="$2" body="$3"
+	local url="$1" headers="$2" body="$3" etag="${4:-}"
+	local -a request_headers=(
+		-H 'Accept: application/vnd.github+json'
+		-H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}"
+		-H "User-Agent: ${GITHUB_API_USER_AGENT}"
+	)
+	[ -z "${etag}" ] || request_headers+=(-H "If-None-Match: ${etag}")
 	if [ -n "${GITHUB_API_TOKEN}" ]; then
 		printf 'Authorization: Bearer %s\n' "${GITHUB_API_TOKEN}" |
 			"${CURL_BIN}" -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' \
-				-H 'Accept: application/vnd.github+json' \
-				-H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
-				-H "User-Agent: ${GITHUB_API_USER_AGENT}" \
+				"${request_headers[@]}" \
 				-H '@-' \
 				"${url}"
 	else
 		"${CURL_BIN}" -sS -L -D "${headers}" -o "${body}" -w '%{http_code}' \
-			-H 'Accept: application/vnd.github+json' \
-			-H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
-			-H "User-Agent: ${GITHUB_API_USER_AGENT}" \
+			"${request_headers[@]}" \
 			"${url}"
 	fi
 }
@@ -249,15 +252,74 @@ github_retry_seconds() {
 	return 1
 }
 
+github_api_cache_key() {
+	local url="$1" key
+	key="$(printf '%s' "${url}" | sha256sum | awk '{print $1}')"
+	[[ "${key}" =~ ^[0-9a-f]{64}$ ]] || fail "could not derive a safe GitHub API cache key"
+	printf '%s\n' "${key}"
+}
+
+github_api_cache_paths() {
+	local url="$1" key
+	key="$(github_api_cache_key "${url}")"
+	printf '%s\n%s\n' "${GITHUB_API_CACHE_DIR}/${key}.etag" "${GITHUB_API_CACHE_DIR}/${key}.body"
+}
+
+github_api_cache_etag() {
+	local etag_path="$1" etag
+	[ -f "${etag_path}" ] && [ ! -L "${etag_path}" ] || return 1
+	etag="$(cat "${etag_path}")"
+	[ -n "${etag}" ] && [[ "${etag}" != *$'\r'* && "${etag}" != *$'\n'* ]] || return 1
+	printf '%s\n' "${etag}"
+}
+
+github_api_cache_body_is_usable() {
+	local body_path="$1"
+	[ -f "${body_path}" ] && [ ! -L "${body_path}" ] && [ -s "${body_path}" ]
+}
+
+github_api_cache_store() {
+	local url="$1" headers="$2" body="$3" etag etag_path body_path etag_tmp body_tmp
+	local -a cache_paths
+	etag="$(github_header_value "${headers}" ETag)"
+	[ -n "${etag}" ] || return 0
+	[[ "${etag}" != *$'\r'* && "${etag}" != *$'\n'* ]] || fail "GitHub API returned an unsafe ETag"
+	mapfile -t cache_paths < <(github_api_cache_paths "${url}")
+	etag_path="${cache_paths[0]}"
+	body_path="${cache_paths[1]}"
+	mkdir -p "${GITHUB_API_CACHE_DIR}" || fail "could not create GitHub API cache directory"
+	chmod 700 "${GITHUB_API_CACHE_DIR}" || fail "could not protect GitHub API cache directory"
+	etag_tmp="$(mktemp "${GITHUB_API_CACHE_DIR}/.github-api-etag.XXXXXX")"
+	body_tmp="$(mktemp "${GITHUB_API_CACHE_DIR}/.github-api-body.XXXXXX")"
+	chmod 600 "${etag_tmp}" "${body_tmp}"
+	printf '%s' "${etag}" >"${etag_tmp}"
+	cp "${body}" "${body_tmp}"
+	mv "${etag_tmp}" "${etag_path}"
+	mv "${body_tmp}" "${body_path}"
+}
+
 fetch_github_api_url() {
 	local url="$1" attempt=0 headers body status curl_status retry_seconds message request_id remaining reset retry_after
+	local etag_path body_path cached_etag
+	local -a cache_paths
+	mapfile -t cache_paths < <(github_api_cache_paths "${url}")
+	etag_path="${cache_paths[0]}"
+	body_path="${cache_paths[1]}"
+	cached_etag="$(github_api_cache_etag "${etag_path}" || true)"
 	while :; do
 		headers="$(mktemp "${TEMP_DIR}/github-headers.XXXXXX")"
 		body="$(mktemp "${TEMP_DIR}/github-body.XXXXXX")"
 		curl_status=0
-		status="$(github_api_request "${url}" "${headers}" "${body}")" || curl_status=$?
+		status="$(github_api_request "${url}" "${headers}" "${body}" "${cached_etag}")" || curl_status=$?
 		if [ "${curl_status}" -eq 0 ] && [[ "${status}" =~ ^2[0-9][0-9]$ ]]; then
+			github_api_cache_store "${url}" "${headers}" "${body}"
 			cat "${body}"
+			rm -f "${headers}" "${body}"
+			return 0
+		fi
+		if [ "${curl_status}" -eq 0 ] && [ "${status}" = 304 ]; then
+			github_api_cache_body_is_usable "${body_path}" || fail "GitHub API returned 304 for ${url}, but its cached response body is missing or malformed"
+			cat "${body_path}"
 			rm -f "${headers}" "${body}"
 			return 0
 		fi
