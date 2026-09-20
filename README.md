@@ -276,59 +276,73 @@ TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
 ```
 
 The opt-in is limited to `github.com`. A non-empty `GH_TOKEN` takes precedence;
-otherwise the opt-in resolves `gh auth token` for `github.com`. Without the opt-in,
-the updater remains anonymous and does not invoke `gh`. Any value other than `1`
-fails safely. Resolved tokens are sent only as an HTTPS GitHub API authorization
-header through curl standard input and are not written to the version policy or
-diagnostic output.
-
-GitHub REST discovery responses are regenerated in the private local cache at
+otherwise the opt-in resolves `gh auth token` for `github.com`. GitHub REST
+discovery responses are regenerated in the private local cache at
 `${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/` and
-use ETags to avoid unchanged requests. It contains no credentials and can be
-safely cleared with `rm -rf` when a fresh discovery is needed.
+use ETags to avoid unchanged requests.
 
-### ⚙️ Save OpenCode and Pi configuration changes
+### ⚙️ OpenCode and Pi configurations
 
-**Runtime files are the source of truth**. But during normal use, we often change our preferences;
-if we want to keep them as a base, we export them as part of our repository structure:
+* Keep your new preferences as the default setting.
 
-```bash
-# 1. Compare runtime configuration with the repository seed
-task config:diff
+    **Runtime files are the source of truth**. But during normal use, we often change our preferences;
+    if we want to keep them as a base, we export them as part of our repository structure:
 
-# 2. Copy approved runtime files into the repository
-task config:export
+    ```bash
+    # 1. Compare runtime configuration with the repository seed
+    task config:diff
 
-# 3. Review exactly what will be versioned
-git diff -- .devcontainer/opencode-config .devcontainer/pi-config
-```
+    # 2. Copy approved runtime files into the repository
+    task config:export
 
-`config:export` copies configuration in **container runtime → repository directory** direction:
+    # 3. Review exactly what will be versioned
+    git diff -- .devcontainer/opencode-config .devcontainer/pi-config
+    ```
 
-```text
-/home/ubuntu/.config/opencode → .devcontainer/opencode-config
-/home/ubuntu/.pi              → .devcontainer/pi-config
-```
+    `config:export` copies configuration in **container runtime → repository directory** direction:
 
-- copies managed files byte for byte;
-- never deletes seed files;
-- refuses to run when the seed already has pending Git changes;
-- excludes credentials, sessions, caches, logs, and generated dependencies;
-- reports unknown paths without copying them.
+    ```text
+    /home/ubuntu/.config/opencode → .devcontainer/opencode-config
+    /home/ubuntu/.pi              → .devcontainer/pi-config
+    ```
 
-To approve a new runtime path, add it to `managed` in
-`.devcontainer/config-export.json`, then run the commands again.
+    - copies managed files byte for byte;
+    - never deletes seed files;
+    - refuses to run when the seed already has pending Git changes;
+    - excludes credentials, sessions, caches, logs, and generated dependencies;
+    - reports unknown paths without copying them.
 
-For scripts that need the original comparison exit code, use:
+    To approve a new runtime path, add it to `managed` in
+    `.devcontainer/config-export.json`, then run the commands again.
 
-```bash
-task --exit-code config:diff
-```
+    For scripts that need the original comparison exit code, use:
 
-Exit code `0` means the managed files match; `1` means differences or candidates
-were found; `2` means the comparison could not be completed safely.
+    ```bash
+    task --exit-code config:diff
+    ```
 
-See [Configuration](docs/en/configs.md) for the complete contract.
+    Exit code `0` means the managed files match; `1` means differences or candidates
+    were found; `2` means the comparison could not be completed safely.
+
+    See [Configuration](docs/en/configs.md) for the complete contract.
+
+* OpenCode profiles
+
+    You can configure each __"sdd-*"__ sub-agent with the model and effort to your liking
+    (command: `/sdd-model`); these preferences are saved in runtime files 
+    `~/.config/opencode/opencode.json` and `~/.config/opencode/profiles/` which you
+    can then export to default preferences `task config:export`:
+
+    ```bash
+    .devcontainer/opencode-config
+    ├── opencode.json
+    └── profiles/
+        ├── openai-100usd-astral.json
+        ├── openai-100usd-solar.json
+        └── openai-20usd-pareto.json
+    ```
+
+    > Currently, opencode has the `openai-20usd-pareto` profile configured.
 
 ## 🛠️ Useful commands
 
@@ -422,27 +436,38 @@ task quality:check
 task quality:full
 ```
 
-## 🗂️ Repository structure
+## 🗂️ Repository structure after project initialization
+
+`task project:init` removes the Gentle Starter identity and leaves the
+reusable devcontainer foundation in your project. It also creates the
+`chore: initialize project` child commit, preserves the starter ancestry, and
+configures the project branch and remotes you selected.
 
 ```text
 .
-├── .agents/                         Versioned project skills and local manifest
-├── .devcontainer/
-│   ├── install/                     Core, enabled, hook, and catalog installers
+├── .agents/                         Project-authored skills and local manifest
+├── .devcontainer/                   Reusable development environment
+│   ├── docs/                        Local devcontainer guides retained after initialization
+│   ├── install/                     Foundation, core, enabled, hook, and catalog installers
 │   ├── lifecycle/                   Internal post-create lifecycle helpers
 │   ├── docker-compose.yml           Dev Container service and persistent binds
+│   ├── README.md                    Devcontainer-specific documentation
 │   ├── setup.sh                     Post-create configuration
 │   └── tool-versions.conf           Centralized tool-version policy
-├── .taskfiles/
-│   ├── devcontainer.yml             Host container lifecycle tasks
-│   └── scripts/                     Task implementation helpers
-├── docs/en/                         Guides, security notes, and ADRs
-├── AGENTS.md                        AI-facing repository context
-├── AGENTS.md.TEMPLATE               Project identity template
-├── README.md                        Main documentation
+├── .taskfiles/                      Task implementations and lifecycle tasks
+├── .env.d/                          Local environment state, details below section
+├── AGENTS.md.TEMPLATE               Starting point for your project AI instructions
+├── .env.example                     Safe local environment-variable template
+├── .gitignore                       Excludes local state and credentials
+├── LICENSE                          Inherited Gentle Starter MIT attribution
 ├── skills-lock.json                 External skills lock file
-└── Taskfile.yml                     Main task entry point
+├── Taskfile.yml                     Main Task entry point
+└── openspec/                        Optional, preserved if it already exists
 ```
+
+The starter `README.md`, `AGENTS.md`, `docs/`, `CHANGELOG.md`, and optional
+`.github/` directory are removed. Create your own project README and AI
+instructions from `AGENTS.md.TEMPLATE`.
 
 ## 💾 Local state and persistence
 
