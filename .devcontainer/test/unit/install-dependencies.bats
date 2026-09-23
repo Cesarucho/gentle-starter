@@ -18,6 +18,15 @@ load install-fixture
 	[ "$(find "${INSTALL}/03-enabled" -type l | wc -l)" -eq 1 ]
 }
 
+@test "GGA activation creates the canonical optional alias without dependencies" {
+	printf '#!/usr/bin/env bash\nexit 99\n' >"${INSTALL}/available/3070-ai-gga.sh"
+	activate enable 3070-ai-gga
+	[ "${status}" -eq 0 ]
+	[ -L "${INSTALL}/03-enabled/3070-ai-gga.sh" ]
+	[ "$(readlink "${INSTALL}/03-enabled/3070-ai-gga.sh")" = ../available/3070-ai-gga.sh ]
+	[ "$(find "${INSTALL}/03-enabled" -type l | wc -l)" -eq 1 ]
+}
+
 @test "doctor rejects active consumers with missing prerequisites" {
 	ln -s ../available/1020-tool-leaf.sh "${INSTALL}/03-enabled/99-custom.sh"
 	activate doctor

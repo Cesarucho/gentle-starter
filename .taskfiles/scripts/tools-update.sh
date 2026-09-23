@@ -46,6 +46,7 @@ MANAGED_KEYS=(
 	LOCK_PLANTUML_VERSION LOCK_PLANTUML_SHA256 LOCK_DELVE_VERSION LOCK_DELVE_SHA256_AMD64 LOCK_DELVE_SHA256_ARM64
 	LOCK_SPECTRAL_VERSION LOCK_REDOCLY_VERSION LOCK_ASYNCAPI_VERSION LOCK_ARCHIFY_VERSION LOCK_ARCHIFY_SHA256
 	LOCK_CODEGRAPH_VERSION
+	LOCK_GGA_VERSION LOCK_GGA_COMMIT LOCK_GGA_SHA256
 )
 
 # Only newly introduced locks explicitly registered here may be bootstrapped.
@@ -169,7 +170,7 @@ strategy_for_key() {
 	TOOL_CODEGRAPH_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
-	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
+	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
 	TOOL_GRAPHIFY_VERSION) printf semver ;;
 	TOOL_PNPM_VERSION | TOOL_PI_CODING_AGENT_VERSION | TOOL_SKILLS_VERSION | TOOL_GENTLE_PI_VERSION | TOOL_PI_SUBAGENTS_VERSION | TOOL_PI_INTERCOM_VERSION | TOOL_PI_WEB_ACCESS_VERSION | TOOL_PI_LENS_VERSION | TOOL_RPIV_TODO_VERSION | TOOL_RPIV_ASK_USER_QUESTION_VERSION | TOOL_RPIV_BTW_VERSION | TOOL_GENTLE_ENGRAM_VERSION | TOOL_PI_MCP_ADAPTER_VERSION | TOOL_PI_TERMINAL_THEME_VERSION | TOOL_MARKDOWNLINT_CLI2_VERSION | TOOL_MERMAID_CLI_VERSION | TOOL_PLAYWRIGHT_VERSION | TOOL_PLAYWRIGHT_CLI_VERSION | TOOL_DEVCONTAINER_CLI_VERSION | TOOL_VITEST_VERSION | TOOL_SPECTRAL_VERSION | TOOL_REDOCLY_VERSION | TOOL_ASYNCAPI_VERSION) printf npm ;;
 	*) fail "unknown tool strategy for $1" ;;
@@ -581,6 +582,25 @@ discover_archify_release() {
 	CANDIDATES[LOCK_ARCHIFY_SHA256]="${digest#sha256:}"
 }
 
+discover_gga_source() {
+	local version ref_json commit archive
+	version="${CANDIDATES[LOCK_GGA_VERSION]}"
+	require_stable_semver LOCK_GGA_VERSION "${version}"
+	ref_json="$(fetch_github_api_url "https://api.github.com/repos/Gentleman-Programming/gentleman-guardian-angel/git/ref/tags/v${version}")"
+	# jq evaluates $ref and .object fields; the shell must not expand them.
+	# shellcheck disable=SC2016
+	commit="$(printf '%s' "${ref_json}" | "${JQ_BIN}" -er --arg ref "refs/tags/v${version}" '
+		if .ref == $ref and .object.type == "commit" and (.object.sha | test("^[0-9a-f]{40}$")) then .object.sha
+		else error("expected a direct commit tag reference") end
+	')" || fail "GGA tag v${version} must resolve directly to one immutable commit"
+	archive="${TEMP_DIR}/gga.tar.gz"
+	fetch_url_to_file "https://codeload.github.com/Gentleman-Programming/gentleman-guardian-angel/tar.gz/${commit}" "${archive}"
+	[ -s "${archive}" ] || fail "GGA source archive is empty"
+	CANDIDATES[LOCK_GGA_COMMIT]="${commit}"
+	CANDIDATES[LOCK_GGA_SHA256]="$(sha256sum "${archive}" | awk '{print $1}')"
+	[[ "${CANDIDATES[LOCK_GGA_SHA256]}" =~ ^[0-9a-f]{64}$ ]] || fail "GGA source archive has an invalid SHA-256"
+}
+
 discover_github_binary_release() {
 	local key="$1" repository="$2" version="$3" asset_template="$4"
 	local release_json architecture asset_arch asset_name digest
@@ -625,6 +645,8 @@ discover_candidates() {
 	printf 'Discovering constrained direct releases...\n'
 	CANDIDATES[LOCK_GENTLE_AI_VERSION]="$(latest_github_release 'Gentleman-Programming/gentle-ai' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GENTLE_AI_VERSION)")"
 	discover_gentle_ai_digests
+	CANDIDATES[LOCK_GGA_VERSION]="$(latest_github_release 'Gentleman-Programming/gentleman-guardian-angel' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GGA_VERSION)")"
+	discover_gga_source
 	discover_archify_release
 	CANDIDATES[LOCK_C4_PLANTUML_VERSION]="$(latest_github_release 'plantuml-stdlib/C4-PlantUML' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_C4_PLANTUML_VERSION)")"
 	CANDIDATES[LOCK_TERRAFORM_VERSION]="$(latest_terraform_version "$(policy_value TOOL_TERRAFORM_VERSION)")"

@@ -32,6 +32,8 @@ setup() {
 	GENTLE_FIXTURE_SHA256_ARM64="$(printf 'b%.0s' {1..64})"
 	GENTLE_FIXTURE_NEW_SHA256_AMD64="$(printf 'c%.0s' {1..64})"
 	GENTLE_FIXTURE_NEW_SHA256_ARM64="$(printf 'd%.0s' {1..64})"
+	GGA_FIXTURE_COMMIT="1124c3672f082c56b033c4e23a30e95d0e8cd593"
+	GGA_FIXTURE_SHA256="$(printf 'gga archive bytes' | sha256sum | awk '{print $1}')"
 	ARCHIFY_FIXTURE_VERSION="9.8.7"
 	ARCHIFY_ARCHIVE_FILE="${TEST_ROOT}/archify.zip"
 	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" normal
@@ -224,9 +226,10 @@ write_c4_archive_fixture() {
 write_curl_stub() {
 	local mode="$1"
 	local kubectl_response="${2:-v1.36.99}"
-	local configured_gentle_version
+	local configured_gentle_version configured_gga_version
 	local pagination_page
 	configured_gentle_version="$(sed -n 's/^LOCK_GENTLE_AI_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
+	configured_gga_version="$(sed -n 's/^LOCK_GGA_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	pagination_page="$(python3 - <<'PY'
 import json
 print(json.dumps([{"tag_name": f"v9.0.{number}", "draft": False, "prerelease": False} for number in range(1, 101)]))
@@ -314,6 +317,8 @@ case "\${url}" in
     body='[{"version":"go9.9.9","files":[{"version":"go9.9.9","os":"linux","arch":"amd64","kind":"archive","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"version":"go9.9.9","os":"linux","arch":"arm64","kind":"archive","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}]' ;;
   *bats-core/bats-core/archive/refs/tags/*)
     printf 'bats archive' >"\${output}"; exit 0 ;;
+	*codeload.github.com/Gentleman-Programming/gentleman-guardian-angel/tar.gz/*)
+    printf 'gga archive bytes' >"\${output}"; exit 0 ;;
   *go-delve/delve/releases/download/*/checksums.txt)
     body='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  dlv_1.99.0_linux_amd64.tar.gz
 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dlv_1.99.0_linux_arm64.tar.gz' ;;
@@ -339,6 +344,16 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dlv_1.99.0_lin
     body='[{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/Gentleman-Programming/gentle-ai/releases\?*)
     body='[{"tag_name":"v${configured_gentle_version}","draft":false,"prerelease":false}]' ;;
+  *api.github.com/repos/Gentleman-Programming/gentleman-guardian-angel/releases\?*)
+    body='[{"tag_name":"v${configured_gga_version}","draft":false,"prerelease":false}]' ;;
+  *api.github.com/repos/Gentleman-Programming/gentleman-guardian-angel/git/ref/tags/v*)
+    gga_ref="refs/tags/v${configured_gga_version}"
+    gga_type=commit
+    gga_commit="${GGA_FIXTURE_COMMIT}"
+    [ "${mode}" != gga_wrong_ref ] || gga_ref=refs/tags/v9.9.9
+    [ "${mode}" != gga_tag_object ] || gga_type=tag
+    [ "${mode}" != gga_bad_commit ] || gga_commit=invalid
+    body="{\"ref\":\"\${gga_ref}\",\"object\":{\"type\":\"\${gga_type}\",\"sha\":\"\${gga_commit}\"}}" ;;
 
   *github.com/tt-a1i/archify/releases/download/*/archify.zip)
     case "${mode}" in
@@ -468,6 +483,9 @@ EOF
 	grep -q '^LOCK_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
 	grep -q "^LOCK_ARCHIFY_VERSION=\"${ARCHIFY_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
 	grep -q "^LOCK_ARCHIFY_SHA256=\"${ARCHIFY_FIXTURE_SHA256}\"$" "${POLICY_FILE}"
+	grep -q '^LOCK_GGA_VERSION="2.10.1"$' "${POLICY_FILE}"
+	grep -q "^LOCK_GGA_COMMIT=\"${GGA_FIXTURE_COMMIT}\"$" "${POLICY_FILE}"
+	grep -q "^LOCK_GGA_SHA256=\"${GGA_FIXTURE_SHA256}\"$" "${POLICY_FILE}"
 	! grep -Eq '(^| )(npm|pi)( |$)' "${CALLS_FILE}"
 	write_expected_pnpm_calls "${TEST_ROOT}/expected-pnpm-calls"
 	grep '^pnpm view ' "${CALLS_FILE}" >"${TEST_ROOT}/actual-pnpm-calls"
@@ -566,6 +584,20 @@ EOF
 		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 		[ "${status}" -ne 0 ]
+		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
+	done
+}
+
+@test "tools:update rejects invalid GGA tag resolution atomically" {
+	local mode
+	for mode in gga_wrong_ref gga_tag_object gga_bad_commit; do
+		write_curl_stub "${mode}"
+		cp "${POLICY_FILE}" "${TEST_ROOT}/before"
+
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *"GGA tag v2.10.1 must resolve directly to one immutable commit"* ]]
 		cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 	done
 }

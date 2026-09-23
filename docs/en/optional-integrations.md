@@ -113,6 +113,24 @@ Upstream evidence: [v1.6.0 release](https://github.com/colbymchenry/codegraph/re
 [directory contract](https://github.com/colbymchenry/codegraph/blob/v1.6.0/src/directory.ts),
 and [privacy/update controls](https://github.com/colbymchenry/codegraph/blob/v1.6.0/TELEMETRY.md).
 
+## Optional Gentleman Guardian Angel (GGA)
+
+1. Run `task install:enable -- 3070-ai-gga`, then rebuild on the host.
+2. In the project where you want reviews, run `gga init`, choose and configure a
+   provider, then run `gga install` only after reviewing the Git-hook change.
+
+The image supplies the policy-pinned Bash CLI only. It does not run upstream
+`install.sh`, `gga init`, or `gga install`; it creates no `.gga`, Git hook, cache
+volume, or OpenCode dependency. GGA configuration, provider CLIs, hooks, and its
+default per-user cache are intentionally project/user-owned. `gga version` reports
+the image policy version without initializing project or user state.
+
+`task tools:update` resolves the selected stable release tag to its immutable Git
+commit and source archive SHA-256 before updating the policy transactionally. The
+installer downloads that commit archive, verifies its digest and expected Bash
+layout, and installs only the runtime sources under `/opt/gga`; use a rebuild for
+upgrades rather than GGA's upstream installers.
+
 ## Host prerequisites
 
 **SSH agent:** start an agent on the host and export a valid `SSH_AUTH_SOCK` that
