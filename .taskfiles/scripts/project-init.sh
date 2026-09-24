@@ -198,7 +198,7 @@ begin_transaction() {
 	INDEX_PATH="$(realpath "${index_path}")"
 	cp -p "${CONFIG_PATH}" "${TRANSACTION_DIR}/config"
 	cp -p "${INDEX_PATH}" "${TRANSACTION_DIR}/index"
-	ROLLBACK_PATHS=("README.md" "AGENTS.md" "AGENTS.md.TEMPLATE.EXAMPLE" "docs" "CHANGELOG.md" ".github" ".devcontainer/README.md" ".devcontainer/docs")
+	ROLLBACK_PATHS=("README.md" "AGENTS.md" "AGENTS.md.TEMPLATE.EXAMPLE" "docs" "CHANGELOG.md" "odd" ".github" ".devcontainer/README.md" ".devcontainer/docs")
 	ROLLBACK_EXISTING_PATHS=()
 	for path in "${ROLLBACK_PATHS[@]}"; do [ ! -e "${path}" ] && [ ! -L "${path}" ] || ROLLBACK_EXISTING_PATHS+=("${path}"); done
 	[ "${#ROLLBACK_EXISTING_PATHS[@]}" -eq 0 ] || tar -cpf "${TRANSACTION_DIR}/worktree.tar" -- "${ROLLBACK_EXISTING_PATHS[@]}"

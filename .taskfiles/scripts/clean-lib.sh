@@ -17,6 +17,7 @@ clean_identity_items() {
 		"AGENTS.md.TEMPLATE.EXAMPLE"
 		"docs/"
 		"CHANGELOG.md"
+		"odd/"
 	)
 
 	if [ -d ".github" ]; then
@@ -85,6 +86,7 @@ clean_validate_identity_cleanup() {
 	clean_reject_symlink_or_unexpected_type "docs/en/adr" directory
 	clean_reject_symlink_or_unexpected_type ".devcontainer/docs/adr" directory
 	clean_reject_symlink_or_unexpected_type "AGENTS.md.TEMPLATE" file
+	clean_reject_symlink_or_unexpected_type "odd" directory
 
 	for doc in "${CLEAN_MIGRATED_DOCS[@]}"; do
 		clean_reject_symlink_or_unexpected_type "docs/en/${doc}" file

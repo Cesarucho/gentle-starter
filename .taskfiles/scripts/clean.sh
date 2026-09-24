@@ -26,6 +26,7 @@ About clean:identity:
     - AGENTS.md.TEMPLATE.EXAMPLE
     - docs/
     - CHANGELOG.md
+    - odd/
     - .github/               (if present)
 
   KEPT (structure):

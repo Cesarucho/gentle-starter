@@ -466,8 +466,8 @@ configures the project branch and remotes you selected.
 └── openspec/                        Optional, preserved if it already exists
 ```
 
-The starter `README.md`, `AGENTS.md`, `docs/`, `CHANGELOG.md`, and optional
-`.github/` directory are removed. Create your own project README and AI
+The starter `README.md`, `AGENTS.md`, `docs/`, `CHANGELOG.md`, root `odd/`
+task artifacts, and optional `.github/` directory are removed. Create your own project README and AI
 instructions from `AGENTS.md.TEMPLATE`.
 
 ## 💾 Local state and persistence

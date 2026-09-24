@@ -9,6 +9,8 @@ setup() {
 	printf '# Starter\n' >"${PROJECT_ROOT}/README.md"; printf '# Agents\n' >"${PROJECT_ROOT}/AGENTS.md"
 	printf '# Project\n<PROJECT_NAME>\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE"; printf '# Example\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE"
 	printf '# Changes\n' >"${PROJECT_ROOT}/CHANGELOG.md"; printf 'MIT\n' >"${PROJECT_ROOT}/LICENSE"
+	mkdir -p "${PROJECT_ROOT}/odd/tasks"
+	printf '# Starter ODD task\n' >"${PROJECT_ROOT}/odd/tasks/starter-task.md"
 	chmod 0640 "${PROJECT_ROOT}/LICENSE" "${PROJECT_ROOT}/AGENTS.md.TEMPLATE"
 	printf '# Devcontainer\n../docs/en/extending.md\n' >"${PROJECT_ROOT}/.devcontainer/README.md"
 	for doc in extending.md install-tree.md install-volumes.md configs.md; do printf '# %s\n' "${doc}" >"${PROJECT_ROOT}/docs/en/${doc}"; done
@@ -117,7 +119,8 @@ snapshot_repository() {
 	run bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh --dry-run --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [[ "${output}" == *"Branch: main (create and switch to main)"* ]]
 	[[ "${output}" == *"rename starter origin to upstream"* ]]; [[ "${output}" == *"Dry run complete. No changes were made."* ]]
-	[ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
+	[ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]; [ -f "${PROJECT_ROOT}/odd/tasks/starter-task.md" ]
+	[[ "${output}" == *"odd/"* ]]
 }
 
 @test "failure after branch and remote changes restores exact repository state" {
@@ -139,6 +142,7 @@ EOF
 	chmod +x "${TEST_ROOT}/bin/git"
 	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -ne 0 ]; [ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
+	grep -Fxq '# Starter ODD task' "${PROJECT_ROOT}/odd/tasks/starter-task.md"
 	grep -Fxq 'existing policy' "${PROJECT_ROOT}/.devcontainer/docs/adr/0003-unified-tool-policy-ownership.md"
 	[ ! -e "${PROJECT_ROOT}/.devcontainer/docs/adr/0002-centralized-tool-version-policy.md" ]
 }
@@ -152,6 +156,7 @@ EOF
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md" ]
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
 	[ ! -e "${PROJECT_ROOT}/docs" ]
+	[ ! -e "${PROJECT_ROOT}/odd" ]
 	cmp "${REPO_ROOT}/.env.example" "${PROJECT_ROOT}/.env.example"
 	grep -Fxq '# ENGRAM_PROJECT=your-project' "${PROJECT_ROOT}/.env.example"
 	grep -Fxq '# ENGRAM_CLOUD_ALLOWED_PROJECTS=your-project' "${PROJECT_ROOT}/.env.example"
@@ -177,6 +182,7 @@ PY
 	run bash "${PROJECT_ROOT}/.taskfiles/scripts/clean.sh" help
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *'AGENTS.md.TEMPLATE.EXAMPLE'* ]]
+	[[ "${output}" == *'odd/'* ]]
 	[[ "${output}" == *'AGENTS.md is not generated'* ]]
 	[[ "${output}" != *'it is copied to AGENTS.md'* ]]
 }
@@ -207,6 +213,34 @@ PY
 			git -C "${PROJECT_ROOT}" commit -qm "remove unsafe path fixture"
 		done
 	done
+}
+
+@test "clean and initialization reject unsafe odd path types before mutation" {
+	local kind before
+	for kind in symlink wrong-type; do
+		rm -rf "${PROJECT_ROOT}/odd"
+		if [ "${kind}" = symlink ]; then
+			ln -s "${TEST_ROOT}/outside" "${PROJECT_ROOT}/odd"
+		else
+			printf 'keep\n' >"${PROJECT_ROOT}/odd"
+		fi
+		git -C "${PROJECT_ROOT}" add -A
+		git -C "${PROJECT_ROOT}" commit -qm "add unsafe odd fixture"
+		before="$(snapshot_repository)"
+
+		run bash -c 'cd "$1" && printf "y\n" | ./.taskfiles/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
+		[ "${status}" -ne 0 ]; [[ "${output}" == *"identity cleanup"* ]]
+		[ "$(snapshot_repository)" = "${before}" ]
+		[ -e "${PROJECT_ROOT}/odd" ] || [ -L "${PROJECT_ROOT}/odd" ]
+
+		run_init main
+		[ "${status}" -ne 0 ]; [[ "${output}" == *"identity cleanup"* ]]
+		[ "$(snapshot_repository)" = "${before}" ]
+		[ -e "${PROJECT_ROOT}/odd" ] || [ -L "${PROJECT_ROOT}/odd" ]
+		rm -rf "${PROJECT_ROOT}/odd"
+		git -C "${PROJECT_ROOT}" add -A
+		git -C "${PROJECT_ROOT}" commit -qm "remove unsafe odd fixture"
+		done
 }
 
 @test "failure rollback restores symbolic remote HEAD without ref collisions" {
@@ -251,6 +285,7 @@ EOF
 	[ "$(stat -c '%a' "${PROJECT_ROOT}/LICENSE"):$(sha256sum "${PROJECT_ROOT}/LICENSE" | cut -d' ' -f1)" = "${LICENSE_STATE}" ]
 	[ "$(stat -c '%a' "${PROJECT_ROOT}/AGENTS.md.TEMPLATE"):$(sha256sum "${PROJECT_ROOT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = "${TEMPLATE_STATE}" ]
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md" ]; [ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]; [ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
+	[ ! -e "${PROJECT_ROOT}/odd" ]
 	[ -f "${PROJECT_ROOT}/.devcontainer/docs/extending.md" ]
 	grep -Fq './docs/extending.md' "${PROJECT_ROOT}/.devcontainer/README.md"
 }
