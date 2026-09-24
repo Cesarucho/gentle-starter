@@ -35,8 +35,9 @@ GGA is a pure Bash CLI distributed as source files, rather than as verified rele
 - `bats .devcontainer/test/unit/gga.bats .devcontainer/test/unit/install-dependencies.bats .devcontainer/test/unit/tools-update.bats`: passed (67 tests; parent spot check).
 - `task install:doctor`, `task install:versions:validate`, `task install:list`, installer policy diagnostic, and `git diff --check`: passed.
 - `task validate`: blocked by 13 pre-existing `README.md` markdownlint failures; no GGA-file failure observed.
-- Commit evidence: pending.
+- Commit evidence: `b7c414da43eef8184d5999dbfae0100ac8f00dce` (`feat(devcontainer): add optional GGA installer`).
+- Receipt-driven review: assessed high risk; review was explicitly declined for this candidate after the review transport could not accept its frozen context. No review receipt was created.
 
 ## Next step
 
-Stage only GGA work-unit paths, commit it, then assess the committed slice for receipt-driven review.
+Rebuild the devcontainer when ready to use `gga`; project configuration and Git-hook setup remain explicit actions.
