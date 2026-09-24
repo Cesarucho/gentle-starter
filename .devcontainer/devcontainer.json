@@ -15,7 +15,7 @@
     "remoteUser": "ubuntu",
 
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:3": {},
+        "ghcr.io/devcontainers/features/docker-in-docker:4": {},
         "ghcr.io/devcontainers/features/github-cli:1": {}
     },
 
