@@ -208,6 +208,7 @@ Use the terminal workflow below. `Task` is the sole supported entry point in the
 3. If you chose `container:opencode` or executed `opencode -c` inside of container, you can start with:
 
     choose and authenticate a provider
+
     ```bash
     >_ /connect
     ```
@@ -283,7 +284,7 @@ use ETags to avoid unchanged requests.
 
 ### ⚙️ OpenCode and Pi configurations
 
-* Keep your new preferences as the default setting.
+- Keep your new preferences as the default setting.
 
     **Runtime files are the source of truth**. But during normal use, we often change our preferences;
     if we want to keep them as a base, we export them as part of our repository structure:
@@ -306,11 +307,11 @@ use ETags to avoid unchanged requests.
     /home/ubuntu/.pi              → .devcontainer/pi-config
     ```
 
-    - copies managed files byte for byte;
-    - never deletes seed files;
-    - refuses to run when the seed already has pending Git changes;
-    - excludes credentials, sessions, caches, logs, and generated dependencies;
-    - reports unknown paths without copying them.
+  - copies managed files byte for byte;
+  - never deletes seed files;
+  - refuses to run when the seed already has pending Git changes;
+  - excludes credentials, sessions, caches, logs, and generated dependencies;
+  - reports unknown paths without copying them.
 
     To approve a new runtime path, add it to `managed` in
     `.devcontainer/config-export.json`, then run the commands again.
@@ -326,10 +327,10 @@ use ETags to avoid unchanged requests.
 
     See [Configuration](docs/en/configs.md) for the complete contract.
 
-* OpenCode profiles
+- OpenCode profiles
 
-    You can configure each __"sdd-*"__ sub-agent with the model and effort to your liking
-    (command: `/sdd-model`); these preferences are saved in runtime files 
+    You can configure each **"sdd-*"** sub-agent with the model and effort to your liking
+    (command: `/sdd-model`); these preferences are saved in runtime files
     `~/.config/opencode/opencode.json` and `~/.config/opencode/profiles/` which you
     can then export to default preferences `task config:export`:
 
@@ -413,7 +414,7 @@ task container:engram           # connect to the Engram TUI
 > `container:opencode:server` up the server mode, so you can connect from
 > web-browser/application using `http://<IP>:<OPENCODE_PORT>/` address.
 > `IP` can be: localhost, 127.0.0.1 or LAN/WLAN IP
-
+>
 > Also you can configure a optional credentials in `.env` file to set
 > `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
 
@@ -534,7 +535,7 @@ Enable it by default, persist its data, add a version-controlled `pg_hba.conf`,
 run the applicable tests, and do not commit or rebuild without my approval.
 ```
 
-Use the earlier [install catalog commands](#install-catalog-management), or see
+Use the earlier [install catalog commands](#install-tools-catalog-management), or see
 [Extending Gentle Starter](docs/en/extending.md) for the manual architecture.
 
 ### 🔌 Configure optional MCP servers
