@@ -34,20 +34,12 @@
     }
   },
   "permission": {
-    "read": {
-      "*": "allow",
-      "*.git-credentials": "deny",
-      "*auth.json": "deny",
-      "*.env": "ask",
-      "*.env.*": "ask",
-      ".devcontainer/.env": "allow"
-    },
     "edit": {
       "*": "allow",
-      "*.git-credentials": "deny",
-      "*auth.json": "deny",
       "*.env": "ask",
       "*.env.*": "ask",
+      "*.git-credentials": "deny",
+      "*auth.json": "deny",
       ".devcontainer/.env": "allow"
     },
     "external_directory": {
@@ -57,6 +49,14 @@
       "/home/ubuntu/.engram/**": "allow",
       "/home/ubuntu/.gentle-ai/**": "allow",
       "/tmp/**": "allow"
+    },
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      "*.git-credentials": "deny",
+      "*auth.json": "deny",
+      ".devcontainer/.env": "allow"
     }
   },
   "plugin": [
