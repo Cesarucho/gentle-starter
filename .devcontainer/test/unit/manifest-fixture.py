@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish a synthetic projection for isolated consumer tests, not host preparation."""
+"""Publish a schema-3 semantic snapshot for isolated consumers, not host preparation."""
 import importlib.util
 import json
 from pathlib import Path

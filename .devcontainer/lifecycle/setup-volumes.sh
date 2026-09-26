@@ -51,10 +51,11 @@ LIFECYCLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${LIFECYCLE_DIR}/../install/lib/activation.sh"
 
-# Emit NUL-terminated source and target fields for each bind mount.
+# Emit the checked response as NUL-terminated source and target fields.
+# Runtime is the default; the host report explicitly requests stored records only.
 resolve_compose_volume_targets() {
 	local records
-	records="$(python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" records "${WORKSPACE_DIR}")" || return 1
+	records="$(python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" "${1:-runtime}" "${WORKSPACE_DIR}")" || return 1
 	printf '%s' "${records}" | python3 "${LIFECYCLE_DIR}/compose-volume-records.py"
 }
 
@@ -89,11 +90,10 @@ install_script_is_enabled() {
 # skipped. Each script is idempotent: it skips itself when the tool is already
 # installed, so a re-run on a populated volume is a no-op.
 repair_installed_volumes() {
-	python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null || return 1
 	local install_root="${WORKSPACE_DIR}/.devcontainer/install/available"
 	local records_file
 	records_file="$(mktemp)" || return 1
-	if ! resolve_compose_volume_targets >"${records_file}"; then
+	if ! resolve_compose_volume_targets runtime >"${records_file}"; then
 		rm -f "${records_file}"
 		return 1
 	fi

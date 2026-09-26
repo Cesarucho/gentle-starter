@@ -7,10 +7,11 @@ state mounts use only Compose because no installer owns or populates
 them. The TL;DR lives in the header of `lifecycle/setup-volumes.sh` and in the
 output of `task install:volumes`.
 
-See [optional integrations](./optional-integrations.md) for selection, schema-2
-manifest freshness, host socket prerequisites, and desired-versus-applied mount
-identity. Runtime consumers validate the host-published projection; they no
-longer parse the base Compose file.
+See [optional integrations](./optional-integrations.md) for selection, schema-3
+semantic identity, legacy migration, and host socket prerequisites. Runtime repair
+uses the applied, integrity-checked snapshot without rereading live env or Compose.
+`task install:volumes` reports the last host-prepared snapshot, not current desired
+configuration or proof of applied mounts.
 
 > **Looking for the comprehensive view?** Start at
 > [`docs/en/extending.md`](./extending.md), which covers install,

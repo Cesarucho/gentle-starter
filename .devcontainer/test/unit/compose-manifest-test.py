@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Isolated contract tests; never start containers or invoke real sudo."""
 import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -28,7 +29,7 @@ manifest = load_module("manifest", ROOT / ".taskfiles/scripts/compose-manifest.p
 prep = load_module("prep", ROOT / ".taskfiles/scripts/prepare-bind-mounts.py")
 
 
-class ManifestTests(unittest.TestCase):
+class ManifestFixture(unittest.TestCase):
     def setUp(self):
         environment = patch.dict(os.environ, {"COMPOSE_PROJECT_NAME": "", "COMPOSE_ENV_FILES": ""})
         environment.start()
@@ -58,6 +59,8 @@ class ManifestTests(unittest.TestCase):
         (self.root / manifest.MANIFEST).write_text(json.dumps(value))
         return value
 
+
+class ManifestTests(ManifestFixture):
     def test_selection_preserves_order_and_jsonc_strings(self):
         service, files, _ = manifest.selection(self.root)
         self.assertEqual(service, "custom")
@@ -148,17 +151,16 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.selected["volumes"][1]["source"] = "/host/other/agent.sock"
         self.assertNotEqual(value["id"], self.projection()["id"])
 
-    def test_missing_malformed_and_stale_fail(self):
+    def test_missing_malformed_fail_and_comments_preserve_snapshot(self):
         with self.assertRaises(FileNotFoundError):
             manifest.load_manifest(self.root)
         path = self.root / manifest.MANIFEST
         path.write_text("{}")
         with self.assertRaises(ValueError):
             manifest.load_manifest(self.root)
-        self.publish()
+        value = self.publish()
         (self.root / ".devcontainer/extra.yml").write_text("# changed\n")
-        with self.assertRaisesRegex(ValueError, "Stale"):
-            manifest.load_manifest(self.root)
+        self.assertEqual(manifest.load_manifest(self.root), value)
 
     def test_runtime_rejects_desired_only_and_ignores_host_shell_differences(self):
         value = self.publish()
@@ -314,6 +316,12 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             (enabled / "29-custom.sh").symlink_to("../available/4010-tool-ssh-server.sh")
             with contextlib.redirect_stdout(io.StringIO()):
                 manifest.main()
+            self.selected["volumes"][0]["read_only"] = True
+            value = self.publish()
+            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}):
+                with self.assertRaisesRegex(ValueError, "persisted-key override"):
+                    manifest.main()
+            self.selected["volumes"][0]["read_only"] = False
             self.config.write_text('{"service":"custom","dockerComposeFile":"base.yml"}')
             value = self.publish()
             with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}):
@@ -471,8 +479,46 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertEqual(len(selected["volumes"]), 1)
         self.assertEqual(selected["volumes"][0]["source"], str(self.root / ".env.d/replacement"))
         self.assertTrue(selected["volumes"][0]["read_only"])
-        self.assertIs(selected["volumes"][0].get("bind", {}).get("create_host_path", False), False)
+        self.assertIs(selected["volumes"][0].get("bind", {}).get("create_host_path"), False)
         self.assertFalse((self.root / ".env.d").exists())
+
+    def test_real_compose_creation_flags_fail_closed_before_preparation(self):
+        long_bind = '{type: bind, source: ../.env.d/state, target: /state%s}'
+        cases = (
+            ("explicit false", ', bind: {create_host_path: false}', None, True),
+            ("YAML FALSE", ', bind: {create_host_path: FALSE}', None, True),
+            ("interpolated false", ', bind: {create_host_path: "${FIXTURE_CREATE}"}', None, True),
+            ("explicit true", ', bind: {create_host_path: true}', None, False),
+            ("omitted flag", ', bind: {}', None, False),
+            ("omitted bind", '', None, False),
+            ("short syntax", None, None, False),
+            ("true overridden by false", ', bind: {create_host_path: true}', False, True),
+            ("false overridden by true", ', bind: {create_host_path: false}', True, False),
+        )
+        for name, options, override, safe in cases:
+            with self.subTest(case=name), patch.dict(os.environ, {"FIXTURE_CREATE": "false"}):
+                volume = long_bind % options if options is not None else '"../.env.d/state:/state"'
+                (self.root / ".devcontainer/base.yml").write_text(
+                    'services:\n  custom:\n    image: fixture:local\n    container_name: fixture\n'
+                    '    volumes:\n      - ' + volume + '\n')
+                extra = {"services": {}}
+                if override is not None:
+                    changed = self.bind("../.env.d/state", "/state")
+                    changed["bind"]["create_host_path"] = override
+                    extra["services"]["custom"] = {"volumes": [changed]}
+                (self.root / ".devcontainer/extra.yml").write_text(json.dumps(extra))
+                if safe:
+                    value = manifest.project_manifest(self.root, *manifest.compose_model(self.root))
+                    self.assertIs(value["volumes"][0]["bind"]["create_host_path"], False)
+                    self.assertIs(value["volumes"][0]["read_only"], False)
+                else:
+                    with patch.object(manifest, "check_existing_container",
+                                      side_effect=AssertionError("Unsafe bind reached container check")) as check:
+                        with self.assertRaisesRegex(ValueError, "must set create_host_path: false"):
+                            manifest.prepare(self.root)
+                        check.assert_not_called()
+                self.assertFalse((self.root / ".env.d").exists())
+                self.assertFalse((self.root / manifest.MANIFEST).exists())
 
     def test_transitive_compose_inputs_are_rejected_before_publication(self):
         previous = self.publish()
@@ -494,17 +540,16 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             self.assertEqual(json.loads((self.root / manifest.MANIFEST).read_text()), previous)
         self.assertFalse((self.root / ".env.d").exists())
 
-    def test_default_env_changes_and_legacy_manifests_cannot_bypass_freshness(self):
+    def test_default_env_changes_preserve_snapshot_and_legacy_is_rejected(self):
         for relative in (".env", ".devcontainer/.env"):
             path = self.root / relative
             for content in ("FIXTURE_BIND=before\n", "FIXTURE_BIND=after\n", None):
-                self.publish()
+                value = self.publish()
                 if content is None:
                     path.unlink()
                 else:
                     path.write_text(content)
-                with self.assertRaisesRegex(ValueError, "Stale"):
-                    manifest.load_manifest(self.root)
+                self.assertEqual(manifest.load_manifest(self.root), value)
         legacy = self.projection()
         legacy["schema"] = 1
         legacy["id"] = manifest.digest({key: value for key, value in legacy.items() if key != "id"})
@@ -578,6 +623,215 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertIn("(../README.md)", (target / "extending.md").read_text())
         for source in source_dir.iterdir():
             self.assertTrue((target / source.name).is_file())
+
+
+class SemanticManifestTests(ManifestFixture):
+    def test_env_and_input_bytes_do_not_define_mount_identity(self):
+        original = self.publish()
+        for relative in (".env", ".devcontainer/.env", ".devcontainer/extra.yml"):
+            path = self.root / relative
+            for content in ("APP_SECRET=fixture-before\n", "# comment\nAPP_SECRET=fixture-after\n", None):
+                with self.subTest(relative=relative, content=content):
+                    if content is None and relative.endswith(".yml"):
+                        continue
+                    if content is None:
+                        path.unlink()
+                    else:
+                        path.write_text("# reformatted\nservices: {}\n" if relative.endswith(".yml") else content)
+                    self.assertEqual(self.projection()["id"], original["id"])
+                    with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": original["id"]}):
+                        self.assertEqual(manifest.load_manifest(self.root, runtime=True), original)
+        self.assertEqual(original["schema"], 3)
+        self.assertNotIn("inputs", original)
+        self.assertNotEqual(original["id"], original["snapshot_digest"])
+
+    def test_canonical_order_defaults_and_lexical_sources(self):
+        original = self.projection()
+        self.selected["volumes"].reverse()
+        for volume in self.selected["volumes"]:
+            volume["read_only"] = False
+            volume["source"] = volume["source"].replace("/state", "/unused/../state")
+        self.assertEqual(self.projection(), original)
+
+    def test_missing_creation_flag_is_not_a_safe_default(self):
+        for bind in ({}, None):
+            with self.subTest(bind=bind):
+                selected = copy.deepcopy(self.selected)
+                if bind is None:
+                    del selected["volumes"][0]["bind"]
+                else:
+                    selected["volumes"][0]["bind"] = bind
+                with self.assertRaisesRegex(ValueError, "must set create_host_path: false"):
+                    manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+
+    def test_semantic_changes_change_identity(self):
+        original = self.projection()["id"]
+        for field, value in (("source", "/other/state"), ("target", "/other"), ("read_only", True)):
+            with self.subTest(field=field):
+                selected = copy.deepcopy(self.selected)
+                selected["volumes"][0][field] = value
+                changed = manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+                self.assertNotEqual(changed["id"], original)
+        service, paths, token = manifest.selection(self.root)
+        for args in (("other", paths, token, self.selected, ""),
+                     (service, list(reversed(paths)), token, self.selected, ""),
+                     (service, paths[:1], token, self.selected, ""),
+                     (service, paths, token, self.selected, "other-project")):
+            self.assertNotEqual(manifest.project_manifest(self.root, *args)["id"], original)
+
+    def test_unsupported_bind_options_and_invalid_paths_fail_closed(self):
+        for changes in ({"consistency": "cached"}, {"read_only": "false"},
+                        {"read_only": 0}, {"bind": {"propagation": "rprivate"}},
+                        {"bind": {"selinux": "z"}}, {"bind": {"create_host_path": 0}},
+                        {"bind": {"create_host_path": True}}, {"target": "/a/../b"},
+                        {"target": "/a//b"}, {"source": ""}, {"source": "/a\0b"}):
+            with self.subTest(changes=changes):
+                selected = copy.deepcopy(self.selected)
+                selected["volumes"][0].update(changes)
+                with self.assertRaises(ValueError):
+                    manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+        self.selected["volumes"].append(copy.deepcopy(self.selected["volumes"][0]))
+        with self.assertRaises(ValueError):
+            self.projection()
+
+    def test_runtime_has_no_host_namespace_dependencies(self):
+        value = self.publish()
+        self.config.unlink()
+        (self.root / ".devcontainer/base.yml").unlink()
+        with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}), \
+                patch.object(manifest, "selection", side_effect=AssertionError("host selection read")), \
+                patch.object(manifest.subprocess, "run", side_effect=AssertionError("host command")):
+            self.assertEqual(manifest.load_manifest(self.root, runtime=True), value)
+
+    def test_strict_snapshot_shape_even_with_recomputed_digests(self):
+        original = self.projection()
+        variants = []
+        for field, value in (("schema", True), ("service", ""), ("files", ["../escape"]),
+                             ("files", ["a", "a"]), ("files", ["a/./b"]),
+                             ("files", ["/host/a"]), ("files", []), ("files", [1]),
+                             ("project_name_fingerprint", 3), ("extra", "unknown")):
+            variant = copy.deepcopy(original)
+            variant[field] = value
+            variants.append(variant)
+        for field, value in (("source", ".env.d/../escape"), ("source", ".env.d//state"),
+                             ("target", "/a/../b"), ("target", "/a\0b"), ("managed", 1), ("read_only", 0),
+                             ("source_fingerprint", "A" * 64), ("bind", {"create_host_path": 0}),
+                             ("bind", []), ("type", "volume"), ("extra", True)):
+            variant = copy.deepcopy(original)
+            variant["volumes"][0][field] = value
+            variants.append(variant)
+        duplicate = copy.deepcopy(original)
+        duplicate["volumes"].append(copy.deepcopy(duplicate["volumes"][0]))
+        variants.append(duplicate)
+        reversed_records = copy.deepcopy(original)
+        reversed_records["volumes"].reverse()
+        variants.append(reversed_records)
+        for variant in variants:
+            with self.subTest(variant=variant):
+                variant.pop("snapshot_digest", None)
+                variant.pop("id", None)
+                variant["id"] = manifest.digest(variant)
+                variant["snapshot_digest"] = manifest.digest(variant)
+                (self.root / manifest.MANIFEST).write_text(json.dumps(variant))
+                with self.assertRaises(ValueError):
+                    manifest.load_manifest(self.root)
+
+    def test_integrity_and_applied_identity_are_independent_gates(self):
+        original = self.publish()
+        for field in ("id", "snapshot_digest"):
+            value = copy.deepcopy(original)
+            value[field] = "0" * 64
+            if field == "id":
+                value["snapshot_digest"] = manifest.digest({k: v for k, v in value.items() if k != "snapshot_digest"})
+            (self.root / manifest.MANIFEST).write_text(json.dumps(value))
+            with self.assertRaises(ValueError):
+                manifest.load_manifest(self.root)
+        self.publish()
+        for applied in ("", "0" * 64):
+            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": applied}):
+                with self.assertRaisesRegex(ValueError, "not applied"):
+                    manifest.load_manifest(self.root, runtime=True)
+
+    def test_legacy_load_never_rewrites_and_requires_intentional_host_recreate(self):
+        for schema in (1, 2):
+            value = self.projection()
+            value["schema"] = schema
+            path = self.root / manifest.MANIFEST
+            path.write_text(json.dumps(value))
+            before = path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "intentional host.*task container:recreate"):
+                manifest.load_manifest(self.root, runtime=True)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertFalse((self.root / ".env.d").exists())
+
+    def test_concurrency_before_preparation_and_before_publication(self):
+        for late in (False, True):
+            for initial in (None, "before\n", "edit\n"):
+                with self.subTest(late=late, initial=initial):
+                    env = self.root / ".env"
+                    if initial is None:
+                        env.unlink(missing_ok=True)
+                    else:
+                        env.write_text(initial)
+                    self.publish()
+                    previous = (self.root / manifest.MANIFEST).read_bytes()
+                    resolved = (*manifest.selection(self.root), self.selected, "fixture-project")
+
+                    def change(*_):
+                        if initial is None:
+                            env.write_text("added\n")
+                        elif initial == "before\n":
+                            env.unlink()
+                        else:
+                            env.write_text("after\n")
+
+                    original_selection = manifest.selection
+                    calls = 0
+
+                    def observed_selection(workspace):
+                        nonlocal calls
+                        calls += 1
+                        if late and calls == 2:
+                            change()
+                        return original_selection(workspace)
+
+                    with patch.object(manifest, "compose_model", return_value=resolved), \
+                            patch.object(manifest, "check_existing_container", side_effect=None if late else change), \
+                            patch.object(manifest, "selection", side_effect=observed_selection), \
+                            contextlib.redirect_stdout(io.StringIO()):
+                        with self.assertRaisesRegex(ValueError, "changed during host preparation"):
+                            manifest.prepare(self.root)
+                    self.assertEqual((self.root / manifest.MANIFEST).read_bytes(), previous)
+                    if not late:
+                        self.assertFalse((self.root / ".env.d").exists())
+
+    def test_existing_container_mismatch_precedes_all_state_mutation(self):
+        self.publish()
+        previous = (self.root / manifest.MANIFEST).read_bytes()
+        resolved = (*manifest.selection(self.root), self.selected, "fixture-project")
+        with patch.object(manifest, "compose_model", return_value=resolved), \
+                patch.object(manifest, "check_existing_container", side_effect=ValueError("mismatch")):
+            with self.assertRaisesRegex(ValueError, "mismatch"):
+                manifest.prepare(self.root)
+        self.assertEqual((self.root / manifest.MANIFEST).read_bytes(), previous)
+        self.assertFalse((self.root / ".env.d").exists())
+
+    def test_selection_token_hashes_the_same_config_bytes_it_parsed(self):
+        original_read = Path.read_bytes
+        before = self.config.read_bytes()
+
+        def changing_read(path):
+            value = original_read(path)
+            if path == self.config:
+                self.config.write_text('{"service":"other","dockerComposeFile":"base.yml"}')
+            return value
+
+        with patch.object(Path, "read_bytes", changing_read):
+            service, _, inputs = manifest.selection(self.root)
+        self.assertEqual(service, "custom")
+        self.assertEqual(inputs[".devcontainer/devcontainer.json"], manifest.hashlib.sha256(before).hexdigest())
+        with self.assertRaisesRegex(ValueError, "changed during host preparation"):
+            manifest.check_preparation_inputs(self.root, inputs)
 
 
 if __name__ == "__main__":

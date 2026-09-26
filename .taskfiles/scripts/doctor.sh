@@ -89,28 +89,19 @@ is_devcontainer() {
 	[ -f /.dockerenv ] && [ -d .devcontainer ]
 }
 
-extract_devcontainer_service() {
-	python3 .taskfiles/scripts/compose-manifest.py service .
-}
-
-check_devcontainer_service() {
-	local service
-	service="$(extract_devcontainer_service)" || {
-		fail "selected Compose manifest unavailable; run task container:up on the host"
-		return
-	}
-
-	if [ -z "${service}" ]; then
-		fail "could not read service from .devcontainer/devcontainer.json"
-		return
+check_volume_snapshot() {
+	local operation=check
+	if is_devcontainer; then
+		operation=runtime
 	fi
-
-	ok "devcontainer service configured: ${service}"
-
-	if python3 .taskfiles/scripts/compose-manifest.py check .; then
-		ok "selected Compose volume manifest is current (desired, not applied)"
+	if python3 .taskfiles/scripts/compose-manifest.py "${operation}" . >/dev/null; then
+		if [ "${operation}" = runtime ]; then
+			ok "volume snapshot integrity and applied container identity verified"
+		else
+			ok "last host-prepared volume snapshot verified (not proof of applied mounts or current desired configuration)"
+		fi
 	else
-		fail "selected Compose volume manifest missing or stale; run task container:up on the host"
+		fail "volume snapshot unavailable or invalid; follow the host recovery guidance above"
 	fi
 }
 
@@ -176,7 +167,7 @@ run_host() {
 	fi
 
 	check_dir .env.d optional
-	check_devcontainer_service
+	check_volume_snapshot
 	check_skills || true
 }
 
@@ -205,7 +196,7 @@ run_container() {
 
 	check_file .devcontainer/devcontainer.json
 	check_file .devcontainer/docker-compose.yml
-	check_devcontainer_service
+	check_volume_snapshot
 	check_skills || true
 }
 

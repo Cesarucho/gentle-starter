@@ -252,7 +252,7 @@ cmd_versions_validate() {
 	echo "ok: ${versions_file}"
 }
 
-# Print the desired bind mounts from the validated selected Compose manifest,
+# Print the last host-prepared bind snapshot, not current desired configuration,
 # the potential installer owners of each target, and a step-by-step
 # for adding a new stateful volume. Sources lifecycle/setup-volumes.sh for the
 # two functions that own the contract (parse + map).
@@ -276,14 +276,14 @@ cmd_volumes() {
 	source "${setup_volumes}"
 	local records_file
 	records_file="$(mktemp)" || return 1
-	if ! resolve_compose_volume_targets >"${records_file}"; then
+	if ! resolve_compose_volume_targets records >"${records_file}"; then
 		rm -f "${records_file}"
 		return 1
 	fi
 
 	echo "=== install/ volume contract ==="
 	echo ""
-	echo "Desired bind mounts from the validated selected Compose manifest (not proof of applied mounts):"
+	echo "Bind mounts from the last host-prepared snapshot (not proof of applied mounts or current desired configuration):"
 	echo ""
 
 	while IFS= read -r -d '' source_path && IFS= read -r -d '' target_path; do

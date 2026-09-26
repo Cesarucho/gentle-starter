@@ -148,15 +148,48 @@ services:
       - {type: bind, source: ../../escape, target: /escape, bind: {create_host_path: false}}
       - {type: bind, source: /tmp/external, target: /absolute, bind: {create_host_path: false}}
       - {type: bind, source: "${STATE_PATH}", target: /variable, bind: {create_host_path: false}}
-      - {type: bind, source: named-state, target: /named}
+      - {type: bind, source: named-state, target: /named, bind: {create_host_path: false}}
       - {type: bind, source: ../.env.d/docker-created, target: /unsafe, bind: {create_host_path: true}}
 YAML
 
 	run_preparation
 	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"must set create_host_path: false"* ]]
+	[ ! -e "${WORKSPACE}/.env.d" ]
+	[ ! -e "${WORKSPACE}/.devcontainer/.volume-manifest.json" ]
 	[ ! -d "${WORKSPACE}/.env.d/inside" ]
 	[ ! -e "${TEST_ROOT}/escape" ]
 	[ ! -e "${WORKSPACE}/.env.d/docker-created" ]
+}
+
+@test "omitted creation flag fails before managed paths or snapshot publication" {
+	write_compose <<'YAML'
+services:
+  container-svc:
+    volumes:
+      - {type: bind, source: ../.env.d/safe, target: /safe, bind: {create_host_path: false}}
+      - {type: bind, source: ../.env.d/omitted, target: /unsafe}
+YAML
+	run_preparation
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"must set create_host_path: false"* ]]
+	[ ! -e "${WORKSPACE}/.env.d" ]
+	[ ! -e "${WORKSPACE}/.devcontainer/.volume-manifest.json" ]
+}
+
+@test "short syntax fails before managed paths or snapshot publication" {
+	write_compose <<'YAML'
+services:
+  container-svc:
+    volumes:
+      - {type: bind, source: ../.env.d/safe, target: /safe, bind: {create_host_path: false}}
+      - ../.env.d/short:/unsafe
+YAML
+	run_preparation
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"must set create_host_path: false"* ]]
+	[ ! -e "${WORKSPACE}/.env.d" ]
+	[ ! -e "${WORKSPACE}/.devcontainer/.volume-manifest.json" ]
 }
 
 @test "symlink and regular-file collisions fail without mutating either object" {

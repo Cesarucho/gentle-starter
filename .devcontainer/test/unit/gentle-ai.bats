@@ -124,8 +124,7 @@ EOF
     cat >"${doctor_bin}/python3" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
-    '.taskfiles/scripts/compose-manifest.py service .') printf 'container-svc\n' ;;
-    '.taskfiles/scripts/compose-manifest.py check .') exit 0 ;;
+    '.taskfiles/scripts/compose-manifest.py runtime .') exit 0 ;;
     *) exit 1 ;;
 esac
 EOF
@@ -283,7 +282,7 @@ run_installer() {
     local doctor_bin="${TEST_ROOT}/doctor-bin"
     write_doctor_stubs "${doctor_bin}"
 
-    run env PATH="${doctor_bin}:/usr/bin:/bin" BASH_ENV="${TEST_ROOT}/doctor-env" \
+    run env -u FORCE_HOST_CONTEXT DEVCONTAINER=true PATH="${doctor_bin}:/usr/bin:/bin" BASH_ENV="${TEST_ROOT}/doctor-env" \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
 
     printf 'Doctor with Gentle AI (status %s):\n%s\n' "$status" "$output" >&2
@@ -291,7 +290,7 @@ run_installer() {
     [[ "$output" == *'[ok] gentle-ai available:'* ]]
 
     rm -f "${doctor_bin}/gentle-ai"
-    run env PATH="${doctor_bin}:/usr/bin:/bin" BASH_ENV="${TEST_ROOT}/doctor-env" \
+    run env -u FORCE_HOST_CONTEXT DEVCONTAINER=true PATH="${doctor_bin}:/usr/bin:/bin" BASH_ENV="${TEST_ROOT}/doctor-env" \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
 
     printf 'Doctor without Gentle AI (status %s):\n%s\n' "$status" "$output" >&2

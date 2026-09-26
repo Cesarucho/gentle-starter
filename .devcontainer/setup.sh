@@ -13,7 +13,7 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
 
-# Validate desired inputs AND the creation-time identity before any runtime mutation.
+# Validate snapshot integrity AND the creation-time identity before any runtime mutation.
 python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null
 if install_script_is_enabled "${SCRIPT_DIR}/install/available/4010-tool-ssh-server.sh"; then
 	python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" ssh-server "${WORKSPACE_DIR}" >/dev/null

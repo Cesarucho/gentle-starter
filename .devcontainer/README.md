@@ -62,7 +62,7 @@ The devcontainer has four extension surfaces:
    Deep dive in [`docs/en/install-volumes.md`](../docs/en/install-volumes.md).
    Select optional Pi, SSH-agent, SSH-server, and audio integrations using
    [`optional-integrations.md`](../docs/en/optional-integrations.md). Task prepares
-   a minimal host manifest; runtime rejects stale or unapplied mount identities.
+   a semantic host snapshot; runtime rejects invalid or unapplied mount identities.
 
 3. **Config files** (`<name>-config/` + `seed_config_tree` in
    `setup.sh`) — versioned baseline configs copied to the runtime

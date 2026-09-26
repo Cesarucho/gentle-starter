@@ -178,8 +178,13 @@ merging, YAML anchors, and ordinary volume interpolation such as `${SSH_AUTH_SOC
 Only default repository `.env` files are supported for interpolation;
 `COMPOSE_ENV_FILES` is rejected, including assignments in those files. The workspace,
 first Compose file directory, and `.devcontainer` `.env` contents (or absence) are
-fingerprinted. Service `env_file` remains supported: it supplies container environment,
-not Compose bind interpolation. Host-shell changes still require host preparation.
+fingerprinted only in memory to detect concurrent host preparation edits. Raw input
+hashes are never persisted. Service `env_file` supplies container environment, not
+Compose bind interpolation. The root `.env` is the application's `env_file`: changing
+it does not update an existing container's environment. Use intentional host
+`task container:recreate` to apply changed values; restart does not apply them.
+Task still manages only `APP_NAME`, `APP_PORT`, `OPENCODE_PORT`, `SSH_PORT`, and
+`HOST_UID`, preserving unrelated keys. Host-shell changes require host preparation.
 
 Task exports one validated `COMPOSE_PROJECT_NAME` for preparation, name lookup,
 build, and Dev Container CLI creation. Its precedence is the host environment
@@ -196,26 +201,39 @@ This follows the CLI's supported environment authority, not an invented CLI flag
 ### Published and applied identity
 
 After successful host preparation, Task atomically publishes the ignored
-`.devcontainer/.volume-manifest.json`. Schema 2 records the selected service,
-ordered file names, repository and project-name fingerprints, and minimal bind records.
-Schema 1 manifests are rejected; prepare and recreate through Task to replace them.
-Absolute managed sources become workspace-relative `.env.d/...` paths. Host
-source fingerprints track volume interpolation changes without persisting raw
-host credentials or the full environment; external source paths are not stored.
-Directory preparation retains exact ownership, symlink, and mode checks.
+`.devcontainer/.volume-manifest.json`. Schema 3 separates semantic mount `id` from
+`snapshot_digest`, which checks the complete stored object. Identity covers the
+service, ordered file selection, project-name fingerprint, and canonical bind
+records sorted by unique target. Env edits, additions, deletions, and comments do
+not change identity when those resolved semantics stay the same. Source, target,
+read-only, service, selection, or project changes do change it.
 
-Missing, malformed, or stale manifests fail before runtime mutation or installer
-dispatch. There is no base-file fallback. Run `task container:up` on the host to
-recover; use `task container:recreate` when an existing container has old mounts.
-Host entry tasks resolve afresh even when the container is already running.
+Managed sources become safe workspace-relative `.env.d/...` paths. Source
+fingerprints use lexically normalized host paths, without resolving external
+symlinks or storing external paths, credentials, or the full environment. Bind
+options beyond `create_host_path: false` are rejected, including propagation,
+SELinux, and consistency options. Omitted `read_only` defaults to false, but
+resolved `bind.create_host_path` must be explicitly false. Missing creation flags
+(including normalized true and short syntax) fail closed; ambiguous output from
+other Compose versions is rejected rather than assumed safe.
+Directory preparation retains exact ownership, symlink, and mode checks; concurrent
+input changes block preparation or publication, preserving the previous snapshot.
 
-The desired manifest is **not proof of applied mounts**. Task passes its identity
-into the container at creation as `GENTLE_VOLUME_MANIFEST_ID`. Startup requires
-that identity to match the current manifest before any repair. A changed desired
-contract cannot authorize repair inside an old container. Diagnostics report the
-desired contract only. Container validation checks repository hashes, not the
-host absolute root, host `HOME`, or container `SSH_AUTH_SOCK`; it cannot verify
-the current host shell. Return to the host and recreate after override changes.
+**Migration:** legacy schemas require intentional host `task container:recreate`.
+Never rewrite a legacy manifest to authorize an existing container. Missing or
+invalid snapshots fail before runtime repair; there is no live Compose fallback.
+Host preparation resolves desired configuration and rejects an existing-container
+identity mismatch before preparing directories or publishing a snapshot.
+
+Task passes `id` at creation as `GENTLE_VOLUME_MANIFEST_ID`. Runtime validates strict
+snapshot shape, both digests, and that applied identity, then repairs from those
+same checked records. It does not read live env, selected files, host paths, or
+Compose. This is bind-contract integrity, not signing or full container configuration
+attestation; named volumes and application environment are outside this identity.
+
+Container doctor checks applied identity. Host doctor and `task install:volumes`
+report only the **last host-prepared snapshot**, not current desired configuration
+or proof of applied mounts. Return to the host and recreate after mount changes.
 
 ## Notification evidence and limits
 

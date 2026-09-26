@@ -73,9 +73,6 @@ run_pi_volume_repair() {
 		VOLUME_REPAIR_CALLS_FILE="${CALLS_FILE}" \
 		bash -c '
 			source "$1"
-			resolve_compose_volume_targets() {
-				printf ".env.d/.pi\0/home/ubuntu/.pi\0"
-			}
 			repair_installed_volumes
 		' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 }
@@ -267,7 +264,7 @@ YAML
 	[[ "${output}" != *"3040-ai-pi-gentle.sh"* ]]
 }
 
-@test "Task volumes reports selected desired Engram ownership without dispatch" {
+@test "Task volumes reports last host-prepared Engram ownership without dispatch" {
 	write_installer "3010-ai-engram"
 	ln -s ../available/3010-ai-engram.sh "${WORKSPACE}/.devcontainer/install/02-core-tools/60-engram.sh"
 	printf '%s\n' '{"service":"container-svc","dockerComposeFile":["docker-compose.yml","optional.yml"]}' >"${WORKSPACE}/.devcontainer/devcontainer.json"
@@ -277,20 +274,45 @@ YAML
 	run env -u GENTLE_VOLUME_MANIFEST_ID task --dir "${WORKSPACE}" install:volumes
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"not proof of applied mounts"* ]]
+	[[ "$output" == *"last host-prepared"* ]]
 	[[ "$output" == *"owned by: 3010-ai-engram"* ]]
 	[[ "$output" == *"a selected Compose file"* ]]
 	[ ! -s "${CALLS_FILE}" ]
 }
 
-@test "Task volumes fails before reporting a missing or stale manifest" {
+@test "Task volumes preserves the snapshot after comments and rejects missing manifests" {
 	printf '\n# changed selected input\n' >>"${WORKSPACE}/.devcontainer/docker-compose.yml"
 	run task --dir "${WORKSPACE}" install:volumes
-	[ "$status" -ne 0 ]
-	[[ "$output" == *"Stale volume manifest"* ]]
-	[[ "$output" != *"=== install/ volume contract ==="* ]]
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"last host-prepared"* ]]
 	rm "${WORKSPACE}/.devcontainer/.volume-manifest.json"
 	run task --dir "${WORKSPACE}" install:volumes
 	[ "$status" -ne 0 ]
 	[[ "$output" != *"=== install/ volume contract ==="* ]]
 	[ ! -s "${CALLS_FILE}" ]
+}
+
+@test "repair dispatches the runtime-validated response without a second snapshot read" {
+	enable_installer_as "3040-ai-pi-gentle" "47-custom.sh"
+	local bin="${TEST_ROOT}/bin"
+	mkdir "${bin}"
+	cat >"${bin}/python3" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == */compose-manifest.py ]]; then
+    printf '%s\n' "$2" >>"${MANIFEST_READS}"
+    [[ "$2" == runtime ]] || exit 97
+    /usr/bin/python3 "$@" || exit
+    # Simulate replacement after the checked response has been returned.
+    printf '{}' >"${WORKSPACE_DIR}/.devcontainer/.volume-manifest.json"
+else
+    exec /usr/bin/python3 "$@"
+fi
+EOF
+	chmod +x "${bin}/python3"
+	run env PATH="${bin}:${PATH}" WORKSPACE_DIR="${WORKSPACE}" \
+		MANIFEST_READS="${TEST_ROOT}/reads" VOLUME_REPAIR_CALLS_FILE="${CALLS_FILE}" \
+		bash -c 'source "$1"; repair_installed_volumes' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
+	[ "$status" -eq 0 ]
+	[ "$(cat "${TEST_ROOT}/reads")" = runtime ]
+	[ "$(cat "${CALLS_FILE}")" = "3040-ai-pi-gentle|runtime" ]
 }
