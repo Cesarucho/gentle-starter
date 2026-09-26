@@ -22,7 +22,7 @@ configuration or proof of applied mounts.
 
 `setup.sh` ships a parallel mechanism for *config files*: a
 `seed_config_tree` helper that copies baseline configs from
-`.devcontainer/<name>-config/` to their runtime path. It is
+`.devcontainer/config/<name>/` to their runtime path. It is
 copy-on-first-run (idempotent, preserves user customisations) and
 auto-escalates to `sudo` for targets outside `$HOME`. The convention
 is documented in [`configs.md`](./configs.md); the rationale is

@@ -15,40 +15,40 @@ semantics.
 ## Authorized scope
 
 CFG-01 moved `.devcontainer/{compose-config,opencode-config,pi-config,ssh-config}`
-to `.devcontainer/config/{compose,opencode,pi,ssh}`. The user now authorizes only
-CFG-02: migrate the eleven test/fixture paths listed below and update this tracker.
-Runtime source/configuration and CFG-03 documentation/skills are out of scope.
+to `.devcontainer/config/{compose,opencode,pi,ssh}`. CFG-02 is committed. The user
+now authorizes CFG-03: update only the seven documents/references listed below
+and this tracker. Runtime source/configuration, tests, and ignore rules are out of scope.
 
 ## Constraints
 
 - This is a path-only migration.
 - Preserve Compose ordering and file content except for required path literals.
 - Do not change mount targets, `.env.d` locations, lifecycle semantics, runtime
-  source/configuration, user documentation, or skills.
+  source/configuration, tests, ignore rules, or skill metadata.
 - Preserve unrelated working-tree changes if present.
 - Technical artifacts are English.
-- Verification: ordinary before/after functional checks; strict TDD is off for
-  CFG-02 by explicit current user choice. Runner: Bats/Python unittest. No
-  repository/global TDD configuration changes or strict RED/GREEN claims.
+- Verification: ordinary Markdown/structure checks for behavior-preserving CFG-03;
+  TDD is not applicable. No runtime TDD configuration changes or RED/GREEN claims.
 - Delivery strategy: `exception-ok`; the user approved `size:exception` for one
   feature delivery with separate work-unit commits and no chain strategy.
 
 ## Delivery strategy and route
 
-Selected route: delegated CFG-02 implementation and bounded local verification;
+Previous route: delegated CFG-02 implementation and bounded local verification;
 eleven nontrivial test/fixture files justify the delegated work unit. The user
 authorized the CFG-02 local commit under `exception-ok`. Initial forecast was
 245–265 authored CFG-02 lines, or 432–452 combined with CFG-01's +163/-24.
 The approximately 400-line budget is advisory, not a reason to omit evidence.
 No push, PR, merge, native review command, or pending-lineage mutation.
-The user explicitly authorized branch-first creation of
-`feat/devcontainer-config-layout` from the current CFG-01 HEAD because local
+The branch-first workflow created
+`feat/devcontainer-config-layout` from the CFG-01 HEAD because local
 `origin/HEAD` points to `dev`. The absent branch was created with `git switch -c`;
 HEAD, worktree diff, and index diff were verified unchanged by the switch.
 Review `review-49d9ff8415aad1c5` remains pending; no approval is claimed.
 No installs, network, real sudo, Docker, build, or container lifecycle operations.
-Temporary fixture Git repositories/commits/config/reset and fixture exports are
-authorized test effects; primary-repository destructive commands are not.
+Temporary fixture effects were authorized for CFG-02 only; CFG-03 runs no tests
+or primary-repository destructive commands. Parent inspection is complete;
+the local CFG-03 work-unit commit is now authorized.
 
 ## Stable checklist
 
@@ -64,17 +64,19 @@ authorized test effects; primary-repository destructive commands are not.
 
 ### CFG-02 — Tests
 
-- [ ] Update and run affected fixtures/tests for the new configuration layout.
+- [x] Update fixtures/tests and run the authorized bounded checks (77/77).
+- [ ] Complete broader affected-suite and operational runtime proof (omitted).
 - [x] Implement the eleven mapped fixture/test path migrations.
 - [x] Record ordinary before/after authorized checks and remaining proof gaps.
 - [x] Resolve delivery scope: user-approved `size:exception`, `exception-ok`,
   single feature delivery, separate work-unit commits, no chain strategy.
-- [ ] Commit authorized CFG-02; exact hash and completion are recorded in the
-  post-commit Engram mirror. Reconcile this checkbox during the next task.
+- [x] Commit CFG-02: `83d99c5e5e55a3d5292801affb51719ea4ad4194`.
 
 ### CFG-03 — Documentation and skill
 
-- [ ] Update user-facing documentation and the relevant skill for the new layout.
+- [x] Update user-facing documentation and the relevant skill for the new layout.
+- [x] Run ordinary Markdown, stale-path, local-link, and scope checks.
+- [ ] Create a separate local work-unit commit after parent inspection.
 
 ## Acceptance criteria
 
@@ -257,3 +259,86 @@ The exact hash cannot be embedded in its own commit: the complete Engram mirror
 will append explicitly post-commit metadata after success, leaving file
 reconciliation to the next task rather than creating another tracker commit.
 No broader sudo/Docker/runtime checks are claimed; CFG-03 remains pending.
+
+## CFG-02 closure reconciliation
+
+CFG-02 committed exactly eleven fixture/test files and this tracker, +256/-136
+= 392 authored lines; cumulative CFG-01/02 is 579. The committed tree was
+`08aca9ef0c244dc9b02702e28d9d306d7d2c2a46`, with no hook mutation and a clean
+post-commit worktree. Direct and independent bounded checks passed 77/77;
+the parent spot-check passed 32/32. Broader runtime proof remains omitted.
+
+Parent-supplied historical authority: explicitly consented CFG-02 native review
+`review-6d482d9bc994d66b` completed four lenses with no findings, was approved,
+and completed exact acknowledge; its authority is burned. Target:
+`sha256:889be93668f61db205e014b36c13502fa71f967d2d7e45b68f08973028dfa0eb`.
+This is evidence, not an instruction to invoke review commands. Older CFG-01
+review `review-49d9ff8415aad1c5` remains pending and untouched. Neither record
+constitutes global feature approval or CFG-03 review authority.
+
+## CFG-03 scope and verification
+
+Objective: align current documentation with centralized configuration paths,
+without behavior changes. Selected route: delegated documentation/reference
+work across seven documents plus this tracker; no child delegation. Forecast:
+150–230 authored lines, cumulative 729–809. `exception-ok` and the user's
+`size:exception` remain in force; the approximately 400-line budget is advisory.
+
+Exact edit and rollback boundary, independently of prior runtime/test work:
+
+- `README.md`
+- `.devcontainer/README.md`
+- `docs/en/configs.md`
+- `docs/en/extending.md`
+- `docs/en/install-volumes.md`
+- `docs/en/optional-integrations.md`
+- `.agents/skills/add-tool/references/architecture.md`
+- `odd/tasks/devcontainer-config-layout.md`
+
+Preserve historical ADR/changelog paths, prior task evidence, `*-config.local/`
+ignore semantics, and first-Compose-file-relative source resolution. No skill
+metadata changes or registry refresh. Runtime harness: not applicable to this
+docs-only work unit; no runtime/source/config/test changes or normalization.
+
+Before edits, `task quality:markdown:full` passed (17 files, zero issues), and
+the scoped seven-document stale-path search found the expected old references.
+After edits, run that strict Markdown task, `git diff --check HEAD`, complete
+changed-file stdin lint with the existing config and `--no-globs`, the scoped
+stale-path search, offline Python directory/local-inline-link checks, incoming
+heading-anchor searches, and `git diff --name-status HEAD` / `--numstat HEAD`.
+Use 120-second command timeouts. The normal lint globs omit this tracker and
+ignore `.agents/**`; stdin lint covers all eight complete changed documents.
+
+### CFG-03 observed results
+
+- Strict Markdown lint passed before and after edits: 17 files, zero issues.
+- Complete stdin lint passed for all eight changed files, including the tracker
+  and hidden skill reference; no baseline-formatting exception was needed.
+- `git diff --check HEAD` passed; scoped stale-path search returned no matches
+  (exit 1). No normalizer or runtime tests were run.
+- Offline Python checks passed: all four canonical directories exist, old roots
+  are absent, and changed-document ordinary relative inline-link paths resolve.
+- The two path-bearing headings changed; tracked incoming-anchor searches found
+  no references. Remote URLs and rendered anchor behavior were not verified.
+- `git check-ignore -v --no-index .devcontainer/config/pi-config.local/example`
+  confirms `.gitignore:8` still owns the personal-source ignore contract.
+- Scope is exactly the eight declared Markdown files. No metadata, registry,
+  runtime/source/config/test/ignore changes, review commands, or commit occurred.
+- Full tracker mirror/readback precedes documentation edits and follows outcomes.
+
+### CFG-03 local commit authorization
+
+Parent structural inspection is complete; its spot-check passed strict Markdown
+lint (17 files) and `git diff --check`. Parent-reported native assessment of the
+eight-file, 200-authored-line candidate was `medium` / `executable_change` for
+`.agents/skills/add-tool/references/architecture.md`, with `review_due: false`
+and `review_due_reason: under_budget`. Review is deferred pending slice assessment,
+not approved. No CFG-03 native review is authorized; CFG-01 review remains pending.
+
+Implementation and scoped checks are complete. Before this closure note, actual
+CFG-03 work was +134/-66 = 200 authored lines, cumulative 779; the final candidate
+remains forecast within 150–230 under the existing `exception-ok` / `size:exception`.
+The authorized local commit is `docs(devcontainer): document centralized configuration layout`.
+This file is a pre-commit snapshot: its commit checkbox remains pending, and exact
+success/hash/tree evidence will be appended only to the complete post-commit
+Engram mirror. No source self-hash update or follow-up tracking commit is planned.

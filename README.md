@@ -298,14 +298,14 @@ use ETags to avoid unchanged requests.
     task config:export
 
     # 3. Review exactly what will be versioned
-    git diff -- .devcontainer/opencode-config .devcontainer/pi-config
+    git diff -- .devcontainer/config/opencode .devcontainer/config/pi
     ```
 
     `config:export` copies configuration in **container runtime → repository directory** direction:
 
     ```text
-    /home/ubuntu/.config/opencode → .devcontainer/opencode-config
-    /home/ubuntu/.pi              → .devcontainer/pi-config
+    /home/ubuntu/.config/opencode → .devcontainer/config/opencode
+    /home/ubuntu/.pi              → .devcontainer/config/pi
     ```
 
   - copies managed files byte for byte;
@@ -336,7 +336,7 @@ use ETags to avoid unchanged requests.
     can then export to default preferences `task config:export`:
 
     ```bash
-    .devcontainer/opencode-config
+    .devcontainer/config/opencode
     ├── opencode.json
     └── profiles/
         ├── openai-100usd-astral.json
@@ -542,7 +542,7 @@ Use the earlier [install catalog commands](#install-tools-catalog-management), o
 
 ### 🔌 Configure optional MCP servers
 
-OpenCode MCP configuration is seeded from `.devcontainer/opencode-config/`.
+OpenCode MCP configuration is seeded from `.devcontainer/config/opencode/`.
 Inspect active servers with:
 
 ```bash
@@ -552,13 +552,13 @@ opencode mcp list
 Active Pi MCP configuration lives in:
 
 ```text
-.devcontainer/pi-config/agent/mcp.json
+.devcontainer/config/pi/agent/mcp.json
 ```
 
 Optional presets are versioned in:
 
 ```text
-.devcontainer/pi-config/agent/mcp.presets.json
+.devcontainer/config/pi/agent/mcp.presets.json
 ```
 
 To enable a preset, copy its server entry into `mcp.json > mcpServers`, then

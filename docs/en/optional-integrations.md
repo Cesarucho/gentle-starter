@@ -8,7 +8,7 @@ are not supported creation paths.
 
 1. Uncomment the required files in the ordered `dockerComposeFile` array in
    `.devcontainer/devcontainer.json`. Keep the base first and
-   `compose-config/docker-compose-core-tools.yml` immediately afterward.
+   `config/compose/docker-compose-core-tools.yml` immediately afterward.
 2. Enable any required catalog installer separately with `task install:enable`.
    Installer enable/disable does **not** select Compose files.
 3. Run `task container:recreate` for mount/environment changes, or
@@ -17,16 +17,16 @@ are not supported creation paths.
 
 | Compose file | Purpose | Installer requirement |
 | --- | --- | --- |
-| `compose-config/docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
-| `compose-config/docker-compose.codegraph.yml` | Persist the root project's SQLite index | Enable `3060-ai-codegraph`; initialize manually |
-| `compose-config/docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
-| `compose-config/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server`, rebuild, then up |
-| `compose-config/docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `4100-tool-pulseaudio-utils` for `paplay`, rebuild, then up |
+| `config/compose/docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
+| `config/compose/docker-compose.codegraph.yml` | Persist the root project's SQLite index | Enable `3060-ai-codegraph`; initialize manually |
+| `config/compose/docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
+| `config/compose/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server`, rebuild, then up |
+| `config/compose/docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `4100-tool-pulseaudio-utils` for `paplay`, rebuild, then up |
 
 The base retains image/build, service identity, application port, environment,
 and the applied-manifest identity. The active core-tools override owns the four
 existing Gentle AI, Engram, OpenCode and Git configuration binds plus the OpenCode
-port. Moving overrides into `compose-config/` does not change relative sources:
+port. Moving overrides into `config/compose/` does not change relative sources:
 Compose resolves them from the first file's `.devcontainer/` directory, not the
 override directory. Existing SSH/audio selections remain active; Pi and CodeGraph
 start disabled. Recreate through Task after this file-layout change even though
@@ -37,7 +37,7 @@ with Pi Coding enabled; Gentle AI alone does not create `~/.pi/gentle-ai`.
 ## Optional CodeGraph
 
 1. Run `task install:enable -- 3060-ai-codegraph`.
-2. Uncomment `./compose-config/docker-compose.codegraph.yml` in
+2. Uncomment `./config/compose/docker-compose.codegraph.yml` in
    `.devcontainer/devcontainer.json` for dedicated per-clone state.
 3. On the host, run `task container:rebuild && task container:up` (or `task container:recreate` if the
    CLI was already built and only mounts changed), then attach as `ubuntu`.

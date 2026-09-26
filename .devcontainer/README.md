@@ -14,12 +14,13 @@ links from there.
 | `Dockerfile` | Cached foundation → core-tools → devcontainer stages. Runs `01-foundation/`, `02-core-tools/`, `03-enabled/`, then `04-hooks/`. |
 | `devcontainer.json` | Task-driven Dev Container CLI configuration and ordered Compose selection. IDEs attach only. |
 | `docker-compose.yml` | Base service, build, application port and manifest identity; always first. |
-| `compose-config/` | Active core-tools binds/OpenCode port and independently selected optional overrides, including disabled CodeGraph. |
+| `config/compose/` | Active core-tools binds/OpenCode port and independently selected optional overrides, including disabled CodeGraph. |
 | `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
 | `test/` | Starter maintainer tests, explicitly selected with `task test:starter`; not application tests. |
-| `pi-config/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
-| `opencode-config/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
+| `config/pi/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
+| `config/opencode/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
+| `config/ssh/` | Versioned SSH server configuration and startup wrapper. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
 
@@ -64,7 +65,7 @@ The devcontainer has four extension surfaces:
    [`optional-integrations.md`](../docs/en/optional-integrations.md). Task prepares
    a semantic host snapshot; runtime rejects invalid or unapplied mount identities.
 
-3. **Config files** (`<name>-config/` + `seed_config_tree` in
+3. **Config files** (`config/<name>/` + `seed_config_tree` in
    `setup.sh`) — versioned baseline configs copied to the runtime
    path on first run. Deep dive in
    [`docs/en/configs.md`](../docs/en/configs.md).
@@ -83,7 +84,7 @@ For the full convention, see
 [`docs/en/configs.md`](../docs/en/configs.md). The one-paragraph
 version:
 
-1. Create `.devcontainer/<name>-config/` with the file tree that
+1. Create `.devcontainer/config/<name>/` with the file tree that
    mirrors the tool's runtime config location.
 2. Add a `seed_config_tree` call to `setup_versioned_configs()`
    in `setup.sh` with the absolute target. Targets outside `$HOME`
@@ -92,13 +93,13 @@ version:
 Example: adding a baseline postgresql config:
 
 ```text
-.devcontainer/postgres-config/16/main/pg_hba.conf
+.devcontainer/config/postgres/16/main/pg_hba.conf
 #   runtime: /etc/postgresql/16/main/pg_hba.conf
 ```
 
 ```bash
 # in setup.sh
-seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
+seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
 ```
 
 For personal, non-versioned additions, use a `<name>-config.local/`

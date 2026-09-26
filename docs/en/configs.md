@@ -2,10 +2,10 @@
 
 `setup.sh` ships a parallel mechanism for *config files*: a
 `seed_config_tree` helper that copies baseline configs from
-`.devcontainer/<name>-config/` to their runtime path. It is
+`.devcontainer/config/<name>/` to their runtime path. It is
 copy-on-first-run (idempotent, preserves user customisations across
 rebuilds) and auto-escalates to `sudo` for targets outside `$HOME`.
-The built-in mappings split `pi-config/` by owner: `agent/` is seeded only
+The built-in mappings split `config/pi/` by owner: `agent/` is seeded only
 when Pi Coding is enabled, while `gentle-ai/` currently requires both Pi Coding
 and core Gentle AI (not Pi Gentle). OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
@@ -39,7 +39,7 @@ After reviewing the report, explicitly export runtime configuration:
 
 ```bash
 task config:export
-git diff -- .devcontainer/opencode-config .devcontainer/pi-config
+git diff -- .devcontainer/config/opencode .devcontainer/config/pi
 ```
 
 The runtime files are authoritative and are copied byte-for-byte. Export never
@@ -61,9 +61,9 @@ Both commands resolve the same groups once, before scanning configuration:
 
 | Group | Runtime → seed | Participation |
 | --- | --- | --- |
-| OpenCode | `~/.config/opencode/` → `.devcontainer/opencode-config/` | Always |
-| Pi Coding | `~/.pi/agent/` → `.devcontainer/pi-config/agent/` | `3030-ai-pi-coding.sh` enabled |
-| Pi Gentle | `~/.pi/gentle-ai/` → `.devcontainer/pi-config/gentle-ai/` | `3040-ai-pi-gentle.sh` enabled |
+| OpenCode | `~/.config/opencode/` → `.devcontainer/config/opencode/` | Always |
+| Pi Coding | `~/.pi/agent/` → `.devcontainer/config/pi/agent/` | `3030-ai-pi-coding.sh` enabled |
+| Pi Gentle | `~/.pi/gentle-ai/` → `.devcontainer/config/pi/gentle-ai/` | `3040-ai-pi-gentle.sh` enabled |
 
 Pi ownership requires a valid `03-enabled/` alias resolving to the canonical
 installer, including custom alias names. The shared installer catalog, core,
@@ -78,7 +78,7 @@ even with no seed files; permission or other I/O errors still return `2`. Export
 retains seed files and returns `0` on success, including when no copies are needed.
 
 This export ownership intentionally differs from the current bootstrap seeding
-gate for `pi-config/gentle-ai/` described above. Bootstrap is unchanged.
+gate for `config/pi/gentle-ai/` described above. Bootstrap is unchanged.
 
 ### Managed paths and exclusions
 
@@ -94,7 +94,7 @@ its unique settings are not merged into `opencode.json`. Existing runtime
 active: neither export nor seeding automatically deletes them.
 
 The root `~/.config/opencode/.gentle-ai-telemetry-runtime.json` is managed by both
-tasks and exports to `opencode-config/.gentle-ai-telemetry-runtime.json`. Missing
+tasks and exports to `config/opencode/.gentle-ai-telemetry-runtime.json`. Missing
 runtime files are reported without deleting the seed. Export preserves exact bytes
 and the existing seed mode (new files use `0644`). The same hidden filename remains
 excluded below the OpenCode root and in other trees; this is not a general hidden
@@ -159,23 +159,23 @@ and the helper escalates. The case for absolute system paths
 
 ## The three cases
 
-### Case 1: a new file in `pi-config/`
+### Case 1: a new file in `config/pi/`
 
 You're adding a new Pi agent config or splitting an existing one
 into multiple files. No `setup.sh` change, no new wiring — just
-drop the file under `pi-config/` with the same relative path it
+drop the file under `config/pi/` with the same relative path it
 should have at runtime. The first time the user rebuilds and the
 target doesn't exist, the file is copied. After that, the user's
 customisations stay put.
 
 ```text
 # Example: a new Pi agent config
-.devcontainer/pi-config/agent/banner-presets.json
+.devcontainer/config/pi/agent/banner-presets.json
 #   runtime: ~/.pi/agent/banner-presets.json
 ```
 
 Commit the file. The next `task container:up` for a fresh clone
-copies it; for an existing clone, it stays in `pi-config/` (the
+copies it; for an existing clone, it stays in `config/pi/` (the
 symlink-or-file in `~/.pi/agent/banner-presets.json` was already
 populated by some prior build, or by the tool writing it).
 
@@ -190,7 +190,7 @@ Three steps:
 
    ```text
    # Example: baseline kubectl config
-   .devcontainer/kubectl-config/config
+   .devcontainer/config/kubectl/config
    #   runtime: ~/.kube/config
    ```
 
@@ -199,7 +199,7 @@ Three steps:
    ```bash
    setup_versioned_configs() {
        # Existing enabled-aware Pi and Gentle AI mappings omitted here.
-       seed_config_tree "${WORKSPACE_DIR}/.devcontainer/kubectl-config" "${HOME}/.kube"
+       seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/kubectl" "${HOME}/.kube"
    }
    ```
 
@@ -215,14 +215,14 @@ automatically — no flag, no extra wiring on your part.
 
 ```text
 # Example: baseline postgresql config
-.devcontainer/postgres-config/16/main/pg_hba.conf
+.devcontainer/config/postgres/16/main/pg_hba.conf
 #   runtime: /etc/postgresql/16/main/pg_hba.conf
 ```
 
 ```bash
 setup_versioned_configs() {
     # Existing enabled-aware Pi and Gentle AI mappings omitted here.
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
+    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
 }
 ```
 
@@ -242,7 +242,7 @@ survive every rebuild until they explicitly delete the file.
 
 ## The `*.local` pattern for personal configs
 
-The `pi-config/` tree is shared. If you want to add baseline
+The `config/pi/` tree is shared. If you want to add baseline
 configs that are personal to your clone (not committed), use a
 `<name>-config.local/` suffix. The pattern `*-config.local/` is in
 `.gitignore` so the directory stays untracked. Same wiring as Cases
@@ -253,9 +253,9 @@ added even before the directory exists.
 ```bash
 setup_versioned_configs() {
     # Existing enabled-aware Pi and Gentle AI mappings omitted here.
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
+    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
     # Personal: not committed, exists only on this clone.
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config.local" "${HOME}/.pi" || true
+    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi-config.local" "${HOME}/.pi" || true
 }
 ```
 

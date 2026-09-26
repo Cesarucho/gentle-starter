@@ -12,7 +12,7 @@ The four extension surfaces are:
 2. **[The volume contract](install-volumes.md)** — host-prepared bind mounts;
    installer-owned targets also dispatch runtime-safe repair scripts.
 3. **[Config seeding](configs.md)** — baseline config files
-   versioned in `.devcontainer/<name>-config/` and copied to their
+   versioned in `.devcontainer/config/<name>/` and copied to their
    runtime path on first run.
 4. **[Tool-version policy](adr/0003-unified-tool-policy-ownership.md)** —
    editable `TOOL_*_VERSION` intent and final generated `LOCK_*` values
@@ -93,12 +93,12 @@ cd .devcontainer/install/03-enabled
 ln -s ../available/7000-tool-redis.sh 7000-tool-redis.sh
 ```
 
-### Step 2: config — `.devcontainer/redis-config/redis.conf`
+### Step 2: config — `.devcontainer/config/redis/redis.conf`
 
 Create the versioned source:
 
 ```text
-.devcontainer/redis-config/redis.conf
+.devcontainer/config/redis/redis.conf
 #   runtime: /etc/redis/redis.conf
 ```
 
@@ -106,8 +106,8 @@ Wire it in `.devcontainer/setup.sh`:
 
 ```bash
 setup_versioned_configs() {
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config" "${HOME}/.pi"
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/redis-config" "/etc/redis"
+    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi" "${HOME}/.pi"
+    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/redis" "/etc/redis"
 }
 ```
 
@@ -200,7 +200,7 @@ for the deep reference.
 
 ### How do I add a new tool's baseline config?
 
-Create a `.devcontainer/<name>-config/` directory with the file
+Create a `.devcontainer/config/<name>/` directory with the file
 tree that mirrors the tool's runtime config location. Add a
 `seed_config_tree` call to `setup_versioned_configs` in
 `setup.sh`. Targets outside `$HOME` are handled automatically (the
@@ -393,7 +393,7 @@ Initialization proof and targeted Pi, SSH, audio, GUI integrations remain separa
 
 The fixture copies current public source changes into independent Git metadata
 without remotes. In the **candidate only**, it selects `docker-compose.yml` plus
-`compose-config/docker-compose-core-tools.yml` and
+`config/compose/docker-compose-core-tools.yml` and
 `container-svc`, retains the current base build and managed writable binds, and
 replaces the attach configuration with the standard workspace mount, ubuntu user,
 and setup command. Optional Compose overrides, custom attach settings, and CLI
