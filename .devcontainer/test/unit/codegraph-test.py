@@ -182,7 +182,7 @@ class CodeGraphTests(unittest.TestCase):
     def test_mcp_seeds_are_disabled_and_consistent(self):
         entries = []
         for name in ("opencode.json", "opencode-non-sdd.json"):
-            config = json.loads((ROOT / ".devcontainer/opencode-config" / name).read_text())
+            config = json.loads((ROOT / ".devcontainer/config/opencode" / name).read_text())
             entries.append(config["mcp"]["codegraph"])
         self.assertEqual(entries[0], entries[1])
         self.assertIs(entries[0]["enabled"], False)

@@ -2,7 +2,7 @@
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-	WRAPPER="${REPO_ROOT}/.devcontainer/ssh-config/usr/local/bin/start-sshd"
+	WRAPPER="${REPO_ROOT}/.devcontainer/config/ssh/usr/local/bin/start-sshd"
 	TEST_ROOT="$(mktemp -d)"
 	BIN_DIR="${TEST_ROOT}/bin"
 	KEY_DIR="${TEST_ROOT}/keys/ssh"

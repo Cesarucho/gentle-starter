@@ -4,7 +4,7 @@
     {
       "name": "OpenCode",
       "runtime": ".config/opencode",
-      "seed": ".devcontainer/opencode-config",
+      "seed": ".devcontainer/config/opencode",
       "managed": ["AGENTS.md", "opencode.json", "opencode-non-sdd.json", "tui.json", "opencode-notifier.json", ".gentle-ai-telemetry-runtime.json", "commands/**", "plugins/**", "profiles/**", "prompts/**", "skills/**", "profile-versions/**", "auth.json"],
       "excluded": ["opencode.jsonc", "**/.git/**", ".gitignore", "**/node_modules/**", "**/profile-versions/**", "**/auth.json", "**/credentials.json", "**/sessions/**", "**/state/**", "**/logs/**", "**/cache/**"]
     },
@@ -12,7 +12,7 @@
       "name": "Pi Coding",
       "owner": "3030-ai-pi-coding.sh",
       "runtime": ".pi/agent",
-      "seed": ".devcontainer/pi-config/agent",
+      "seed": ".devcontainer/config/pi/agent",
       "managed": ["settings.json", "mcp.json", "subagents.json"],
       "excluded": ["state/**", "sessions/**", "intercom/**", "bin/**", "chains/**", "agents/**", "gentle-ai/**", "pi-pretty/**", "auth.json", "trust.json", "APPEND_SYSTEM.md", "models-store.json", "mcp-cache.json", "mcp-npx-cache.json", "mcp.json.devcontainer-backup.*"]
     },
@@ -20,7 +20,7 @@
       "name": "Pi Gentle",
       "owner": "3040-ai-pi-gentle.sh",
       "runtime": ".pi/gentle-ai",
-      "seed": ".devcontainer/pi-config/gentle-ai",
+      "seed": ".devcontainer/config/pi/gentle-ai",
       "managed": ["banner.json", "models.json", "models.openai.json", "models.opencode.json", "persona.json"],
       "excluded": ["sessions/**", "state/**", "npm/**", "intercom/**", "run-history.jsonl", "logs/**", "pids/**", "cache/**", "caches/**"]
     }

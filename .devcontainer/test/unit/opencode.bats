@@ -48,9 +48,9 @@ prepare_setup_sandbox() {
 		"${SETUP_WORKSPACE}/.devcontainer/install/03-enabled" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/lib" \
-		"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested" \
-		"${SETUP_WORKSPACE}/.devcontainer/pi-config/agent" \
-		"${SETUP_WORKSPACE}/.devcontainer/pi-config/gentle-ai" \
+		"${SETUP_WORKSPACE}/.devcontainer/config/opencode/nested" \
+		"${SETUP_WORKSPACE}/.devcontainer/config/pi/agent" \
+		"${SETUP_WORKSPACE}/.devcontainer/config/pi/gentle-ai" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts" \
 		"${HOME_DIR}/.config/opencode" \
 		"${HOME_DIR}/.pi" \
@@ -64,10 +64,10 @@ prepare_setup_sandbox() {
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/restore-tracked-modes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/restore-tracked-modes.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
-	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/opencode.json"
-	printf 'nested baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/opencode-config/nested/agent.md"
-	printf 'pi baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/pi-config/agent/settings.json"
-	printf 'gentle baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/pi-config/gentle-ai/persona.json"
+	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/opencode.json"
+	printf 'nested baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/nested/agent.md"
+	printf 'pi baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/pi/agent/settings.json"
+	printf 'gentle baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/pi/gentle-ai/persona.json"
 	printf 'user customisation\n' >"${HOME_DIR}/.config/opencode/opencode.json"
 	printf 'child payload\n' >"${OPENCODE_SENTINEL}"
 	printf '0:0\n' >"${PI_OWNER_FILE}"
@@ -175,7 +175,7 @@ EOF
 	cat >"${BIN_DIR}/cp" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "${1:-}" = "${SETUP_WORKSPACE}/.devcontainer/pi-config/nested/seed.txt" ]; then
+if [ "${1:-}" = "${SETUP_WORKSPACE}/.devcontainer/config/pi/nested/seed.txt" ]; then
 	expected_owner="${TEST_RUNTIME_UID}:${TEST_RUNTIME_GID}"
 	[ "$(cat "${PI_OWNER_FILE}")" = "${expected_owner}" ]
 	[ "$(cat "${GITCONFIG_OWNER_FILE}")" = "${expected_owner}" ]
@@ -426,7 +426,7 @@ path_metadata() {
 }
 
 @test "seeded OpenCode plugins use the split review and SDD implementations" {
-	local plugins_dir="${REPO_ROOT}/.devcontainer/opencode-config/plugins"
+	local plugins_dir="${REPO_ROOT}/.devcontainer/config/opencode/plugins"
 	local sdd_plugin="${plugins_dir}/sdd-task-result-artifacts.ts"
 
 	[ -f "${plugins_dir}/opencode-review-transport.ts" ]

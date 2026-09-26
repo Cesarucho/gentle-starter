@@ -43,12 +43,12 @@ class LifecycleTests(unittest.TestCase):
         return lifecycle
 
     def fixture(self):
-        for name in (".devcontainer/install/03-enabled", ".devcontainer/install/02-core-tools", ".taskfiles/scripts", ".devcontainer/compose-config"):
+        for name in (".devcontainer/install/03-enabled", ".devcontainer/install/02-core-tools", ".taskfiles/scripts", ".devcontainer/config/compose"):
             (self.root / name).mkdir(parents=True)
         for name in (".devcontainer/devcontainer.json", ".devcontainer/docker-compose.yml",
-                     ".devcontainer/compose-config/docker-compose.ssh-agent.yml", ".devcontainer/compose-config/docker-compose.ssh-server.yml",
-                     ".devcontainer/compose-config/docker-compose.audio.yml",
-                     ".devcontainer/compose-config/docker-compose-core-tools.yml", ".taskfiles/scripts/compose-manifest.py"):
+                     ".devcontainer/config/compose/docker-compose.ssh-agent.yml", ".devcontainer/config/compose/docker-compose.ssh-server.yml",
+                     ".devcontainer/config/compose/docker-compose.audio.yml",
+                     ".devcontainer/config/compose/docker-compose-core-tools.yml", ".taskfiles/scripts/compose-manifest.py"):
             shutil.copyfile(ROOT / name, self.root / name)
         links = self.root / ".devcontainer/install/03-enabled"
         for name in ("3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh", "4010-tool-ssh-server.sh", "3020-ai-gentle-ai.sh"):
@@ -59,7 +59,7 @@ class LifecycleTests(unittest.TestCase):
         self.fixture()
         H.configure(self.root)
         config = json.loads((self.root / ".devcontainer/devcontainer.json").read_text())
-        self.assertEqual(config["dockerComposeFile"], ["./docker-compose.yml", "./compose-config/docker-compose-core-tools.yml"])
+        self.assertEqual(config["dockerComposeFile"], ["./docker-compose.yml", "./config/compose/docker-compose-core-tools.yml"])
         self.assertEqual(len(config["mounts"]), 1)
         self.assertNotIn("SSH", json.dumps(config))
         self.assertNotIn("pulse", json.dumps(config))
@@ -232,7 +232,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(value["service"], "container-svc")
         self.assertEqual(value["project_name_fingerprint"], module.digest(lifecycle.project))
         self.assertEqual(value["files"], [".devcontainer/docker-compose.yml",
-                                         ".devcontainer/compose-config/docker-compose-core-tools.yml"])
+                                         ".devcontainer/config/compose/docker-compose-core-tools.yml"])
         record, = value["volumes"]
         self.assertEqual(record["source"], ".env.d/state")
         self.assertTrue(record["managed"])
