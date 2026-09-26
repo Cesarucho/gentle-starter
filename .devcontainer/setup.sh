@@ -58,7 +58,7 @@ bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}"
 # files are owned by ubuntu.
 #
 # This is the building block for the versioned config contract:
-#   .devcontainer/<name>-config/<ruta>/archivo  ->  <target>/<ruta>/archivo
+#   .devcontainer/config/<name>/<ruta>/archivo  ->  <target>/<ruta>/archivo
 # See .devcontainer/README.md for the convention.
 seed_config_tree() {
 	local source_root="$1"
@@ -134,27 +134,27 @@ repair_user_local_parents() {
 # Seed base config only for the tools that own each runtime subtree.
 # Each line is a (source_root, target_root) pair that gets handed to
 # seed_config_tree. To add a new tool's baseline config:
-#   1. Create .devcontainer/<name>-config/ with the file tree that
+#   1. Create .devcontainer/config/<name>/ with the file tree that
 #      mirrors the tool's runtime config location.
 #   2. Add a seed_config_tree call below with the absolute target.
 # See .devcontainer/README.md for the full convention.
 setup_versioned_configs() {
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/agent" "${HOME}/.pi/agent"
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh" &&
 		install_script_is_enabled "${SCRIPT_DIR}/install/available/3020-ai-gentle-ai.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/pi-config/gentle-ai" "${HOME}/.pi/gentle-ai"
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3000-ai-opencode.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/opencode-config" "${HOME}/.config/opencode"
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/opencode" "${HOME}/.config/opencode"
 	fi
 
 	# Add additional tool configs here, one line per source root:
-	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/postgres-config" "/etc/postgresql/16/main"
-	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/redis-config" "/etc/redis"
-	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/vscode-config" "${HOME}/.config/Code"
-	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/<name>-config.local" "${HOME}/.<name>" || true
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/redis" "/etc/redis"
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/vscode" "${HOME}/.config/Code"
+	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/<name>.local" "${HOME}/.<name>" || true
 }
 
 setup_pi_workspace_trust() {

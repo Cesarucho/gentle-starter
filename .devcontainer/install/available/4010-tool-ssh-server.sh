@@ -52,7 +52,7 @@ _devcontainer_ssh_install() {
 _devcontainer_ssh_install_start_wrapper() {
 	# The repository source is content (tracked as 0644); installation owns the
 	# executable mode at the privileged destination.
-	local source="${WORKSPACE_DIR}/.devcontainer/ssh-config/usr/local/bin/start-sshd"
+	local source="${WORKSPACE_DIR}/.devcontainer/config/ssh/usr/local/bin/start-sshd"
 	local target_dir
 	target_dir="$(dirname "${SSH_START_WRAPPER_TARGET}")"
 
@@ -70,7 +70,7 @@ _devcontainer_ssh_install_start_wrapper() {
 }
 
 _devcontainer_ssh_install_config() {
-	local source="${WORKSPACE_DIR}/.devcontainer/ssh-config/etc/ssh/sshd_config"
+	local source="${WORKSPACE_DIR}/.devcontainer/config/ssh/etc/ssh/sshd_config"
 	local target_dir
 	target_dir="$(dirname "${SSHD_CONFIG_TARGET}")"
 

@@ -4,7 +4,7 @@
     {
       "name": "OpenCode",
       "runtime": ".config/opencode",
-      "seed": ".devcontainer/opencode-config",
+      "seed": ".devcontainer/config/opencode",
       "managed": [
         "AGENTS.md",
         "opencode.json",
@@ -40,7 +40,7 @@
       "name": "Pi Coding",
       "owner": "3030-ai-pi-coding.sh",
       "runtime": ".pi/agent",
-      "seed": ".devcontainer/pi-config/agent",
+      "seed": ".devcontainer/config/pi/agent",
       "managed": [
         "settings.json",
         "mcp.json",
@@ -75,7 +75,7 @@
       "name": "Pi Gentle",
       "owner": "3040-ai-pi-gentle.sh",
       "runtime": ".pi/gentle-ai",
-      "seed": ".devcontainer/pi-config/gentle-ai",
+      "seed": ".devcontainer/config/pi/gentle-ai",
       "managed": [
         "banner.json",
         "models.json",
