@@ -183,7 +183,7 @@ def project_bind(workspace, volume):
             "read_only": read_only, "bind": {"create_host_path": False}}
 
 
-def project_manifest(workspace, service, paths, inputs, selected, project=""):
+def project_manifest(workspace, service, paths, selected, project=""):
     volumes = selected.get("volumes")
     if not isinstance(volumes, list) or not volumes:
         fail("Selected service has no volume contract")
@@ -261,7 +261,7 @@ def check_existing_container(name, identity):
 
 def prepare(workspace):
     service, paths, inputs, selected, project = compose_model(workspace)
-    manifest = project_manifest(workspace, service, paths, inputs, selected, project)
+    manifest = project_manifest(workspace, service, paths, selected, project)
     name = selected.get("container_name")
     if not isinstance(name, str) or not name:
         fail("Selected service requires container_name")

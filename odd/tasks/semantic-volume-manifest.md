@@ -58,8 +58,9 @@ safely created empty directories need not be rolled back after a late failure.
 Runtime validates shape, both digests, and `GENTLE_VOLUME_MANIFEST_ID` without
 reading live env/selection, requiring host paths, or invoking Compose. Repair uses
 the same checked response. Setup, owner activation, passive mounts, and enabled
-writable-key SSH override gates remain intact. Doctor uses detected context:
-runtime applied identity inside, stored snapshot on the host. Host doctor and
+writable-key SSH override gates remain intact. Doctor uses its selected mode:
+explicit container checks applied identity; explicit host checks the stored snapshot.
+Only auto mode selects between these checks using detected context. Host doctor and
 `install:volumes` report only the last host-prepared snapshot, not current desired
 configuration or proof of applied mounts.
 

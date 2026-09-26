@@ -208,6 +208,38 @@ class LifecycleTests(unittest.TestCase):
                 lifecycle.assert_state("container", write=True)
         self.assertEqual(lifecycle.docker.call_count, 3)
 
+    def test_base_validation_projects_synthetic_model_without_external_execution(self):
+        lifecycle = self.lifecycle()
+        lifecycle.candidate.mkdir()
+        self.root = lifecycle.candidate
+        self.fixture()
+        H.configure(self.root)
+        module = H.resolver(self.root)
+        selected = {
+            "build": {"context": str(self.root / ".devcontainer")},
+            "container_name": self.root.name + "-run",
+            "image": self.root.name + "-img:0.1",
+            "volumes": [{"type": "bind", "source": str(self.root / ".env.d/state"),
+                         "target": "/state", "bind": {"create_host_path": False}}],
+        }
+        base = {"services": {"container-svc": {"env_file": ["../.env"]}}}
+        core = {"services": {"container-svc": {"volumes": selected["volumes"]}}}
+        lifecycle.resolve = Mock(return_value=(module, "container-svc", selected))
+        with patch.object(H, "resolver", return_value=module), \
+                patch.object(module, "read_compose_fragment", side_effect=[base, core, base]):
+            value = lifecycle.validate_base()
+        module.validate_manifest(value)
+        self.assertEqual(value["service"], "container-svc")
+        self.assertEqual(value["project_name_fingerprint"], module.digest(lifecycle.project))
+        self.assertEqual(value["files"], [".devcontainer/docker-compose.yml",
+                                         ".devcontainer/compose-config/docker-compose-core-tools.yml"])
+        record, = value["volumes"]
+        self.assertEqual(record["source"], ".env.d/state")
+        self.assertTrue(record["managed"])
+        self.assertFalse(record["read_only"])
+        self.assertFalse((self.root / module.MANIFEST).exists())
+        self.assertFalse((self.root / ".env.d").exists())
+
     def test_external_env_file_is_rejected_before_compose_resolution(self):
         lifecycle = self.lifecycle()
         module = Mock()

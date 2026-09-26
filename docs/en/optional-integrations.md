@@ -231,7 +231,10 @@ same checked records. It does not read live env, selected files, host paths, or
 Compose. This is bind-contract integrity, not signing or full container configuration
 attestation; named volumes and application environment are outside this identity.
 
-Container doctor checks applied identity. Host doctor and `task install:volumes`
+Explicit `task doctor:container` checks applied identity even in host context;
+explicit `task doctor:host` checks the stored snapshot even inside a container
+(and retains its host-context warning). `task doctor` selects automatically by
+detected context. Host doctor and `task install:volumes`
 report only the **last host-prepared snapshot**, not current desired configuration
 or proof of applied mounts. Return to the host and recreate after mount changes.
 

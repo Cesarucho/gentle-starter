@@ -34,7 +34,7 @@ EOF
     chmod +x "${BIN_DIR}/"*
 }
 
-@test "container doctor checks applied identity and does not accept a host-only snapshot" {
+prepare_container_checks() {
     mkdir -p "${FIXTURE_ROOT}/.devcontainer/install/lib" "${TEST_ROOT}/gitconfig-volume"
     printf 'devcontainer_install_is_active() { return 1; }\n' >"${FIXTURE_ROOT}/.devcontainer/install/lib/activation.sh"
     cat >"${TEST_ROOT}/doctor-env" <<'EOF'
@@ -46,6 +46,10 @@ function [() {
     fi
 }
 EOF
+}
+
+@test "container doctor checks applied identity and does not accept a host-only snapshot" {
+    prepare_container_checks
     for rejected in 0 1; do
         run env -u FORCE_HOST_CONTEXT PATH="${BIN_DIR}:/usr/bin:/bin" DEVCONTAINER=true \
             EXPECT_MANIFEST_CONTEXT=container REJECT_APPLIED_ID="${rejected}" \
@@ -58,6 +62,52 @@ EOF
             [[ "${output}" == *"volume snapshot unavailable or invalid"* ]]
         fi
         [[ "${output}" != *"last host-prepared"* ]]
+    done
+}
+
+@test "explicit host mode checks the stored snapshot inside a detected container" {
+    run env -u FORCE_HOST_CONTEXT PATH="${BIN_DIR}:/usr/bin:/bin" DEVCONTAINER=true \
+        EXPECT_MANIFEST_CONTEXT=host REJECT_APPLIED_ID=1 \
+        bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" host
+    [ "${status}" -eq 0 ]
+    [[ "${output}" == *"host checks are running from inside a container"* ]]
+    [[ "${output}" == *"last host-prepared"* ]]
+    [[ "${output}" == *"not proof of applied mounts or current desired configuration"* ]]
+    [[ "${output}" != *"applied container identity verified"* ]]
+}
+
+@test "explicit container mode checks applied identity in forced host context" {
+    prepare_container_checks
+    for rejected in 0 1; do
+        run env PATH="${BIN_DIR}:/usr/bin:/bin" FORCE_HOST_CONTEXT=1 \
+            EXPECT_MANIFEST_CONTEXT=container REJECT_APPLIED_ID="${rejected}" \
+            BASH_ENV="${TEST_ROOT}/doctor-env" DOCTOR_MOUNT="${TEST_ROOT}/gitconfig-volume" \
+            bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" container
+        [ "${status}" -eq "${rejected}" ]
+        if [ "${rejected}" -eq 0 ]; then
+            [[ "${output}" == *"applied container identity verified"* ]]
+        else
+            [[ "${output}" == *"volume snapshot unavailable or invalid"* ]]
+        fi
+        [[ "${output}" != *"last host-prepared"* ]]
+    done
+}
+
+@test "auto mode retains detected container and forced host snapshot selection" {
+    prepare_container_checks
+    for context in container host; do
+        force=1
+        [ "${context}" = host ] || force=0
+        run env PATH="${BIN_DIR}:/usr/bin:/bin" DEVCONTAINER=true FORCE_HOST_CONTEXT="${force}" \
+            EXPECT_MANIFEST_CONTEXT="${context}" \
+            BASH_ENV="${TEST_ROOT}/doctor-env" DOCTOR_MOUNT="${TEST_ROOT}/gitconfig-volume" \
+            bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" auto
+        [ "${status}" -eq 0 ]
+        if [ "${context}" = host ]; then
+            [[ "${output}" == *"last host-prepared"* ]]
+        else
+            [[ "${output}" == *"applied container identity verified"* ]]
+        fi
     done
 }
 

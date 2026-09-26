@@ -14,6 +14,7 @@ volumes = json.load(sys.stdin)
 for volume in volumes:
     if volume.get("type") == "bind":
         volume["source"] = str((workspace / ".devcontainer" / volume["source"]).absolute())
-value = module.project_manifest(workspace, *module.selection(workspace), {"volumes": volumes})
+service, paths, _ = module.selection(workspace)
+value = module.project_manifest(workspace, service, paths, {"volumes": volumes})
 (workspace / module.MANIFEST).write_text(json.dumps(value))
 print(value["id"])

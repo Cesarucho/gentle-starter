@@ -158,7 +158,7 @@ class Lifecycle:
                 or set(core["services"]["container-svc"]) - {"volumes", "ports"}):
             raise ValueError("Core fixture accepts only container-svc volumes and ports")
         module, service, selected = self.resolve()
-        _, paths, inputs = module.selection(self.candidate)
+        _, paths, _ = module.selection(self.candidate)
         fragment = module.read_compose_fragment(paths[0])
         if set(fragment.get("services", {})) != {service} or any(key in fragment for key in ("volumes", "networks", "secrets", "configs")):
             raise ValueError("Base fixture requires one service and no custom top-level resources")
@@ -174,7 +174,7 @@ class Lifecycle:
             raise ValueError("Base fixture requires generated APP_NAME container identity")
         if selected.get("image") != self.candidate.name + "-img:0.1":
             raise ValueError("Base fixture requires generated APP_NAME image identity")
-        manifest = module.project_manifest(self.candidate, service, paths, inputs, selected, self.project)
+        manifest = module.project_manifest(self.candidate, service, paths, selected, self.project)
         if len(manifest["volumes"]) != len(selected.get("volumes", [])) or not all(v["managed"] and not v["read_only"] for v in manifest["volumes"]):
             raise ValueError("Base fixture accepts only writable managed .env.d binds; move sockets/external mounts to overrides")
         return manifest

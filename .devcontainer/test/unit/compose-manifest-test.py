@@ -52,7 +52,7 @@ class ManifestFixture(unittest.TestCase):
                 "bind": {"create_host_path": False}}
 
     def projection(self):
-        return manifest.project_manifest(self.root, *manifest.selection(self.root), self.selected)
+        return manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], self.selected)
 
     def publish(self):
         value = self.projection()
@@ -379,7 +379,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             if optional == "codegraph":
                 graph = next(volume for volume in selected["volumes"] if volume["target"] == expected)
                 self.assertEqual(graph["source"], str(self.root / ".env.d/.codegraph"))
-                records = manifest.project_manifest(self.root, *manifest.selection(self.root), selected)["volumes"]
+                records = manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], selected)["volumes"]
                 managed = list(prep.managed_bind_sources(records, str(self.root)))
                 self.assertIn(str(self.root / ".env.d/.codegraph"), managed)
             optional_targets = targets & {"/home/ubuntu/.pi", "/ssh-agent", "/home/ubuntu/.ssh-server", "/pulse-native", "/home/ubuntu/fixture/.codegraph"}
@@ -400,7 +400,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                 self.assertEqual(audio["source"], "/run/user/1234/pulse/native")
             if optional == "ssh-agent":
                 self.assertEqual(selected["environment"]["SSH_AUTH_SOCK"], "/ssh-agent")
-            manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+            manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], selected)
 
     def test_core_extraction_preserves_original_mounts_and_port(self):
         base = manifest.read_compose_fragment(ROOT / ".devcontainer/docker-compose.yml")["services"]["container-svc"]
@@ -442,7 +442,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertIs(audio["read_only"], True)
         self.assertIs(audio["bind"]["create_host_path"], False)
         audio["source"] = "/run/user/1234/pulse/native"
-        projected = manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+        projected = manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], selected)
         record, = projected["volumes"]
         self.assertEqual(record["source"], "external")
         self.assertIs(record["managed"], False)
@@ -508,7 +508,8 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                     extra["services"]["custom"] = {"volumes": [changed]}
                 (self.root / ".devcontainer/extra.yml").write_text(json.dumps(extra))
                 if safe:
-                    value = manifest.project_manifest(self.root, *manifest.compose_model(self.root))
+                    service, paths, _, selected, project = manifest.compose_model(self.root)
+                    value = manifest.project_manifest(self.root, service, paths, selected, project)
                     self.assertIs(value["volumes"][0]["bind"]["create_host_path"], False)
                     self.assertIs(value["volumes"][0]["read_only"], False)
                 else:
@@ -589,11 +590,12 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                 self.assertEqual(resolved[4], expected)
                 self.assertEqual(resolved[3]["container_name"], "literal-container")
                 self.assertEqual(resolved[3]["volumes"][0]["source"], str(self.root / ".env.d" / expected))
-                value = manifest.project_manifest(self.root, *resolved)
+                service, paths, _, selected, project = resolved
+                value = manifest.project_manifest(self.root, service, paths, selected, project)
                 self.assertEqual(value["project_name_fingerprint"], manifest.digest(expected))
-        service, paths, inputs = manifest.selection(self.root)
-        first = manifest.project_manifest(self.root, service, paths, inputs, self.selected, "one")
-        second = manifest.project_manifest(self.root, service, paths, inputs, self.selected, "two")
+        service, paths, _ = manifest.selection(self.root)
+        first = manifest.project_manifest(self.root, service, paths, self.selected, "one")
+        second = manifest.project_manifest(self.root, service, paths, self.selected, "two")
         self.assertNotEqual(first["id"], second["id"])
         (self.root / ".devcontainer/extra.yml").write_text('name: ${PROJECT}\n')
         with self.assertRaisesRegex(ValueError, "top-level name must be literal"):
@@ -662,7 +664,7 @@ class SemanticManifestTests(ManifestFixture):
                 else:
                     selected["volumes"][0]["bind"] = bind
                 with self.assertRaisesRegex(ValueError, "must set create_host_path: false"):
-                    manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+                    manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], selected)
 
     def test_semantic_changes_change_identity(self):
         original = self.projection()["id"]
@@ -670,13 +672,13 @@ class SemanticManifestTests(ManifestFixture):
             with self.subTest(field=field):
                 selected = copy.deepcopy(self.selected)
                 selected["volumes"][0][field] = value
-                changed = manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+                changed = manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], selected)
                 self.assertNotEqual(changed["id"], original)
-        service, paths, token = manifest.selection(self.root)
-        for args in (("other", paths, token, self.selected, ""),
-                     (service, list(reversed(paths)), token, self.selected, ""),
-                     (service, paths[:1], token, self.selected, ""),
-                     (service, paths, token, self.selected, "other-project")):
+        service, paths, _ = manifest.selection(self.root)
+        for args in (("other", paths, self.selected, ""),
+                     (service, list(reversed(paths)), self.selected, ""),
+                     (service, paths[:1], self.selected, ""),
+                     (service, paths, self.selected, "other-project")):
             self.assertNotEqual(manifest.project_manifest(self.root, *args)["id"], original)
 
     def test_unsupported_bind_options_and_invalid_paths_fail_closed(self):
@@ -689,7 +691,7 @@ class SemanticManifestTests(ManifestFixture):
                 selected = copy.deepcopy(self.selected)
                 selected["volumes"][0].update(changes)
                 with self.assertRaises(ValueError):
-                    manifest.project_manifest(self.root, *manifest.selection(self.root), selected)
+                    manifest.project_manifest(self.root, *manifest.selection(self.root)[:2], selected)
         self.selected["volumes"].append(copy.deepcopy(self.selected["volumes"][0]))
         with self.assertRaises(ValueError):
             self.projection()

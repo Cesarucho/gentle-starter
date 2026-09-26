@@ -90,10 +90,7 @@ is_devcontainer() {
 }
 
 check_volume_snapshot() {
-	local operation=check
-	if is_devcontainer; then
-		operation=runtime
-	fi
+	local operation="$1"
 	if python3 .taskfiles/scripts/compose-manifest.py "${operation}" . >/dev/null; then
 		if [ "${operation}" = runtime ]; then
 			ok "volume snapshot integrity and applied container identity verified"
@@ -167,7 +164,7 @@ run_host() {
 	fi
 
 	check_dir .env.d optional
-	check_volume_snapshot
+	check_volume_snapshot check
 	check_skills || true
 }
 
@@ -196,7 +193,7 @@ run_container() {
 
 	check_file .devcontainer/devcontainer.json
 	check_file .devcontainer/docker-compose.yml
-	check_volume_snapshot
+	check_volume_snapshot runtime
 	check_skills || true
 }
 
