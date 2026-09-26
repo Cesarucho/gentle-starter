@@ -87,6 +87,7 @@ of publishing a partial result.
 ```bash
 task tools:update
 task container:rebuild
+task container:up
 task validate
 task test
 git diff

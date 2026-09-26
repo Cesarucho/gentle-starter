@@ -467,7 +467,7 @@ EOF
 	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 0 ]
-	[[ "${output}" == *"Run 'task container:rebuild' to apply these versions."* ]]
+	[[ "${output}" == *"Run 'task container:rebuild && task container:up' to apply these versions."* ]]
 	grep -q '^LOCK_PI_CODING_AGENT_VERSION="10.0.0"$' "${POLICY_FILE}"
 	grep -q '^LOCK_ASYNCAPI_VERSION="10.0.0"$' "${POLICY_FILE}"
 	grep -q '^LOCK_C4_PLANTUML_VERSION="2.99.0"$' "${POLICY_FILE}"

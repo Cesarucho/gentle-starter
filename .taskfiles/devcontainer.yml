@@ -12,8 +12,9 @@ tasks:
         cat <<'EOF'
         Container tasks (all require the host, not inside the container)
 
-          task container:rebuild    Remove, build, and start devcontainer
-          task container:restart    Remove and start devcontainer
+          task container:rebuild    Remove container and build; does not start
+          task container:restart    Restart the same existing container
+          task container:recreate   Remove and start devcontainer
           task container:build      Build devcontainer
           task container:up         Start devcontainer
           task container:connect    Open bash inside devcontainer
@@ -117,8 +118,11 @@ tasks:
           echo "[skip] container:rm must be run on the host." >&2
           exit 0
         fi
-        container="$(task --silent container:resolve-container-name)"
-        docker rm -f "$container" 2>/dev/null || true
+        container="$(task --silent container:resolve-container-name)" || exit 1
+        container_id="$(docker ps --all --filter "name=^/${container}$" --quiet)" || exit 1
+        if [ -n "$container_id" ]; then
+          docker rm -f "$container_id"
+        fi
 
   build:
     desc: Build devcontainer
@@ -156,26 +160,42 @@ tasks:
         devcontainer up --workspace-folder {{.WORKSPACE}}
 
   rebuild:
-    desc: Remove, build, and start devcontainer
+    desc: Remove container and build without starting
     cmds:
       - |
         if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:rebuild must be run on the host." >&2
           exit 0
         fi
-        task container:rm
+        task container:rm || exit 1
         task container:build
-        task container:up
 
   restart:
-    desc: Remove and start devcontainer
+    desc: Restart the same existing container (running or stopped)
     cmds:
+      - task: ensure-identity-env
       - |
         if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           echo "[skip] container:restart must be run on the host." >&2
           exit 0
         fi
-        task container:rm
+        container="$(task --silent container:resolve-container-name)" || exit 1
+        container_id="$(docker ps --all --filter "name=^/${container}$" --quiet)" || exit 1
+        if [ -z "$container_id" ]; then
+          echo "Devcontainer does not exist. Run task container:up first." >&2
+          exit 1
+        fi
+        docker restart "$container_id"
+
+  recreate:
+    desc: Remove and start devcontainer to apply configuration changes
+    cmds:
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:recreate must be run on the host." >&2
+          exit 0
+        fi
+        task container:rm || exit 1
         task container:up
 
   connect:

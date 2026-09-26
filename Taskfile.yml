@@ -74,7 +74,7 @@ tasks:
           task validate                   Run host-safe validation checks, excluding skills
           task validate:full              Run strict validation requiring shell quality tools
           task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
-                                          Does not update installed tools; apply later with container:rebuild
+                                          Does not update installed tools; apply later with container:rebuild then container:up
                                           Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
                                           GitHub REST cache: ${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/ (safe to clear)
           task clean                      Review, confirm, and remove project identity material
@@ -116,8 +116,9 @@ tasks:
           task container:build            Build devcontainer
           task container:up               Start devcontainer
           task container:rm               Force-remove the devcontainer service container
-          task container:rebuild          Remove, build, and start devcontainer
-          task container:restart          Remove and start devcontainer
+          task container:rebuild          Remove container and build; does not start
+          task container:restart          Restart the same existing container
+          task container:recreate         Remove and start devcontainer
           task container:connect          Open bash inside devcontainer
           task container:opencode         Continue the direct OpenCode TUI
           task container:opencode:server  Attach; stop only the task-owned server on exit

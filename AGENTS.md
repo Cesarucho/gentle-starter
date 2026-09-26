@@ -145,7 +145,7 @@ an interrupted run PASS. See
 | Repository checks | `task validate`, `task validate:full` | Not application or full runtime proof; inspect task effects before execution. |
 | Isolated operational proof | `task test:starter:lifecycle` | Separate explicit authorization, cost forecast, and daemon-visible scratch required; reduced base coverage only. |
 | Recover registered test resources | `task test:starter:clean` | Read-only preview by default; deletion requires explicit apply and one selected run. |
-| Work on the real environment | `task container:*` | Normal host workflow, not test cleanup; startup/restart can build. |
+| Work on the real environment | `task container:*` | Normal host workflow, not test cleanup; up/recreate can build, restart preserves the container. |
 
 After authorized sandbox work, use its automatic cleanup and review retained or
 failed outcomes. Recovery uses the same scoped engine for participating lifecycle

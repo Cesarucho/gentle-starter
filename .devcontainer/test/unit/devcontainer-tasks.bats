@@ -72,7 +72,7 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ "${prepare}" -lt "${running}" ]
 }
 
-@test "container:rebuild runs remove build and up in exact order" {
+@test "container:rebuild runs remove and build without startup" {
 	cd "${REPO_ROOT}"
 	task_definition="$(awk '/^  rebuild:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  rebuild:/{exit} capture' .taskfiles/devcontainer.yml)"
 	rm_line="$(grep -nF 'task container:rm' <<<"${task_definition}" | cut -d: -f1)"
@@ -81,7 +81,125 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 
 	[ -n "${rm_line}" ]
 	[ "${rm_line}" -lt "${build_line}" ]
-	[ "${build_line}" -lt "${up_line}" ]
+	[ -z "${up_line}" ]
+}
+
+# Execute the actual task shell body with fail-closed command doubles. No daemon
+# or nested Task invocation is reachable, including on a regression to old code.
+run_lifecycle() {
+	local operation="$1"
+	local body
+	body="$(awk -v task="${operation}:" '$0 == "  " task {capture=1; next} capture && /^  [[:alnum:]-]+:/ {exit} capture && /^      - \|/ {body=1; next} body {sub(/^        /, ""); print}' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+	run env FORCE_HOST_CONTEXT="${HOST_CONTEXT:-1}" bash -c '
+task() {
+  printf "task %s\n" "$*" >> "$BATS_TEST_TMPDIR/calls"
+  if [[ "$*" == *resolve-container-name ]]; then
+    [[ "${FAIL_STEP:-}" != resolve ]] || return 17
+    printf "fixture-container\n"
+  else
+    [[ "$*" != "${FAIL_STEP:-}" ]] || return 18
+  fi
+}
+docker() {
+  printf "docker %s\n" "$*" >> "$BATS_TEST_TMPDIR/calls"
+  case "$1" in
+    ps)
+      [[ "${FAIL_STEP:-}" != lookup ]] || return 19
+      [[ "$*" == *--all* && "$*" == *"name=^/fixture-container$"* ]] || return 20
+      [[ "${CONTAINER_STATE:-running}" == missing ]] || printf "same-container-id\n"
+      ;;
+    restart|rm)
+      [[ "${*: -1}" == same-container-id ]] || return 21
+      [[ "${FAIL_STEP:-}" != "$1" ]] || return 22
+      ;;
+    *) return 23 ;;
+  esac
+}
+devcontainer() { return 24; }
+eval "$1"
+' _ "${body}"
+}
+
+@test "container:restart preserves running and stopped container identity" {
+	for state in running stopped; do
+		export CONTAINER_STATE="${state}"
+		run_lifecycle restart
+		[ "${status}" -eq 0 ]
+		[ "$(<"${BATS_TEST_TMPDIR}/calls")" = 'task --silent container:resolve-container-name
+docker ps --all --filter name=^/fixture-container$ --quiet
+docker restart same-container-id' ]
+		rm "${BATS_TEST_TMPDIR}/calls"
+	done
+}
+
+@test "container:restart missing container fails with up guidance" {
+	export CONTAINER_STATE=missing
+	run_lifecycle restart
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *'container:up'* ]]
+	[[ "$(<"${BATS_TEST_TMPDIR}/calls")" != *'docker restart'* ]]
+}
+
+@test "container:rm permits absence but propagates lookup and removal errors" {
+	for step in none lookup rm; do
+		export FAIL_STEP="${step}"
+		run_lifecycle rm
+		if [ "${step}" = none ]; then
+			[ "${status}" -eq 0 ]
+			[[ "$(<"${BATS_TEST_TMPDIR}/calls")" == *'docker rm -f same-container-id' ]]
+		else
+			[ "${status}" -ne 0 ]
+		fi
+		rm "${BATS_TEST_TMPDIR}/calls"
+	done
+	export FAIL_STEP=none CONTAINER_STATE=missing
+	run_lifecycle rm
+	[ "${status}" -eq 0 ]
+	[[ "$(<"${BATS_TEST_TMPDIR}/calls")" != *'docker rm'* ]]
+}
+
+@test "container:restart propagates resolution lookup and restart failures" {
+	for step in resolve lookup restart; do
+		export FAIL_STEP="${step}"
+		run_lifecycle restart
+		[ "${status}" -ne 0 ]
+		[[ "${output}" != *'container:up'* ]]
+		if [ "${step}" != restart ]; then
+			[[ "$(<"${BATS_TEST_TMPDIR}/calls")" != *'docker restart'* ]]
+		fi
+		rm "${BATS_TEST_TMPDIR}/calls"
+	done
+}
+
+@test "container:recreate and container:rebuild sequence and stop on failure" {
+	for operation in recreate rebuild; do
+		next=up
+		[ "${operation}" != rebuild ] || next=build
+		for failure in none container:rm "container:${next}"; do
+			export FAIL_STEP="${failure}"
+			run_lifecycle "${operation}"
+			expected='task container:rm'
+			[ "${failure}" = container:rm ] || expected+=$'\n'"task container:${next}"
+			[ "$(<"${BATS_TEST_TMPDIR}/calls")" = "${expected}" ]
+			if [ "${failure}" = none ]; then
+				[ "${status}" -eq 0 ]
+			else
+				[ "${status}" -ne 0 ]
+			fi
+			rm "${BATS_TEST_TMPDIR}/calls"
+		done
+	done
+}
+
+@test "container:restart recreate rebuild host guards prevent all effects" {
+	[ -f /.dockerenv ] || skip "requires container host marker"
+	export HOST_CONTEXT=0
+	for operation in restart recreate rebuild; do
+		run_lifecycle "${operation}"
+		[ "${status}" -eq 0 ]
+		[[ "${output}" == *'[skip]'* ]]
+		[ ! -e "${BATS_TEST_TMPDIR}/calls" ]
+	done
 }
 
 @test "container:rebuild host guard precedes all lifecycle calls" {

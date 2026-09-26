@@ -151,7 +151,7 @@ cmd_enable() {
 	validate_installer_name "$1" || exit 2
 	python3 "${INSTALL_DIR}/lib/selection.py" "${INSTALL_DIR}" enable "$1" || return 1
 	echo ""
-	echo "Next step: task container:rebuild"
+	echo "Next step: task container:rebuild && task container:up"
 	echo "Note: install:enable changes the default tool set for future builds; it does not run the install script in the current container automatically."
 }
 
@@ -165,7 +165,7 @@ cmd_disable() {
 	python3 "${INSTALL_DIR}/lib/selection.py" "${INSTALL_DIR}" disable "$1" || return 1
 
 	echo ""
-	echo "Next step: task container:rebuild"
+	echo "Next step: task container:rebuild && task container:up"
 	echo "Note: install:disable changes the active tool set for future builds and postCreate repairs; it does not uninstall packages or remove persisted state."
 }
 

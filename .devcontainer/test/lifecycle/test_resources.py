@@ -97,7 +97,7 @@ def validate_record(data, path, root):
             raise ValueError
         if type(data["armed"]) is not bool or type(data["worker"]) is not int or data["worker"] < 0:
             raise ValueError
-        if data["stage"] not in {"registered", "prepare", "build", "up", "restart", "verify", "cleanup"}:
+        if data["stage"] not in {"registered", "prepare", "build", "up", "restart", "recreate", "verify", "cleanup"}:
             raise ValueError
         if data["outcome"] not in {"pending", "removed", "retained", "unverifiable"} or (data["exit"] is not None and type(data["exit"]) is not int):
             raise ValueError

@@ -194,7 +194,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         listing = subprocess.CompletedProcess([], 0, "fixture\n", "")
         inspect = subprocess.CompletedProcess([], 0, b'[{"Config":{"Env":["SECRET=fixture"]}}]', b"")
         with patch.object(manifest.subprocess, "run", side_effect=[listing, inspect]):
-            with self.assertRaisesRegex(ValueError, "recreate"):
+            with self.assertRaisesRegex(ValueError, "task container:recreate"):
                 manifest.check_existing_container("fixture", "desired")
         self.assertFalse((self.root / ".env.d").exists())
 

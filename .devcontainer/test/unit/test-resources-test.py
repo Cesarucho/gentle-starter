@@ -178,7 +178,13 @@ class ResourceTests(unittest.TestCase):
             self.arm()
         self.assertFalse(self.owner.data["armed"])
 
-    def test_recovery_discovers_uncaptured_restart_replacement(self):
+    def test_recovery_accepts_recreate_and_legacy_restart_stages(self):
+        for stage in ("recreate", "restart"):
+            with self.subTest(stage=stage):
+                self.owner.stage(stage)
+                self.assertEqual(R.read_record(self.owner.path, self.root)["stage"], stage)
+
+    def test_recovery_discovers_uncaptured_recreate_replacement(self):
         self.arm()
         first = self.docker.add(self.owner)
         self.owner.capture()

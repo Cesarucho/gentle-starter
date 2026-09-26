@@ -236,9 +236,9 @@ Use the terminal workflow below. `Task` is the sole supported entry point in the
 
 **Do not use the IDE's Reopen in Container or Rebuild Container actions.**
 These creation paths are unsupported because they bypass Task's host
-preparation. From your host terminal, use `task container:restart` to recreate
-the container from the existing image, or `task container:rebuild` to rebuild
-the software and recreate it. Then [attach VS Code](https://code.visualstudio.com/docs/devcontainers/attach-container) again.
+preparation. From your host terminal, use `task container:recreate` to replace
+the container, or `task container:rebuild && task container:up` to rebuild
+the software and start it. Then [attach VS Code](https://code.visualstudio.com/docs/devcontainers/attach-container) again.
 
 ## 🔄 Maintain your project
 
@@ -261,13 +261,14 @@ Resolve merge conflicts manually and commit the resolution normally. Existing
 ```bash
 task tools:update         # From inside container, update the repository's approved version policy
 git diff                  # Review user intent and generated locks together
-task container:rebuild    # From host, apply that policy to the development environment
+task container:rebuild     # From host, remove the container and build the updated image
+task container:up          # From host, create/start the updated development environment
 task validate:full        # Inside container
 ```
 
 Edit only `TOOL_*_VERSION` fields. `tools:update` alone resolves stable exact versions,
 generates checksums, and atomically replaces the policy without updating installed tools.
-Builds and installers are read-only; rebuild to apply, then commit after verification. See [ADR 0003](docs/en/adr/0003-unified-tool-policy-ownership.md).
+Builds and installers are read-only; rebuild then run up to apply, and commit after verification. See [ADR 0003](docs/en/adr/0003-unified-tool-policy-ownership.md).
 
 If GitHub rate limits anonymous discovery, use an existing GitHub CLI
 authentication explicitly:
@@ -394,10 +395,11 @@ java --version
 
 ```bash
 # Container commands, only useful on your PC (outside the container)
-task container:build
-task container:up
-task container:restart      # remove and start the existing image
-task container:rebuild      # remove, build, and start
+task container:build        # build without removing or starting the container
+task container:up           # create/start as needed; startup may build
+task container:restart      # restart the same existing running or stopped container
+task container:recreate     # remove then up; apply mount/environment changes
+task container:rebuild      # remove then build only; run up separately to start
 ```
 
 ### Container entrypoints

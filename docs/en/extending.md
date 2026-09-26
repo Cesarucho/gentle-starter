@@ -144,6 +144,7 @@ In `.devcontainer/lifecycle/setup-volumes.sh`'s `compose_target_to_install_scrip
 task install:list          # shows 7000-tool-redis in 03-enabled
 task install:volumes       # shows ../.env.d/.redis -> /var/lib/redis owned by 7000-tool-redis
 task container:rebuild     # builds with all three changes
+task container:up          # creates/starts the updated environment
 
 # inside the container:
 which redis-cli             # /usr/bin/redis-cli
@@ -277,19 +278,21 @@ populated by their application.
 
 ### How do I reset to the project's defaults?
 
-For a config file: `rm <target>/<file>` then rebuild. The
+For a config file: `rm <target>/<file>` then recreate. The
 `seed_config_tree` guard re-copies the baseline from the versioned
 source.
 
 For the runtime data of a stateful volume: the volume repair
 contract doesn't reset data — that's deliberate, to avoid
 accidentally wiping your work. If you really want a clean slate,
-rename `.env.d/<vol>/` to `.env.d/<vol>.bak` and rebuild. The next
+rename `.env.d/<vol>/` to `.env.d/<vol>.bak` and recreate. The next
 startup will see an empty bind mount and re-seed whatever the
 owning install scripts do at runtime.
 
 For the real devcontainer, `task container:rebuild` removes its container and
-builds/starts it again; it does not reset persistent bind data. Review that workflow
+builds the image only; run `task container:up` afterward to start it. Neither step
+resets persistent bind data. `container:restart` preserves the existing container;
+use `container:recreate` to remove and start it with changed configuration. Review that workflow
 separately from test recovery. Global Docker pruning is not a normal reset or test
 cleanup procedure: it can affect unrelated projects and shared cache.
 
@@ -381,8 +384,8 @@ container-private `/tmp` directory. Remote Docker contexts are not reused. Missi
 commands or unsupported base customization fail rather than selecting a fallback.
 
 **Cost forecast:** one explicit `container:build`, then `container:up`, then
-`container:restart` through Task in a unique candidate. Expect significant CPU,
-disk, network downloads, and potentially minutes of build/setup time. Restart has
+`container:recreate` through Task in a unique candidate. Expect significant CPU,
+disk, network downloads, and potentially minutes of build/setup time. Recreate has
 no explicit package rebuild step, but devcontainer startup may build according to
 its own cache logic. This automates full-validation build/start/connect/recreate
 and persistent-state/error/source-preservation items, not a new test layer.
@@ -409,7 +412,7 @@ symlinks are rejected rather than guessed into a safe mapping.
 Noninteractive `docker exec` as ubuntu proves connection without an SSH server.
 The harness compares applied manifest identity and actual managed mounts, checks
 bind-root ownership/modes, writes unique markers, then verifies a new container ID
-and marker persistence after restart. Public tracked/untracked bytes, full modes,
+and marker persistence after recreation. Public tracked/untracked bytes, full modes,
 symlink targets, branch, HEAD, index, and primary status are checked; excluded secret
 environment contents are never hashed. Source preservation is checked on failure
 as well as success. Mock regressions cover failure/interrupt cleanup; a successful
@@ -563,7 +566,7 @@ filesystem identity and ownership marker, verifies project/label/tag absence, th
 arms narrowly scoped discovery. Producers wait for their process group to be
 recorded before executing. Resource IDs and expected labels are captured
 incrementally; scoped discovery also recovers resources created between a Docker
-operation and its next inventory write, including restart replacements. Recovery
+operation and its next inventory write, including recreation replacements. Recovery
 refuses while a recorded producer process group remains present.
 
 Immediately before removal, the engine rechecks the daemon, resource IDs and

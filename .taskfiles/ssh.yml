@@ -21,7 +21,7 @@ tasks:
         B) TRUSTED LAN ACCESS (SSH into the container through its Docker host)
           Enable 4010-tool-ssh-server and select compose-config/docker-compose.ssh-server.yml.
           task ssh:register-keys   Auto-detect and register .pub keys
-          task container:rebuild   Rebuild so keys get registered
+          task container:rebuild && task container:up   Build/start with SSH and registered keys
 
           Then from another device on the same trusted LAN/WLAN:
             ssh -p <SSH_PORT from .env> ubuntu@<host-lan-ip>
@@ -206,7 +206,7 @@ tasks:
 
         echo
         echo "=== Next Steps ==="
-        echo "  1. task container:rebuild    # rebuild so keys get registered"
+        echo "  1. task container:recreate   # recreate so updated keys get registered"
         echo "  2. From another device on the same trusted LAN/WLAN:"
         ssh_port="$(($(bash .taskfiles/scripts/project-identity.sh -o code) + 2))"
         echo "       ssh -p ${ssh_port} ubuntu@<host-lan-ip>"

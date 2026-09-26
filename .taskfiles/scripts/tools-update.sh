@@ -811,7 +811,7 @@ main() {
 	apply_intent_contract
 	prepare_baseline_updates
 	publish_policy
-	printf "\nRun 'task container:rebuild' to apply these versions.\n"
+	printf "\nRun 'task container:rebuild && task container:up' to apply these versions.\n"
 }
 
 main "$@"

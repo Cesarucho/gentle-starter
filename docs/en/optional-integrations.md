@@ -11,16 +11,17 @@ are not supported creation paths.
    `compose-config/docker-compose-core-tools.yml` immediately afterward.
 2. Enable any required catalog installer separately with `task install:enable`.
    Installer enable/disable does **not** select Compose files.
-3. Run `task container:restart` for mount/environment changes, or
-   `task container:rebuild` when changing installed packages. Attach your IDE again.
+3. Run `task container:recreate` for mount/environment changes, or
+   `task container:rebuild && task container:up` when changing installed packages.
+   Attach your IDE again. Restart preserves the existing container and configuration.
 
 | Compose file | Purpose | Installer requirement |
 | --- | --- | --- |
 | `compose-config/docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
 | `compose-config/docker-compose.codegraph.yml` | Persist the root project's SQLite index | Enable `3060-ai-codegraph`; initialize manually |
 | `compose-config/docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
-| `compose-config/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server` and rebuild |
-| `compose-config/docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `4100-tool-pulseaudio-utils` for `paplay` and rebuild |
+| `compose-config/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server`, rebuild, then up |
+| `compose-config/docker-compose.audio.yml` | Host Pulse socket and `PULSE_SERVER=unix:/pulse-native` | Enable `4100-tool-pulseaudio-utils` for `paplay`, rebuild, then up |
 
 The base retains image/build, service identity, application port, environment,
 and the applied-manifest identity. The active core-tools override owns the four
@@ -38,7 +39,7 @@ with Pi Coding enabled; Gentle AI alone does not create `~/.pi/gentle-ai`.
 1. Run `task install:enable -- 3060-ai-codegraph`.
 2. Uncomment `./compose-config/docker-compose.codegraph.yml` in
    `.devcontainer/devcontainer.json` for dedicated per-clone state.
-3. On the host, run `task container:rebuild` (or `task container:restart` if the
+3. On the host, run `task container:rebuild && task container:up` (or `task container:recreate` if the
    CLI was already built and only mounts changed), then attach as `ubuntu`.
 4. In the workspace root, run `codegraph init`, then `codegraph status --json`.
    Review the project's indexing scope before initialization. No startup hook
@@ -75,7 +76,7 @@ It defaults `CODEGRAPH_TELEMETRY=0` and `CODEGRAPH_NO_UPDATE_CHECK=1`, and enfor
 `CODEGRAPH_NO_DOWNLOAD=1`; these settings affect CodeGraph only, even without its
 Compose override. MCP explicitly carries the same opt-outs.
 
-Use `task tools:update` and rebuild for upgrades, not `codegraph upgrade`.
+Use `task tools:update`, then rebuild and up for upgrades, not `codegraph upgrade`.
 `TOOL_CODEGRAPH_VERSION="=1.6.0"` is an exact pin. Only the updater generates
 its lock, including first registration. Do not run `codegraph install` or the CLI
 without arguments to configure agents: upstream also edits instruction files.
@@ -115,7 +116,7 @@ and [privacy/update controls](https://github.com/colbymchenry/codegraph/blob/v1.
 
 ## Optional Gentleman Guardian Angel (GGA)
 
-1. Run `task install:enable -- 3070-ai-gga`, then rebuild on the host.
+1. Run `task install:enable -- 3070-ai-gga`, then rebuild and up on the host.
 2. In the project where you want reviews, run `gga init`, choose and configure a
    provider, then run `gga install` only after reviewing the Git-hook change.
 
@@ -128,7 +129,7 @@ the image policy version without initializing project or user state.
 `task tools:update` resolves the selected stable release tag to its immutable Git
 commit and source archive SHA-256 before updating the policy transactionally. The
 installer downloads that commit archive, verifies its digest and expected Bash
-layout, and installs only the runtime sources under `/opt/gga`; use a rebuild for
+layout, and installs only the runtime sources under `/opt/gga`; use rebuild then up for
 upgrades rather than GGA's upstream installers.
 
 ## Host prerequisites
@@ -152,7 +153,7 @@ socket permissions, server compatibility, or audible host playback.
 
 The container endpoint is `/pulse-native`, outside `/tmp`: Docker-in-Docker
 startup can mount tmpfs over `/tmp`, hiding socket binds beneath it. Apply this
-mount/environment correction with `task container:restart` on the host; it does
+mount/environment correction with `task container:recreate` on the host; it does
 not require rebuilding packages that are already installed.
 
 Neither socket integration promises universal Docker Desktop support. Confirm
@@ -205,7 +206,7 @@ Directory preparation retains exact ownership, symlink, and mode checks.
 
 Missing, malformed, or stale manifests fail before runtime mutation or installer
 dispatch. There is no base-file fallback. Run `task container:up` on the host to
-recover; use `task container:restart` when an existing container has old mounts.
+recover; use `task container:recreate` when an existing container has old mounts.
 Host entry tasks resolve afresh even when the container is already running.
 
 The desired manifest is **not proof of applied mounts**. Task passes its identity

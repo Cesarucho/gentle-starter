@@ -46,7 +46,7 @@ after the host guard, never container identity. Preserve foundation cache inputs
 Keep the external Pulse socket at `/pulse-native` with `PULSE_SERVER=unix:/pulse-native`;
 DinD startup can hide binds beneath `/tmp` with tmpfs. Preserve read-only binding
 and `create_host_path: false`; never prepare the socket as managed state. Apply
-this mount/environment change with host `task container:restart`, not a package rebuild.
+this mount/environment change with host `task container:recreate`, not a package rebuild.
 
 ## Lessons from Gentle AI
 

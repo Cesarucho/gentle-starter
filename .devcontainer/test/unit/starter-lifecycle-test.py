@@ -84,7 +84,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(lifecycle.env["HOME"], str(self.root / "home"))
         self.assertNotIn("FORCE_HOST_CONTEXT", lifecycle.env)
 
-    def test_execute_orders_build_up_persistence_restart_and_rechecks_source(self):
+    def test_execute_orders_build_up_persistence_recreate_and_rechecks_source(self):
         lifecycle = self.lifecycle()
         lifecycle.docker = Mock(return_value="")
         lifecycle.validate_base = Mock()
@@ -97,7 +97,7 @@ class LifecycleTests(unittest.TestCase):
                 patch.object(H, "run", return_value="12000"), patch.object(H.subprocess, "run"):
             lifecycle.execute()
         self.assertEqual(events.mock_calls, [call.task("build"), call.task("up"), call.state("first", write=True),
-                                            call.task("restart"), call.state("second")])
+                                            call.task("recreate"), call.state("second")])
 
     def test_task_failure_keeps_diagnosis_and_does_not_continue(self):
         lifecycle = self.lifecycle()

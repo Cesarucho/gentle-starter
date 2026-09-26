@@ -16,7 +16,7 @@ from typing import NoReturn
 
 SCHEMA = 2
 MANIFEST = ".devcontainer/.volume-manifest.json"
-RECOVERY = "Run task container:up on the host; after selection or mount changes, use task container:restart."
+RECOVERY = "Run task container:up on the host; after selection or mount changes, use task container:recreate."
 
 
 def fail(message) -> NoReturn:

@@ -52,6 +52,10 @@ releases start.
 
 ### Changed
 
+- `container:restart` now restarts the same existing running or stopped container
+  and fails with `container:up` guidance when absent. `container:recreate` takes
+  over the previous remove/up behavior. `container:rebuild` removes and builds
+  only: run `container:up` separately to start; images are not deleted.
 - Renamed the starter identity to Gentle Starter.
 - Simplified the Docker Compose service name to `container-svc`.
 - Cleaned `.devcontainer/devcontainer.json` and removed the empty VS Code

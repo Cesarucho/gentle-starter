@@ -216,6 +216,7 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
 
    ```bash
    task container:rebuild
+   task container:up
    ```
 
    The build log should include a `Running: .../40-data-postgresql.sh`

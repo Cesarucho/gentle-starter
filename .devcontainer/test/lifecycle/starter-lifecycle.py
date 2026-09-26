@@ -235,11 +235,11 @@ class Lifecycle:
         self.task("up")
         first = self.container()
         self.assert_state(first, write=True)
-        self.task("restart")
+        self.task("recreate")
         second = self.container()
         self.ownership.stage("verify")
         if first == second:
-            raise RuntimeError("Restart did not recreate the service container")
+            raise RuntimeError("Recreate did not replace the service container")
         self.assert_state(second)
         if snapshot(self.candidate) != configured:
             raise RuntimeError("Candidate public source bytes, links, or modes changed")
@@ -264,7 +264,7 @@ def main():
     if len(sys.argv) != 3 or sys.argv[1] != "--daemon-visible-scratch":
         raise SystemExit("Usage: task test:starter:lifecycle -- --daemon-visible-scratch ABSOLUTE_PARENT\n"
                          "Explicitly confirm a local-daemon-visible scratch parent outside this repository; "
-                         "inside a devcontainer use a mounted workspace sibling. Expensive: one build, up, restart; "
+                         "inside a devcontainer use a mounted workspace sibling. Expensive: one build, up, recreate; "
                          "downloads, disk and CPU use; startup may build automatically. No initialization or optional socket proof.")
     root = Path(run("git", "rev-parse", "--show-toplevel")).resolve()
     parent = Path(sys.argv[2])
@@ -273,7 +273,7 @@ def main():
     for command in ("docker", "devcontainer", "task", "git", "rsync", "yq"):
         if not shutil.which(command):
             raise SystemExit(f"Required command unavailable: {command}")
-    print("[starter-lifecycle] Explicit base scenario: one build, start, noninteractive connection, restart. "
+    print("[starter-lifecycle] Explicit base scenario: one build, start, noninteractive connection, recreate. "
           "Expect downloads, minutes of CPU/build time and substantial disk use; startup may build. "
            "Shared build cache is retained; owned images are removed only when exclusive ownership is verified. "
            "Local daemon only; no initialization or optional socket proof.", flush=True)
