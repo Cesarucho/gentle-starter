@@ -148,8 +148,7 @@ case "${1:-}" in
 	[ "$#" -eq 3 ] && [ "$3" = "${SETUP_WORKSPACE}" ] || exit 2
 	# These tests isolate setup behavior, not creation-time manifest identity.
 	case "$2" in
-	runtime) exit 0 ;;
-	records)
+	runtime|records)
 		if [ -n "${SETUP_VOLUME_TARGET:-}" ]; then
 			[[ "${SETUP_VOLUME_TARGET}" == "${HOME_DIR}/"* ]] || exit 2
 		fi
