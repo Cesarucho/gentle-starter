@@ -14,7 +14,7 @@ The four extension surfaces are:
 3. **[Config seeding](configs.md)** — baseline config files
    versioned in `.devcontainer/config/<name>/` and copied to their
    runtime path on first run.
-4. **[Tool-version policy](adr/0003-unified-tool-policy-ownership.md)** —
+4. **[Tool-version policy](../tool-versions.conf)** —
    editable `TOOL_*_VERSION` intent and final generated `LOCK_*` values
    in `.devcontainer/tool-versions.conf`.
    Installers retain URLs, architecture, permissions, idempotency, integrity
@@ -648,4 +648,4 @@ command checks for it and reports a warning if it's missing.
 - [install-tree.md](install-tree.md) — the install/ convention in depth
 - [install-volumes.md](install-volumes.md) — the volume repair contract in depth
 - [configs.md](configs.md) — config seeding in depth
-- [`.devcontainer/README.md`](../../.devcontainer/README.md) — tour of the .devcontainer/ directory
+- [`.devcontainer/README.md`](../README.md) — tour of the .devcontainer/ directory

@@ -4,7 +4,7 @@ Devcontainer configuration. Read this top-down.
 
 For deep-dive material (the install/ convention, the volume
 contract, config seeding, the FAQ), start at
-[`docs/en/extending.md`](../docs/en/extending.md) and follow the
+[`docs/extending.md`](docs/extending.md) and follow the
 links from there.
 
 ## What's in here
@@ -15,7 +15,7 @@ links from there.
 | `devcontainer.json` | Task-driven Dev Container CLI configuration and ordered Compose selection. IDEs attach only. |
 | `docker-compose.yml` | Base service, build, application port and manifest identity; always first. |
 | `config/compose/` | Active core-tools binds/OpenCode port and independently selected optional overrides, including disabled CodeGraph. |
-| `install/` | Build-time install scripts. See `docs/en/install-tree.md`. |
+| `install/` | Build-time install scripts. See [install tree](docs/install-tree.md). |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
 | `test/` | Starter maintainer tests, explicitly selected with `task test:starter`; not application tests. |
 | `config/pi/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
@@ -41,11 +41,11 @@ branch detection changes the routing.
 `test:install` stays explicit. The removed
 `test:pi-lifecycle` is replaced by the explicitly invoked general
 `test:starter:lifecycle`; it does not prove Pi or optional host sockets and is not
-included in the starter suite. See [scope and costs](../docs/en/extending.md#explicit-base-lifecycle-proof).
+included in the starter suite. See [scope and costs](docs/extending.md#explicit-base-lifecycle-proof).
 
 `task test:starter:clean` previews durable recovery for participating lifecycle and
 image-contract fixtures. Deletion requires explicit apply and one selected run;
-shared build cache is retained. See [ownership, recovery, and diagnostics retention](../docs/en/extending.md#recovering-test-owned-resources).
+shared build cache is retained. See [ownership, recovery, and diagnostics retention](docs/extending.md#recovering-test-owned-resources).
 `validate` and `install:doctor` are environment/repository
 checks, not proof that the application works.
 
@@ -55,20 +55,20 @@ The devcontainer has four extension surfaces:
 
 1. **Install scripts** (`install/`) — build-time tools and
    dependencies. Adding a new tool or a new runtime lands here.
-   Deep dive in [`docs/en/install-tree.md`](../docs/en/install-tree.md).
+   Deep dive in [`docs/install-tree.md`](docs/install-tree.md).
 
 2. **Stateful volumes** (selected Compose files + `lifecycle/setup-volumes.sh`)
    — bind mounts that survive rebuilds. Installer-owned targets trigger
    their repair scripts; passive state mounts persist without repair.
-   Deep dive in [`docs/en/install-volumes.md`](../docs/en/install-volumes.md).
+   Deep dive in [`docs/install-volumes.md`](docs/install-volumes.md).
    Select optional Pi, SSH-agent, SSH-server, and audio integrations using
-   [`optional-integrations.md`](../docs/en/optional-integrations.md). Task prepares
+   [`optional-integrations.md`](docs/optional-integrations.md). Task prepares
    a semantic host snapshot; runtime rejects invalid or unapplied mount identities.
 
 3. **Config files** (`config/<name>/` + `seed_config_tree` in
    `setup.sh`) — versioned baseline configs copied to the runtime
    path on first run. Deep dive in
-   [`docs/en/configs.md`](../docs/en/configs.md).
+   [`docs/configs.md`](docs/configs.md).
 
 4. **Tool-version policy** (`tool-versions.conf`) — editable provider-specific
    `TOOL_*_VERSION` intent plus a final generated `LOCK_*` section. Only
@@ -76,12 +76,12 @@ The devcontainer has four extension surfaces:
 
 The comprehensive view (how the three systems interact, a worked
 example adding Redis end-to-end, and the FAQ) is in
-[`docs/en/extending.md`](../docs/en/extending.md).
+[`docs/extending.md`](docs/extending.md).
 
 ## Adding a new tool's baseline config (the short version)
 
 For the full convention, see
-[`docs/en/configs.md`](../docs/en/configs.md). The one-paragraph
+[`docs/configs.md`](docs/configs.md). The one-paragraph
 version:
 
 1. Create `.devcontainer/config/<name>/` with the file tree that

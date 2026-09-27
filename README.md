@@ -51,7 +51,7 @@ integrations—not everything below is installed by default.
 - **[Taskfile](https://taskfile.dev/installation/)** to centralize common commands.
 
 You can activate catalog tools or add your own installers, with or without AI. See
-[the install layout](docs/en/install-tree.md) and [cache boundaries](docs/en/container-foundation.md).
+[the install layout](.devcontainer/docs/install-tree.md) and [cache boundaries](docs/en/container-foundation.md).
 Run `task install:list` for the current catalog and activation state.
 
 <details>
@@ -326,7 +326,7 @@ use ETags to avoid unchanged requests.
     Exit code `0` means the managed files match; `1` means differences or candidates
     were found; `2` means the comparison could not be completed safely.
 
-    See [Configuration](docs/en/configs.md) for the complete contract.
+    See [Configuration](.devcontainer/docs/configs.md) for the complete contract.
 
 - OpenCode profiles
 
@@ -537,7 +537,7 @@ run the applicable tests, and do not commit or rebuild without my approval.
 ```
 
 Use the earlier [install catalog commands](#install-tools-catalog-management), or see
-[Extending Gentle Starter](docs/en/extending.md) for the manual architecture.
+[Extending Gentle Starter](.devcontainer/docs/extending.md) for the manual architecture.
 
 ### 🔌 Configure optional MCP servers
 

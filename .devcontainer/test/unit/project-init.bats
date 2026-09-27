@@ -14,8 +14,11 @@ setup() {
 	mkdir -p "${PROJECT_ROOT}/odd/tasks"
 	printf '# Starter ODD task\n' >"${PROJECT_ROOT}/odd/tasks/starter-task.md"
 	chmod 0640 "${PROJECT_ROOT}/LICENSE" "${PROJECT_ROOT}/AGENTS.md.TEMPLATE"
-	printf '# Devcontainer\n../docs/en/extending.md\n' >"${PROJECT_ROOT}/.devcontainer/README.md"
-	for doc in extending.md install-tree.md install-volumes.md configs.md; do printf '# %s\n' "${doc}" >"${PROJECT_ROOT}/docs/en/${doc}"; done
+	printf '# Devcontainer\n[Extension guide](docs/extending.md)\n' >"${PROJECT_ROOT}/.devcontainer/README.md"
+	printf '# Maintainer docs\n' >"${PROJECT_ROOT}/docs/en/README.md"
+	for doc in README.md extending.md install-tree.md install-volumes.md optional-integrations.md configs.md; do
+		printf '# %s\n' "${doc}" >"${PROJECT_ROOT}/.devcontainer/docs/${doc}"
+	done
 	printf 'APP_NAME=starter\n' >"${PROJECT_ROOT}/.env.example"; printf 'skill\n' >"${PROJECT_ROOT}/skills-lock.json"
 	mkdir -p "${PROJECT_ROOT}/openspec" "${PROJECT_ROOT}/application/openspec" "${TEST_ROOT}/openspec-target"
 	printf 'own committed specification\n' >"${PROJECT_ROOT}/openspec/spec.md"
@@ -176,16 +179,15 @@ run_project_task() {
 }
 
 @test "failure after branch and remote changes restores exact repository state" {
-	mkdir -p "${PROJECT_ROOT}/docs/en/adr" "${PROJECT_ROOT}/.devcontainer/docs/adr"
+	mkdir -p "${PROJECT_ROOT}/docs/en/adr"
 	printf 'source policy\n' >"${PROJECT_ROOT}/docs/en/adr/0003-unified-tool-policy-ownership.md"
-	printf 'existing policy\n' >"${PROJECT_ROOT}/.devcontainer/docs/adr/0003-unified-tool-policy-ownership.md"
 	printf 'historical policy\n' >"${PROJECT_ROOT}/docs/en/adr/0002-centralized-tool-version-policy.md"
 	git -C "${PROJECT_ROOT}" add -A
 	git -C "${PROJECT_ROOT}" commit -qm "add policy fixtures"
 	git -C "${PROJECT_ROOT}" remote add origin git@github.com:Cesarucho/gentle-starter.git
 	git -C "${PROJECT_ROOT}" config branch.dev.remote origin; git -C "${PROJECT_ROOT}" config branch.dev.merge refs/heads/dev
 	git -C "${PROJECT_ROOT}" branch retained; git -C "${PROJECT_ROOT}" tag retained-v1
-	before="$(snapshot_cleanup_state)"; mkdir -p "${TEST_ROOT}/bin"; real_git="$(command -v git)"
+	before="$(snapshot_repository)"; mkdir -p "${TEST_ROOT}/bin"; real_git="$(command -v git)"
 	cat >"${TEST_ROOT}/bin/git" <<'EOF'
 #!/usr/bin/env bash
 if [ "${1:-}" = commit ]; then
@@ -198,15 +200,16 @@ EOF
 	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"openspec removed before commit"* ]]
-	[ "$(snapshot_cleanup_state)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
+	[ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
 	grep -Fxq '# Starter ODD task' "${PROJECT_ROOT}/odd/tasks/starter-task.md"
-	grep -Fxq 'existing policy' "${PROJECT_ROOT}/.devcontainer/docs/adr/0003-unified-tool-policy-ownership.md"
-	[ ! -e "${PROJECT_ROOT}/.devcontainer/docs/adr/0002-centralized-tool-version-policy.md" ]
+	[ ! -e "${PROJECT_ROOT}/.devcontainer/docs/adr" ]
 }
 
-@test "cleanup retains neutral examples and resolves migrated local documentation links" {
+@test "cleanup retains versioned guides and resolves local documentation links" {
 	cp -R "${REPO_ROOT}/docs/en/." "${PROJECT_ROOT}/docs/en/"
 	cp "${REPO_ROOT}/.devcontainer/README.md" "${PROJECT_ROOT}/.devcontainer/README.md"
+	cp -R "${REPO_ROOT}/.devcontainer/docs/." "${PROJECT_ROOT}/.devcontainer/docs/"
+	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${PROJECT_ROOT}/.devcontainer/tool-versions.conf"
 	cp "${REPO_ROOT}/.env.example" "${PROJECT_ROOT}/.env.example"
 	run bash -c 'cd "$1" && printf "y\n" | bash .taskfiles/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]
@@ -227,7 +230,7 @@ from urllib.parse import unquote, urlsplit
 
 root = Path(sys.argv[1])
 documents = [root / "README.md", *sorted((root / "docs").rglob("*.md"))]
-assert len(documents) == 9, documents
+assert len(documents) == 7, documents
 for document in documents:
     for target in re.findall(r"\]\(([^\s)]+)\)", document.read_text()):
         link = urlsplit(target)
@@ -236,6 +239,7 @@ for document in documents:
         destination = document.parent / unquote(link.path)
         assert destination.exists(), f"{document}: missing {target}"
 PY
+	[ "${status}" -eq 0 ] || printf '%s\n' "${output}" >&3
 	[ "${status}" -eq 0 ]
 	run bash "${PROJECT_ROOT}/.taskfiles/scripts/clean.sh" help
 	[ "${status}" -eq 0 ]
@@ -247,9 +251,10 @@ PY
 	[[ "${output}" != *'it is copied to AGENTS.md'* ]]
 }
 
-@test "initialization rejects unsafe policy migration paths before mutation" {
+@test "initialization rejects unsafe documentation paths before mutation" {
 	local path kind before
-	for path in docs/en/adr .devcontainer/docs/adr docs/en/adr/0003-unified-tool-policy-ownership.md .devcontainer/docs/adr/0003-unified-tool-policy-ownership.md; do
+	for path in docs/en .devcontainer/docs/README.md; do
+		rm -rf "${PROJECT_ROOT:?}/${path}"
 		for kind in symlink wrong-type; do
 			mkdir -p "$(dirname "${PROJECT_ROOT}/${path}")"
 			if [ "${kind}" = symlink ]; then
@@ -348,7 +353,8 @@ EOF
 	[ ! -e "${PROJECT_ROOT}/odd" ]
 	[ ! -e "${PROJECT_ROOT}/openspec" ]
 	[ -f "${PROJECT_ROOT}/.devcontainer/docs/extending.md" ]
-	grep -Fq './docs/extending.md' "${PROJECT_ROOT}/.devcontainer/README.md"
+	grep -Fq 'docs/extending.md' "${PROJECT_ROOT}/.devcontainer/README.md"
+	[ ! -e "${PROJECT_ROOT}/.devcontainer/docs/adr" ]
 }
 
 @test "missing origin output gives precise add and push commands" {

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 This file is the AI-facing context for Gentle Starter. Read it before changing
-the repository. Human-facing details live in `README.md` and `docs/en/`.
+the repository. Human-facing details live in `README.md` and `.devcontainer/docs/`.
 
 ## Project identity
 
@@ -61,7 +61,7 @@ Gentle Starter has four coordinated extension surfaces:
    `task tools:update` is the only mutation authority; builds and installers are
    read-only and carry no local version/checksum defaults.
 
-Start with `docs/en/extending.md`; use the linked deep dives for each surface.
+Start with `.devcontainer/docs/extending.md`; use the linked deep dives for each surface.
 
 ## Project skill lifecycle
 
@@ -121,7 +121,7 @@ managed-state/preservation proof. It is not a seventh test layer or included in
 `test:starter`/`validate:full`; it automates only those operational full-validation
 items. Initialization and optional Pi/SSH/audio/GUI integrations remain separate.
 Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
-See `docs/en/extending.md` for its deliberately reduced sandbox scenario.
+See `.devcontainer/docs/extending.md` for its deliberately reduced sandbox scenario.
 
 Explicitly set the external execution tool or supervisor timeout for network/build
 checks; do not rely on short defaults. Starting guidelines are 10 minutes per real
@@ -134,7 +134,7 @@ provider, build, or functional bug: report stage, elapsed time, known outcomes,
 and cleanup status, preserving successful-step evidence. Inspect processes and
 registered resources before bounded continuation; never endlessly rerun or mark
 an interrupted run PASS. See
-[timeout guidance](docs/en/extending.md#execution-timeouts-for-operational-checks).
+[timeout guidance](.devcontainer/docs/extending.md#execution-timeouts-for-operational-checks).
 
 ### Command decision guide
 
@@ -153,7 +153,7 @@ and image-contract fixtures; it does not own arbitrary scripts or hook resources
 Never use global Docker pruning as normal test recovery. Stop and report uncertain
 ownership, daemon mismatches, or permission failures rather than escalating cleanup.
 The helper is not a delivery gate or commit authorization. Human recovery examples
-and retention details live in `docs/en/extending.md#recovering-test-owned-resources`.
+and retention details live in `.devcontainer/docs/extending.md#recovering-test-owned-resources`.
 
 Host-only `task container:*` commands should skip when run inside the active
 devcontainer. To verify a real host flow from inside a container, use a temporary
@@ -184,10 +184,10 @@ For `project:init`, verify that:
 ## Documentation map
 
 - `docs/en/README.md` — documentation index
-- `docs/en/extending.md` — comprehensive extension guide
-- `docs/en/install-tree.md` — install layout
-- `docs/en/install-volumes.md` — volume repair contract
-- `docs/en/configs.md` — config seeding
+- `.devcontainer/docs/extending.md` — comprehensive extension guide
+- `.devcontainer/docs/install-tree.md` — install layout
+- `.devcontainer/docs/install-volumes.md` — volume repair contract
+- `.devcontainer/docs/configs.md` — config seeding
 - `docs/en/adr/0001-install-layout-refactor.md` — install layout ADR
 - `docs/en/adr/0002-centralized-tool-version-policy.md` — version policy ADR
 - `docs/en/adr/0003-unified-tool-policy-ownership.md` — unified policy ownership

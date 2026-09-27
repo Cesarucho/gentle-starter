@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
 
-readonly CLEAN_MIGRATED_DOCS=(
-	"extending.md"
-	"install-tree.md"
-	"install-volumes.md"
-	"optional-integrations.md"
-	"configs.md"
-	"adr/0002-centralized-tool-version-policy.md"
-	"adr/0003-unified-tool-policy-ownership.md"
-)
-
 clean_identity_items() {
 	CLEAN_IDENTITY_ITEMS=(
 		"README.md"
@@ -78,105 +68,23 @@ clean_reject_symlink_or_unexpected_type() {
 }
 
 clean_validate_identity_cleanup() {
-	local doc
-
 	clean_reject_symlink_or_unexpected_type ".devcontainer" directory
 	clean_reject_symlink_or_unexpected_type ".devcontainer/README.md" file
 	clean_reject_symlink_or_unexpected_type ".devcontainer/docs" directory
 	clean_reject_symlink_or_unexpected_type "docs" directory
 	clean_reject_symlink_or_unexpected_type "docs/en" directory
-	clean_reject_symlink_or_unexpected_type "docs/en/adr" directory
-	clean_reject_symlink_or_unexpected_type ".devcontainer/docs/adr" directory
 	clean_reject_symlink_or_unexpected_type "AGENTS.md.TEMPLATE" file
 	clean_reject_symlink_or_unexpected_type "odd" directory
 	# Initialization also calls this function in a conditional, where errexit is disabled.
 	clean_reject_symlink_or_unexpected_type "openspec" directory || return 1
 
-	for doc in "${CLEAN_MIGRATED_DOCS[@]}"; do
-		clean_reject_symlink_or_unexpected_type "docs/en/${doc}" file
-		clean_reject_symlink_or_unexpected_type ".devcontainer/docs/${doc}" file
-	done
 	clean_reject_symlink_or_unexpected_type ".devcontainer/docs/README.md" file
-}
-
-clean_migrate_devcontainer_docs() {
-	local source_dir="docs/en"
-	local target_dir=".devcontainer/docs"
-	local migrated=false
-	local doc
-
-	clean_validate_identity_cleanup
-
-	if [ ! -f ".devcontainer/README.md" ]; then
-		return 0
-	fi
-
-	if [ ! -d "${source_dir}" ]; then
-		echo "[warn] ${source_dir}/ not found; skipping .devcontainer docs migration"
-		return 0
-	fi
-
-	mkdir -p "${target_dir}"
-
-	for doc in "${CLEAN_MIGRATED_DOCS[@]}"; do
-		if [ -f "${source_dir}/${doc}" ]; then
-			mkdir -p "$(dirname "${target_dir}/${doc}")"
-			cp "${source_dir}/${doc}" "${target_dir}/${doc}"
-			migrated=true
-		else
-			echo "[warn] missing source doc: ${source_dir}/${doc}"
-		fi
-	done
-
-	cat >"${target_dir}/README.md" <<'EOF'
-# `.devcontainer/docs/`
-
-Local deep-dive guides kept after `task clean` so `.devcontainer/README.md`
-remains self-contained in derived projects.
-
-## What's here
-
-| File | What it's for |
-|---|---|
-| [`extending.md`](./extending.md) | **Start here.** Comprehensive guide for extending the devcontainer. |
-| [`install-tree.md`](./install-tree.md) | Deep dive on the `install/` convention. |
-| [`install-volumes.md`](./install-volumes.md) | Deep dive on the volume repair contract. |
-| [`optional-integrations.md`](./optional-integrations.md) | Select optional integrations and prepare their volume contracts. |
-| [`configs.md`](./configs.md) | Deep dive on `seed_config_tree` and baseline config seeding. |
-| [`ADR 0003`](./adr/0003-unified-tool-policy-ownership.md) | Current tool-policy ownership, with its linked historical ADR 0002. |
-
-These files are copied from `docs/en/` during starter identity cleanup.
-EOF
-
-	sed -i \
-		-e 's|\.\./docs/en/extending\.md|./docs/extending.md|g' \
-		-e 's|\.\./docs/en/install-tree\.md|./docs/install-tree.md|g' \
-		-e 's|\.\./docs/en/install-volumes\.md|./docs/install-volumes.md|g' \
-		-e 's|\.\./docs/en/optional-integrations\.md|./docs/optional-integrations.md|g' \
-		-e 's|\.\./docs/en/configs\.md|./docs/configs.md|g' \
-		-e 's|docs/en/extending\.md|docs/extending.md|g' \
-		-e 's|docs/en/install-tree\.md|docs/install-tree.md|g' \
-		-e 's|docs/en/install-volumes\.md|docs/install-volumes.md|g' \
-		-e 's|docs/en/optional-integrations\.md|docs/optional-integrations.md|g' \
-		-e 's|docs/en/configs\.md|docs/configs.md|g' \
-		".devcontainer/README.md"
-
-	if [ -f "${target_dir}/extending.md" ]; then
-		sed -i 's|../../\.devcontainer/README\.md|../README.md|g' \
-			"${target_dir}/extending.md"
-	fi
-
-	if [ "${migrated}" = true ]; then
-		echo "Migrated: docs/en -> ${target_dir}/"
-		echo "Updated: .devcontainer/README.md -> local docs references"
-	fi
 }
 
 clean_remove_starter_identity() {
 	local item
 	clean_identity_items
 	clean_validate_identity_cleanup
-	clean_migrate_devcontainer_docs
 
 	for item in "${CLEAN_IDENTITY_ITEMS[@]}"; do
 		if [ -e "${item}" ]; then

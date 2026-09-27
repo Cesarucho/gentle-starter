@@ -67,8 +67,8 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 @test "current tool documentation enforces updater ownership and fail-closed consumers" {
 	run grep -R -nE 'Tool selectors|transitional local fallback|leaves? the tool manual|deliberately excluded policy' \
 		"${REPO_ROOT}/.agents/skills/add-tool" \
-		"${REPO_ROOT}/docs/en/extending.md" \
-		"${REPO_ROOT}/docs/en/install-tree.md" \
+		"${REPO_ROOT}/.devcontainer/docs/extending.md" \
+		"${REPO_ROOT}/.devcontainer/docs/install-tree.md" \
 		"${REPO_ROOT}/.devcontainer/Dockerfile"
 	[ "${status}" -eq 1 ]
 	[ -z "${output}" ]

@@ -7,7 +7,7 @@ convention and how to add a new install script.
 
 For the comprehensive view (how install/, volumes, and configs
 interact, plus a worked example), see
-[`docs/en/extending.md`](./extending.md).
+[`extending.md`](./extending.md).
 
 ## Layout
 
@@ -52,7 +52,7 @@ cleanup. They are mandatory. Keep managed tool installers in `available/`,
 not in this OS/bootstrap layer.
 
 Go Task is the narrow external APT-managed core bootstrap exception described
-by [ADR 0003](adr/0003-unified-tool-policy-ownership.md). It remains in foundation and
+by the [tool-version policy](../tool-versions.conf). It remains in foundation and
 outside `TOOL_*`/`LOCK_*` policy because repository Task workflows and the
 foundation cache boundary depend on it. This existing exception is not a route
 for adding new unmanaged tools.
@@ -216,7 +216,7 @@ script multiple times. `devcontainer_load_tool_versions` safely parses the
 assignment-only `.devcontainer/tool-versions.conf` file without `source` or
 `eval`; it resolves both the Docker build copy and repository runtime tree
 independently of the current directory. See
-[ADR 0003](adr/0003-unified-tool-policy-ownership.md) for provider strategies,
+[tool-version policy](../tool-versions.conf) for provider strategies,
 generated integrity, and sole mutation ownership. Representative installers expose an explicit
 `--print-version-policy` diagnostic argument so tests and maintainers can inspect
 the resolved values without performing installation; normal build and runtime

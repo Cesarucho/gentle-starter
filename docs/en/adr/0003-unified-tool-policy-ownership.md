@@ -6,7 +6,7 @@
 **Path update:** The historical `01-core` bootstrap directory is now
 `01-foundation`; managed tool aliases run separately in `02-core-tools` or
 `03-enabled`. This does not change policy/updater ownership. See the
-[current install guide](../install-tree.md).
+[current install guide](../../../.devcontainer/docs/install-tree.md).
 
 ## Decision
 
@@ -67,7 +67,7 @@ complete bare `X.Y.Z` intent baselines with their validated locks, using the
 original baseline for compatibility checks. Channels, partials, exact `=` pins,
 and provider-specific intents remain unchanged. kubectl and PlantUML explicitly
 retain their declared floors. This changes baseline publication, not installation
-or runtime verification; see the [current guide](../extending.md#how-do-i-run-the-test-suite).
+or runtime verification; see the [current guide](../../../.devcontainer/docs/extending.md#how-do-i-run-the-test-suite).
 
 Direct downloads use generated repository-pinned SHA-256 values for every
 supported architecture. npm, pip, apt, Composer, and SDKMAN retain

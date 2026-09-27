@@ -114,7 +114,7 @@ project-specific or sensitive values.
 
 For the comprehensive view (how config seeding, install scripts, and
 volume repair interact, plus a worked example), see
-[`docs/en/extending.md`](./extending.md).
+[`extending.md`](./extending.md).
 
 ## The function
 

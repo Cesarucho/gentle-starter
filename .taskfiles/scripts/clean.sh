@@ -36,7 +36,7 @@ About clean:identity:
     - LICENSE                inherited Gentle Starter MIT attribution
     - AGENTS.md.TEMPLATE     reusable AI-facing template
     - .devcontainer/README.md
-    - .devcontainer/docs/    local deep-dive docs copied from docs/en/ during clean
+    - .devcontainer/docs/    versioned environment guides
     - .agents/               versioned project skills
     - skills-lock.json       skill lock file
     - .env.example           environment template
@@ -46,8 +46,7 @@ About clean:identity:
 
   After running:
     - AGENTS.md.TEMPLATE is preserved; AGENTS.md is not generated
-    - .devcontainer/README.md is rewritten to use .devcontainer/docs/
-    - selected docs/en/ guides and linked policy ADRs are copied to .devcontainer/docs/
+    - .devcontainer/README.md and .devcontainer/docs/ already use local links
     - adapt, rename, or copy AGENTS.md.TEMPLATE manually if you want AGENTS.md
     - review .env.example  (APP_NAME, APP_PORT, APP_IMAGE)
     - review or create OpenSpec config if your project uses OpenSpec

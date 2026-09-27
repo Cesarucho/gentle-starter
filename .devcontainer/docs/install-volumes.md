@@ -14,7 +14,7 @@ uses the applied, integrity-checked snapshot without rereading live env or Compo
 configuration or proof of applied mounts.
 
 > **Looking for the comprehensive view?** Start at
-> [`docs/en/extending.md`](./extending.md), which covers install,
+> [`extending.md`](./extending.md), which covers install,
 > volumes, and configs together with a worked example and the FAQ.
 > This file is the deep dive on the volume contract only.
 

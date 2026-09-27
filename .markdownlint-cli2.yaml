@@ -4,6 +4,7 @@ globs:
   - AGENTS.md.TEMPLATE
   - CHANGELOG.md
   - .devcontainer/README.md
+  - .devcontainer/docs/**/*.md
   - .devcontainer/install/04-hooks/README.md
   - docs/en/**/*.md
 
