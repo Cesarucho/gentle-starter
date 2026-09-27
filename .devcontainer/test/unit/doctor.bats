@@ -11,7 +11,7 @@ setup() {
     touch "${FIXTURE_ROOT}/"{Taskfile.yml,.env.example,.env,skills-lock.json}
 
     local command_name
-    for command_name in docker task devcontainer jq node npm gh playwright; do
+    for command_name in docker task devcontainer jq yq node npm gh playwright; do
         printf '#!/usr/bin/env bash\n[[ "$*" == "--version" ]] || exit 0\nprintf "fixture version\\n"\n' >"${BIN_DIR}/${command_name}"
     done
     cat >"${BIN_DIR}/git" <<'EOF'
@@ -32,6 +32,14 @@ case "$*" in
 esac
 EOF
     chmod +x "${BIN_DIR}/"*
+    cat >"${TEST_ROOT}/missing-command-env" <<'EOF'
+command() {
+    if [ "$1" = -v ] && [ "$2" = "${MISSING_COMMAND}" ]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+EOF
 }
 
 prepare_container_checks() {
@@ -111,6 +119,38 @@ EOF
     done
 }
 
+@test "validate host reports partial proof and never invokes strict quality" {
+    run env PATH="${BIN_DIR}:/usr/bin:/bin" DEVCONTAINER=true FORCE_HOST_CONTEXT=1 \
+        EXPECT_MANIFEST_CONTEXT=host bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" validate
+    [ "${status}" -eq 0 ]
+    [[ "${output}" == *"last host-prepared"* ]]
+    [[ "${output}" == *"partial"* ]]
+    [[ "${output}" == *"task validate inside the container"* ]]
+    [[ "${output}" != *"applied container identity verified"* ]]
+}
+
+@test "validate container runs strict quality after container diagnosis" {
+    prepare_container_checks
+    run env PATH="${BIN_DIR}:/usr/bin:/bin" DEVCONTAINER=true \
+        EXPECT_MANIFEST_CONTEXT=container BASH_ENV="${TEST_ROOT}/doctor-env" \
+        DOCTOR_MOUNT="${TEST_ROOT}/gitconfig-volume" \
+        bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" validate
+    [ "${status}" -eq 0 ]
+    [[ "${output}" == *"applied container identity verified"* ]]
+    [[ "${output}" != *"Host validation is partial"* ]]
+}
+
+@test "context mode uses the same detection as auto including the host override" {
+    for context in container host; do
+        force=0
+        [ "${context}" = container ] || force=1
+        run env PATH="${BIN_DIR}:/usr/bin:/bin" DEVCONTAINER=true FORCE_HOST_CONTEXT="${force}" \
+            bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" context
+        [ "${status}" -eq 0 ]
+        [ "${output}" = "${context}" ]
+    done
+}
+
 teardown() {
     rm -rf "${TEST_ROOT}"
 }
@@ -118,6 +158,32 @@ teardown() {
 run_host_doctor() {
     run env PATH="${BIN_DIR}:/usr/bin:/bin" FORCE_HOST_CONTEXT=1 \
         bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" host
+}
+
+@test "host doctor reports every required command when unavailable" {
+    local missing
+    for missing in git task docker devcontainer jq yq python3; do
+        run env PATH="${BIN_DIR}:/usr/bin:/bin" FORCE_HOST_CONTEXT=1 \
+            MISSING_COMMAND="${missing}" BASH_ENV="${TEST_ROOT}/missing-command-env" \
+            bash "${REPO_ROOT}/.taskfiles/scripts/doctor.sh" host
+
+        [ "${status}" -eq 1 ]
+        [[ "${output}" == *"[fail] ${missing} not found; install "*" on the host and rerun task validate"* ]]
+        [[ "${output}" == *"Summary: 1 error(s)"* ]]
+    done
+}
+
+@test "host doctor reports all seven prerequisites when available" {
+    mkdir "${FIXTURE_ROOT}/.env.d"
+
+    run_host_doctor
+
+    [ "${status}" -eq 0 ]
+    local required
+    for required in git task docker devcontainer jq yq python3; do
+        [[ "${output}" == *"[ok] ${required} available:"* ]]
+    done
+    [[ "${output}" == *"Summary: 0 error(s), 0 warning(s)"* ]]
 }
 
 @test "host doctor accepts .env.d without the legacy env directory" {

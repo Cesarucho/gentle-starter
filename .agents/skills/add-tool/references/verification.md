@@ -22,7 +22,6 @@ task install:doctor
 task install:versions:validate
 task install:volumes
 task validate
-task validate:full
 task test
 ```
 

@@ -62,11 +62,32 @@ PY
 	[[ "${output}" != *'bats'* ]]
 }
 
-@test "root strict validation does not invoke lifecycle or recovery" {
-	run task --dry --dir "${FIXTURE}" validate:full
+@test "root validation does not invoke lifecycle or recovery" {
+	cp -R "${ROOT}/.taskfiles/scripts" "${FIXTURE}/.taskfiles/"
+	mkdir -p "${FIXTURE}/.devcontainer"
+	run env DEVCONTAINER=true FORCE_HOST_CONTEXT=1 task --dry --dir "${FIXTURE}" validate
 	[ "${status}" -eq 0 ]
+	[[ "${output}" != *'shfmt'* ]]
 	[[ "${output}" != *'starter-test-clean.py'* ]]
 	[[ "${output}" != *'starter-lifecycle.py'* ]]
+	run env DEVCONTAINER=true task --dry --dir "${FIXTURE}" validate
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'shfmt'* ]]
+	[[ "${output}" == *'markdownlint-cli2'* ]]
+}
+
+@test "validation is the only public doctor and quality route" {
+	run task --dir "${FIXTURE}" --list
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'validate'* ]]
+	[[ "${output}" != *'* doctor:'* ]]
+	[[ "${output}" != *'* quality:'* ]]
+	[[ "${output}" != *'validate:full'* ]]
+	local route
+	for route in doctor doctor:auto doctor:host doctor:container quality:check quality:full quality:shellcheck validate:full; do
+		run task --dry --dir "${FIXTURE}" "${route}"
+		[ "${status}" -ne 0 ]
+	done
 }
 
 @test "selected reusable tests run without deleted starter root docs" {

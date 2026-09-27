@@ -41,7 +41,7 @@ and executable flags; local checkout umask determines exact read permissions.
 The maintainer-only `test:starter:lifecycle` replaces the removed
 `test:pi-lifecycle`; it no longer proves Pi. Run it only with explicit
 operational authorization, outside the normal `task test`, `task test:starter`,
-and `task validate:full` routes:
+and `task validate` routes:
 
 ```bash
 task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --daemon-visible-scratch /absolute/scratch-parent
@@ -109,7 +109,7 @@ task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --apply --run RUN
 
 `RUN_UUID` is printed by the participating test or recovery preview. The
 explicit lifecycle and image-contract builds, and recovery, are not invoked by
-`task test`, the maintainer `test:starter` suite, or `task validate:full`.
+`task test`, the maintainer `test:starter` suite, or `task validate`.
 Normal unit execution does include
 mock tests of the cleaner, not an invocation of live recovery.
 

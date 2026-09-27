@@ -9,10 +9,12 @@ includes:
     taskfile: ./.taskfiles/tools.yml
   doctor:
     taskfile: ./.taskfiles/doctor.yml
+    internal: true
   install:
     taskfile: ./.taskfiles/install.yml
   quality:
     taskfile: ./.taskfiles/quality.yml
+    internal: true
   skill:
     taskfile: ./.taskfiles/skills.yml
   ssh:
@@ -24,22 +26,15 @@ tasks:
     cmds:
       - task: help
 
-  doctor:
-    desc: Run doctor checks for the detected context
-    cmds:
-      - task: doctor:auto
-
   validate:
-    desc: Run host-safe validation checks
+    desc: Diagnose the current context; require strict quality inside the container
+    vars:
+      VALIDATE_CONTEXT:
+        sh: ./.taskfiles/scripts/doctor.sh context
     cmds:
-      - task: doctor
-      - task: quality:check
-
-  validate:full:
-    desc: Run strict validation checks that require shell quality tools
-    cmds:
-      - task: doctor
+      - ./.taskfiles/scripts/doctor.sh validate
       - task: quality:full
+        if: '{{eq .VALIDATE_CONTEXT "container"}}'
 
   test:
     desc: Run application tests (project owner must configure this task)
@@ -59,9 +54,7 @@ tasks:
         General:
           task help                       Show this help
           task --list                     List all available tasks
-          task doctor                     Run doctor checks for the detected context
-          task validate                   Run host-safe validation checks, excluding skills
-          task validate:full              Run strict validation requiring shell quality tools
+          task validate                   Host preflight (partial) or container diagnosis and strict quality
           task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
                                           Does not update installed tools; apply later with container:rebuild then container:up
                                           Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
@@ -76,20 +69,6 @@ tasks:
           task ssh:check                  Verify SSH agent and GitHub connectivity
           task ssh:status                 Show current SSH agent status
           task ssh:stop                   Stop the SSH agent
-
-        Doctor:
-          task doctor:host                Check host requirements
-          task doctor:container           Check tools inside the devcontainer
-
-        Quality:
-          task quality:check              Run host-safe quality checks
-          task quality:full               Run strict quality checks
-          task quality:shellcheck         Run ShellCheck when available
-          task quality:shellcheck:full    Require ShellCheck and run it
-          task quality:format             Check shell formatting when available
-          task quality:format:full        Require shfmt and check formatting
-          task quality:markdown           Run Markdown lint when available
-          task quality:markdown:full      Require markdownlint-cli2 and run it
 
         Skills:
           task skill:help                 Show skill workflow examples

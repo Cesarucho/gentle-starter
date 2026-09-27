@@ -231,10 +231,10 @@ same checked records. It does not read live env, selected files, host paths, or
 Compose. This is bind-contract integrity, not signing or full container configuration
 attestation; named volumes and application environment are outside this identity.
 
-Explicit `task doctor:container` checks applied identity even in host context;
-explicit `task doctor:host` checks the stored snapshot even inside a container
-(and retains its host-context warning). `task doctor` selects automatically by
-detected context. Host doctor and `task install:volumes`
+`task validate` selects by detected context (or `FORCE_HOST_CONTEXT=1` for
+host-path testing). Inside the container it checks applied identity and runs
+strict repository quality; on the host it checks prerequisites and the stored
+snapshot, and reports that its result is partial. Host validation and `task install:volumes`
 report only the **last host-prepared snapshot**, not current desired configuration
 or proof of applied mounts. Return to the host and recreate after mount changes.
 

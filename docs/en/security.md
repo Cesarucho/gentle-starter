@@ -112,7 +112,7 @@ git status --short
 git grep -n "TOKEN\|SECRET\|PASSWORD\|PRIVATE_KEY\|API_KEY" || true
 
 # Verify the base environment is still consistent
-task doctor
+task validate
 ```
 
 Manually review any new files before committing, especially if they come from

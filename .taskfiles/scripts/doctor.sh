@@ -8,12 +8,14 @@ WARNINGS=0
 usage() {
 	cat <<'EOF'
 Usage:
-  .taskfiles/scripts/doctor.sh [auto|host|container]
+  .taskfiles/scripts/doctor.sh [auto|host|container|validate|context]
 
 Modes:
   auto        Detect the current context and run the matching checks.
   host        Check host requirements for building/opening the devcontainer.
   container   Check tools and mounts inside the devcontainer.
+  validate    Host preflight or container checks followed by strict quality.
+  context     Print the detected context for Task routing.
 EOF
 }
 
@@ -45,6 +47,15 @@ check_command() {
 		warn "${command_name} not found"
 	else
 		fail "${command_name} not found"
+	fi
+}
+
+check_host_command() {
+	local command_name="$1" installation_hint="$2"
+	if has_command "${command_name}"; then
+		check_command "${command_name}"
+	else
+		fail "${command_name} not found; install ${installation_hint} on the host and rerun task validate"
 	fi
 }
 
@@ -144,11 +155,13 @@ run_host() {
 		warn "host checks are running from inside a container; results may not represent the real host"
 	fi
 
-	check_command docker
-	check_command git
-	check_command task
-	check_command devcontainer optional
-	check_command jq optional
+	check_host_command docker "Docker"
+	check_host_command git "Git"
+	check_host_command task "Go Task"
+	check_host_command devcontainer "Dev Container CLI"
+	check_host_command jq "jq"
+	check_host_command yq "yq"
+	check_host_command python3 "Python 3"
 
 	check_file .devcontainer/devcontainer.json
 	check_file .devcontainer/docker-compose.yml
@@ -198,12 +211,24 @@ run_container() {
 }
 
 case "${MODE}" in
-auto)
+context)
+	cd "$(repo_root)"
+	if is_devcontainer; then
+		printf 'container\n'
+	else
+		printf 'host\n'
+	fi
+	exit 0
+	;;
+auto | validate)
 	cd "$(repo_root)"
 	if is_devcontainer; then
 		run_container
 	else
 		run_host
+		if [ "${MODE}" = validate ]; then
+			info "Host validation is partial: complete container-environment inspection and strict quality require task validate inside the container."
+		fi
 	fi
 	;;
 host)

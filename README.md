@@ -259,7 +259,7 @@ task tools:update         # From inside container, update the repository's appro
 git diff                  # Review user intent and generated locks together
 task container:rebuild     # From host, remove the container and build the updated image
 task container:up          # From host, create/start the updated development environment
-task validate:full        # Inside container
+task validate             # Inside container: diagnosis and strict quality
 ```
 
 Edit only `TOOL_*_VERSION` fields. `tools:update` alone resolves stable exact versions,
@@ -347,14 +347,9 @@ use ETags to avoid unchanged requests.
 ### Diagnostics and validation
 
 ```bash
-# Basic diagnostics
-task doctor
-
-# Host-safe repository validation (does not force specific skills)
+# On the host: required prerequisites and snapshot diagnostics (partial proof)
+# Inside the container: environment diagnosis and strict ShellCheck, shfmt, Markdown lint
 task validate
-
-# Strict validation, recommended inside the container
-task validate:full
 
 # Application tests: configure tasks.test.cmds in Taskfile.yml first
 task test
@@ -416,7 +411,7 @@ task container:engram           # connect to the Engram TUI
 > Also you can configure a optional credentials in `.env` file to set
 > `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
 
-### Skills and quality
+### Skills
 
 ```bash
 # Flexible project skills
@@ -425,9 +420,6 @@ task skill:sync
 # Validate external lock entries and project-authored local skills
 task skill:validate
 
-# Script and Markdown quality checks
-task quality:check
-task quality:full
 ```
 
 ## 🗂️ Repository structure for consumers
