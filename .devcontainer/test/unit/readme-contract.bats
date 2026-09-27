@@ -9,13 +9,14 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ "${status}" -eq 0 ]
 }
 
-@test "README repository tree lists current lifecycle surfaces without runtime state" {
+@test "README repository tree lists current lifecycle surfaces and labels local environment state" {
 	tree="$(awk '/^## 🗂️ Repository structure/{capture=1} capture && /^## 💾/{exit} capture' "${REPO_ROOT}/README.md")"
 	[[ "${tree}" == *"AGENTS.md.TEMPLATE"* ]]
 	[[ "${tree}" == *"lifecycle/"* ]]
 	[[ "${tree}" == *"tool-versions.conf"* ]]
 	[[ "${tree}" != *"openspec/"* ]]
-	[[ "${tree}" != *".env.d/"* ]]
+	run grep -E '\.env\.d/[[:space:]]+Local environment state([,[:space:]]|$)' <<< "${tree}"
+	[ "${status}" -eq 0 ]
 }
 
 section_count() {
