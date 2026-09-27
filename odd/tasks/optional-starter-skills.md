@@ -53,3 +53,9 @@ or install their own with Skills CLI. Do not publish, push, or touch the pending
   test were formatted; review found no semantic change. Rollback boundary:
   remove the selector Task include/script, shared selector tests and optional
   skills guide/link without reverting the reviewed T1 distribution changes.
+- T2 work-unit commit: `07a5e17`; native review approved and acknowledged under
+  `review-798b5b5eba6e8ac8`. Non-blocking follow-ups: prove a successful
+  selection through the public Task entrypoint and clarify that `skillPath` is
+  catalog provenance, not an argument used by the selector.
+- No real network install, starter release, push, or PR performed. The worktree
+  still contains only the unrelated pending `.env.example` edit.
