@@ -88,6 +88,8 @@ publication or a real Docker lifecycle/build.
   blocked by the absent active volume snapshot, not run to quality completion;
   full shared Bats suite there was skipped because ownership fixtures use
   `sudo`. No real Docker build/lifecycle or remote publication was run.
-- Next: record this task-document commit, advance local `starter` to its
-  source-only ancestry, inspect both branches, and await separate publication
-  authorization. No push, PR or merge to `dev` has occurred.
+- Local `starter` was advanced through the task-document source commit using
+  a temporary linked worktree; its tree stayed identical and its source parent
+  advanced. The temporary worktree was removed cleanly. Next: review the two
+  local branches and decide separately on merge into `dev` and remote branch
+  publication. No push, PR or merge to `dev` has occurred.
