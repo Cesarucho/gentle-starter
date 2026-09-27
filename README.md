@@ -191,8 +191,9 @@ An IDE is optional and **does not replace** these host requirements.
 
 ### Build and enter the environment
 
-Use the terminal workflow below. `Task` is the sole supported entry point in the life-cycle of a container
-(build, create, run, stop, remove, restart, and more); an IDE may only attach after `task container:up`.
+Use the terminal workflow below. For the container life cycle only, `Task` is
+the supported entry point (build, create, run, stop, remove, restart, and more);
+an IDE may only attach after `task container:up`.
 
 1. In your **host terminal**, from the project directory, run:
 
@@ -539,6 +540,7 @@ Before committing, review tracked and untracked changes:
 ```bash
 git status --short -- skills-lock.json .agents/skills .claude
 git diff -- skills-lock.json .agents/skills
+git status --short --ignored -- .claude  # Inspect ignored entries separately
 ```
 
 The generated `.claude/` tree is ignored; do not delete personal `.claude/`
