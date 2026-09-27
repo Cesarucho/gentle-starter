@@ -12,7 +12,8 @@ publication or a real Docker lifecycle/build.
 - Source branch: `dev` at `f745ab1`; implementation branch:
   `refactor/consumer-starter-distribution`.
 - Mirror: `odd/consumer-starter-distribution/tasks`.
-- Delivery strategy: `ask-on-risk`; no push or PR authorized.
+- Delivery strategy: `ask-on-risk`; user chose `feature-branch-chain` for
+  any later PR slicing. No push or PR authorized.
 - TDD: not configured (source: existing ODD project record reports no strict
   policy); ordinary focused and applicable full tests are required. Runner:
   `bats` via starter test tasks. `task test` intentionally fails until an
@@ -26,7 +27,7 @@ publication or a real Docker lifecycle/build.
 
 ## Tasks
 
-- [ ] T1 — Move reusable environment guides to `.devcontainer/docs/` as the
+- [x] T1 — Move reusable environment guides to `.devcontainer/docs/` as the
   single source in `dev`; keep maintainer-only docs under `docs/en/`. Repair
   relative links and tests. Acceptance: no project-init-time documentation
   copy is needed for the future consumer branch; both developer and consumer
@@ -54,8 +55,15 @@ publication or a real Docker lifecycle/build.
 
 ## Progress and verification
 
-- T1 pending. T2 pending. T3 pending.
-- No source files edited and no tests run yet. Current working branch was
-  created from clean `dev`; task file is the first worktree write.
-- Next: T1 writer, observe checks, record work-unit commit and native
-  assessment before T2. Publication remains a separate user decision.
+- T1 complete: `300c463` moved five guides to `.devcontainer/docs/` and
+  eliminated documentation copying at initialization. Focused Bats:
+  `project-init.bats` 27/27 and `tool-policy.bats` 8/8; markdown lint 18 files;
+  focused link check 14 files; `git diff --check` clean. Parent independently
+  reran `project-init.bats` (27/27). Native assessed high risk due to shell
+  source, reviewed four lenses and acknowledged approved authority for this
+  exact commit (lineage `review-3d7520b2f182e3f3`). Follow-up warning:
+  add automated coverage for relocated guide links (T2 or T3); suggestion:
+  preserve the policy ADR context in the maintainer docs.
+- T2 pending. T3 pending. Next: isolate maintainer tasks/tests, run full
+  refactored-dev verification before consumer preparation. Publication remains
+  a separate user decision.

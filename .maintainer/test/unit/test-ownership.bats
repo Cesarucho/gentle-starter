@@ -8,38 +8,43 @@ setup() {
 	cp "${ROOT}/.taskfiles/"*.yml "${FIXTURE}/.taskfiles/"
 }
 
-@test "post-init layout keeps application routing separate from explicit maintainer tasks" {
+@test "consumer taskfile has no maintainer dependencies or routes" {
 	[ ! -e "${FIXTURE}/README.md" ]
 	[ ! -e "${FIXTURE}/docs" ]
+	[ ! -e "${FIXTURE}/.maintainer" ]
+	run task --dir "${FIXTURE}" --list
+	[ "${status}" -eq 0 ]
+	[[ "${output}" != *'test:starter:'* ]]
 	run task --exit-code --dir "${FIXTURE}" test
 	[ "${status}" -eq 2 ]
 	[[ "${output}" == *"Application tests are not configured"* ]]
 	[[ "${output}" == *"tasks.test.cmds"* ]]
-
-	run task --dry --dir "${FIXTURE}" test:starter
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *'bats .devcontainer/test/unit/*.bats'* ]]
-	[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
-	[[ "${output}" != *'starter-lifecycle.py'* ]]
-	[[ "${output}" != *'starter-test-clean.py'* ]]
-	run task --dry --dir "${FIXTURE}" test:starter:unit
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *'bats .devcontainer/test/unit/*.bats'* ]]
-	[[ "${output}" != *'integration/tools.bats'* ]]
-	run task --dry --dir "${FIXTURE}" test:starter:integration
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
-	[[ "${output}" != *'test/unit/'* ]]
+	[[ "$(<"${FIXTURE}/Taskfile.yml")" != *'taskfile: ./.maintainer/'* ]]
 }
 
-@test "removed maintainer aliases are unknown tasks" {
+@test "maintainer routes are absent from consumer root" {
 	local route
-	for route in test:unit test:integration test:test test:all; do
+	for route in clean clean:identity project:init test:starter test:starter:unit test:starter:integration test:starter:lifecycle test:starter:clean; do
 		run task --dry --dir "${FIXTURE}" "${route}"
 		[ "${status}" -ne 0 ]
 		[[ "${output}" == *"does not exist"* ]]
-		[[ "${output}" != *'bats .devcontainer/test/'* ]]
 	done
+}
+
+@test "maintainer taskfile routes unit integration and lifecycle separately" {
+	run task --taskfile "${ROOT}/.maintainer/Taskfile.yml" --dry test:starter
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'bats .devcontainer/test/unit/*.bats .maintainer/test/unit/*.bats'* ]]
+	[[ "${output}" == *'bats .devcontainer/test/integration/tools.bats'* ]]
+	[[ "${output}" != *'starter-lifecycle.py'* ]]
+	[[ "${output}" != *'image-contract.bats'* ]]
+	run task --taskfile "${ROOT}/.maintainer/Taskfile.yml" --dry test:starter:lifecycle -- --daemon-visible-scratch /workspace
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'.maintainer/test/lifecycle/starter-lifecycle.py --daemon-visible-scratch /workspace'* ]]
+	run task --taskfile "${ROOT}/.maintainer/Taskfile.yml" --dry test:starter:clean
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'.maintainer/test/lifecycle/starter-test-clean.py'* ]]
+	[[ "${output}" != *'--apply'* ]]
 }
 
 @test "application owner can replace only the root test command" {
@@ -57,22 +62,7 @@ PY
 	[[ "${output}" != *'bats'* ]]
 }
 
-@test "expensive lifecycle route is explicit and forwards only explicit arguments" {
-	run task --dry --dir "${FIXTURE}" test:starter:lifecycle -- --daemon-visible-scratch /workspace
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *'starter-lifecycle.py --daemon-visible-scratch /workspace'* ]]
-	[[ "${output}" != *'bats '* ]]
-}
-
-@test "recovery routing defaults to preview and is separate from operational lifecycle" {
-	run task --dry --dir "${FIXTURE}" test:starter:clean
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *'starter-test-clean.py'* ]]
-	[[ "${output}" != *'--apply'* ]]
-	[[ "${output}" != *'starter-lifecycle.py'* ]]
-	run task --dry --dir "${FIXTURE}" test:starter:clean -- --apply --run 00000000-0000-4000-8000-000000000001
-	[ "${status}" -eq 0 ]
-	[[ "${output}" == *'starter-test-clean.py --apply --run 00000000-0000-4000-8000-000000000001'* ]]
+@test "root strict validation does not invoke lifecycle or recovery" {
 	run task --dry --dir "${FIXTURE}" validate:full
 	[ "${status}" -eq 0 ]
 	[[ "${output}" != *'starter-test-clean.py'* ]]
@@ -85,15 +75,15 @@ PY
 	mkdir -p "${FIXTURE}/.devcontainer/install/lib"
 	cp "${ROOT}/.devcontainer/install/lib/selection.py" "${FIXTURE}/.devcontainer/install/lib/"
 	local file
-	for file in compose-manifest.py prepare-bind-mounts.py clean-lib.sh config-export.py; do
+	for file in compose-manifest.py prepare-bind-mounts.py config-export.py; do
 		cp "${ROOT}/.taskfiles/scripts/${file}" "${FIXTURE}/.taskfiles/scripts/"
 	done
+	[ ! -e "${FIXTURE}/.taskfiles/scripts/clean-lib.sh" ]
 	for file in compose-manifest-test.py config-export.bats; do
-		cp "${BATS_TEST_DIRNAME}/${file}" "${FIXTURE}/.devcontainer/test/unit/"
+		cp "${ROOT}/.devcontainer/test/unit/${file}" "${FIXTURE}/.devcontainer/test/unit/"
 	done
-	cp "${BATS_TEST_DIRNAME}/../fixtures/config-export.json" "${FIXTURE}/.devcontainer/test/fixtures/"
+	cp "${ROOT}/.devcontainer/test/fixtures/config-export.json" "${FIXTURE}/.devcontainer/test/fixtures/"
 	run env PYTHONDONTWRITEBYTECODE=1 python3 "${FIXTURE}/.devcontainer/test/unit/compose-manifest-test.py" -v \
-		ManifestTests.test_optional_guide_migration_without_identity_removal \
 		ManifestTests.test_external_sources_are_never_prepared
 	printf '%s\n' "${output}"
 	[ "${status}" -eq 0 ]

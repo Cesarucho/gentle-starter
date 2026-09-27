@@ -876,14 +876,3 @@ EOF
 	grep -q 'BATS_SHA256="${LOCK_BATS_SHA256:?missing LOCK_BATS_SHA256}"' "${installer}"
 	! grep -q 'git clone' "${installer}"
 }
-
-@test "Docker build ARG persists as runtime Engram ENV" {
-    command -v docker >/dev/null 2>&1 || skip "docker is unavailable"
-    env -u DOCKER_CONTEXT DOCKER_HOST=unix:///var/run/docker.sock docker info >/dev/null 2>&1 || skip "local Docker daemon is unavailable"
-
-    # Use a separate run root, not BATS_TEST_TMPDIR: BATS must not remove recovery evidence.
-    run env PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/test/lifecycle/image-contract.py" \
-        "${SCRIPT_DIR}/.." "${BATS_TMPDIR:-/tmp}"
-    printf '%s\n' "${output}"
-    [ "$status" -eq 0 ]
-}

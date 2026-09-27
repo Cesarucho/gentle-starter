@@ -171,12 +171,12 @@ An IDE is optional and **does not replace** these host requirements.
     git clone https://github.com/Cesarucho/gentle-starter.git <my-project>
     cd <my-project>
     cp .env.example .env
-    task project:init         # Remove the 'gentle-starter' identity and take ownership of the repository
+    task --taskfile .maintainer/Taskfile.yml project:init  # Optional maintainer initialization
     ```
 
-    > `task project:init` is a recommended one-time option for creating a clean identity repository. After confirming
+    > `task --taskfile .maintainer/Taskfile.yml project:init` is a one-time option for creating a clean identity repository. After confirming
     > the `branch` and `origin` prompts, you'll have the foundation of the repository to start your own project
-    > You can see the details with `task project:init -- --dry-run`.
+    > You can see the details with `task --taskfile .maintainer/Taskfile.yml project:init -- --dry-run`.
 
 ### Build and enter the environment
 
@@ -430,9 +430,8 @@ task skill:sync
 task skill:validate
 
 # New-project initialization and identity cleanup (LICENSE is preserved)
-task project:init           # configure branch/remotes, clean identity, and commit
-task clean                  # clean identity but preserve Git history
-task clean:identity         # explicit alias for task clean
+task --taskfile .maintainer/Taskfile.yml project:init  # configure branch/remotes and create child commit
+task --taskfile .maintainer/Taskfile.yml clean         # identity cleanup without initialization
 
 # Script and Markdown quality checks
 task quality:check
@@ -441,7 +440,7 @@ task quality:full
 
 ## 🗂️ Repository structure after project initialization
 
-`task project:init` removes the Gentle Starter identity and leaves the
+`task --taskfile .maintainer/Taskfile.yml project:init` removes the Gentle Starter identity and leaves the
 reusable devcontainer foundation in your project. It also creates the
 `chore: initialize project` child commit, preserves the starter ancestry, and
 configures the project branch and remotes you selected.

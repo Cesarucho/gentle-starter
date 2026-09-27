@@ -12,14 +12,16 @@ tasks:
         cat <<'ENDHELP'
         Starter maintainer testing tasks (BATS; not application tests)
 
-          task test:install      Install BATS if not present
-          task test:starter:unit         Run starter behavior and distribution contracts
-          task test:starter:integration  Check core and selected installed tools
-          task test:starter:lifecycle -- --daemon-visible-scratch ABSOLUTE_PARENT
-                                 Explicit expensive base build/start/connect/recreate proof
-          task test:starter:clean Preview registered test-run recovery (read-only)
-          task test:starter      Run both starter suites (may build or exercise lifecycle fixtures)
-          task test              Application-owned command; initially fails as not configured
+          Use task --taskfile .maintainer/Taskfile.yml with:
+            test:starter:unit          Run starter behavior and distribution contracts
+            test:starter:integration   Check core and selected installed tools
+            test:starter               Run both suites (mocked unit fixtures)
+            test:starter:lifecycle     Explicit expensive lifecycle proof; requires scratch argument
+            test:starter:image-contract Explicit Docker image build contract proof
+            test:starter:clean         Preview registered test-run recovery (read-only)
+            test:install               Install BATS if not present
+
+          Root task test is application-owned and initially fails as not configured.
         ENDHELP
 
   install:
@@ -37,7 +39,7 @@ tasks:
   starter:unit:
     desc: Run starter maintainer behavior and distribution contracts (includes lifecycle fixtures)
     cmds:
-      - bats {{.DEVCONTAINER_DIR}}/test/unit/*.bats
+      - bats {{.DEVCONTAINER_DIR}}/test/unit/*.bats .maintainer/test/unit/*.bats
 
   starter:integration:
     desc: Run starter maintainer checks for core and selected installed tools
@@ -47,12 +49,17 @@ tasks:
   starter:lifecycle:
     desc: Explicit base lifecycle proof (expensive; one build, start, recreate; cache may remain)
     cmds:
-      - python3 {{.DEVCONTAINER_DIR}}/test/lifecycle/starter-lifecycle.py {{.CLI_ARGS}}
+      - python3 .maintainer/test/lifecycle/starter-lifecycle.py {{.CLI_ARGS}}
+
+  starter:image-contract:
+    desc: Explicit Docker image build contract proof (not part of unit suite)
+    cmds:
+      - bats .maintainer/test/operational/image-contract.bats
 
   starter:clean:
     desc: Preview registered test cleanup (deletion requires --apply --run UUID)
     cmds:
-      - python3 {{.DEVCONTAINER_DIR}}/test/lifecycle/starter-test-clean.py {{.CLI_ARGS}}
+      - python3 .maintainer/test/lifecycle/starter-test-clean.py {{.CLI_ARGS}}
 
   starter:
     desc: Run starter maintainer suites explicitly (not application tests)

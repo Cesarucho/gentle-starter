@@ -17,7 +17,7 @@ links from there.
 | `config/compose/` | Active core-tools binds/OpenCode port and independently selected optional overrides, including disabled CodeGraph. |
 | `install/` | Build-time install scripts. See [install tree](docs/install-tree.md). |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
-| `test/` | Starter maintainer tests, explicitly selected with `task test:starter`; not application tests. |
+| `test/` | Shared environment tests; not application tests. |
 | `config/pi/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
 | `config/opencode/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
 | `config/ssh/` | Versioned SSH server configuration and startup wrapper. |
@@ -30,22 +30,11 @@ The project owner configures `tasks.test.cmds` in the root `Taskfile.yml` with
 the application's test command. Until then, `task test` fails with actionable
 instructions rather than reporting success or running starter tests.
 
-`task test:starter` explicitly runs the inherited maintainer suite:
-`test:starter:unit` checks starter behavior and distribution contracts;
-`test:starter:integration` checks core and selected installed tools. Editorial
-README/ADR/catalog checks belong to starter maintenance, not downstream apps,
-and may require source docs removed by initialization. The unit suite includes
-lifecycle/build fixtures; inspect it before running. No automatic profile or
-branch detection changes the routing.
-
-`test:install` stays explicit. The removed
-`test:pi-lifecycle` is replaced by the explicitly invoked general
-`test:starter:lifecycle`; it does not prove Pi or optional host sockets and is not
-included in the starter suite. See [scope and costs](docs/extending.md#explicit-base-lifecycle-proof).
-
-`task test:starter:clean` previews durable recovery for participating lifecycle and
-image-contract fixtures. Deletion requires explicit apply and one selected run;
-shared build cache is retained. See [ownership, recovery, and diagnostics retention](docs/extending.md#recovering-test-owned-resources).
+Starter maintainers run separate suites through their own Taskfile; those
+commands are not part of the consumer root Taskfile. Shared tests live here;
+editorial and lifecycle harnesses live with maintainer tooling. The real Docker
+image-contract fixture has its own explicit route outside the unit suite. See
+[test scope](docs/extending.md#how-do-i-run-the-test-suite).
 `validate` and `install:doctor` are environment/repository
 checks, not proof that the application works.
 

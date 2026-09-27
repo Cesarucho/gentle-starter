@@ -13,7 +13,7 @@ from unittest.mock import Mock, call, patch
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SPEC = importlib.util.spec_from_file_location("lifecycle", ROOT / ".devcontainer/test/lifecycle/starter-lifecycle.py")
+SPEC = importlib.util.spec_from_file_location("lifecycle", ROOT / ".maintainer/test/lifecycle/starter-lifecycle.py")
 assert SPEC and SPEC.loader
 H = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(H)

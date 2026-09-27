@@ -3,6 +3,14 @@
 Maintainer documentation lives here. Reusable environment guides are canonical
 in [`.devcontainer/docs/`](../../.devcontainer/docs/README.md).
 
+Run maintainer-only commands through
+`task --taskfile .maintainer/Taskfile.yml --list`; the root Taskfile remains
+independent. The [tool policy ADR](./adr/0003-unified-tool-policy-ownership.md)
+explains why `task tools:update` owns version intent and generated locks;
+the [earlier ADR](./adr/0002-centralized-tool-version-policy.md) records the
+declarative policy and loader rationale. These policy decisions remain in
+maintainer docs, not in consumer-facing relative links.
+
 ## What's here
 
 | File | What it's for |

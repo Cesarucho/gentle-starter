@@ -10,11 +10,13 @@ usage() {
 Clean tasks help
 
 Usage:
-  task clean              Review, confirm, and execute identity cleanup
-  task clean:identity     Explicit alias for the same cleanup
+  task --taskfile .maintainer/Taskfile.yml clean
+                          Review, confirm, and execute identity cleanup
+  task --taskfile .maintainer/Taskfile.yml clean:identity
+                          Explicit alias for the same cleanup
 
 Preferred command:
-  task clean
+  task --taskfile .maintainer/Taskfile.yml clean
 
 About clean:identity:
   Removes files that reference "Gentle Starter" so the repo can be

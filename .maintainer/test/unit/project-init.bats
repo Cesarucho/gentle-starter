@@ -3,11 +3,12 @@
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	TEST_ROOT="$(mktemp -d)"; PROJECT_ROOT="${TEST_ROOT}/project"
-	mkdir -p "${PROJECT_ROOT}/.taskfiles/scripts" "${PROJECT_ROOT}/.devcontainer/docs" "${PROJECT_ROOT}/docs/en" "${PROJECT_ROOT}/.agents"
-	cp "${REPO_ROOT}/.taskfiles/scripts/"{project-init.sh,clean-lib.sh,clean.sh} "${PROJECT_ROOT}/.taskfiles/scripts/"
+	mkdir -p "${PROJECT_ROOT}/.maintainer/scripts" "${PROJECT_ROOT}/.maintainer/tasks" "${PROJECT_ROOT}/.devcontainer/docs" "${PROJECT_ROOT}/docs/en" "${PROJECT_ROOT}/.agents"
+	cp "${REPO_ROOT}/.maintainer/scripts/"{project-init.sh,clean-lib.sh,clean.sh} "${PROJECT_ROOT}/.maintainer/scripts/"
+	cp "${REPO_ROOT}/.maintainer/Taskfile.yml" "${PROJECT_ROOT}/.maintainer/Taskfile.yml"
+	cp "${REPO_ROOT}/.maintainer/tasks/"*.yml "${PROJECT_ROOT}/.maintainer/tasks/"
 	cp "${REPO_ROOT}/Taskfile.yml" "${PROJECT_ROOT}/"
-	cp "${REPO_ROOT}/.taskfiles/"*.yml "${PROJECT_ROOT}/.taskfiles/"
-	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/project-init.sh"
+	chmod +x "${PROJECT_ROOT}/.maintainer/scripts/"{project-init.sh,clean.sh}
 	printf '# Starter\n' >"${PROJECT_ROOT}/README.md"; printf '# Agents\n' >"${PROJECT_ROOT}/AGENTS.md"
 	printf '# Project\n<PROJECT_NAME>\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE"; printf '# Example\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE"
 	printf '# Changes\n' >"${PROJECT_ROOT}/CHANGELOG.md"; printf 'MIT\n' >"${PROJECT_ROOT}/LICENSE"
@@ -45,7 +46,7 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 
 run_init() {
 	local branch="${1:-main}" url="${2:-}"
-	run bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch "$2" --origin-url "$3"' _ "${PROJECT_ROOT}" "${branch}" "${url}"
+	run bash -c 'cd "$1" && printf "INIT\n" | ./.maintainer/scripts/project-init.sh --branch "$2" --origin-url "$3"' _ "${PROJECT_ROOT}" "${branch}" "${url}"
 }
 
 snapshot_repository() {
@@ -84,12 +85,12 @@ PY
 run_project_task() {
 	local input="$1"
 	shift
-	run bash -c 'cd "$1" && input="$2" && shift 2 && printf "%b" "$input" | task "$@"' _ "${PROJECT_ROOT}" "${input}" "$@"
+	run bash -c 'cd "$1" && input="$2" && shift 2 && printf "%b" "$input" | task --taskfile .maintainer/Taskfile.yml "$@"' _ "${PROJECT_ROOT}" "${input}" "$@"
 }
 
 @test "default interactive inputs create main and configure canonical upstream" {
 	git -C "${PROJECT_ROOT}" remote add origin git@GitHub.com:Cesarucho/Gentle-Starter/
-	run bash -c 'cd "$1" && printf "\n\nINIT\n" | ./.taskfiles/scripts/project-init.sh' _ "${PROJECT_ROOT}"
+	run bash -c 'cd "$1" && printf "\n\nINIT\n" | ./.maintainer/scripts/project-init.sh' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [ "$(git -C "${PROJECT_ROOT}" branch --show-current)" = main ]
 	[ "$(git -C "${PROJECT_ROOT}" remote get-url upstream)" = https://github.com/Cesarucho/gentle-starter.git ]
 	[ "$(git -C "${PROJECT_ROOT}" remote)" = upstream ]
@@ -158,7 +159,7 @@ run_project_task() {
 		'git@github.com:Cesarucho/gentle-starter.git' \
 		'ssh://git@GitHub.com/Cesarucho/gentle-starter.git/'; do
 		git -C "${PROJECT_ROOT}" remote add origin "${url}"
-		run bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh --dry-run --branch main --origin-url ""' _ "${PROJECT_ROOT}"
+		run bash -c 'cd "$1" && ./.maintainer/scripts/project-init.sh --dry-run --branch main --origin-url ""' _ "${PROJECT_ROOT}"
 		[ "${status}" -eq 0 ]
 		[[ "${output}" == *"rename starter origin to upstream"* ]]
 		git -C "${PROJECT_ROOT}" remote remove origin
@@ -168,7 +169,7 @@ run_project_task() {
 @test "dry-run reports all actions and changes no repository state" {
 	git -C "${PROJECT_ROOT}" remote add origin git@github.com:Cesarucho/gentle-starter.git; before="$(snapshot_repository)"
 	local cleanup_before="$(snapshot_cleanup_state)"
-	run bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh --dry-run --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
+	run bash -c 'cd "$1" && ./.maintainer/scripts/project-init.sh --dry-run --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [[ "${output}" == *"Branch: main (create and switch to main)"* ]]
 	[[ "${output}" == *"rename starter origin to upstream"* ]]; [[ "${output}" == *"Dry run complete. No changes were made."* ]]
 	[ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]; [ -f "${PROJECT_ROOT}/odd/tasks/starter-task.md" ]
@@ -197,7 +198,7 @@ fi
 exec "${REAL_GIT}" "$@"
 EOF
 	chmod +x "${TEST_ROOT}/bin/git"
-	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
+	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.maintainer/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -ne 0 ]
 	[[ "${output}" == *"openspec removed before commit"* ]]
 	[ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
@@ -211,7 +212,7 @@ EOF
 	cp -R "${REPO_ROOT}/.devcontainer/docs/." "${PROJECT_ROOT}/.devcontainer/docs/"
 	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${PROJECT_ROOT}/.devcontainer/tool-versions.conf"
 	cp "${REPO_ROOT}/.env.example" "${PROJECT_ROOT}/.env.example"
-	run bash -c 'cd "$1" && printf "y\n" | bash .taskfiles/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
+	run bash -c 'cd "$1" && printf "y\n" | bash .maintainer/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md" ]
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
@@ -241,7 +242,7 @@ for document in documents:
 PY
 	[ "${status}" -eq 0 ] || printf '%s\n' "${output}" >&3
 	[ "${status}" -eq 0 ]
-	run bash "${PROJECT_ROOT}/.taskfiles/scripts/clean.sh" help
+	run bash "${PROJECT_ROOT}/.maintainer/scripts/clean.sh" help
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *'AGENTS.md.TEMPLATE.EXAMPLE'* ]]
 	[[ "${output}" == *'odd/'* ]]
@@ -293,7 +294,7 @@ PY
 		git -C "${PROJECT_ROOT}" commit -qm "add unsafe odd fixture"
 		before="$(snapshot_repository)"
 
-		run bash -c 'cd "$1" && printf "y\n" | ./.taskfiles/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
+		run bash -c 'cd "$1" && printf "y\n" | ./.maintainer/scripts/clean.sh identity' _ "${PROJECT_ROOT}"
 		[ "${status}" -ne 0 ]; [[ "${output}" == *"identity cleanup"* ]]
 		[ "$(snapshot_repository)" = "${before}" ]
 		[ -e "${PROJECT_ROOT}/odd" ] || [ -L "${PROJECT_ROOT}/odd" ]
@@ -329,7 +330,7 @@ exec "${REAL_GIT}" "$@"
 EOF
 	chmod +x "${TEST_ROOT}/bin/git"
 
-	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
+	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.maintainer/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 
 	[ "${status}" -ne 0 ]
 	[[ "${output}" != *"multiple updates"* ]]
@@ -402,7 +403,7 @@ EOF
 	before="$(snapshot_repository)"
 	branch_before="$(git -C "${PROJECT_ROOT}" symbolic-ref HEAD)"
 	index_before="$(sha256sum "${PROJECT_ROOT}/.git/index")"
-	run bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh </dev/null' _ "${PROJECT_ROOT}"
+	run bash -c 'cd "$1" && ./.maintainer/scripts/project-init.sh </dev/null' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 1 ]
 	[ "${output}" = "[error] project:init has already been committed in this branch's history" ]
 	[ "$(sha256sum "${PROJECT_ROOT}/.git/index")" = "${index_before}" ]
@@ -413,7 +414,7 @@ EOF
 }
 
 @test "cancellation and dirty worktrees do not mutate the repository" {
-	run bash -c 'cd "$1" && printf "NO\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url ""' _ "${PROJECT_ROOT}"
+	run bash -c 'cd "$1" && printf "NO\n" | ./.maintainer/scripts/project-init.sh --branch main --origin-url ""' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${ORIGINAL_HEAD}" ]
 	printf 'dirty\n' >>"${PROJECT_ROOT}/README.md"; run_init main; [ "${status}" -ne 0 ]; [[ "${output}" == *"working tree must be clean"* ]]
 }

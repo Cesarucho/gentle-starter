@@ -302,24 +302,26 @@ cleanup procedure: it can affect unrelated projects and shared cache.
 `Taskfile.yml`; until then it fails with instructions. Initialization does not
 change this routing or automatically select inherited tests.
 
-Starter maintainers use [BATS](https://github.com/bats-core/bats-core)
-(Bash Automated Testing System) explicitly:
+On a maintainer checkout, run [BATS](https://github.com/bats-core/bats-core)
+(Bash Automated Testing System) via the separate Taskfile (not shipped as a
+consumer task route):
 
 ```bash
-task test:starter:unit         # starter behavior and distribution contracts
-task test:starter:integration  # core and selected installed tools
-task test:starter              # both maintainer suites together
-task test:install      # install BATS if not present
-task test:help         # show available test tasks
+task --taskfile .maintainer/Taskfile.yml test:starter:unit
+task --taskfile .maintainer/Taskfile.yml test:starter:integration
+task --taskfile .maintainer/Taskfile.yml test:starter
+task --taskfile .maintainer/Taskfile.yml test:help
 ```
 
-The unit suite includes lifecycle/build fixtures; inspect
-tests before running them in a restricted environment. README/ADR/catalog
+The unit suite uses mocked lifecycle/build fixtures; the real Docker image
+contract is a separate explicit maintainer task. Inspect tests before running
+them in a restricted environment. README/ADR/catalog
 checks remain starter-only and can require original distribution docs; derived
 applications need not satisfy them. `validate` and `install:doctor` are
 environment/repository checks, not application test proof.
 
-Unit tests live in `.devcontainer/test/unit/`: `common.sh.bats` covers
+Shared unit tests live in `.devcontainer/test/unit/`; maintainer-only tests
+live in `.maintainer/test/unit/`. `common.sh.bats` covers
 `common.sh` helpers (phase detection, logging, fetching, version extraction,
 version comparison, idempotency), `tools-update.bats` covers the tool-version
 policy updater and direct-release checksum behavior, and `gentle-ai.bats` covers
@@ -368,12 +370,12 @@ default activation.
 
 ### Explicit base lifecycle proof
 
-`test:starter:lifecycle` replaces the removed `test:pi-lifecycle`; it no longer
+The maintainer-only `test:starter:lifecycle` replaces the removed `test:pi-lifecycle`; it no longer
 proves Pi. Run it only with explicit operational authorization, outside the normal
 `task test`, `task test:starter`, and `task validate:full` routes:
 
 ```bash
-task test:starter:lifecycle -- --daemon-visible-scratch /absolute/scratch-parent
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --daemon-visible-scratch /absolute/scratch-parent
 ```
 
 The existing parent must be outside the source repository and visible at the same
@@ -533,21 +535,23 @@ its ownership scope; never use global pruning as timeout recovery.
 Start with a read-only preview from the **original source worktree**:
 
 ```bash
-task test:starter:clean
-task test:starter:clean -- --run RUN_UUID
+task --taskfile .maintainer/Taskfile.yml test:starter:clean
+task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --run RUN_UUID
 # After reviewing that run's scope, explicitly authorize deletion:
-task test:starter:clean -- --apply --run RUN_UUID
+task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --apply --run RUN_UUID
 # Also discard its compact diagnostics, only after resources are verified gone:
-task test:starter:clean -- --apply --run RUN_UUID --forget
+task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --apply --run RUN_UUID --forget
 ```
 
-`RUN_UUID` is printed by the participating test or recovery preview. Neither
-`test:starter:lifecycle` nor this recovery command is invoked by `task test`,
-`task test:starter`, or `task validate:full`. Normal unit execution does include
+`RUN_UUID` is printed by the participating test or recovery preview. The
+explicit lifecycle and image-contract builds, and recovery, are not invoked by
+`task test`, the maintainer `test:starter` suite, or `task validate:full`.
+Normal unit execution does include
 mock tests of the cleaner, not an invocation of live recovery.
 
 **Scope:** the base lifecycle harness and the Docker image-contract fixture in
-`common.sh.bats` register their resources. The latter now has a unique run tag and
+`.maintainer/test/operational/image-contract.bats` register their resources.
+The latter has a unique run tag and
 `finally` cleanup even when build/assertion fails. Other suites retain their own
 fixture cleanup; arbitrary commands, custom hook resources, unlabelled resources,
 and the real devcontainer are not automatically adopted by this helper.

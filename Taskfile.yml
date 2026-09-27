@@ -1,8 +1,6 @@
 version: "3"
 
 includes:
-  clean:
-    taskfile: ./.taskfiles/clean.yml
   config:
     taskfile: ./.taskfiles/config.yml
   container:
@@ -15,25 +13,16 @@ includes:
     taskfile: ./.taskfiles/install.yml
   quality:
     taskfile: ./.taskfiles/quality.yml
-  project:
-    taskfile: ./.taskfiles/project.yml
   skill:
     taskfile: ./.taskfiles/skills.yml
   ssh:
     taskfile: ./.taskfiles/ssh.yml
-  test:
-    taskfile: ./.taskfiles/test.yml
 
 tasks:
   default:
     desc: Show project task help
     cmds:
       - task: help
-
-  clean:
-    desc: Review and execute project identity cleanup
-    cmds:
-      - task: clean:identity
 
   doctor:
     desc: Run doctor checks for the detected context
@@ -56,7 +45,7 @@ tasks:
     desc: Run application tests (project owner must configure this task)
     cmds:
       - |
-        printf '%s\n' 'Application tests are not configured. Replace tasks.test.cmds in Taskfile.yml with your application test command. Starter maintainers: use task test:starter explicitly.' >&2
+        printf '%s\n' 'Application tests are not configured. Replace tasks.test.cmds in Taskfile.yml with your application test command.' >&2
         exit 2
 
   help:
@@ -77,11 +66,8 @@ tasks:
                                           Does not update installed tools; apply later with container:rebuild then container:up
                                           Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
                                           GitHub REST cache: ${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/ (safe to clear)
-          task clean                      Review, confirm, and remove project identity material
-          task clean:identity             Explicit alias for project identity cleanup
           task --exit-code config:diff    Compare runtime configuration with its seed
           task config:export              Export managed runtime configuration to its seed
-          task project:init               Initialize branch, remotes, identity, and child commit
 
         SSH:
           task ssh:help                   Show SSH workflow help
@@ -133,10 +119,5 @@ tasks:
 
         Testing:
           task test                       Application tests (configure tasks.test.cmds first)
-          task test:starter               Run the starter maintainer suites explicitly
-          task test:starter:unit          Run starter behavior and distribution contract tests
-          task test:starter:integration   Check core and selected installed tools
-          task test:starter:lifecycle    Explicit expensive base lifecycle proof (see test:help)
-          task test:starter:clean        Preview recovery of registered test-owned resources
-          task test:install               Install BATS if not present
+          Maintainers: task --taskfile .maintainer/Taskfile.yml --list
         EOF

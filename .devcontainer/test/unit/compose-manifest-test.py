@@ -601,31 +601,6 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         with self.assertRaisesRegex(ValueError, "top-level name must be literal"):
             manifest.compose_model(self.root)
 
-    def test_optional_guide_migration_without_identity_removal(self):
-        source_dir = self.root / "docs/en"
-        source_dir.mkdir(parents=True)
-        for name in ("extending.md", "install-tree.md", "install-volumes.md", "configs.md", "optional-integrations.md"):
-            (source_dir / name).write_text(
-                f"# Fixture {name}\n\n[Optional integrations](./optional-integrations.md)\n"
-                "[Container](../../.devcontainer/README.md)\n")
-        readme = self.root / ".devcontainer/README.md"
-        readme.write_text("# Fixture container\n\n[Optional integrations](../docs/en/optional-integrations.md)\n")
-        original = (source_dir / "optional-integrations.md").read_bytes()
-        result = subprocess.run(["bash", "-euc", 'source "$1"; clean_migrate_devcontainer_docs',
-                                 "migration-fixture", str(ROOT / ".taskfiles/scripts/clean-lib.sh")],
-                                cwd=self.root, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        target = self.root / ".devcontainer/docs"
-        self.assertEqual((target / "optional-integrations.md").read_bytes(), original)
-        self.assertEqual((source_dir / "optional-integrations.md").read_bytes(), original)
-        self.assertIn("./docs/optional-integrations.md", readme.read_text())
-        self.assertNotIn("../docs/en/optional-integrations.md", readme.read_text())
-        self.assertIn("./optional-integrations.md", (target / "README.md").read_text())
-        self.assertIn("./optional-integrations.md", (target / "install-volumes.md").read_text())
-        self.assertIn("(../README.md)", (target / "extending.md").read_text())
-        for source in source_dir.iterdir():
-            self.assertTrue((target / source.name).is_file())
-
 
 class SemanticManifestTests(ManifestFixture):
     def test_env_and_input_bytes_do_not_define_mount_identity(self):
