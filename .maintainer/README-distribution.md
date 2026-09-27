@@ -26,6 +26,17 @@ paths normally; if one conflicts, the script stops and preserves the merge
 state. Inspect `git status`, resolve and commit the conflict manually, or use
 `git merge --abort`. Never reset a consumer repository to resolve an update.
 
+The release includes only `.agents/skills/add-tool/` from the source skill tree.
+It excludes the source `skills-lock.json` and generates
+`.devcontainer/skills/recommended.json` from the committed source lock, with
+each external skill's name, source, and skill path. No Skills CLI installation
+occurs during distribution. A consumer-added skill directory and lock remain
+outside the release tree and survive later merges. When migrating a previously
+distributed skill tree, unchanged old external skills are removed; edits to
+those tracked paths or the old lock cause a Git conflict rather than being
+silently discarded. Resolve conflicts deliberately if retaining those paths,
+or abort the merge to restore the consumer branch.
+
 Verify the local branch tree before any separately authorized publication:
 
 ```bash

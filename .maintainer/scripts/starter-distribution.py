@@ -2,6 +2,7 @@
 """Prepare a filtered starter branch without rewriting or cleaning consumer files."""
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -12,8 +13,10 @@ import tempfile
 EXCLUDED = (
     "README.md", "AGENTS.md", "AGENTS.md.TEMPLATE", "AGENTS.md.TEMPLATE.EXAMPLE",
     "CHANGELOG.md", "docs", ".github", "odd", "openspec", ".maintainer",
+    "skills-lock.json",
 )
 MARKER = "Starter-Distribution-Source: "
+CATALOG = ".devcontainer/skills/recommended.json"
 
 
 def git(*args, env=None, input=None):
@@ -54,6 +57,21 @@ def previous_release(target):
     raise ValueError("target has no verified distribution commit; refusing unrelated history")
 
 
+def recommendations(source):
+    lock = json.loads(git("show", f"{source}:skills-lock.json"))
+    require(lock.get("version") == 1 and isinstance(lock.get("skills"), dict),
+            "unsupported source skills lock")
+    skills = {}
+    for name, entry in sorted(lock["skills"].items()):
+        require(isinstance(name, str) and name != "add-tool" and isinstance(entry, dict),
+                "invalid external skill entry")
+        require(isinstance(entry.get("source"), str) and entry["source"] and
+                isinstance(entry.get("skillPath"), str) and entry["skillPath"],
+                "external skill requires source and skillPath")
+        skills[name] = {"source": entry["source"], "skillPath": entry["skillPath"]}
+    return (json.dumps({"version": 1, "skills": skills}, indent=2) + "\n").encode()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, help="local committed source branch")
@@ -69,6 +87,7 @@ def main():
             "resolve the existing merge first")
     require(exists(source_ref), "source must be an existing local branch")
     source = git("rev-parse", source_ref)
+    catalog = recommendations(source)
     updating = exists(target_ref)
     prior = None
     if updating:
@@ -87,13 +106,17 @@ def main():
         env = dict(os.environ, GIT_INDEX_FILE=os.path.join(temp, "index"))
         git("read-tree", source, env=env)
         paths = subprocess.run(
-            ["git", "ls-files", "-z", "--", *EXCLUDED], env=env,
+            ["git", "ls-files", "-z", "--", *EXCLUDED, ".agents/skills"], env=env,
             stdout=subprocess.PIPE, check=True,
         ).stdout.split(b"\0")
-        paths = [os.fsdecode(path) for path in paths if path]
+        paths = [os.fsdecode(path) for path in paths if path and
+                 (not path.startswith(b".agents/skills/") or
+                  not path.startswith(b".agents/skills/add-tool/"))]
         if paths:
             git("update-index", "--force-remove", "-z", "--stdin", env=env,
                 input=b"\0".join(os.fsencode(path) for path in paths) + b"\0")
+        blob = git("hash-object", "-w", "--stdin", input=catalog)
+        git("update-index", "--add", "--cacheinfo", "100644", blob, CATALOG, env=env)
         tree = git("write-tree", env=env)
 
     # Even when the sanitized tree is unchanged, the new source parent and

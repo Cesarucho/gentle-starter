@@ -8,13 +8,17 @@ setup() {
   git init -q -b dev "${REPO}"
   git -C "${REPO}" config user.name "Distribution Test"
   git -C "${REPO}" config user.email "distribution@example.test"
-  mkdir -p "${REPO}/.devcontainer/docs" "${REPO}/.devcontainer/test/unit" \
+  mkdir -p "${REPO}/.agents/skills/add-tool" "${REPO}/.agents/skills/external" \
+    "${REPO}/.devcontainer/docs" "${REPO}/.devcontainer/test/unit" \
     "${REPO}/.github" "${REPO}/odd" "${REPO}/openspec" "${REPO}/docs" "${REPO}/.maintainer"
   printf 'license\n' > "${REPO}/LICENSE"
   printf 'template\n' > "${REPO}/AGENTS.md.TEMPLATE"
   chmod 640 "${REPO}/LICENSE" "${REPO}/AGENTS.md.TEMPLATE"
   printf 'v1\n' > "${REPO}/.devcontainer/docs/guide.md"
   printf 'shared\n' > "${REPO}/.devcontainer/test/unit/shared.bats"
+  printf 'authored\n' > "${REPO}/.agents/skills/add-tool/SKILL.md"
+  printf 'external\n' > "${REPO}/.agents/skills/external/SKILL.md"
+  printf '{"version":1,"skills":{"external":{"source":"example/repo","skillPath":"skills/external/SKILL.md","computedHash":"dev-only"}}}\n' > "${REPO}/skills-lock.json"
   for path in README.md AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
     .github/workflow odd/task openspec/spec docs/guide .maintainer/tool; do
     printf 'maintainer\n' > "${REPO}/${path}"
@@ -37,10 +41,79 @@ prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter);
   [ "$(git -C "${REPO}" ls-tree starter LICENSE | cut -f1 | cut -d' ' -f1)" = 100644 ]
   [ "$(git -C "${REPO}" show starter:.devcontainer/test/unit/shared.bats)" = shared ]
   [ "$(git -C "${REPO}" show starter:.devcontainer/docs/guide.md)" = v1 ]
+  [ "$(git -C "${REPO}" show starter:.agents/skills/add-tool/SKILL.md)" = authored ]
+  ! git -C "${REPO}" cat-file -e starter:.agents/skills/external/SKILL.md
+  ! git -C "${REPO}" cat-file -e starter:skills-lock.json
+  [ "$(git -C "${REPO}" show dev:.agents/skills/external/SKILL.md)" = external ]
+  [ "$(git -C "${REPO}" show dev:skills-lock.json)" = '{"version":1,"skills":{"external":{"source":"example/repo","skillPath":"skills/external/SKILL.md","computedHash":"dev-only"}}}' ]
+  run python3 - "${REPO}" <<'PY'
+import json
+import subprocess
+import sys
+repo = sys.argv[1]
+catalog = json.loads(subprocess.check_output(['git', '-C', repo, 'show', 'starter:.devcontainer/skills/recommended.json']))
+assert catalog == {'version': 1, 'skills': {'external': {'source': 'example/repo', 'skillPath': 'skills/external/SKILL.md'}}}
+PY
+  [ "$status" -eq 0 ]
   for path in README.md AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
     .github odd openspec docs .maintainer; do
     ! git -C "${REPO}" cat-file -e "starter:${path}"
   done
+}
+
+@test "later releases retain consumer lock and custom skill while refreshing recommendations" {
+  prepare
+  git -C "${REPO}" switch -q starter
+  mkdir -p "${REPO}/.agents/skills/custom"
+  printf 'custom\n' > "${REPO}/.agents/skills/custom/SKILL.md"
+  printf 'consumer lock\n' > "${REPO}/skills-lock.json"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm consumer
+  git -C "${REPO}" switch -q dev
+  printf '{"version":1,"skills":{"new":{"source":"other/repo","skillPath":"new/SKILL.md"}}}\n' > "${REPO}/skills-lock.json"
+  git -C "${REPO}" commit -qam update
+  git -C "${REPO}" switch -q starter
+  run prepare
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" show HEAD:skills-lock.json)" = 'consumer lock' ]
+  [ "$(git -C "${REPO}" show HEAD:.agents/skills/custom/SKILL.md)" = custom ]
+  ! git -C "${REPO}" cat-file -e HEAD:.agents/skills/external/SKILL.md
+  run python3 - "${REPO}" <<'PY'
+import json
+import subprocess
+import sys
+catalog = json.loads(subprocess.check_output(['git', '-C', sys.argv[1], 'show', 'HEAD:.devcontainer/skills/recommended.json']))
+assert catalog['skills'] == {'new': {'source': 'other/repo', 'skillPath': 'new/SKILL.md'}}
+PY
+  [ "$status" -eq 0 ]
+}
+
+@test "legacy release conflicts instead of deleting consumer edits to distributed skills and lock" {
+  # Model a previously published release with the old unfiltered skill tree.
+  python3 - "${REPO}" <<'PY'
+import subprocess
+import sys
+repo = sys.argv[1]
+source = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'dev']).decode().strip()
+tree = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'dev^{tree}']).decode().strip()
+commit = subprocess.check_output(['git', '-C', repo, 'commit-tree', tree, '-p', source],
+    input=f'Prepare consumer starter\n\nStarter-Distribution-Source: {source}\n'.encode()).decode().strip()
+subprocess.check_call(['git', '-C', repo, 'branch', 'starter', commit])
+PY
+  git -C "${REPO}" switch -q starter
+  printf 'consumer skill\n' > "${REPO}/.agents/skills/external/SKILL.md"
+  printf 'consumer lock\n' > "${REPO}/skills-lock.json"
+  git -C "${REPO}" commit -qam consumer
+  git -C "${REPO}" switch -q dev
+  git -C "${REPO}" commit --allow-empty -qm update
+  git -C "${REPO}" switch -q starter
+  run prepare
+  [ "$status" -ne 0 ]
+  [ -f "${REPO}/.git/MERGE_HEAD" ]
+  [ "$(git -C "${REPO}" show HEAD:skills-lock.json)" = 'consumer lock' ]
+  [ "$(git -C "${REPO}" show HEAD:.agents/skills/external/SKILL.md)" = 'consumer skill' ]
+  git -C "${REPO}" merge --abort
+  [ "$(git -C "${REPO}" show HEAD:skills-lock.json)" = 'consumer lock' ]
 }
 
 @test "second release merges without touching consumer-owned paths" {
