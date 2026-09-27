@@ -49,3 +49,6 @@ push, or PR. Branch: `dev`; mirror: `odd/retire-agents-template/tasks`.
   contract suite passed 7/7 and `git diff --check` passed. Full focused Bats
   suites passed 40/40 after the fix.
 - No release, remote operation, or primary-tree cleanup/init performed.
+- Work-unit commit for T1 and T2: `b8b50ff` (`fix(starter): omit AGENTS
+  template from distribution`). Local documentation-only evidence follow-up
+  records this commit identity; no remote publication was performed.
