@@ -17,6 +17,8 @@ includes:
     internal: true
   ssh:
     taskfile: ./.taskfiles/ssh.yml
+  skills:
+    taskfile: ./.taskfiles/skills.yml
 
 tasks:
   default:
@@ -54,6 +56,7 @@ tasks:
           task --list                     List all available tasks
           task validate                   Host preflight (partial) or container diagnosis and strict quality
           task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
+          task skills:suggest              Choose optional skills interactively
                                           Does not update installed tools; apply later with container:rebuild then container:up
                                           Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
                                           GitHub REST cache: ${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/ (safe to clear)

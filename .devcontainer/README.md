@@ -7,6 +7,8 @@ contract, config seeding, the FAQ), start at
 [`docs/extending.md`](docs/extending.md) and follow the
 links from there.
 
+To opt into suggested agent skills, see [optional skills](docs/optional-skills.md).
+
 ## What's in here
 
 | Path | Purpose |
