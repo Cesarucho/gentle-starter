@@ -10,7 +10,7 @@ import tempfile
 
 
 EXCLUDED = (
-    "README.md", "AGENTS.md", "AGENTS.md.TEMPLATE.EXAMPLE",
+    "README.md", "AGENTS.md", "AGENTS.md.TEMPLATE", "AGENTS.md.TEMPLATE.EXAMPLE",
     "CHANGELOG.md", "docs", ".github", "odd", "openspec", ".maintainer",
 )
 MARKER = "Starter-Distribution-Source: "

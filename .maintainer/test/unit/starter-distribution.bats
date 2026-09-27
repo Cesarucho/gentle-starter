@@ -33,11 +33,11 @@ prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter);
   git -C "${REPO}" merge-base --is-ancestor dev starter
   [ "$(git -C "${REPO}" branch --show-current)" = dev ]
   [ "$(git -C "${REPO}" show starter:LICENSE)" = license ]
+  [ "$(git -C "${REPO}" show dev:AGENTS.md.TEMPLATE)" = template ]
   [ "$(git -C "${REPO}" ls-tree starter LICENSE | cut -f1 | cut -d' ' -f1)" = 100644 ]
-  [ "$(git -C "${REPO}" show starter:AGENTS.md.TEMPLATE)" = template ]
   [ "$(git -C "${REPO}" show starter:.devcontainer/test/unit/shared.bats)" = shared ]
   [ "$(git -C "${REPO}" show starter:.devcontainer/docs/guide.md)" = v1 ]
-  for path in README.md AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
+  for path in README.md AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
     .github odd openspec docs .maintainer; do
     ! git -C "${REPO}" cat-file -e "starter:${path}"
   done
@@ -54,6 +54,7 @@ prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter);
   git -C "${REPO}" commit -qm consumer
   git -C "${REPO}" switch -q dev
   printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  printf 'legacy template update\n' > "${REPO}/AGENTS.md.TEMPLATE"
   printf 'new maintainer\n' > "${REPO}/README.md"
   printf 'new maintainer\n' > "${REPO}/.github/workflow"
   git -C "${REPO}" add -A
@@ -62,6 +63,8 @@ prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter);
   run prepare
   [ "$status" -eq 0 ]
   [ "$(git -C "${REPO}" show HEAD:.devcontainer/docs/guide.md)" = v2 ]
+  ! git -C "${REPO}" cat-file -e HEAD:AGENTS.md.TEMPLATE
+  [ "$(git -C "${REPO}" show dev:AGENTS.md.TEMPLATE)" = 'legacy template update' ]
   for path in README.md .github/workflow odd/task openspec/spec; do
     [ "$(git -C "${REPO}" show "HEAD:${path}")" = consumer ]
   done

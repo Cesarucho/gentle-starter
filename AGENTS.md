@@ -26,6 +26,8 @@ Never rely on branch or commit metadata copied into documentation.
   local branch and remote changes are transactional and roll back on failure.
 - Initialization and standalone identity cleanup remove `AGENTS.md` and
   `AGENTS.md.TEMPLATE.EXAMPLE`; they never create `AGENTS.md` from the template.
+- The distributed `starter` tree excludes `AGENTS.md`, `AGENTS.md.TEMPLATE`,
+  and `AGENTS.md.TEMPLATE.EXAMPLE`; the dev template remains tracked.
 - `task project:init -- --dry-run` prints branch, remote, cleanup, and commit
   actions without mutation. Initialization never fetches, pushes, rewrites
   history, or creates a parentless root.

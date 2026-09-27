@@ -15,7 +15,9 @@ branch instead, pass its exact local branch name as `--source`; subsequent
 updates must descend from that commit.
 
 Each release constructs its tree from the committed source with root README,
-identity, maintainer tooling, and planning paths excluded. It retains the
+identity (including `AGENTS.md.TEMPLATE`), maintainer tooling, and planning
+paths excluded. The template remains tracked and unchanged in the dev source;
+it is omitted only from the published `starter` tree. It retains the
 source commit in the release ancestry. A source-only update still records the
 new source parent and marker even when the sanitized tree is unchanged; a
 rerun with that source is a no-op. Consumer-owned README, workflows, and
@@ -33,8 +35,9 @@ bats .maintainer/test/unit/starter-distribution.bats
 ```
 
 Git stores regular-file mode as executable or non-executable, not arbitrary
-POSIX permission bits. LICENSE and AGENTS.md.TEMPLATE retain their Git blobs
-and executable flags; local checkout umask determines exact read permissions.
+POSIX permission bits. LICENSE and the dev-source AGENTS.md.TEMPLATE retain
+their Git blobs and executable flags; local checkout umask determines exact
+read permissions. The template is not included in the starter tree.
 
 ## Explicit base lifecycle proof
 

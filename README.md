@@ -228,7 +228,7 @@ an IDE may only attach after `task container:up`.
     and prompting, examples:
 
     ```text
-    ❯_ Read @AGENTS.md.TEMPLATE and help me create AGENTS.md for my own proyect.
+    ❯_ Help me draft AGENTS.md with instructions specific to this project.
 
     ❯_ Use "add-tool" skill for add PostgreSQL-16 with a version-controlled
        `pg_hba.conf` and persistent data volume.
@@ -393,18 +393,19 @@ task container:rebuild      # remove then build only; run up separately to start
 ```bash
 # These tasks auto-start the devcontainer if it is not running
 task container:connect          # open a shell; run `opencode` inside
-task container:opencode         # direct TUI using `opencode --continue`
-task container:opencode:server  # attach to a reused or task-owned OpenCode server
 task container:pi               # connect to Pi using `pi --continue`
 task container:engram           # connect to the Engram TUI
+task container:opencode         # direct TUI using `opencode --continue`
+task container:opencode:server  # attach to a reused or task-owned OpenCode server
 ```
 
 > `container:opencode:server` up the server mode, so you can connect from
-> web-browser/application using `http://<IP>:<OPENCODE_PORT>/` address.
-> `IP` can be: localhost, 127.0.0.1 or LAN/WLAN IP
+> *web-browser/application* using `http://<ip>:<opencode_port>/` address.
 >
-> Also you can configure a optional credentials in `.env` file to set
-> `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
+> - **ip** can be: `localhost`, `127.0.0.1` or LAN/WLAN IP.
+> - **opencode_port** is calculated and found in the `.env` file.
+> - Optional credentials can be configured in the `.env` file
+> using `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
 
 ### Skills
 
@@ -431,7 +432,6 @@ maintainer identity or planning files. Its shared ancestry supports later merges
 │   └── tool-versions.conf           Centralized tool-version policy
 ├── .taskfiles/                      Task implementations and lifecycle tasks
 ├── .env.d/                          Local environment state, details below section
-├── AGENTS.md.TEMPLATE               Starting point for your project AI instructions
 ├── .env.example                     Safe local environment-variable template
 ├── .gitignore                       Excludes local state and credentials
 ├── LICENSE                          Inherited Gentle Starter MIT attribution
@@ -523,32 +523,13 @@ skills list --json                # Inspect installed skills
 skills remove <skill-name> -y     # Remove only this named skill
 ```
 
-`experimental_install` is an experimental CLI command; inspect its effects and
-the installed CLI version before relying on it. NEVER run
-`skills remove --skill '*'`: it also deletes the tracked `add-tool` skill.
-Before committing, review tracked and untracked changes:
+> Careful run `skills remove --skill '*'`; it also deletes the tracked `add-tool` skill.
 
-```bash
-git status --short -- skills-lock.json .agents/skills .claude
-git diff -- skills-lock.json .agents/skills
-git status --short --ignored -- .claude  # Inspect ignored entries separately
-```
-
-The generated `.claude/` tree is ignored; do not delete personal `.claude/`
-content. If a CLI operation removes the tracked local skill by mistake, inspect
-the diff and restore `.agents/skills/add-tool/` from Git before continuing.
-
-## 🔐 Security
+## Security, changelog, and license
 
 This starter uses Docker-in-Docker and elevated permissions for some development
 flows. Do not publish `.env`, `.env.d/`, `.pi/`, or `.atl/`.
 
-See [security.md](docs/en/security.md).
-
-## 📝 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
-
-## 📄 License
-
-MIT. See [LICENSE](LICENSE).
+- [Security guidance](docs/en/security.md)
+- [Changelog](CHANGELOG.md)
+- [License](LICENSE) (MIT)

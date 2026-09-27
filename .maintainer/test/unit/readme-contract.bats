@@ -11,12 +11,23 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 
 @test "README repository tree lists current lifecycle surfaces and labels local environment state" {
 	tree="$(awk '/^## 🗂️ Repository structure/{capture=1} capture && /^## 💾/{exit} capture' "${REPO_ROOT}/README.md")"
-	[[ "${tree}" == *"AGENTS.md.TEMPLATE"* ]]
+	[[ "${tree}" != *"AGENTS.md.TEMPLATE"* ]]
 	[[ "${tree}" == *"lifecycle/"* ]]
 	[[ "${tree}" == *"tool-versions.conf"* ]]
 	[[ "${tree}" != *"openspec/"* ]]
 	run grep -E '\.env\.d/[[:space:]]+Local environment state([,[:space:]]|$)' <<< "${tree}"
 	[ "${status}" -eq 0 ]
+}
+
+@test "README groups security changelog and license in one Markdown section" {
+	local section
+	[ "$(grep -c '^## Security, changelog, and license$' "${REPO_ROOT}/README.md")" -eq 1 ]
+	section="$(section_between '## Security, changelog, and license' '## END OF README')"
+	[[ "${section}" == *'[Security guidance](docs/en/security.md)'* ]]
+	[[ "${section}" == *'[Changelog](CHANGELOG.md)'* ]]
+	[[ "${section}" == *'[License](LICENSE)'* ]]
+	[[ "${section}" != *'<'* ]]
+	[ "$(grep -Ec '^## (🔐 Security|📝 Changelog|📄 License)$' "${REPO_ROOT}/README.md" || true)" -eq 0 ]
 }
 
 section_count() {

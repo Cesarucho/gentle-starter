@@ -93,3 +93,10 @@ publication or a real Docker lifecycle/build.
   advanced. The temporary worktree was removed cleanly. Next: review the two
   local branches and decide separately on merge into `dev` and remote branch
   publication. No push, PR or merge to `dev` has occurred.
+
+## Later distribution policy
+
+The subsequent [template distribution task](retire-agents-template.md) supersedes
+only T3's template-preservation criterion for the published `starter` tree:
+`AGENTS.md.TEMPLATE` remains tracked in dev but is excluded from starter
+creation and updates. The historical T3 acceptance above is unchanged.
