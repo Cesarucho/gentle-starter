@@ -1,7 +1,6 @@
 # Environment guides
 
-These guides are versioned with the devcontainer and remain available when a
-project removes Gentle Starter's maintainer documentation. Start with the
+These guides are versioned with the consumer devcontainer. Start with the
 [extension guide](extending.md) for the complete environment workflow.
 
 | Guide | Focus |

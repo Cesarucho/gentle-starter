@@ -29,11 +29,8 @@ achieved.
 The project is designed to provide a clean base structure before launching any
 prompt, enabling workflows like these:
 
-```shell
-1. git clone repo  --> rename project-foo --> automated-steps --> prompt "create ..."
-2. git clone repo  --> rename project-bar --> automated-steps --> prompt "design ..."
-3. copy/paste repo --> rename project-baz --> automated-steps --> prompt "research ..."
-```
+Clone the consumer `starter` branch to start a project. Keep `upstream` for
+future updates; create your own `origin` only when you have a project remote.
 
 ## 📦 What's included?
 
@@ -163,20 +160,20 @@ An IDE is optional and **does not replace** these host requirements.
 
 ## 🚀 Quick start
 
-### Fast path: start a new project from this base
+### Start a new project from the `starter` branch
 
 1. On your PC:
 
     ```bash
-    git clone https://github.com/Cesarucho/gentle-starter.git <my-project>
+    git clone --branch starter --origin upstream https://github.com/Cesarucho/gentle-starter.git <my-project>
     cd <my-project>
+    git branch -m main
+    git branch --unset-upstream
     cp .env.example .env
-    task --taskfile .maintainer/Taskfile.yml project:init  # Optional maintainer initialization
     ```
 
-    > `task --taskfile .maintainer/Taskfile.yml project:init` is a one-time option for creating a clean identity repository. After confirming
-    > the `branch` and `origin` prompts, you'll have the foundation of the repository to start your own project
-    > You can see the details with `task --taskfile .maintainer/Taskfile.yml project:init -- --dry-run`.
+    Add your project remote when ready: `git remote add origin <your-project-url>`.
+    Write your own README and use `AGENTS.md.TEMPLATE` to create project instructions.
 
 ### Build and enter the environment
 
@@ -245,12 +242,11 @@ the software and start it. Then [attach VS Code](https://code.visualstudio.com/d
 ### 🌱 Update from Gentle Starter
 
 Clones and forks share ancestry with Gentle Starter, so updates use ordinary Git.
-Add the source repository once, then fetch and merge its main branch:
+The clone already has `upstream`. Fetch and merge the consumer branch:
 
 ```bash
-git remote add upstream https://github.com/Cesarucho/gentle-starter.git
 git fetch upstream
-git merge upstream/main
+git merge upstream/starter
 ```
 
 Resolve merge conflicts manually and commit the resolution normally. Existing
@@ -429,27 +425,21 @@ task skill:sync
 # Validate external lock entries and project-authored local skills
 task skill:validate
 
-# New-project initialization and identity cleanup (LICENSE is preserved)
-task --taskfile .maintainer/Taskfile.yml project:init  # configure branch/remotes and create child commit
-task --taskfile .maintainer/Taskfile.yml clean         # identity cleanup without initialization
-
 # Script and Markdown quality checks
 task quality:check
 task quality:full
 ```
 
-## 🗂️ Repository structure after project initialization
+## 🗂️ Repository structure for consumers
 
-`task --taskfile .maintainer/Taskfile.yml project:init` removes the Gentle Starter identity and leaves the
-reusable devcontainer foundation in your project. It also creates the
-`chore: initialize project` child commit, preserves the starter ancestry, and
-configures the project branch and remotes you selected.
+The `starter` branch contains the reusable development environment without
+maintainer identity or planning files. Its shared ancestry supports later merges.
 
 ```text
 .
 ├── .agents/                         Project-authored skills and local manifest
 ├── .devcontainer/                   Reusable development environment
-│   ├── docs/                        Local devcontainer guides retained after initialization
+│   ├── docs/                        Local devcontainer guides
 │   ├── install/                     Foundation, core, enabled, hook, and catalog installers
 │   ├── lifecycle/                   Internal post-create lifecycle helpers
 │   ├── docker-compose.yml           Dev Container service and persistent binds
@@ -466,9 +456,9 @@ configures the project branch and remotes you selected.
 └── Taskfile.yml                     Main Task entry point
 ```
 
-The starter `README.md`, `AGENTS.md`, `docs/`, `CHANGELOG.md`, root `odd/`
-task artifacts, and optional `.github/` directory are removed. Create your own project README and AI
-instructions from `AGENTS.md.TEMPLATE`.
+The branch does not contain root `README.md`, `AGENTS.md`, `docs/`,
+`CHANGELOG.md`, planning files, `.github/`, or `.maintainer/`.
+Create your own project files in those paths.
 
 ## 💾 Local state and persistence
 

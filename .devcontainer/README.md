@@ -24,17 +24,14 @@ links from there.
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
 | `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
 
-## Test ownership after initialization
+## Test ownership
 
 The project owner configures `tasks.test.cmds` in the root `Taskfile.yml` with
 the application's test command. Until then, `task test` fails with actionable
 instructions rather than reporting success or running starter tests.
 
-Starter maintainers run separate suites through their own Taskfile; those
-commands are not part of the consumer root Taskfile. Shared tests live here;
-editorial and lifecycle harnesses live with maintainer tooling. The real Docker
-image-contract fixture has its own explicit route outside the unit suite. See
-[test scope](docs/extending.md#how-do-i-run-the-test-suite).
+Shared environment tests live here; application tests belong to the project.
+See [test scope](docs/extending.md#how-do-i-run-the-test-suite).
 `validate` and `install:doctor` are environment/repository
 checks, not proof that the application works.
 
@@ -96,14 +93,15 @@ suffix (gitignored, see the parent `.gitignore`).
 
 ## Updating from Gentle Starter
 
-Clones and forks retain shared history. Add Gentle Starter as `upstream`, fetch,
-and merge normally:
+The recommended `git clone --branch starter --origin upstream` already
+configures `upstream`. Fetch and merge its consumer branch:
 
 ```bash
-git remote add upstream https://github.com/Cesarucho/gentle-starter.git
 git fetch upstream
-git merge upstream/main
+git merge upstream/starter
 ```
 
-Resolve conflicts manually. GitHub template-generated repositories do not share
-ancestry, and shallow clones may need `git fetch --unshallow upstream` first.
+If you cloned by another method without that remote, add it first:
+`git remote add upstream https://github.com/Cesarucho/gentle-starter.git`.
+Resolve conflicts manually. GitHub template-generated repositories do not
+share ancestry, and shallow clones may need `git fetch --unshallow upstream`.

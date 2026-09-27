@@ -121,7 +121,8 @@ managed-state/preservation proof. It is not a seventh test layer or included in
 `test:starter`/`validate:full`; it automates only those operational full-validation
 items. Initialization and optional Pi/SSH/audio/GUI integrations remain separate.
 Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
-See `.devcontainer/docs/extending.md` for its deliberately reduced sandbox scenario.
+See `.maintainer/README-distribution.md#explicit-base-lifecycle-proof` for its
+deliberately reduced sandbox scenario.
 
 Explicitly set the external execution tool or supervisor timeout for network/build
 checks; do not rely on short defaults. Starting guidelines are 10 minutes per real
@@ -153,7 +154,8 @@ and image-contract fixtures; it does not own arbitrary scripts or hook resources
 Never use global Docker pruning as normal test recovery. Stop and report uncertain
 ownership, daemon mismatches, or permission failures rather than escalating cleanup.
 The helper is not a delivery gate or commit authorization. Human recovery examples
-and retention details live in `.devcontainer/docs/extending.md#recovering-test-owned-resources`.
+and retention details live in
+`.maintainer/README-distribution.md#recovering-test-owned-resources`.
 
 Host-only `task container:*` commands should skip when run inside the active
 devcontainer. To verify a real host flow from inside a container, use a temporary

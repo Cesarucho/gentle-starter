@@ -23,3 +23,9 @@ tasks:
     dir: ..
     cmds:
       - task: test:help
+
+  distribution:
+    desc: Prepare or update a local consumer branch from an explicit source
+    dir: ..
+    cmds:
+      - python3 .maintainer/scripts/starter-distribution.py {{.CLI_ARGS}}
