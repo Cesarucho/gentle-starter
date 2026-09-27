@@ -154,7 +154,6 @@ setup_versioned_configs() {
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/redis" "/etc/redis"
 	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/vscode" "${HOME}/.config/Code"
-	#   seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/<name>.local" "${HOME}/.<name>" || true
 }
 
 setup_pi_workspace_trust() {
