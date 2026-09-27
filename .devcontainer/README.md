@@ -88,9 +88,6 @@ Example: adding a baseline postgresql config:
 seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
 ```
 
-For personal, non-versioned additions, use a `<name>-config.local/`
-suffix (gitignored, see the parent `.gitignore`).
-
 ## Updating from Gentle Starter
 
 The recommended `git clone --branch starter --origin upstream` already

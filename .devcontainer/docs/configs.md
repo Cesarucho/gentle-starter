@@ -240,29 +240,6 @@ The "only copy if missing" rule is what makes the convention safe
 for personal customisations: the user's edits to a target file
 survive every rebuild until they explicitly delete the file.
 
-## The `*.local` pattern for personal configs
-
-The `config/pi/` tree is shared. If you want to add baseline
-configs that are personal to your clone (not committed), use a
-`<name>-config.local/` suffix. The pattern `*-config.local/` is in
-`.gitignore` so the directory stays untracked. Same wiring as Cases
-2 and 3 above; the helper's `if [ ! -d "${source_root}" ]; then return 0`
-silently handles a missing local source root, so the line can be
-added even before the directory exists.
-
-```bash
-setup_versioned_configs() {
-    # Existing enabled-aware Pi and Gentle AI mappings omitted here.
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
-    # Personal: not committed, exists only on this clone.
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi-config.local" "${HOME}/.pi" || true
-}
-```
-
-The `|| true` is defensive — the helper's own guard makes it
-unnecessary, but it survives if someone later refactors the helper
-and forgets to keep the guard.
-
 ## Migration from the legacy symlink approach
 
 Earlier builds of this project used `ln -sfn` to symlink the

@@ -209,16 +209,8 @@ helper escalates to `sudo`). See
 
 ### How do I keep my personal changes out of git?
 
-Two patterns:
-
-- **Bind mounts in `.env.d/`**: `.env.d/` is in `.gitignore`. Anything you
-  drop in `.env.d/.pi/`, `.env.d/.engram/`, etc. is per-clone and won't
-  be committed.
-- **Personal config sources**: use a `<name>-config.local/`
-  suffix; the pattern `*-config.local/` is in `.gitignore`. Drop
-  your files there, add a `seed_config_tree` call with `|| true`
-  to `setup_versioned_configs`, and the line is harmless even
-  if the directory doesn't exist yet.
+`.env.d/` is in `.gitignore`. Anything you drop in `.env.d/.pi/`,
+`.env.d/.engram/`, etc. is per-clone and won't be committed.
 
 ### Why do my files in `install/` keep getting their mode changed to 0755?
 

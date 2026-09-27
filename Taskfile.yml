@@ -15,8 +15,6 @@ includes:
   quality:
     taskfile: ./.taskfiles/quality.yml
     internal: true
-  skill:
-    taskfile: ./.taskfiles/skills.yml
   ssh:
     taskfile: ./.taskfiles/ssh.yml
 
@@ -69,12 +67,6 @@ tasks:
           task ssh:check                  Verify SSH agent and GitHub connectivity
           task ssh:status                 Show current SSH agent status
           task ssh:stop                   Stop the SSH agent
-
-        Skills:
-          task skill:help                 Show skill workflow examples
-          task skill:list                 List installed project skills
-          task skill:sync                 Restore, update, prune, and validate skills
-          task skill:validate             Validate locked and project-authored local skills
 
         Container:
           task container:help             Show container workflow examples

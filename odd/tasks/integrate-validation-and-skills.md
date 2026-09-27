@@ -12,9 +12,10 @@ Commit the user's pending `.env.example` edits, then locally integrate the revie
 
 ## Tasks
 - [x] IN-1: Confirm and commit the user's `.env.example` edits on the feature branch, preserving their intent. Checks: focused file validation, staged diff/readback, `git diff --check`.
-- [ ] IN-2: Merge both reviewed branches into local `dev` (preserving ancestry) and resolve overlapping files coherently. Checks: branch ancestry, intended file inventory, `task validate` in-container, relevant focused Bats and maintainer suite. No remote mutation.
+- [x] IN-2: Merge both reviewed branches into local `dev` (preserving ancestry) and resolve overlapping files coherently. Checks: branch ancestry, intended file inventory, `task validate` in-container, relevant focused Bats and maintainer suite. No remote mutation.
 
 ## Progress
 - 2026-09-27: Initial status confirmed both branches share base `e275b66`; current branch `refactor/single-validate-entry` has only user's `.env.example` pending edit. No integration mutations yet.
 - 2026-09-27: `.env.example` user edits preserved, with only trailing whitespace and EOF newline normalized; focused `git diff --check` and in-container `task validate` passed. Runtime Docker harness: N/A, this task changes example documentation only. Rollback boundary: `.env.example` and this integration record; no source behavior changed.
-- Next: commit IN-1 before switching branches; delegate merge preparation/resolution for IN-2.
+- 2026-09-27: IN-1 committed as `a456c03` (`docs(env): organize starter environment examples`); native assessment medium `under_budget`. `dev` fast-forwarded to that commit, preserving the single-validation branch's ancestry. Pending `--no-commit --no-ff` merge of `refactor/native-skills-cli` (`9c05597`) resolved only README and Taskfile conflicts while preserving both public validate and native Skills CLI. Staged/unstaged diff checks passed; focused doctor/add-tool Bats 17/17 and README 6/6 passed; `task validate` passed; maintainer suite passed 442 unit and 18 integration, with 16 integration skips. Runtime Docker harness: N/A, no executable Docker changes or lifecycle authorization. Rollback boundary: the pending merge commit plus the preceding fast-forward, without altering either source branch or remote.
+- Next: commit the staged merge after readback and assess its committed range; no push or PR.
