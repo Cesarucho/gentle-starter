@@ -34,7 +34,7 @@ publication or a real Docker lifecycle/build.
   entry guides resolve their local links. Route: delegated writer (4+ files,
   preparation and non-trivial multi-file changes). Checks: focused doc/link
   tests and markdown validation.
-- [ ] T2 — Isolate maintainer-only Task commands, tests, scripts, and fixtures
+- [x] T2 — Isolate maintainer-only Task commands, tests, scripts, and fixtures
   in `.maintainer/` while keeping shared environment tests and application
   `task test` available. Acceptance: root Taskfile has no maintainer include,
   maintainer suites run separately, shared tests run without deleted helpers.
@@ -64,6 +64,15 @@ publication or a real Docker lifecycle/build.
   exact commit (lineage `review-3d7520b2f182e3f3`). Follow-up warning:
   add automated coverage for relocated guide links (T2 or T3); suggestion:
   preserve the policy ADR context in the maintainer docs.
-- T2 pending. T3 pending. Next: isolate maintainer tasks/tests, run full
-  refactored-dev verification before consumer preparation. Publication remains
-  a separate user decision.
+- T2 complete: `123e278` isolates maintainer commands and tests in
+  `.maintainer/`. Parent reran `task test:starter` through the alternate
+  Taskfile (439 unit passes and 34 integration cases, 11 expected skips),
+  `task validate`, `task validate:full`, `task install:list`,
+  `task install:doctor`, and `task install:volumes`: all passed.
+  `task test` intentionally fails until application tests are configured.
+  Real Docker image-contract and lifecycle builds were not authorized or run.
+  A follow-up commit restores original executable modes on moved test files;
+  record its identity after committing. This gate verifies refactored `dev`
+  behavior before T3, not real Docker lifecycle operation.
+- T3 pending. Next: local consumer-branch preparation and clone/merge proof;
+  no remote publication authorized.
