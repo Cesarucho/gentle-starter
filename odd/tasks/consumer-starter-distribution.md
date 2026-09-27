@@ -43,7 +43,7 @@ publication or a real Docker lifecycle/build.
   applicable `task test:starter` equivalent. Verify the complete refactored
   `dev` baseline before starting T3; skip expensive lifecycle unless separately
   authorized.
-- [ ] T3 — Prepare a local `starter` branch from the verified refactor with a
+- [x] T3 — Prepare a local `starter` branch from the verified refactor with a
   repeatable, fail-closed content contract; remove maintainer identity and
   tooling, preserve useful environment docs/tests, and do not publish remotely.
   Acceptance: no root README, AGENTS.md, CHANGELOG.md, `.maintainer/`,
@@ -71,8 +71,23 @@ publication or a real Docker lifecycle/build.
   `task install:doctor`, and `task install:volumes`: all passed.
   `task test` intentionally fails until application tests are configured.
   Real Docker image-contract and lifecycle builds were not authorized or run.
-  A follow-up commit restores original executable modes on moved test files;
-  record its identity after committing. This gate verifies refactored `dev`
+  Follow-up commit `27fec1b` restores original executable modes on moved
+  test files. Native review approved and acknowledged T2 range under lineage
+  `review-0d0cb1f408104a1e`. This gate verifies refactored `dev`
   behavior before T3, not real Docker lifecycle operation.
-- T3 pending. Next: local consumer-branch preparation and clone/merge proof;
-  no remote publication authorized.
+- T3 complete locally: `1e8d0f9` implements distribution, and `570d7b3`
+  fixes source-only ancestry advancement (reviewed and acknowledged under
+  `review-a36b31eeec41d8dd` and `review-6905ad099593239f`). Bats distribution
+  6/6, maintainer unit 445/445, strict repository validation passed on the
+  feature checkout. Local `starter` initially created at `0b638b9`; an
+  independent disposable clone proved branch rename, upstream removal,
+  consumer-owned README/.github/odd/openspec preservation, shared doc update,
+  modes, symlink and Git ancestry through a later release merge. All six
+  distributed Markdown guides resolved local links; `task --list` passed.
+  `task validate` and `task validate:full` in that independent clone were
+  blocked by the absent active volume snapshot, not run to quality completion;
+  full shared Bats suite there was skipped because ownership fixtures use
+  `sudo`. No real Docker build/lifecycle or remote publication was run.
+- Next: record this task-document commit, advance local `starter` to its
+  source-only ancestry, inspect both branches, and await separate publication
+  authorization. No push, PR or merge to `dev` has occurred.
