@@ -16,12 +16,13 @@ updates must descend from that commit.
 
 Each release constructs its tree from the committed source with root README,
 identity, maintainer tooling, and planning paths excluded. It retains the
-source commit in the release ancestry. Updates compare sanitized trees, so
-consumer-owned README, workflows, and planning files are never rewritten by
-the distribution step. Git merges shared paths normally; if one conflicts,
-the script stops and preserves the merge state. Inspect `git status`, resolve
-and commit the conflict manually, or use `git merge --abort`. Never reset a
-consumer repository to resolve an update.
+source commit in the release ancestry. A source-only update still records the
+new source parent and marker even when the sanitized tree is unchanged; a
+rerun with that source is a no-op. Consumer-owned README, workflows, and
+planning files are never rewritten by the distribution step. Git merges shared
+paths normally; if one conflicts, the script stops and preserves the merge
+state. Inspect `git status`, resolve and commit the conflict manually, or use
+`git merge --abort`. Never reset a consumer repository to resolve an update.
 
 Verify the local branch tree before any separately authorized publication:
 
@@ -37,9 +38,10 @@ and executable flags; local checkout umask determines exact read permissions.
 
 ## Explicit base lifecycle proof
 
-The maintainer-only `test:starter:lifecycle` replaces the removed `test:pi-lifecycle`; it no longer
-proves Pi. Run it only with explicit operational authorization, outside the normal
-`task test`, `task test:starter`, and `task validate:full` routes:
+The maintainer-only `test:starter:lifecycle` replaces the removed
+`test:pi-lifecycle`; it no longer proves Pi. Run it only with explicit
+operational authorization, outside the normal `task test`, `task test:starter`,
+and `task validate:full` routes:
 
 ```bash
 task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --daemon-visible-scratch /absolute/scratch-parent

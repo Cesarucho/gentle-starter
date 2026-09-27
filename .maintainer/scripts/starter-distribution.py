@@ -96,11 +96,8 @@ def main():
                 input=b"\0".join(os.fsencode(path) for path in paths) + b"\0")
         tree = git("write-tree", env=env)
 
-    if prior:
-        # No change to the distributed tree is a valid source-only update.
-        if tree == git("rev-parse", prior + "^{tree}"):
-            print("No distributable changes; target unchanged.")
-            return
+    # Even when the sanitized tree is unchanged, the new source parent and
+    # marker must be recorded so the next update starts from this source.
     parents = [prior, source] if prior else [source]
     commit = git("commit-tree", tree, *(option for parent in parents for option in ("-p", parent)),
                  input=("Prepare consumer starter\n\n" + MARKER + source + "\n").encode())

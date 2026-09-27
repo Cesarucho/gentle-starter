@@ -70,6 +70,35 @@ prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter);
   [ "$status" -eq 0 ]
 }
 
+@test "source-only release advances ancestry and marker without changing the target tree" {
+  prepare
+  git -C "${REPO}" switch -q starter
+  printf 'consumer\n' > "${REPO}/README.md"
+  git -C "${REPO}" add README.md
+  git -C "${REPO}" commit -qm consumer
+  before_tree="$(git -C "${REPO}" rev-parse HEAD^{tree})"
+  git -C "${REPO}" switch -q dev
+  printf 'maintainer update\n' > "${REPO}/README.md"
+  git -C "${REPO}" commit -qam source-only
+  source_commit="$(git -C "${REPO}" rev-parse dev)"
+  git -C "${REPO}" switch -q starter
+
+  run prepare
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" rev-parse HEAD^{tree})" = "$before_tree" ]
+  [ "$(git -C "${REPO}" show HEAD:README.md)" = consumer ]
+  git -C "${REPO}" merge-base --is-ancestor "$source_commit" HEAD
+  marker="$(git -C "${REPO}" log -1 --format=%B --grep='^Prepare consumer starter$' HEAD)"
+  [[ "$marker" == *"Starter-Distribution-Source: ${source_commit}"* ]]
+  first_head="$(git -C "${REPO}" rev-parse HEAD)"
+
+  run prepare
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nothing to update"* ]]
+  [ "$(git -C "${REPO}" rev-parse HEAD)" = "$first_head" ]
+  [ -z "$(git -C "${REPO}" status --porcelain)" ]
+}
+
 @test "unrelated target and dirty worktree fail without mutations" {
   git -C "${REPO}" branch starter dev
   run prepare
