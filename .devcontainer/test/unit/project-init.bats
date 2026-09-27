@@ -5,6 +5,8 @@ setup() {
 	TEST_ROOT="$(mktemp -d)"; PROJECT_ROOT="${TEST_ROOT}/project"
 	mkdir -p "${PROJECT_ROOT}/.taskfiles/scripts" "${PROJECT_ROOT}/.devcontainer/docs" "${PROJECT_ROOT}/docs/en" "${PROJECT_ROOT}/.agents"
 	cp "${REPO_ROOT}/.taskfiles/scripts/"{project-init.sh,clean-lib.sh,clean.sh} "${PROJECT_ROOT}/.taskfiles/scripts/"
+	cp "${REPO_ROOT}/Taskfile.yml" "${PROJECT_ROOT}/"
+	cp "${REPO_ROOT}/.taskfiles/"*.yml "${PROJECT_ROOT}/.taskfiles/"
 	chmod +x "${PROJECT_ROOT}/.taskfiles/scripts/project-init.sh"
 	printf '# Starter\n' >"${PROJECT_ROOT}/README.md"; printf '# Agents\n' >"${PROJECT_ROOT}/AGENTS.md"
 	printf '# Project\n<PROJECT_NAME>\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE"; printf '# Example\n' >"${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE"
@@ -15,12 +17,25 @@ setup() {
 	printf '# Devcontainer\n../docs/en/extending.md\n' >"${PROJECT_ROOT}/.devcontainer/README.md"
 	for doc in extending.md install-tree.md install-volumes.md configs.md; do printf '# %s\n' "${doc}" >"${PROJECT_ROOT}/docs/en/${doc}"; done
 	printf 'APP_NAME=starter\n' >"${PROJECT_ROOT}/.env.example"; printf 'skill\n' >"${PROJECT_ROOT}/skills-lock.json"
+	mkdir -p "${PROJECT_ROOT}/openspec" "${PROJECT_ROOT}/application/openspec" "${TEST_ROOT}/openspec-target"
+	printf 'own committed specification\n' >"${PROJECT_ROOT}/openspec/spec.md"
+	printf 'unrelated specification\n' >"${PROJECT_ROOT}/application/openspec/keep.md"
+	printf 'external sentinel\n' >"${TEST_ROOT}/openspec-target/keep.md"
+	ln -s "${TEST_ROOT}/openspec-target" "${PROJECT_ROOT}/openspec/external-link"
+	printf '/openspec/local/\n' >"${PROJECT_ROOT}/.gitignore"
+	chmod 0750 "${PROJECT_ROOT}/openspec"
+	chmod 0640 "${PROJECT_ROOT}/openspec/spec.md"
 	git -C "${PROJECT_ROOT}" init -q -b dev
 	git -C "${PROJECT_ROOT}" config user.name "Project Init Test"; git -C "${PROJECT_ROOT}" config user.email "project-init@example.test"
 	git -C "${PROJECT_ROOT}" add -A; git -C "${PROJECT_ROOT}" commit -qm "starter baseline"
 	ORIGINAL_HEAD="$(git -C "${PROJECT_ROOT}" rev-parse HEAD)"
 	LICENSE_STATE="$(stat -c '%a' "${PROJECT_ROOT}/LICENSE"):$(sha256sum "${PROJECT_ROOT}/LICENSE" | cut -d' ' -f1)"
 	TEMPLATE_STATE="$(stat -c '%a' "${PROJECT_ROOT}/AGENTS.md.TEMPLATE"):$(sha256sum "${PROJECT_ROOT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)"
+	mkdir -p "${PROJECT_ROOT}/openspec/local/nested"
+	printf 'ignored\000private content\n' >"${PROJECT_ROOT}/openspec/local/nested/state"
+	chmod 0700 "${PROJECT_ROOT}/openspec/local/nested"
+	chmod 0600 "${PROJECT_ROOT}/openspec/local/nested/state"
+	ln -s ../missing "${PROJECT_ROOT}/openspec/local/dangling-link"
 }
 
 teardown() { rm -rf "${TEST_ROOT}"; }
@@ -34,6 +49,39 @@ snapshot_repository() {
 	git -C "${PROJECT_ROOT}" status --porcelain=v1 --branch
 	git -C "${PROJECT_ROOT}" for-each-ref --format='%(refname) %(objectname) %(symref)'
 	git -C "${PROJECT_ROOT}" config --local --list --show-origin
+}
+
+snapshot_cleanup_state() {
+	snapshot_repository
+	git -C "${PROJECT_ROOT}" symbolic-ref HEAD
+	sha256sum "${PROJECT_ROOT}/.git/index" "${PROJECT_ROOT}/.git/config"
+	python3 - "${PROJECT_ROOT}" "${TEST_ROOT}/openspec-target" <<'PY'
+import hashlib
+import os
+from pathlib import Path
+import stat
+import sys
+
+def snapshot(path, relative):
+    metadata = path.lstat()
+    payload = os.readlink(path) if path.is_symlink() else ''
+    if stat.S_ISREG(metadata.st_mode):
+        payload = hashlib.sha256(path.read_bytes()).hexdigest()
+    print(relative, oct(metadata.st_mode), payload)
+    if stat.S_ISDIR(metadata.st_mode):
+        for child in sorted(path.iterdir()):
+            if child.name != '.git':
+                snapshot(child, relative / child.name)
+
+for index, root in enumerate(sys.argv[1:]):
+    snapshot(Path(root), Path(str(index)))
+PY
+}
+
+run_project_task() {
+	local input="$1"
+	shift
+	run bash -c 'cd "$1" && input="$2" && shift 2 && printf "%b" "$input" | task "$@"' _ "${PROJECT_ROOT}" "${input}" "$@"
 }
 
 @test "default interactive inputs create main and configure canonical upstream" {
@@ -116,11 +164,15 @@ snapshot_repository() {
 
 @test "dry-run reports all actions and changes no repository state" {
 	git -C "${PROJECT_ROOT}" remote add origin git@github.com:Cesarucho/gentle-starter.git; before="$(snapshot_repository)"
+	local cleanup_before="$(snapshot_cleanup_state)"
 	run bash -c 'cd "$1" && ./.taskfiles/scripts/project-init.sh --dry-run --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [[ "${output}" == *"Branch: main (create and switch to main)"* ]]
 	[[ "${output}" == *"rename starter origin to upstream"* ]]; [[ "${output}" == *"Dry run complete. No changes were made."* ]]
 	[ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]; [ -f "${PROJECT_ROOT}/odd/tasks/starter-task.md" ]
 	[[ "${output}" == *"odd/"* ]]
+	[[ "${output}" == *"  - openspec/"*"The following are kept"* ]]
+	[[ "${output#*The following are kept}" != *"openspec/"* ]]
+	[ "$(snapshot_cleanup_state)" = "${cleanup_before}" ]
 }
 
 @test "failure after branch and remote changes restores exact repository state" {
@@ -133,15 +185,20 @@ snapshot_repository() {
 	git -C "${PROJECT_ROOT}" remote add origin git@github.com:Cesarucho/gentle-starter.git
 	git -C "${PROJECT_ROOT}" config branch.dev.remote origin; git -C "${PROJECT_ROOT}" config branch.dev.merge refs/heads/dev
 	git -C "${PROJECT_ROOT}" branch retained; git -C "${PROJECT_ROOT}" tag retained-v1
-	before="$(snapshot_repository)"; mkdir -p "${TEST_ROOT}/bin"; real_git="$(command -v git)"
+	before="$(snapshot_cleanup_state)"; mkdir -p "${TEST_ROOT}/bin"; real_git="$(command -v git)"
 	cat >"${TEST_ROOT}/bin/git" <<'EOF'
 #!/usr/bin/env bash
-if [ "${1:-}" = commit ]; then exit 86; fi
+if [ "${1:-}" = commit ]; then
+	[ -e openspec ] || [ -L openspec ] || printf 'openspec removed before commit\n'
+	exit 86
+fi
 exec "${REAL_GIT}" "$@"
 EOF
 	chmod +x "${TEST_ROOT}/bin/git"
 	run env PATH="${TEST_ROOT}/bin:${PATH}" REAL_GIT="${real_git}" bash -c 'cd "$1" && printf "INIT\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url https://github.com/example/project.git' _ "${PROJECT_ROOT}"
-	[ "${status}" -ne 0 ]; [ "$(snapshot_repository)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"openspec removed before commit"* ]]
+	[ "$(snapshot_cleanup_state)" = "${before}" ]; [ -f "${PROJECT_ROOT}/README.md" ]
 	grep -Fxq '# Starter ODD task' "${PROJECT_ROOT}/odd/tasks/starter-task.md"
 	grep -Fxq 'existing policy' "${PROJECT_ROOT}/.devcontainer/docs/adr/0003-unified-tool-policy-ownership.md"
 	[ ! -e "${PROJECT_ROOT}/.devcontainer/docs/adr/0002-centralized-tool-version-policy.md" ]
@@ -157,6 +214,7 @@ EOF
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]
 	[ ! -e "${PROJECT_ROOT}/docs" ]
 	[ ! -e "${PROJECT_ROOT}/odd" ]
+	[ ! -e "${PROJECT_ROOT}/openspec" ]
 	cmp "${REPO_ROOT}/.env.example" "${PROJECT_ROOT}/.env.example"
 	grep -Fxq '# ENGRAM_PROJECT=your-project' "${PROJECT_ROOT}/.env.example"
 	grep -Fxq '# ENGRAM_CLOUD_ALLOWED_PROJECTS=your-project' "${PROJECT_ROOT}/.env.example"
@@ -183,6 +241,8 @@ PY
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *'AGENTS.md.TEMPLATE.EXAMPLE'* ]]
 	[[ "${output}" == *'odd/'* ]]
+	[[ "${output}" == *'openspec/'*'KEPT (structure)'* ]]
+	[[ "${output#*KEPT (structure)}" != *'openspec/'* ]]
 	[[ "${output}" == *'AGENTS.md is not generated'* ]]
 	[[ "${output}" != *'it is copied to AGENTS.md'* ]]
 }
@@ -286,6 +346,7 @@ EOF
 	[ "$(stat -c '%a' "${PROJECT_ROOT}/AGENTS.md.TEMPLATE"):$(sha256sum "${PROJECT_ROOT}/AGENTS.md.TEMPLATE" | cut -d' ' -f1)" = "${TEMPLATE_STATE}" ]
 	[ ! -e "${PROJECT_ROOT}/AGENTS.md" ]; [ ! -e "${PROJECT_ROOT}/AGENTS.md.TEMPLATE.EXAMPLE" ]; [ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
 	[ ! -e "${PROJECT_ROOT}/odd" ]
+	[ ! -e "${PROJECT_ROOT}/openspec" ]
 	[ -f "${PROJECT_ROOT}/.devcontainer/docs/extending.md" ]
 	grep -Fq './docs/extending.md' "${PROJECT_ROOT}/.devcontainer/README.md"
 }
@@ -349,4 +410,111 @@ EOF
 	run bash -c 'cd "$1" && printf "NO\n" | ./.taskfiles/scripts/project-init.sh --branch main --origin-url ""' _ "${PROJECT_ROOT}"
 	[ "${status}" -eq 0 ]; [ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD)" = "${ORIGINAL_HEAD}" ]
 	printf 'dirty\n' >>"${PROJECT_ROOT}/README.md"; run_init main; [ "${status}" -ne 0 ]; [[ "${output}" == *"working tree must be clean"* ]]
+}
+
+@test "production Task entry points remove all root OpenSpec content after confirmation" {
+	local original_project="${PROJECT_ROOT}" task_name
+	for task_name in project:init clean:identity clean; do
+		PROJECT_ROOT="${TEST_ROOT}/${task_name}"
+		cp -a "${original_project}" "${PROJECT_ROOT}"
+		if [ "${task_name}" = project:init ]; then
+			run_project_task 'main\n\nINIT\n' "${task_name}"
+		else
+			run_project_task 'y\n' "${task_name}"
+		fi
+		[ "${status}" -eq 0 ]
+		[ ! -e "${PROJECT_ROOT}/openspec" ]
+		[[ "${output}" == *'including user-authored, committed, and ignored content'* ]]
+		grep -Fxq 'unrelated specification' "${PROJECT_ROOT}/application/openspec/keep.md"
+		grep -Fxq 'external sentinel' "${TEST_ROOT}/openspec-target/keep.md"
+		if [ "${task_name}" = project:init ]; then
+			[ "$(git -C "${PROJECT_ROOT}" rev-parse HEAD^)" = "${ORIGINAL_HEAD}" ]
+			[ -z "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]
+		fi
+	done
+}
+
+@test "Task cancellation and initialization dry-run preserve complete cleanup state" {
+	local before="$(snapshot_cleanup_state)" task_name
+	for task_name in project:init clean:identity clean; do
+		if [ "${task_name}" = project:init ]; then
+			run_project_task 'main\n\nNO\n' "${task_name}"
+		else
+			run_project_task 'n\n' "${task_name}"
+		fi
+		[ "${status}" -eq 0 ]
+		[[ "${output}" == *'Aborted.'* ]]
+		[[ "${output}" == *'including user-authored, committed, and ignored content'* ]]
+		[ "$(snapshot_cleanup_state)" = "${before}" ]
+	done
+	run_project_task 'main\n\n' project:init -- --dry-run
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'  - openspec/'*'The following are kept'* ]]
+	[ "$(snapshot_cleanup_state)" = "${before}" ]
+}
+
+@test "Task cleanup rejects unsafe root OpenSpec types without collateral mutation" {
+	local kind task_name before
+	for kind in symlink dangling file; do
+		rm -rf "${PROJECT_ROOT}/openspec"
+		case "${kind}" in
+			symlink) ln -s "${TEST_ROOT}/openspec-target" "${PROJECT_ROOT}/openspec" ;;
+			dangling) ln -s "${TEST_ROOT}/missing" "${PROJECT_ROOT}/openspec" ;;
+			file) printf 'keep this file\n' >"${PROJECT_ROOT}/openspec" ;;
+		esac
+		git -C "${PROJECT_ROOT}" add -A
+		git -C "${PROJECT_ROOT}" commit -qm "add unsafe OpenSpec fixture"
+		before="$(snapshot_cleanup_state)"
+		for task_name in project:init clean:identity clean; do
+			if [ "${task_name}" = project:init ]; then
+				run_project_task 'main\n\nINIT\n' "${task_name}"
+			else
+				run_project_task 'y\n' "${task_name}"
+			fi
+			[ "${status}" -ne 0 ]
+			[[ "${output}" == *'identity cleanup'*'openspec'* ]]
+			[[ "${output}" != *'The following items will be deleted:'* ]]
+			[[ "${output}" != *'restoring the original repository'* ]]
+			[ "$(snapshot_cleanup_state)" = "${before}" ]
+			[ ! -e "${TEST_ROOT}/missing" ]
+		done
+	done
+}
+
+@test "Task cleanup tolerates absent OpenSpec and repeated standalone cleanup" {
+	local original_project="${PROJECT_ROOT}" task_name
+	rm -rf "${PROJECT_ROOT}/openspec"
+	git -C "${PROJECT_ROOT}" add -A
+	git -C "${PROJECT_ROOT}" commit -qm "remove OpenSpec fixture"
+	for task_name in project:init clean:identity clean; do
+		PROJECT_ROOT="${TEST_ROOT}/${task_name}"
+		cp -a "${original_project}" "${PROJECT_ROOT}"
+		if [ "${task_name}" = project:init ]; then
+			run_project_task 'main\n\nINIT\n' "${task_name}"
+		else
+			run_project_task 'y\n' "${task_name}"
+			[ "${status}" -eq 0 ]
+			run_project_task 'y\n' "${task_name}"
+		fi
+		[ "${status}" -eq 0 ]
+		[ ! -e "${PROJECT_ROOT}/openspec" ]
+		grep -Fxq 'unrelated specification' "${PROJECT_ROOT}/application/openspec/keep.md"
+	done
+}
+
+@test "initialization still rejects modified and ordinary untracked OpenSpec content" {
+	local kind before
+	for kind in tracked untracked; do
+		if [ "${kind}" = tracked ]; then
+			printf 'changed\n' >>"${PROJECT_ROOT}/openspec/spec.md"
+		else
+			git -C "${PROJECT_ROOT}" restore openspec/spec.md
+			printf 'new\n' >"${PROJECT_ROOT}/openspec/new.md"
+		fi
+		before="$(snapshot_cleanup_state)"
+		run_project_task 'main\n\nINIT\n' project:init
+		[ "${status}" -ne 0 ]
+		[[ "${output}" == *'working tree must be clean'* ]]
+		[ "$(snapshot_cleanup_state)" = "${before}" ]
+	done
 }

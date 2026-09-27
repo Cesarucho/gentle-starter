@@ -27,14 +27,16 @@ About clean:identity:
     - docs/
     - CHANGELOG.md
     - odd/
+    - openspec/              all root content after confirmation
     - .github/               (if present)
+
+  OpenSpec deletion includes user-authored, committed, and ignored content.
 
   KEPT (structure):
     - LICENSE                inherited Gentle Starter MIT attribution
     - AGENTS.md.TEMPLATE     reusable AI-facing template
     - .devcontainer/README.md
     - .devcontainer/docs/    local deep-dive docs copied from docs/en/ during clean
-    - openspec/              project source of truth (if present)
     - .agents/               versioned project skills
     - skills-lock.json       skill lock file
     - .env.example           environment template

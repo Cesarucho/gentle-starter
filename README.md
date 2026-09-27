@@ -464,8 +464,7 @@ configures the project branch and remotes you selected.
 ├── .gitignore                       Excludes local state and credentials
 ├── LICENSE                          Inherited Gentle Starter MIT attribution
 ├── skills-lock.json                 External skills lock file
-├── Taskfile.yml                     Main Task entry point
-└── openspec/                        Optional, preserved if it already exists
+└── Taskfile.yml                     Main Task entry point
 ```
 
 The starter `README.md`, `AGENTS.md`, `docs/`, `CHANGELOG.md`, root `odd/`

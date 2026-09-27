@@ -18,6 +18,7 @@ clean_identity_items() {
 		"docs/"
 		"CHANGELOG.md"
 		"odd/"
+		"openspec/"
 	)
 
 	if [ -d ".github" ]; then
@@ -32,6 +33,8 @@ clean_print_identity_plan() {
 	echo
 	printf '  - %s\n' "${CLEAN_IDENTITY_ITEMS[@]}"
 	echo
+	echo "All root openspec/ content will be deleted, including user-authored, committed, and ignored content."
+	echo
 	echo "The following are kept as base structure:"
 	echo
 	cat <<'EOF'
@@ -39,7 +42,6 @@ clean_print_identity_plan() {
   - AGENTS.md.TEMPLATE
   - .devcontainer/README.md
   - .devcontainer/docs/
-  - openspec/ (if present)
   - .agents/
   - skills-lock.json
   - .env.example
@@ -87,6 +89,8 @@ clean_validate_identity_cleanup() {
 	clean_reject_symlink_or_unexpected_type ".devcontainer/docs/adr" directory
 	clean_reject_symlink_or_unexpected_type "AGENTS.md.TEMPLATE" file
 	clean_reject_symlink_or_unexpected_type "odd" directory
+	# Initialization also calls this function in a conditional, where errexit is disabled.
+	clean_reject_symlink_or_unexpected_type "openspec" directory || return 1
 
 	for doc in "${CLEAN_MIGRATED_DOCS[@]}"; do
 		clean_reject_symlink_or_unexpected_type "docs/en/${doc}" file
