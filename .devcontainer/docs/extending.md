@@ -494,7 +494,7 @@ reinstall it inside the container.
 From the host, `task container:*` still requires the CLI to be
 installed on the host machine. Install it with
 `sudo npm install -g @devcontainers/cli`. On the host, `task validate`
-command checks for it and reports a warning if it's missing.
+requires it and fails with installation guidance if it is missing.
 
 ## See also
 
