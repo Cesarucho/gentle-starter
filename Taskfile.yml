@@ -13,8 +13,6 @@ includes:
     taskfile: ./.taskfiles/install.yml
   quality:
     taskfile: ./.taskfiles/quality.yml
-  skill:
-    taskfile: ./.taskfiles/skills.yml
   ssh:
     taskfile: ./.taskfiles/ssh.yml
 
@@ -90,12 +88,6 @@ tasks:
           task quality:format:full        Require shfmt and check formatting
           task quality:markdown           Run Markdown lint when available
           task quality:markdown:full      Require markdownlint-cli2 and run it
-
-        Skills:
-          task skill:help                 Show skill workflow examples
-          task skill:list                 List installed project skills
-          task skill:sync                 Restore, update, prune, and validate skills
-          task skill:validate             Validate locked and project-authored local skills
 
         Container:
           task container:help             Show container workflow examples

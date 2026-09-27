@@ -2,13 +2,15 @@
 .atl/
 .pi/
 
-.env
+# Starter files
 .devcontainer/.env
 .env.d/
-*-config.local/
-.base-backup/
+.env
 .vscode/
 
 # Python bytecode caches
 __pycache__/
 *.py[cod]
+
+# Commons
+.claude/

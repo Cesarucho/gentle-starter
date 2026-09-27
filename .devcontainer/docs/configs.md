@@ -243,10 +243,12 @@ survive every rebuild until they explicitly delete the file.
 ## The `*.local` pattern for personal configs
 
 The `config/pi/` tree is shared. If you want to add baseline
-configs that are personal to your clone (not committed), use a
-`<name>-config.local/` suffix. The pattern `*-config.local/` is in
-`.gitignore` so the directory stays untracked. Same wiring as Cases
-2 and 3 above; the helper's `if [ ! -d "${source_root}" ]; then return 0`
+configs that are personal to your clone (not committed), you may use a
+`<name>-config.local/` suffix, but this suffix is NOT ignored by the current
+`.gitignore`. Add a deliberate local exclude rule (for example in
+`.git/info/exclude`) and verify with `git status` before storing private files.
+Use the same wiring as Cases 2 and 3 above; the helper's
+`if [ ! -d "${source_root}" ]; then return 0`
 silently handles a missing local source root, so the line can be
 added even before the directory exists.
 

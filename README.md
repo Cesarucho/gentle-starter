@@ -21,16 +21,30 @@
 
 It provides a preconfigured, cross-platform, reliable, extensible, and
 replicable "ready-to-prompt" environment for starting AI projects in an orderly
-way: understand the goal, clarify requirements, use SDD/OpenSpec artifacts,
-apply skills, coordinate subagents, implement in phases —discover, research,
-design, plan, implement, and verify— and iterate until the expected results are
+way: understand the goal, clarify requirements, use SDD/OpenSpec/ODD artifacts,
+apply skills, coordinate subagents, implement in phases — discover > research >
+design > plan > implement > verify — and iterate until the expected results are
 achieved.
 
 The project is designed to provide a clean base structure before launching any
-prompt, enabling workflows like these:
+prompt, clone the consumer `starter` branch to start a project. Keep `upstream` for
+future updates; create your own `origin` only when you have a project remote:
 
-Clone the consumer `starter` branch to start a project. Keep `upstream` for
-future updates; create your own `origin` only when you have a project remote.
+```bash
+.
+|  # Gentle-Starter files structure
+├── .devcontainer/
+├── .env.d/
+├── .taskfiles/
+├── .env.example
+├── .markdownlint-cli2.yaml
+├── Taskfile.yml
+|  # Commons files structure
+├── .agents/
+├── .gitignore
+├── LICENSE
+└── skills-lock.json
+```
 
 ## 📦 What's included?
 
@@ -117,7 +131,8 @@ Run `task install:list` for the current catalog and activation state.
 
 | Tool | Purpose |
 | --- | --- |
-| [Skills CLI](https://github.com/vercel-labs/skills) | Install, update, and validate reusable agent skills |
+| [Skills CLI](https://github.com/vercel-labs/skills) | Install and update reusable agent skills |
+| [Gentleman Guardian Angel (GGA)](https://github.com/Gentleman-Programming/gentleman-guardian-angel) | Provide image-installed review tooling; project setup and Git hooks are optional manual steps |
 | [Gentle Pi](https://www.npmjs.com/package/gentle-pi) | Extend Pi workflows with Gentle AI integrations |
 | [Pi Subagents](https://www.npmjs.com/package/pi-subagents) | Run delegated Pi tasks through reusable subagent support |
 | [Pi Intercom](https://www.npmjs.com/package/pi-intercom) | Exchange messages between Pi workflows and agents |
@@ -137,8 +152,8 @@ Run `task install:list` for the current catalog and activation state.
 | [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) | Provide optional audio playback clients such as `paplay` |
 
 Versioned skills provide a customizable base: external packages are tracked in
-`skills-lock.json`; repository-authored skills live in `.agents/skills/` and
-`.agents/local-skills.txt`. Host audio integration is separate from audio clients.
+`skills-lock.json`; repository-authored skills live in `.agents/skills/` and are
+tracked by Git. Host audio integration is separate from audio clients.
 
 </details>
 
@@ -172,8 +187,7 @@ An IDE is optional and **does not replace** these host requirements.
     cp .env.example .env
     ```
 
-    Add your project remote when ready: `git remote add origin <your-project-url>`.
-    Write your own README and use `AGENTS.md.TEMPLATE` to create project instructions.
+    > Add your project remote when ready: `git remote add origin <your-project-url>`.
 
 ### Build and enter the environment
 
@@ -207,15 +221,15 @@ Use the terminal workflow below. `Task` is the sole supported entry point in the
     choose and authenticate a provider
 
     ```bash
-    >_ /connect
+    ❯_ /connect
     ```
 
     and prompting, examples:
 
     ```text
-    >_ Read @AGENTS.md.TEMPLATE and help me create AGENTS.md for my own proyect.
+    ❯_ Read @AGENTS.md.TEMPLATE and help me create AGENTS.md for my own proyect.
 
-    >_ Use "add-tool" skill for add PostgreSQL-16 with a version-controlled
+    ❯_ Use "add-tool" skill for add PostgreSQL-16 with a version-controlled
        `pg_hba.conf` and persistent data volume.
     ```
 
@@ -242,7 +256,7 @@ the software and start it. Then [attach VS Code](https://code.visualstudio.com/d
 ### 🌱 Update from Gentle Starter
 
 Clones and forks share ancestry with Gentle Starter, so updates use ordinary Git.
-The clone already has `upstream`. Fetch and merge the consumer branch:
+The clone already has `upstream`. From your branch, fetch and merge the consumer branch:
 
 ```bash
 git fetch upstream
@@ -257,8 +271,8 @@ Resolve merge conflicts manually and commit the resolution normally. Existing
 ```bash
 task tools:update         # From inside container, update the repository's approved version policy
 git diff                  # Review user intent and generated locks together
-task container:rebuild     # From host, remove the container and build the updated image
-task container:up          # From host, create/start the updated development environment
+task container:rebuild    # From host, remove the container and build the updated image
+task container:up         # From host, create/start the updated development environment
 task validate:full        # Inside container
 ```
 
@@ -279,22 +293,27 @@ discovery responses are regenerated in the private local cache at
 `${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/` and
 use ETags to avoid unchanged requests.
 
-### ⚙️ OpenCode and Pi configurations
+### ⚙️ Tool Configurations (OpenCode, Pi and others)
 
-- Keep your new preferences as the default setting.
+- Keep your preferences as the default setting.
 
-    **Runtime files are the source of truth**. But during normal use, we often change our preferences;
-    if we want to keep them as a base, we export them as part of our repository structure:
+    **Runtime files are the source of truth**. Once the container is created, the configuration files
+    are copied to runtime directories:
 
     ```bash
-    # 1. Compare runtime configuration with the repository seed
-    task config:diff
+    .devcontainer/config/opencode → /home/ubuntu/.config/opencode
+    .devcontainer/config/pi       → /home/ubuntu/.pi
+    ```
 
-    # 2. Copy approved runtime files into the repository
+    But during normal use, we often change our preferences;
+    if we want to keep them as a base, we export them as part of our repository structure,
+    we can do this manually or using these commands:
+
+    ```bash
+    task config:diff
     task config:export
 
-    # 3. Review exactly what will be versioned
-    git diff -- .devcontainer/config/opencode .devcontainer/config/pi
+    git diff -- .devcontainer/config    # Review exactly what will be versioned
     ```
 
     `config:export` copies configuration in **container runtime → repository directory** direction:
@@ -304,23 +323,9 @@ use ETags to avoid unchanged requests.
     /home/ubuntu/.pi              → .devcontainer/config/pi
     ```
 
-  - copies managed files byte for byte;
-  - never deletes seed files;
-  - refuses to run when the seed already has pending Git changes;
-  - excludes credentials, sessions, caches, logs, and generated dependencies;
-  - reports unknown paths without copying them.
-
-    To approve a new runtime path, add it to `managed` in
-    `.devcontainer/config-export.json`, then run the commands again.
-
-    For scripts that need the original comparison exit code, use:
-
-    ```bash
-    task --exit-code config:diff
-    ```
-
-    Exit code `0` means the managed files match; `1` means differences or candidates
-    were found; `2` means the comparison could not be completed safely.
+    > The `.devcontainer/config-export.json` file manages exports.
+    > When you need to add a new configuration from another tool (such as pg_hba.conf for PostgreSQL),
+    > remember to request it from the ai-agent using the `add-tool` skill.
 
     See [Configuration](.devcontainer/docs/configs.md) for the complete contract.
 
@@ -376,17 +381,6 @@ task install:disable -- 2300-php-lang
 task install:doctor
 ```
 
-### Language toolchain
-
-```bash
-# Available by default
-pnpm --version
-
-# Available after enabling their catalog installers
-go version
-java --version
-```
-
 ### Container lifecycle
 
 ```bash
@@ -419,11 +413,8 @@ task container:engram           # connect to the Engram TUI
 ### Skills and quality
 
 ```bash
-# Flexible project skills
-task skill:sync
-
-# Validate external lock entries and project-authored local skills
-task skill:validate
+# Inspect installed project and global skills
+skills list --json
 
 # Script and Markdown quality checks
 task quality:check
@@ -437,7 +428,7 @@ maintainer identity or planning files. Its shared ancestry supports later merges
 
 ```text
 .
-├── .agents/                         Project-authored skills and local manifest
+├── .agents/                         Project-authored and installed skills
 ├── .devcontainer/                   Reusable development environment
 │   ├── docs/                        Local devcontainer guides
 │   ├── install/                     Foundation, core, enabled, hook, and catalog installers
@@ -455,10 +446,6 @@ maintainer identity or planning files. Its shared ancestry supports later merges
 ├── skills-lock.json                 External skills lock file
 └── Taskfile.yml                     Main Task entry point
 ```
-
-The branch does not contain root `README.md`, `AGENTS.md`, `docs/`,
-`CHANGELOG.md`, planning files, `.github/`, or `.maintainer/`.
-Create your own project files in those paths.
 
 ## 💾 Local state and persistence
 
@@ -522,60 +509,41 @@ state it needs.
 Use the `add-tool` skill to add PostgreSQL 16.
 
 Enable it by default, persist its data, add a version-controlled `pg_hba.conf`,
-run the applicable tests, and do not commit or rebuild without my approval.
+run the applicable tests.
 ```
 
 Use the earlier [install catalog commands](#install-tools-catalog-management), or see
 [Extending Gentle Starter](.devcontainer/docs/extending.md) for the manual architecture.
 
-### 🔌 Configure optional MCP servers
-
-OpenCode MCP configuration is seeded from `.devcontainer/config/opencode/`.
-Inspect active servers with:
-
-```bash
-opencode mcp list
-```
-
-Active Pi MCP configuration lives in:
-
-```text
-.devcontainer/config/pi/agent/mcp.json
-```
-
-Optional presets are versioned in:
-
-```text
-.devcontainer/config/pi/agent/mcp.presets.json
-```
-
-To enable a preset, copy its server entry into `mcp.json > mcpServers`, then
-reload Pi with `/reload`. The GitHub preset requires
-`GITHUB_PERSONAL_ACCESS_TOKEN` in `.env`; use a fine-grained token with the
-minimum permissions required for your workflow.
-
 ### 🧠 Manage skills
 
-Project skills live in `.agents/skills/`. External skills restored by the Skills
-CLI are controlled from `skills-lock.json`; repository-authored skills are listed
-one per line in `.agents/local-skills.txt`. `skill:prune` preserves the union and
-`skill:validate` checks both sources without inventing external lock metadata.
+Run the installed `skills` CLI inside the container. External project skills are
+recorded in `skills-lock.json`; `add-tool` is authored in this repository and
+tracked by Git under `.agents/skills/add-tool/`, not in the external lock.
 
-Useful commands:
-
-```bash
-task skill:add -- <package> --skill <skill-name>
-task skill:install
-task skill:update
-task skill:validate
-task skill:sync
-```
-
-After modifying skills, review and version the relevant changes:
+For an external source and explicit skill name, use:
 
 ```bash
-git diff -- skills-lock.json .agents/local-skills.txt .agents/skills
+skills add <source> --skill <skill-name> --agent pi --copy -y
+skills experimental_install -y   # Restore external skills from skills-lock.json
+skills update --project -y        # Update project external skills
+skills list --json                # Inspect installed skills
+skills remove <skill-name> -y     # Remove only this named skill
 ```
+
+`experimental_install` is an experimental CLI command; inspect its effects and
+the installed CLI version before relying on it. NEVER run
+`skills remove --skill '*'`: it also deletes the tracked `add-tool` skill.
+Before committing, review tracked and untracked changes:
+
+```bash
+git status --short -- skills-lock.json .agents/skills .claude
+git diff -- skills-lock.json .agents/skills
+```
+
+The generated `.claude/` tree is ignored; do not delete personal `.claude/`
+content. If a CLI operation removes the tracked local skill by mistake, inspect
+the diff and restore `.agents/skills/add-tool/` from Git before continuing.
 
 ## 🔐 Security
 
