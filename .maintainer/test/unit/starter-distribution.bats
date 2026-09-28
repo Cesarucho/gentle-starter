@@ -31,6 +31,62 @@ teardown() { rm -rf "${TEMP}"; }
 
 prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter); }
 
+producer() {
+  (cd "${REPO}" && task --taskfile .maintainer/Taskfile.yml distribution:producer -- --source dev --target starter)
+}
+
+producer_fixture() {
+  mkdir -p "${REPO}/.maintainer/scripts"
+  cp "${ROOT}/.maintainer/Taskfile.yml" "${REPO}/.maintainer/Taskfile.yml"
+  cp -a "${ROOT}/.maintainer/tasks" "${REPO}/.maintainer/"
+  cp "${ROOT}/.maintainer/scripts/starter-distribution.py" "${REPO}/.maintainer/scripts/"
+  cp "${ROOT}/.maintainer/scripts/starter-producer.py" "${REPO}/.maintainer/scripts/"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Add producer fixture'
+  prepare
+}
+
+@test "producer task updates target from source while retaining current branch" {
+  producer_fixture
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+  before="$(git -C "${REPO}" rev-parse HEAD)"
+  run producer
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" branch --show-current)" = dev ]
+  [ "$(git -C "${REPO}" rev-parse HEAD)" = "$before" ]
+  [ "$(git -C "${REPO}" show starter:.devcontainer/docs/guide.md)" = v2 ]
+  [ -z "$(git -C "${REPO}" worktree list --porcelain | grep '^worktree ' | grep -v "${REPO}$")" ]
+  [ -z "$(git -C "${REPO}" status --porcelain)" ]
+}
+
+@test "producer conflict leaves target intact and removes temporary worktree" {
+  producer_fixture
+  git -C "${REPO}" switch -q starter
+  printf 'consumer\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam consumer
+  target_before="$(git -C "${REPO}" rev-parse HEAD)"
+  git -C "${REPO}" switch -q dev
+  printf 'producer\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam producer
+  run producer
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$target_before" ]
+  [ "$(git -C "${REPO}" branch --show-current)" = dev ]
+  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
+  [ -z "$(git -C "${REPO}" status --porcelain)" ]
+}
+
+@test "producer refuses dirty checkout before touching target" {
+  producer_fixture
+  before="$(git -C "${REPO}" rev-parse starter)"
+  printf 'dirty\n' > "${REPO}/README.md"
+  run producer
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$before" ]
+  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
+}
+
 @test "first release has source ancestry and excludes only maintainer paths" {
   run prepare
   [ "$status" -eq 0 ]
