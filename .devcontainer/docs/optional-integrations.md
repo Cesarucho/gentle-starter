@@ -135,8 +135,8 @@ upgrades rather than GGA's upstream installers.
 
 ## Host prerequisites
 
-The [base host tools](../../README.md#-requirements) are sufficient to build
-the selected image tools. The installers in `install/available/` and active
+The base host prerequisites are sufficient to build the selected image tools.
+The installers in `install/available/` and active
 aliases in `install/03-enabled/` do not imply matching host CLI installations:
 Playwright, GGA, OpenSSH clients, Pulse clients, and infrastructure CLIs run in
 the container. Only selected integrations need additional host resources:

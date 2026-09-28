@@ -419,14 +419,12 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertEqual(base["env_file"], ["../.env"])
         self.assertIn("GENTLE_VOLUME_MANIFEST_ID", base["environment"])
 
-    def test_default_selection_keeps_core_active_and_codegraph_disabled(self):
+    def test_default_selection_keeps_core_active_and_optional_overrides_disabled(self):
         shutil.copytree(ROOT / ".devcontainer/config/compose", self.root / ".devcontainer/config/compose")
         shutil.copyfile(ROOT / ".devcontainer/docker-compose.yml", self.root / ".devcontainer/docker-compose.yml")
         self.config.write_text((ROOT / ".devcontainer/devcontainer.json").read_text())
         paths = [str(path.relative_to(self.root / ".devcontainer")) for path in manifest.selection(self.root)[1]]
-        self.assertEqual(paths, ["docker-compose.yml", "config/compose/docker-compose-core-tools.yml",
-                                "config/compose/docker-compose.ssh-agent.yml",
-                                "config/compose/docker-compose.ssh-server.yml", "config/compose/docker-compose.audio.yml"])
+        self.assertEqual(paths, ["docker-compose.yml", "config/compose/docker-compose-core-tools.yml"])
 
     def test_audio_stays_outside_dind_tmp_and_is_never_managed(self):
         selected = manifest.read_compose_fragment(

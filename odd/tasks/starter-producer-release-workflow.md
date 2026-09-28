@@ -40,6 +40,14 @@ The producer workflow must use committed `dev` source and an existing clean
   is limited to the producer-owned temporary checkout, and the original failure
   remains visible. Check focused Bats, markdownlint on both changed guides and
   task document, and `git diff --check`; record rollback and any limits.
+- [x] SPR-4 — Align the default Compose selection assertion with authorized
+  disabled optional overrides and remove the consumer-invalid README link from
+  the optional integrations guide without implying host tools are bundled.
+  Rationale: three candidate-caused maintainer failures block validation.
+  Route: bounded direct writer; edit only the assertion, guide, and this task
+  document. Check focused isolated fixture cases, full maintainer suite with
+  at least 600 seconds timeout, markdownlint for both docs, and git diff --check.
+  Rollback: revert only SPR-4 edits to these three files.
 
 ## Progress and evidence
 
@@ -68,6 +76,12 @@ The producer workflow must use committed `dev` source and an existing clean
   bounded checks). Rollback: revert only SPR-3 changes to producer helper,
   focused fixtures, guide and this progress entry; preserve SPR-1/2.
 - SPR-3 commit: `c856509` (`fix(starter): preserve producer worktree on cleanup failure`).
+- SPR-4: isolated Compose unittest 1/1; relocated guide Bats 1/1 and cleanup
+  guide Bats 1/1. Full maintainer suite: 475/475 unit pass, 34 integration
+  reported (17 pass, 17 skip). Markdownlint: 0 issues; `git diff --check`: pass.
+  Runtime harness: N/A beyond isolated fixtures; no Docker lifecycle. Rollback:
+  revert only SPR-4 changes in the Compose assertion, optional guide, and this
+  task entry; preserve SPR-1 through SPR-3.
 
 ## Next step
 
