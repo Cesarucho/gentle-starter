@@ -28,9 +28,10 @@ and the applied-manifest identity. The active core-tools override owns the four
 existing Gentle AI, Engram, OpenCode and Git configuration binds plus the OpenCode
 port. Moving overrides into `config/compose/` does not change relative sources:
 Compose resolves them from the first file's `.devcontainer/` directory, not the
-override directory. Existing SSH/audio selections remain active; Pi and CodeGraph
-start disabled. Recreate through Task after this file-layout change even though
-existing mount sources and targets are unchanged. No data is migrated.
+override directory. Check the current `dockerComposeFile` selection rather than
+assuming any optional integration is active. Recreate through Task after this
+file-layout change even though existing mount sources and targets are unchanged.
+No data is migrated.
 Existing Pi data is never deleted when disabled. Pi configuration is seeded only
 with Pi Coding enabled; Gentle AI alone does not create `~/.pi/gentle-ai`.
 
@@ -134,22 +135,41 @@ upgrades rather than GGA's upstream installers.
 
 ## Host prerequisites
 
-**SSH agent:** start an agent on the host and export a valid `SSH_AUTH_SOCK` that
-the Docker daemon can bind. The override supplies both the socket mount and its
-container environment variable. This is independent of incoming SSH access.
+The [base host tools](../../README.md#-requirements) are sufficient to build
+the selected image tools. The installers in `install/available/` and active
+aliases in `install/03-enabled/` do not imply matching host CLI installations:
+Playwright, GGA, OpenSSH clients, Pulse clients, and infrastructure CLIs run in
+the container. Only selected integrations need additional host resources:
 
-**SSH server:** select the server file AND enable its installer. Missing either
-prevents automatic server preparation/start. The generated `SSH_PORT` publishes
-container port 22; host keys stay under `.env.d/.ssh-server`. Authorization remains
-derived from `SSH_AUTHORIZED_KEYS`: absent/empty removes derived authorization;
-nonempty input is validated and atomically replaces the managed file. There is
-no key migration or new credential persistence.
+**Base ports:** the generated `APP_PORT` and `OPENCODE_PORT` must be available
+on the Docker host for the base and core-tools Compose files. Task writes these
+values to `.env`; the ports are published even without optional integrations.
 
-**Audio:** requires an accessible Pulse-compatible host socket at
-`/run/user/<host-uid>/pulse/native`. Task generates `HOST_UID` only after its host
-guard; it is never container identity and there is no `HOST_GID`. The socket is
-read-only and uses `create_host_path: false`. Package availability does not prove
+**SSH agent (outbound authentication only):** when selecting the agent override,
+start an agent on the host, load the keys you intend to use, and export a valid
+`SSH_AUTH_SOCK` visible to the Docker daemon. The override mounts that socket
+and sets the container variable; the OpenSSH client is an image tool. No host
+SSH server or incoming container SSH is required.
+
+**SSH server (incoming access):** select the server file AND enable its
+installer, then rebuild and up. Missing either prevents automatic server
+preparation/start. The generated `SSH_PORT` must be available on the host; it
+publishes container port 22 on all host interfaces. Host keys stay under
+`.env.d/.ssh-server`. Set `SSH_AUTHORIZED_KEYS` in the local `.env` to valid
+public keys before expecting key-based login; absent/empty input removes derived
+authorization, while nonempty input is validated and atomically replaces the
+managed file. There is no key migration or new credential persistence. A remote
+client needs an SSH client and network access to the host, not a host-side
+server CLI. Restrict access to trusted networks.
+
+**Audio:** selecting the audio override requires an accessible Pulse-compatible
+host socket at `/run/user/<host-uid>/pulse/native`. Task generates `HOST_UID`
+only after its host guard; it is never container identity and there is no
+`HOST_GID`. The socket is read-only and uses `create_host_path: false`.
+Package availability does not prove
 socket permissions, server compatibility, or audible host playback.
+Enable the Pulse client installer only if you need container commands such as
+`paplay`; installing it alone does not create a host audio server or socket.
 
 The container endpoint is `/pulse-native`, outside `/tmp`: Docker-in-Docker
 startup can mount tmpfs over `/tmp`, hiding socket binds beneath it. Apply this
@@ -159,6 +179,9 @@ not require rebuilding packages that are already installed.
 Neither socket integration promises universal Docker Desktop support. Confirm
 host OS, daemon socket sharing, server permissions, and session availability.
 External sockets are never created, chmodded, or chowned as directories.
+Provider logins, API keys, and cloud credentials are specific to the workflows
+you choose (for example AI providers or infrastructure deployment); they are
+not prerequisites for installing the base devcontainer or every catalog tool.
 
 ## Desired and applied volume contracts
 
