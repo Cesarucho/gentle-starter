@@ -32,6 +32,14 @@ The producer workflow must use committed `dev` source and an existing clean
 - [x] SPR-2 — Replace the broken guide with a concise happy path and short
   explanations for review and explicit push. Check markdownlint and command
   consistency; record rollback.
+- [x] SPR-3 — Correct cleanup after a partially successful `git worktree add`.
+  Preserve the target and report cleanup uncertainty separately from the original
+  failure; never delete an unknown checkout or claim an unchanged target without
+  evidence. Delegated direct writer; TDD mode unknown, runner `bats`. Acceptance:
+  failure injection covers partial registration and dirty failed cleanup, cleanup
+  is limited to the producer-owned temporary checkout, and the original failure
+  remains visible. Check focused Bats, markdownlint on both changed guides and
+  task document, and `git diff --check`; record rollback and any limits.
 
 ## Progress and evidence
 
@@ -50,7 +58,16 @@ The producer workflow must use committed `dev` source and an existing clean
   (0 issues); focused Bats: 13/13 pass; `git diff --check`: pass. Command
   consistency checked against Task entry and disposable Task fixture. Rollback:
   revert guide and this SPR-2 progress entry without removing producer code.
+- SPR-3: RED focused Bats 0/2 (original add error hidden; cleanup skipped).
+  GREEN focused Bats 3/3 and full file 16/16; markdownlint on guide and task
+  document: 0 issues; `git diff --check`: pass. Injected registered partial
+  add, dirty removal refusal, and unregistered path plus target-ref mutation.
+  On cleanup uncertainty the private temporary path is retained for inspection;
+  no unknown checkout is deleted. Runtime harness: N/A beyond disposable Git
+  fixtures; no Docker or remote execution. Full maintainer suite not run (outside
+  bounded checks). Rollback: revert only SPR-3 changes to producer helper,
+  focused fixtures, guide and this progress entry; preserve SPR-1/2.
 
 ## Next step
 
-Review both commits locally; publication remains a separate human decision.
+Review locally; publication remains a separate human decision.

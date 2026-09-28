@@ -16,8 +16,12 @@ bats .maintainer/test/unit/starter-distribution.bats
 ```
 
 Review the resulting branch tree and ancestry before any publication. The
-producer task uses a temporary target checkout and removes it afterward; on
-conflict it aborts that merge, leaves `starter` unchanged, and reports failure.
+producer task uses a temporary target checkout and normally removes it afterward;
+on conflict it aborts that merge and reports failure. If addition or cleanup fails,
+it reports the original error and cleanup uncertainty separately. A dirty or
+unverifiable checkout may remain at the reported temporary path; inspect it and
+the target ref before retrying. The task checks the target HEAD on failure and
+does not claim it was preserved when it changed or cannot be verified.
 Resolve the divergence deliberately before retrying. It never fetches or
 pushes. If publication is separately authorized, a human may push explicitly:
 
@@ -44,7 +48,7 @@ new source parent and marker even when the sanitized tree is unchanged; a
 rerun with that source is a no-op. Consumer-owned README, workflows, and
 planning files are never rewritten by the distribution step. Git merges shared
 paths normally; on conflict the producer task aborts the temporary merge and
-preserves the target HEAD. The direct task instead retains merge state for
+checks the target HEAD. The direct task instead retains merge state for
 manual resolution or `git merge --abort`. Never reset a consumer repository to
 resolve an update.
 

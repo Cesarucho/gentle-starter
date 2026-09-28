@@ -46,6 +46,72 @@ producer_fixture() {
   prepare
 }
 
+@test "producer cleans a registered checkout after worktree add reports failure" {
+  producer_fixture
+  before="$(git -C "${REPO}" rev-parse starter)"
+  mkdir -p "${TEMP}/bin"
+  cat > "${TEMP}/bin/git" <<'SH'
+#!/bin/sh
+if [ "$1" = worktree ] && [ "$2" = add ]; then
+  /usr/bin/git "$@" || exit $?
+  printf 'injected add failure\n' >&2
+  exit 71
+fi
+exec /usr/bin/git "$@"
+SH
+  chmod +x "${TEMP}/bin/git"
+  run bash -c 'cd "$1" && PATH="$2:$PATH" python3 "$3" --source dev --target starter' _ "${REPO}" "${TEMP}/bin" "${ROOT}/.maintainer/scripts/starter-producer.py"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"injected add failure"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$before" ]
+  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
+}
+
+@test "producer reports dirty cleanup failure without masking original failure" {
+  producer_fixture
+  before="$(git -C "${REPO}" rev-parse starter)"
+  mkdir -p "${TEMP}/bin"
+  cat > "${TEMP}/bin/git" <<'SH'
+#!/bin/sh
+if [ "$1" = worktree ] && [ "$2" = add ]; then
+  /usr/bin/git "$@" || exit $?
+  printf 'dirty\n' > "$4/README.md"
+  printf 'injected add failure\n' >&2
+  exit 71
+fi
+exec /usr/bin/git "$@"
+SH
+  chmod +x "${TEMP}/bin/git"
+  run bash -c 'cd "$1" && PATH="$2:$PATH" python3 "$3" --source dev --target starter' _ "${REPO}" "${TEMP}/bin" "${ROOT}/.maintainer/scripts/starter-producer.py"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"injected add failure"* ]]
+  [[ "$output" == *"cleanup"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$before" ]
+}
+
+@test "producer retains unregistered checkout and detects target ref mutation" {
+  producer_fixture
+  mkdir -p "${TEMP}/bin"
+  cat > "${TEMP}/bin/git" <<'SH'
+#!/bin/sh
+if [ "$1" = worktree ] && [ "$2" = add ]; then
+  mkdir -p "$4"
+  printf 'unknown\n' > "$4/README.md"
+  /usr/bin/git branch -f starter dev
+  printf 'injected partial add failure\n' >&2
+  exit 72
+fi
+exec /usr/bin/git "$@"
+SH
+  chmod +x "${TEMP}/bin/git"
+  run bash -c 'cd "$1" && PATH="$2:$PATH" python3 "$3" --source dev --target starter' _ "${REPO}" "${TEMP}/bin" "${ROOT}/.maintainer/scripts/starter-producer.py"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"injected partial add failure"* ]]
+  [[ "$output" == *"unregistered checkout remains"* ]]
+  [[ "$output" == *"target HEAD changed or could not be verified"* ]]
+  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
+}
+
 @test "producer task updates target from source while retaining current branch" {
   producer_fixture
   printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"

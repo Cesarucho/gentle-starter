@@ -32,10 +32,14 @@ def main():
                    capture_output=True)
     subprocess.run(["git", "show-ref", "--verify", f"refs/heads/{args.target}"],
                    check=True, capture_output=True)
-    with tempfile.TemporaryDirectory(prefix="starter-producer-") as temp:
-        checkout = os.path.join(temp, "checkout")
-        git("worktree", "add", "--quiet", checkout, args.target)
+    target_before = git("rev-parse", f"refs/heads/{args.target}")
+    temp = tempfile.mkdtemp(prefix="starter-producer-")
+    checkout = os.path.join(temp, "checkout")
+    failure = None
+    cleanup_errors = []
+    try:
         try:
+            git("worktree", "add", "--quiet", checkout, args.target)
             result = subprocess.run(
                 [sys.executable, str(script), "--source", args.source,
                  "--target", args.target], cwd=checkout, text=True,
@@ -48,10 +52,38 @@ def main():
                 if subprocess.run(["git", "-C", checkout, "rev-parse", "-q",
                                    "--verify", "MERGE_HEAD"], capture_output=True).returncode == 0:
                     subprocess.run(["git", "-C", checkout, "merge", "--abort"], check=True)
-                raise ValueError("preparation failed; target unchanged")
+                raise ValueError("preparation failed")
             print(result.stdout, end="")
-        finally:
-            git("worktree", "remove", checkout)
+        except (ValueError, subprocess.CalledProcessError) as error:
+            failure = error
+    finally:
+        try:
+            registered = any(
+                line == f"worktree {checkout}"
+                for line in git("worktree", "list", "--porcelain").splitlines()
+            )
+            if registered:
+                git("worktree", "remove", checkout)
+            elif os.path.lexists(checkout):
+                raise ValueError("unregistered checkout remains")
+            os.rmdir(temp)
+        except (ValueError, OSError, subprocess.CalledProcessError) as error:
+            cleanup_errors.append(str(error))
+    if failure:
+        detail = f": {failure.stderr.strip()}" if isinstance(failure, subprocess.CalledProcessError) and failure.stderr else ""
+        print(f"starter producer: {failure}{detail}", file=sys.stderr)
+    for error in cleanup_errors:
+        print(f"starter producer: cleanup uncertain at {checkout}: {error}", file=sys.stderr)
+    if failure or cleanup_errors:
+        try:
+            unchanged = git("rev-parse", f"refs/heads/{args.target}") == target_before
+        except subprocess.CalledProcessError:
+            unchanged = False
+        if unchanged:
+            print("starter producer: target HEAD unchanged", file=sys.stderr)
+        else:
+            print("starter producer: target HEAD changed or could not be verified", file=sys.stderr)
+        raise ValueError("preparation or cleanup failed")
 
 
 if __name__ == "__main__":
