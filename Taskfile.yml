@@ -43,6 +43,11 @@ tasks:
         printf '%s\n' 'Application tests are not configured. Replace tasks.test.cmds in Taskfile.yml with your application test command.' >&2
         exit 2
 
+  project:check-existing:
+    desc: Read-only host preflight (set PROJECT to an absolute existing project path)
+    cmds:
+      - python3 ./.taskfiles/scripts/check-existing-project.py "$PROJECT"
+
   help:
     desc: Show task help
     silent: true
@@ -54,6 +59,7 @@ tasks:
         General:
           task help                       Show this help
           task --list                     List all available tasks
+          PROJECT=/absolute/path task project:check-existing  Read-only existing-project preflight
           task validate                   Host preflight (partial) or container diagnosis and strict quality
           task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
           task skills:suggest              Choose optional skills interactively
