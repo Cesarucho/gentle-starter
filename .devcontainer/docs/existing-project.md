@@ -36,6 +36,7 @@ reviewing the starter tree, create a dedicated branch and bring in the published
 starter branch. Replace the URL if your trusted starter source differs:
 
 ```bash
+cd /absolute/path/to/existing-project
 git switch -c integrate-starter
 git remote add upstream https://github.com/Cesarucho/gentle-starter.git
 git fetch upstream starter
@@ -53,7 +54,7 @@ Protect the project's `README.md`, `LICENSE`, `AGENTS.md`, `skills-lock.json`,
 `.env.example`, and its own skills. Combine `.gitignore` rules instead of
 replacing them. Review any other overlapping paths, including new starter
 dependencies. Do not choose ours/theirs across the entire tree. Inspect
-`git status`, `git diff --cached`, and `git diff --check` before committing.
+`git status`, `git diff --cached`, and `git diff --cached --check` before committing.
 Check that local secrets and state (such as `.env` and `.env.d/`) are not staged.
 Only you decide when to run `git commit` to complete the two-parent merge;
 confirm afterwards with `git show --no-patch --format=%P HEAD` (two hashes).
