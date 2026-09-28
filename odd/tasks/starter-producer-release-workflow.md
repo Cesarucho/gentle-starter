@@ -67,6 +67,7 @@ The producer workflow must use committed `dev` source and an existing clean
   fixtures; no Docker or remote execution. Full maintainer suite not run (outside
   bounded checks). Rollback: revert only SPR-3 changes to producer helper,
   focused fixtures, guide and this progress entry; preserve SPR-1/2.
+- SPR-3 commit: `c856509` (`fix(starter): preserve producer worktree on cleanup failure`).
 
 ## Next step
 
