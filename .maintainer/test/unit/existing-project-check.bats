@@ -129,3 +129,38 @@ check() { run python3 "${STARTER}/.taskfiles/scripts/check-existing-project.py" 
   after="$(git -C "${PROJECT}" status --porcelain=v1; git -C "${PROJECT}" for-each-ref; sha256sum "${PROJECT}/.git/index" "${PROJECT}/.git/config" "${PROJECT}/README.md" "${PROJECT}/.gitignore")"
   [ "$before" = "$after" ]
 }
+
+@test "tracked reserved path omitted by sparse checkout requires manual integration without mutation" {
+  mkdir -p "${PROJECT}/.devcontainer" "${PROJECT}/visible"
+  touch "${PROJECT}/.devcontainer/owned" "${PROJECT}/visible/owned"
+  git -C "${PROJECT}" add -A
+  git -C "${PROJECT}" -c user.name=Fixture -c user.email=fixture@example.test commit -qm owned
+  git -C "${PROJECT}" sparse-checkout init --cone
+  git -C "${PROJECT}" sparse-checkout set visible
+  [ ! -e "${PROJECT}/.devcontainer" ]
+  git -C "${PROJECT}" ls-files --error-unmatch .devcontainer/owned > /dev/null
+  before="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all; git -C "${PROJECT}" for-each-ref; sha256sum "${PROJECT}/.git/index" "${PROJECT}/.git/config" "${PROJECT}/.git/info/sparse-checkout")"
+  check "${PROJECT}"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *".devcontainer"* ]]
+  after="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all; git -C "${PROJECT}" for-each-ref; sha256sum "${PROJECT}/.git/index" "${PROJECT}/.git/config" "${PROJECT}/.git/info/sparse-checkout")"
+  [ "$before" = "$after" ]
+  [ ! -e "${PROJECT}/.devcontainer" ]
+}
+
+@test "active clean bisect fails closed without mutation" {
+  for revision in 1 2 3; do
+    printf '%s\n' "$revision" > "${PROJECT}/owned"
+    git -C "${PROJECT}" add owned
+    git -C "${PROJECT}" -c user.name=Fixture -c user.email=fixture@example.test commit -qm "revision $revision"
+  done
+  git -C "${PROJECT}" bisect start HEAD HEAD~2 > /dev/null
+  [ -f "${PROJECT}/.git/BISECT_LOG" ]
+  [ -z "$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all)" ]
+  before="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all; git -C "${PROJECT}" for-each-ref; sha256sum "${PROJECT}/.git/index" "${PROJECT}/.git/config" "${PROJECT}/.git/HEAD" "${PROJECT}/.git/BISECT_LOG" "${PROJECT}/.git/BISECT_START" "${PROJECT}/owned")"
+  check "${PROJECT}"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"BISECT"* ]]
+  after="$(git -C "${PROJECT}" status --porcelain=v1 --untracked-files=all; git -C "${PROJECT}" for-each-ref; sha256sum "${PROJECT}/.git/index" "${PROJECT}/.git/config" "${PROJECT}/.git/HEAD" "${PROJECT}/.git/BISECT_LOG" "${PROJECT}/.git/BISECT_START" "${PROJECT}/owned")"
+  [ "$before" = "$after" ]
+}

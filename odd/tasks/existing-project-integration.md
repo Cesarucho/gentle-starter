@@ -44,6 +44,12 @@ Keep existing README edits and any user-owned skills untouched.
   `.devcontainer/docs/`, with index link. Route: delegated writer (multiple
   nontrivial files and documentation preparation). Checks: distribution Bats,
   markdownlint, links, `git diff --check`; preserve user's existing README edits.
+- [ ] EPI-3 — Address the two informational review edge cases: reserved paths
+  tracked outside a sparse checkout must not return COMPATIBLE, and an active
+  Git bisect must be rejected. Keep the checker read-only, add disposable Bats
+  fixtures, and preserve all user-owned README/skills edits. Route: delegated
+  writer (checker plus nontrivial fixtures). Checks: focused Bats, maintainer
+  unit suite, `git diff --check`; runtime container boundary N/A (host Git).
 
 ## Acceptance and progress
 
@@ -64,10 +70,13 @@ Keep existing README edits and any user-owned skills untouched.
   Runtime container boundary: N/A (host docs and Git fixtures). Rollback:
   revert the guide, README integration subsection, index link, and release
   fixtures; EPI-1 can then remain independently usable.
+- EPI-3 was accepted by the user after native review approval and
+  acknowledgement of the previous committed candidate. It is a new work unit,
+  not a reopening or correction of that consumed review.
 - Mirror the full document to Engram after each update; commit work units on
   the feature branch with verification and commit identity.
 
 ## Next step
 
-Both implementation tasks are complete. Reconcile the Engram mirror and report
-remaining user-owned README changes separately; no push or PR is authorized.
+Implement EPI-3; leave the user's uncommitted README edits untouched. No push
+or PR is authorized.

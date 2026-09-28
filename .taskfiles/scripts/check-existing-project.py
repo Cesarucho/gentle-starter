@@ -39,7 +39,7 @@ def validate_repository(root):
     if git(root, "rev-parse", "--is-bare-repository").strip() != b"false":
         raise ValueError("PROJECT must be a non-bare repository")
     git(root, "rev-parse", "--verify", "HEAD")
-    for state in ("MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
+    for state in ("MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "BISECT_START"):
         path = Path(os.fsdecode(git(root, "rev-parse", "--git-path", state).strip()))
         if not path.is_absolute():
             path = root / path
@@ -87,6 +87,18 @@ def collisions(root):
     return found
 
 
+def tracked_collisions(root):
+    found = []
+    tracked_paths = git(root, "ls-files", "--cached", "-z").split(b"\0")
+    for raw_path in tracked_paths:
+        if not raw_path:
+            continue
+        path = os.fsdecode(raw_path)
+        if any(path == tree or path.startswith(tree + "/") or tree.startswith(path + "/") for tree in RESERVED_TREES) or path in RESERVED_FILES:
+            found.append(f"{path} (tracked)")
+    return found
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("project", metavar="PROJECT", help="absolute path to an existing project Git root")
@@ -94,7 +106,7 @@ def main():
     root = Path(args.project)
     try:
         validate_repository(root)
-        found = collisions(root)
+        found = collisions(root) + tracked_collisions(root)
         if found:
             print("MANUAL INTEGRATION: reserved paths exist: " + ", ".join(found))
             return MANUAL
