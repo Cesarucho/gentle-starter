@@ -10,8 +10,10 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 root = Path(sys.argv[1])
-documents = [root / "README.md", *sorted((root / "docs").glob("*.md"))]
-assert len(documents) == 7, documents
+guides = sorted((root / "docs").glob("*.md"))
+assert guides, "no environment guides found"
+documents = [root / "README.md", *guides]
+assert documents[0].is_file(), documents[0]
 for document in documents:
     for target in re.findall(r"\]\(([^\s)]+)\)", document.read_text()):
         link = urlsplit(target)
@@ -22,4 +24,5 @@ for document in documents:
         assert destination.is_file(), f"{document}: missing {target}"
 PY
 	[ "${status}" -eq 0 ] || printf '%s\n' "${output}" >&3
+	[ "${status}" -eq 0 ]
 }
