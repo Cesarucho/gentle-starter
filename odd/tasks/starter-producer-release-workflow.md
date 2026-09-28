@@ -82,6 +82,7 @@ The producer workflow must use committed `dev` source and an existing clean
   Runtime harness: N/A beyond isolated fixtures; no Docker lifecycle. Rollback:
   revert only SPR-4 changes in the Compose assertion, optional guide, and this
   task entry; preserve SPR-1 through SPR-3.
+- SPR-4 commit: `1594194` (`fix(starter): align optional integration fixtures with defaults`).
 
 ## Next step
 
