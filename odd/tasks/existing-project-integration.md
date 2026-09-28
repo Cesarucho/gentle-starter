@@ -44,7 +44,7 @@ Keep existing README edits and any user-owned skills untouched.
   `.devcontainer/docs/`, with index link. Route: delegated writer (multiple
   nontrivial files and documentation preparation). Checks: distribution Bats,
   markdownlint, links, `git diff --check`; preserve user's existing README edits.
-- [ ] EPI-3 — Address the two informational review edge cases: reserved paths
+- [x] EPI-3 — Address the two informational review edge cases: reserved paths
   tracked outside a sparse checkout must not return COMPATIBLE, and an active
   Git bisect must be rejected. Keep the checker read-only, add disposable Bats
   fixtures, and preserve all user-owned README/skills edits. Route: delegated
@@ -73,10 +73,16 @@ Keep existing README edits and any user-owned skills untouched.
 - EPI-3 was accepted by the user after native review approval and
   acknowledgement of the previous committed candidate. It is a new work unit,
   not a reopening or correction of that consumed review.
+- EPI-3: `9c8bce8` (`fix(starter): detect sparse paths and active bisect`);
+  RED for both new fixtures before the fix, GREEN 14/14 focused, maintainer
+  unit 469/469, and `git diff --check` passed. Sparse tracked paths return
+  MANUAL even when omitted from disk; active bisect returns ERROR. Runtime
+  container boundary: N/A (host-only Git inspection). Rollback: revert this
+  checker and fixture commit without touching the earlier work units.
 - Mirror the full document to Engram after each update; commit work units on
   the feature branch with verification and commit identity.
 
 ## Next step
 
-Implement EPI-3; leave the user's uncommitted README edits untouched. No push
-or PR is authorized.
+All three tasks are implemented. Assess the new committed work unit separately;
+leave the user's uncommitted README edits untouched. No push or PR is authorized.
