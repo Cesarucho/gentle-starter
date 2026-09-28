@@ -158,19 +158,28 @@ tracked by Git. Host audio integration is separate from audio clients.
 
 ## ✅ Requirements
 
-On your PC you need:
+On your host, install current stable releases compatible with your OS and Docker
+environment (not the container's exact, policy-pinned tool versions):
 
 - **[Git](https://git-scm.com/downloads)**
 - **[Task](https://taskfile.dev/installation/)**
 - **[Docker](https://docs.docker.com/get-started/get-docker/)**
 - **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**
 - **[jq](https://jqlang.org/download/)**
-- **[yq](https://github.com/mikefarah/yq/#install)** — Mike Farah yq v4 is
-  recommended; volume discovery also supports Kislyuk yq.
+- **[yq](https://github.com/mikefarah/yq/#install)** — use a current stable
+  Mike Farah v4 that supports `-o=json -I=0` (v4.2.0 is too old), or a
+  compatible [Kislyuk yq](https://github.com/kislyuk/yq).
 - **[Python 3](https://www.python.org/downloads/)**
 
 An IDE is optional and **does not replace** these host requirements.
 `attach to running container` is the only supported method.
+Docker must be running and accessible to your host user. The base container
+publishes the generated application and OpenCode ports; ensure those host ports
+are available. SSH agent forwarding, incoming SSH, and audio have separate,
+conditional host prerequisites in the
+[optional integrations guide](.devcontainer/docs/optional-integrations.md#host-prerequisites).
+Catalog CLIs are installed in the image when selected, not all on the host;
+cloud/provider credentials are needed only for the application workflows you use.
 
 ## 🚀 Quick start
 

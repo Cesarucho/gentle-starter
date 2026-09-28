@@ -1,1 +1,0 @@
-../available/4010-tool-ssh-server.sh
