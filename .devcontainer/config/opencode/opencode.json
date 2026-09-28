@@ -34,10 +34,10 @@
       "__managed_by": "gentle-ai/sdd",
       "description": "Gentle AI SDD Orchestrator - coordinates sub-agents, never does work inline",
       "mode": "primary",
-      "model": "openai/gpt-5.6-terra",
+      "model": "openai/gpt-6-sol",
       "options": {
         "__managed_by": "gentle-ai/sdd",
-        "reasoningEffort": "medium"
+        "reasoningEffort": "low"
       },
       "permission": {
         "question": "allow",

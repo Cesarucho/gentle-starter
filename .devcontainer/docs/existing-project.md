@@ -8,13 +8,21 @@ needed. The preflight is read-only and does not fetch, merge, or commit.
 
 ## Check before merging
 
-Keep a backup or checkpoint of your project. Start with a committed, clean
-worktree and index, no Git operation in progress, and the absolute path to the
-project Git root. In the separate starter checkout:
+Keep a backup or checkpoint of your existing project. It can stay where it is;
+you do not need to clone it. Start with a committed, clean worktree and index,
+no Git operation in progress, and the absolute path to its Git root. On the
+host, clone the published starter branch into a **separate** directory so its
+Taskfile provides `project:check-existing`, then run the preflight from there:
 
 ```bash
+git clone --branch starter https://github.com/Cesarucho/gentle-starter.git gentle-starter-preflight
+cd gentle-starter-preflight
 PROJECT=/absolute/path/to/existing-project task project:check-existing
 ```
+
+Choose an unused directory name for the starter checkout if
+`gentle-starter-preflight` already exists. Cloning obtains the checker; the
+preflight itself only inspects the existing project and does not change it.
 
 Exit 0 (`COMPATIBLE`) means no reserved paths were detected, NOT that Git will
 merge without conflicts. Exit 1 (`MANUAL INTEGRATION`) reports reserved paths;

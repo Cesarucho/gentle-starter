@@ -187,27 +187,8 @@ An IDE is optional and **does not replace** these host requirements.
     ```
 
     > Add your project remote when ready: `git remote add origin <your-project-url>`.
-
-### Import into an unrelated existing Git project
-
-From a **separate starter checkout on your host** (with Git, Task, and Python 3),
-check your clean existing repository before importing anything:
-
-```bash
-PROJECT=/absolute/path/to/existing-project task project:check-existing
-```
-
-`COMPATIBLE` means only that no reserved starter paths were found; it does NOT
-promise a clean merge. `MANUAL INTEGRATION` means review existing reserved paths
-before proceeding; errors require resolving repository state first. On a clean
-project branch named `integrate-starter`, the first unrelated-history merge uses
-`git merge --allow-unrelated-histories --no-commit --no-ff upstream/starter`.
-Review the staged result and resolve conflicts before **you** commit a real
-two-parent merge (or `git merge --abort` to return to the clean branch).
-Preserve your README, LICENSE, AGENTS.md, skills-lock.json, .env.example, and
-own skills; combine .gitignore rules. Never apply blanket ours/theirs choices.
-See the [existing-project integration guide](.devcontainer/docs/existing-project.md)
-for the safe sequence, manual path, and review checklist.
+    > Already have a project? Follow the
+    > [existing-project integration guide](.devcontainer/docs/existing-project.md).
 
 ### Build and enter the environment
 
