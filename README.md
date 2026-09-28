@@ -19,32 +19,31 @@
 
 ## 🎯 What does it do?
 
-It provides a preconfigured, cross-platform, reliable, extensible, and
-replicable "ready-to-prompt" environment for starting AI projects in an orderly
+It provides a preconfigured, cross-platform, extensible, and replicable
+"ready-to-prompt" environment for starting AI projects in an orderly
 way: understand the goal, clarify requirements, use SDD/OpenSpec/ODD artifacts,
 apply skills, coordinate subagents, implement in phases — discover > research >
 design > plan > implement > verify — and iterate until the expected results are
 achieved.
 
-The project is designed to provide a clean base structure before launching any
-prompt, clone the consumer `starter` branch to start a project. Keep `upstream` for
-future updates; create your own `origin` only when you have a project remote:
+The project on this branch is the **producer** designed to provide a clean baseline
+structure before starting a new project or integrating it with an existing project.
+As a **consumer**, you should clone the `starter` branch and create the remote `upstream`
+for future upgrades; these are the exclusive files that belong to:
 
 ```bash
 .
-|  # Gentle-Starter files structure
+├── .agents
+│   └── skills
+│       └── add-tool/
 ├── .devcontainer/
-├── .env.d/
 ├── .taskfiles/
 ├── .env.example
 ├── .markdownlint-cli2.yaml
-├── Taskfile.yml
-|  # Commons files structure
-├── .agents/
-├── .gitignore
-├── LICENSE
-└── skills-lock.json
+└── Taskfile.yml
 ```
+
+> Common files have not been mentioned
 
 ## 📦 What's included?
 
@@ -188,6 +187,27 @@ An IDE is optional and **does not replace** these host requirements.
     ```
 
     > Add your project remote when ready: `git remote add origin <your-project-url>`.
+
+### Import into an unrelated existing Git project
+
+From a **separate starter checkout on your host** (with Git, Task, and Python 3),
+check your clean existing repository before importing anything:
+
+```bash
+PROJECT=/absolute/path/to/existing-project task project:check-existing
+```
+
+`COMPATIBLE` means only that no reserved starter paths were found; it does NOT
+promise a clean merge. `MANUAL INTEGRATION` means review existing reserved paths
+before proceeding; errors require resolving repository state first. On a clean
+project branch named `integrate-starter`, the first unrelated-history merge uses
+`git merge --allow-unrelated-histories --no-commit --no-ff upstream/starter`.
+Review the staged result and resolve conflicts before **you** commit a real
+two-parent merge (or `git merge --abort` to return to the clean branch).
+Preserve your README, LICENSE, AGENTS.md, skills-lock.json, .env.example, and
+own skills; combine .gitignore rules. Never apply blanket ours/theirs choices.
+See the [existing-project integration guide](.devcontainer/docs/existing-project.md)
+for the safe sequence, manual path, and review checklist.
 
 ### Build and enter the environment
 
@@ -513,17 +533,21 @@ Run the installed `skills` CLI inside the container. External project skills are
 recorded in `skills-lock.json`; `add-tool` is authored in this repository and
 tracked by Git under `.agents/skills/add-tool/`, not in the external lock.
 
-For an external source and explicit skill name, use:
+Use these commands for project skills:
 
 ```bash
-skills add <source> --skill <skill-name> --agent pi --copy -y
-skills experimental_install -y   # Restore external skills from skills-lock.json
-skills update --project -y        # Update project external skills
-skills list --json                # Inspect installed skills
-skills remove <skill-name> -y     # Remove only this named skill
+skills list --json
+skills add <source> --skill <name> --agent opencode --copy
+skills update --project
+skills remove <name>
 ```
 
-> Careful run `skills remove --skill '*'`; it also deletes the tracked `add-tool` skill.
+Remove only by explicit name. NEVER use wildcard removal or `skills remove --all`:
+they can delete the Git-tracked `add-tool` skill. If `add-tool` was deleted accidentally, restore only
+`.agents/skills/add-tool/` from Git.
+
+See the [official Skills CLI documentation](https://github.com/vercel-labs/skills#readme)
+for more commands.
 
 ## Security, changelog, and license
 

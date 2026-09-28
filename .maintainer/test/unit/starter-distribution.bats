@@ -219,3 +219,127 @@ assert 'git merge upstream/starter' in (root / 'README.md').read_text()
 PY
   [ "$status" -eq 0 ]
 }
+
+@test "published starter exports host preflight and guide for an unrelated project" {
+  cp "${ROOT}/Taskfile.yml" "${REPO}/Taskfile.yml"
+  mkdir -p "${REPO}/.taskfiles"
+  cp -a "${ROOT}/.taskfiles/." "${REPO}/.taskfiles/"
+  cp "${ROOT}/.devcontainer/docs/existing-project.md" \
+    "${REPO}/.devcontainer/docs/existing-project.md"
+  cp "${ROOT}/.devcontainer/docs/README.md" "${REPO}/.devcontainer/docs/README.md"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Include host integration entry'
+  run prepare
+  [ "$status" -eq 0 ]
+  for path in Taskfile.yml .taskfiles/scripts/check-existing-project.py \
+    .devcontainer/docs/existing-project.md .devcontainer/docs/README.md; do
+    git -C "${REPO}" cat-file -e "starter:${path}"
+  done
+  [[ "$(git -C "${REPO}" show starter:.devcontainer/docs/README.md)" == *"(existing-project.md)"* ]]
+
+  git -C "${REPO}" switch -q starter
+  local consumer="${TEMP}/unrelated consumer"
+  mkdir -p "${consumer}"
+  git init -q "${consumer}"
+  git -C "${consumer}" -c user.name=Fixture -c user.email=fixture@example.test \
+    commit -q --allow-empty -m initial
+  local before
+  before="$(git -C "${consumer}" rev-parse HEAD)"
+  run env PROJECT="${consumer}" task --dir "${REPO}" project:check-existing
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"COMPATIBLE"* ]]
+  [ "$(git -C "${consumer}" rev-parse HEAD)" = "$before" ]
+  [ -z "$(git -C "${consumer}" status --porcelain)" ]
+
+  touch "${consumer}/Taskfile.yml"
+  run env PROJECT="${consumer}" task --dir "${REPO}" project:check-existing
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"MANUAL INTEGRATION"* ]]
+}
+
+@test "unrelated consumer reviews two-parent import and later merges starter by ancestry" {
+  printf 'starter env defaults\n' > "${REPO}/.env.example"
+  printf 'starter-state/\n' > "${REPO}/.gitignore"
+  git -C "${REPO}" add .env.example .gitignore
+  git -C "${REPO}" commit -qm 'Add starter defaults'
+  prepare
+  local first_release consumer project_head first_merge second_release
+  first_release="$(git -C "${REPO}" rev-parse starter)"
+
+  consumer="${TEMP}/unrelated consumer"
+  git init -q -b main "${consumer}"
+  git -C "${consumer}" config user.name 'Consumer Fixture'
+  git -C "${consumer}" config user.email 'consumer@example.test'
+  mkdir -p "${consumer}/.agents/skills/project-tool"
+  printf 'project readme\n' > "${consumer}/README.md"
+  printf 'project license\n' > "${consumer}/LICENSE"
+  printf 'project env defaults\n' > "${consumer}/.env.example"
+  printf 'project-state/\n' > "${consumer}/.gitignore"
+  printf 'project agents\n' > "${consumer}/AGENTS.md"
+  printf 'project skill lock\n' > "${consumer}/skills-lock.json"
+  printf 'project skill\n' > "${consumer}/.agents/skills/project-tool/SKILL.md"
+  git -C "${consumer}" add -A
+  git -C "${consumer}" commit -qm 'Existing project'
+  project_head="$(git -C "${consumer}" rev-parse HEAD)"
+  git -C "${consumer}" switch -q -c integrate-starter
+
+  # A local path fetch imports only disposable fixture objects, never a network remote.
+  git -C "${consumer}" fetch -q "${REPO}" \
+    refs/heads/starter:refs/remotes/upstream/starter
+  [ "$(git -C "${consumer}" rev-parse refs/remotes/upstream/starter)" = "$first_release" ]
+  run git -C "${consumer}" merge --allow-unrelated-histories --no-commit --no-ff upstream/starter
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${consumer}" rev-parse HEAD)" = "$project_head" ]
+  [ "$(git -C "${consumer}" rev-parse MERGE_HEAD)" = "$first_release" ]
+  for path in LICENSE .env.example .gitignore; do
+    git -C "${consumer}" ls-files -u -- "$path" | grep -q .
+  done
+  [ -z "$(git -C "${consumer}" ls-files -u -- README.md)" ]
+
+  # Resolve only the overlapping files; keep both sets of independent surfaces.
+  for path in LICENSE .env.example; do
+    git -C "${consumer}" show "${project_head}:${path}" > "${consumer}/${path}"
+  done
+  printf 'project-state/\nstarter-state/\n' > "${consumer}/.gitignore"
+  git -C "${consumer}" add README.md LICENSE .env.example .gitignore
+  [ -z "$(git -C "${consumer}" ls-files -u)" ]
+  [ "$(git -C "${consumer}" show :README.md)" = 'project readme' ]
+  [ "$(git -C "${consumer}" show :.gitignore)" = "$(printf 'project-state/\nstarter-state/')" ]
+  [ "$(git -C "${consumer}" show :.devcontainer/docs/guide.md)" = v1 ]
+  [ "$(git -C "${consumer}" show :.agents/skills/add-tool/SKILL.md)" = authored ]
+  [ "$(git -C "${consumer}" show :.agents/skills/project-tool/SKILL.md)" = 'project skill' ]
+  git -C "${consumer}" diff --cached --check
+  git -C "${consumer}" commit -qm 'Review initial starter integration'
+  first_merge="$(git -C "${consumer}" rev-parse HEAD)"
+  [ "$(git -C "${consumer}" show -s --format=%P HEAD)" = "${project_head} ${first_release}" ]
+  for path in README.md LICENSE .env.example AGENTS.md skills-lock.json; do
+    [ "$(git -C "${consumer}" show "HEAD:${path}")" = "$(git -C "${consumer}" show "${project_head}:${path}")" ]
+  done
+  [ "$(git -C "${consumer}" show HEAD:.gitignore)" = "$(printf 'project-state/\nstarter-state/')" ]
+
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" add .devcontainer/docs/guide.md
+  git -C "${REPO}" commit -qm 'Update starter guide'
+  git -C "${REPO}" switch -q starter
+  prepare
+  second_release="$(git -C "${REPO}" rev-parse starter)"
+  git -C "${consumer}" fetch -q "${REPO}" \
+    refs/heads/starter:refs/remotes/upstream/starter
+  git -C "${consumer}" merge-base --is-ancestor "$first_release" "$second_release"
+  run git -C "${consumer}" merge --no-commit --no-ff upstream/starter
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${consumer}" rev-parse HEAD)" = "$first_merge" ]
+  [ "$(git -C "${consumer}" rev-parse MERGE_HEAD)" = "$second_release" ]
+  [ "$(git -C "${consumer}" show :.devcontainer/docs/guide.md)" = v2 ]
+  git -C "${consumer}" diff --cached --check
+  git -C "${consumer}" commit -qm 'Review starter update'
+  [ "$(git -C "${consumer}" show -s --format=%P HEAD)" = "${first_merge} ${second_release}" ]
+  for path in README.md LICENSE .env.example AGENTS.md skills-lock.json \
+    .agents/skills/project-tool/SKILL.md; do
+    [ "$(git -C "${consumer}" show "HEAD:${path}")" = "$(git -C "${consumer}" show "${project_head}:${path}")" ]
+  done
+  [ "$(git -C "${consumer}" show HEAD:.gitignore)" = "$(printf 'project-state/\nstarter-state/')" ]
+  [ "$(git -C "${consumer}" show HEAD:.agents/skills/add-tool/SKILL.md)" = authored ]
+  [ "$(git -C "${consumer}" show HEAD:.devcontainer/docs/guide.md)" = v2 ]
+  [ -z "$(git -C "${consumer}" status --porcelain)" ]
+}
