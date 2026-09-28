@@ -19,32 +19,31 @@
 
 ## 🎯 What does it do?
 
-It provides a preconfigured, cross-platform, reliable, extensible, and
-replicable "ready-to-prompt" environment for starting AI projects in an orderly
+It provides a preconfigured, cross-platform, extensible, and replicable
+"ready-to-prompt" environment for starting AI projects in an orderly
 way: understand the goal, clarify requirements, use SDD/OpenSpec/ODD artifacts,
 apply skills, coordinate subagents, implement in phases — discover > research >
 design > plan > implement > verify — and iterate until the expected results are
 achieved.
 
-The project is designed to provide a clean base structure before launching any
-prompt, clone the consumer `starter` branch to start a project. Keep `upstream` for
-future updates; create your own `origin` only when you have a project remote:
+The project on this branch is the **producer** designed to provide a clean baseline
+structure before starting a new project or integrating it with an existing project.
+As a **consumer**, you should clone the `starter` branch and create the remote `upstream`
+for future upgrades; these are the exclusive files that belong to:
 
 ```bash
 .
-|  # Gentle-Starter files structure
+├── .agents
+│   └── skills
+│       └── add-tool/
 ├── .devcontainer/
-├── .env.d/
 ├── .taskfiles/
 ├── .env.example
 ├── .markdownlint-cli2.yaml
-├── Taskfile.yml
-|  # Commons files structure
-├── .agents/
-├── .gitignore
-├── LICENSE
-└── skills-lock.json
+└── Taskfile.yml
 ```
+
+> Common files have not been mentioned
 
 ## 📦 What's included?
 
@@ -534,17 +533,21 @@ Run the installed `skills` CLI inside the container. External project skills are
 recorded in `skills-lock.json`; `add-tool` is authored in this repository and
 tracked by Git under `.agents/skills/add-tool/`, not in the external lock.
 
-For an external source and explicit skill name, use:
+Use these commands for project skills:
 
 ```bash
-skills add <source> --skill <skill-name> --agent pi --copy -y
-skills experimental_install -y   # Restore external skills from skills-lock.json
-skills update --project -y        # Update project external skills
-skills list --json                # Inspect installed skills
-skills remove <skill-name> -y     # Remove only this named skill
+skills list --json
+skills add <source> --skill <name> --agent opencode --copy
+skills update --project
+skills remove <name>
 ```
 
-> Careful run `skills remove --skill '*'`; it also deletes the tracked `add-tool` skill.
+Remove only by explicit name. NEVER use wildcard removal or `skills remove --all`:
+they can delete the Git-tracked `add-tool` skill. If `add-tool` was deleted accidentally, restore only
+`.agents/skills/add-tool/` from Git.
+
+See the [official Skills CLI documentation](https://github.com/vercel-labs/skills#readme)
+for more commands.
 
 ## Security, changelog, and license
 
