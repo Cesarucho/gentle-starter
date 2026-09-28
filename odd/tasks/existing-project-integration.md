@@ -39,7 +39,7 @@ Keep existing README edits and any user-owned skills untouched.
   worktree, and unchanged Git state. Route: delegated writer (multiple
   nontrivial files, preparation read). Checks: focused Bats, maintainer unit,
   `git diff --check`; prove no repository mutations in fixtures.
-- [ ] EPI-2 — Verify release export in a disposable distribution fixture and
+- [x] EPI-2 — Verify release export in a disposable distribution fixture and
   document host invocation, direct and manual paths in README and
   `.devcontainer/docs/`, with index link. Route: delegated writer (multiple
   nontrivial files and documentation preparation). Checks: distribution Bats,
@@ -57,12 +57,17 @@ Keep existing README edits and any user-owned skills untouched.
   repository state unchanged; untracked reserved paths take precedence over
   unrelated dirty changes. Runtime container boundary: N/A (host-only Git
   inspection). Rollback: revert the Task entry, checker, and focused fixture.
-- EPI-2 pending: release fixture passed 10/10, full unit 467/467,
+- EPI-2: `5877a07` (`docs(starter): guide existing-project integration`);
+  release fixture passed 10/10, full unit 467/467,
   markdownlint 20 files with 0 issues, and `git diff --check` passed. Keep
   pre-existing user-owned README edits outside this work unit's staged patch.
+  Runtime container boundary: N/A (host docs and Git fixtures). Rollback:
+  revert the guide, README integration subsection, index link, and release
+  fixtures; EPI-1 can then remain independently usable.
 - Mirror the full document to Engram after each update; commit work units on
   the feature branch with verification and commit identity.
 
 ## Next step
 
-Implement EPI-2 and check the exported starter tree in a disposable repository.
+Both implementation tasks are complete. Reconcile the Engram mirror and report
+remaining user-owned README changes separately; no push or PR is authorized.
