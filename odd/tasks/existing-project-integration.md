@@ -28,12 +28,13 @@ Keep existing README edits and any user-owned skills untouched.
 - No remote execution, Docker, credential use, push, or publication is in scope.
 - TDD mode: unknown (no explicit project/session setting established); runner:
   `bats` for maintainer fixtures. Run ordinary focused and full applicable checks.
-- Delivery strategy: ask-on-risk. Forecast: approximately 250–400 authored
-  changed lines, advisory only; no automatic size stop.
+- Delivery strategy: ask-on-risk; the user chose feature-branch-chain for any
+  later PR delivery, without authorizing a PR or push. Forecast exceeded the
+  advisory ~400 authored lines across work units; this does not cap correctness.
 
 ## Tasks
 
-- [ ] EPI-1 — Add host-only read-only checker, exported Task entry, and Bats
+- [x] EPI-1 — Add host-only read-only checker, exported Task entry, and Bats
   fixtures for clean/unrelated paths, reserved collisions, symlinks, dirty
   worktree, and unchanged Git state. Route: delegated writer (multiple
   nontrivial files, preparation read). Checks: focused Bats, maintainer unit,
@@ -50,9 +51,18 @@ Keep existing README edits and any user-owned skills untouched.
 - A target with reserved paths never receives a direct-merge recommendation.
 - Compatible state never implies a conflict-free merge; user reviews the
   two-parent merge and owns every commit and future update.
-- No work unit has started. Mirror the full document to Engram after each update;
-  commit work units on a feature branch with verification and commit identity.
+- EPI-1: `f757409` (`feat(starter): check existing projects before integration`)
+  on `feat/existing-project-integration`; focused Bats 12/12, maintainer unit
+  465/465, `task --list`, and `git diff --check` passed. The checker leaves
+  repository state unchanged; untracked reserved paths take precedence over
+  unrelated dirty changes. Runtime container boundary: N/A (host-only Git
+  inspection). Rollback: revert the Task entry, checker, and focused fixture.
+- EPI-2 pending: release fixture passed 10/10, full unit 467/467,
+  markdownlint 20 files with 0 issues, and `git diff --check` passed. Keep
+  pre-existing user-owned README edits outside this work unit's staged patch.
+- Mirror the full document to Engram after each update; commit work units on
+  the feature branch with verification and commit identity.
 
 ## Next step
 
-Implement EPI-1 after readback of this document and its Engram mirror.
+Implement EPI-2 and check the exported starter tree in a disposable repository.
