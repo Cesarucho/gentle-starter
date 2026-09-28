@@ -29,7 +29,7 @@ The producer workflow must use committed `dev` source and an existing clean
 - [x] SPR-1 — Add producer-only preparation/check entry with safe branch and
   worktree behavior, focused regression fixtures, and no implicit push. Verify
   focused Bats, full maintainer suite, and `git diff --check`; record rollback.
-- [ ] SPR-2 — Replace the broken guide with a concise happy path and short
+- [x] SPR-2 — Replace the broken guide with a concise happy path and short
   explanations for review and explicit push. Check markdownlint and command
   consistency; record rollback.
 
@@ -42,7 +42,15 @@ The producer workflow must use committed `dev` source and an existing clean
   Disposable Git fixture invoked the new Task entry from `dev`, confirmed
   unchanged source branch and updated target without remotes. Rollback: revert
   producer helper, Task entry and focused producer fixtures; direct task remains.
+- SPR-1 commit: `010c663` (`feat(starter): prepare local producer release in
+  isolated worktree`).
+- SPR-2: guide now starts with the producer command, local review and optional
+  separately authorized human push; explains conflict rollback and direct-task
+  limitations. `markdownlint-cli2 .maintainer/README-distribution.md`: pass
+  (0 issues); focused Bats: 13/13 pass; `git diff --check`: pass. Command
+  consistency checked against Task entry and disposable Task fixture. Rollback:
+  revert guide and this SPR-2 progress entry without removing producer code.
 
 ## Next step
 
-Commit SPR-1; implement SPR-2 and verify the guide.
+Review both commits locally; publication remains a separate human decision.

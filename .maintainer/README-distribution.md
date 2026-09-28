@@ -1,18 +1,39 @@
 # Prepare the consumer branch locally
 
-Use a clean checkout of the committed source. The preparation script does not
-fetch, push, check out another branch, or read uncommitted source changes.
+From a clean producer checkout, commit the source changes on `dev` first (or
+pass another committed local source branch explicitly).
+Keep the existing local `starter` branch available (not checked out in another
+worktree), then prepare it without switching branches:
 
 ```bash
-task --taskfile .maintainer/Taskfile.yml distribution -- --source dev --target starter
+task --taskfile .maintainer/Taskfile.yml distribution:producer -- --source dev --target starter
+git status --short --branch
+git log --oneline --decorate -5 starter
+git diff dev...starter --stat
+git ls-tree -r --name-only starter
+git merge-base --is-ancestor dev starter
+bats .maintainer/test/unit/starter-distribution.bats
 ```
 
-For a first release, `starter` must not exist; the script creates the branch
-without switching away from the source. For a later release, check out the
-existing `starter` branch first, then run the same command. The source must
-advance the source recorded in the previous release. To prepare from a refactor
-branch instead, pass its exact local branch name as `--source`; subsequent
-updates must descend from that commit.
+Review the resulting branch tree and ancestry before any publication. The
+producer task uses a temporary target checkout and removes it afterward; on
+conflict it aborts that merge, leaves `starter` unchanged, and reports failure.
+Resolve the divergence deliberately before retrying. It never fetches or
+pushes. If publication is separately authorized, a human may push explicitly:
+
+```bash
+git push origin starter
+```
+
+Replace `origin` only with the reviewed, authorized destination. The producer
+task requires an existing `starter` and committed source that advances the
+previous release source. A different source branch may be passed explicitly
+if it descends from that source. For an initial release, the original direct
+`distribution` task still creates a missing target from a clean source checkout.
+The original direct `distribution` task still accepts a target checkout that
+contains `.maintainer/` and retains merge conflicts for manual resolution.
+The filtered published `starter` checkout does not contain that Taskfile; do
+not invoke the direct task from it.
 
 Each release constructs its tree from the committed source with root README,
 identity (including `AGENTS.md.TEMPLATE`), maintainer tooling, and planning
@@ -22,9 +43,10 @@ source commit in the release ancestry. A source-only update still records the
 new source parent and marker even when the sanitized tree is unchanged; a
 rerun with that source is a no-op. Consumer-owned README, workflows, and
 planning files are never rewritten by the distribution step. Git merges shared
-paths normally; if one conflicts, the script stops and preserves the merge
-state. Inspect `git status`, resolve and commit the conflict manually, or use
-`git merge --abort`. Never reset a consumer repository to resolve an update.
+paths normally; on conflict the producer task aborts the temporary merge and
+preserves the target HEAD. The direct task instead retains merge state for
+manual resolution or `git merge --abort`. Never reset a consumer repository to
+resolve an update.
 
 The release includes only `.agents/skills/add-tool/` from the source skill tree.
 It excludes the source `skills-lock.json` and generates
@@ -36,14 +58,6 @@ distributed skill tree, unchanged old external skills are removed; edits to
 those tracked paths or the old lock cause a Git conflict rather than being
 silently discarded. Resolve conflicts deliberately if retaining those paths,
 or abort the merge to restore the consumer branch.
-
-Verify the local branch tree before any separately authorized publication:
-
-```bash
-git ls-tree -r --name-only starter
-git merge-base --is-ancestor dev starter
-bats .maintainer/test/unit/starter-distribution.bats
-```
 
 Git stores regular-file mode as executable or non-executable, not arbitrary
 POSIX permission bits. LICENSE and the dev-source AGENTS.md.TEMPLATE retain
