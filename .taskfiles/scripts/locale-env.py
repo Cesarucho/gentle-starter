@@ -4,7 +4,6 @@
 import re
 import sys
 from pathlib import Path
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 DEFAULTS = {"LOCALE": "es_MX.UTF-8", "TZ": "America/Mexico_City"}
@@ -45,11 +44,6 @@ def parse(path):
             raise ValueError(f"{path}:{number}: invalid {key}")
         if key == "TZ" and (value.startswith(".") or "/.." in value):
             raise ValueError(f"{path}:{number}: invalid TZ path")
-        if key == "TZ":
-            try:
-                ZoneInfo(value)
-            except ZoneInfoNotFoundError as error:
-                raise ValueError(f"{path}:{number}: unavailable TZ: {value}") from error
         values[key] = value
     return values
 

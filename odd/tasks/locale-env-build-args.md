@@ -95,3 +95,44 @@ and scratch were removed and verified. Shared cache remains, increasing from
 42.87 GB to 46.51 GB (+3.64 GB reported). No primary container action.
 Post-run focused Bats passed 2/2; `git diff --check` passed. Rollback boundary:
 the lifecycle harness, its mocked regression tests, and this ODD evidence only.
+
+## Bounded pre-merge timezone review correction
+
+- [x] L11: Remove host ZoneInfo availability gating while preserving parser
+  syntax/path and atomicity checks; test forwarding of a syntactically valid
+  zone absent from host zoneinfo without assuming host tzdata contents.
+- [x] L12: Check installer behavior and, if invalid zones are accepted by
+  dpkg-reconfigure, reject missing image zoneinfo before any mutation; test
+  image-side rejection and valid-zone continuation with isolated fixtures.
+- [x] L13: Run the three requested Bats files in the foreground, relevant
+  Python unit fixture, diff check, and Python syntax check. No Docker build:
+  earlier real lifecycle passed; this correction targets failure behavior.
+- [x] L14: Commit one correction work unit on this branch, record exact results
+  and rollback boundary, and mirror the complete updated document in Engram.
+
+Authority: local-only review fix; preserve README bytes exactly, no push/merge,
+no host-dependent timezone assertions. Earlier constraints against Docker builds
+remain in force for this correction. Previous work-unit and lifecycle evidence
+above remain historical, not proof of the new invalid-zone behavior.
+
+Inspection: `11-locale.sh` previously checked locale availability but not TZ;
+it ran `dpkg-reconfigure` after mutating locale.gen. Installed Ubuntu tzdata
+postinst selects debconf area/zone, writes `/etc/localtime` and `/etc/timezone`,
+and exits 0 without checking the zoneinfo file. The image installer now checks
+the zone file before mutation. The fixture supplies its own zoneinfo directory,
+so valid and missing cases do not depend on host tzdata. The host fixture
+injects a `zoneinfo` module that raises if imported, proving the parser never
+consults host availability; Task forwarding uses a synthetic zone name.
+
+First Bats run: 35/36; the new fixture tried calling an internal Task directly.
+After routing through a fixture `regenerate` task, foreground Bats passed 36/36
+for `project-identity.bats`, `locale-ordering.bats`, and
+`devcontainer-tasks.bats` in one command (the requested combined Bats run).
+`python3 .maintainer/test/unit/starter-lifecycle-test.py`: 21/21 passed.
+`git diff --check`, Python AST parse of `locale-env.py`, and `bash -n` of
+`11-locale.sh`: all passed. README diff is empty. The correction work-unit
+commit is the commit containing this section; resolve its identity with
+`git log -1 --format=%H -- odd/tasks/locale-env-build-args.md` after commit.
+No Docker build: prior real lifecycle tested valid overrides; mocked installer
+regression covers missing-zone failure. Rollback boundary: parser availability
+removal, image-side preflight, their two Bats fixtures, and this evidence.

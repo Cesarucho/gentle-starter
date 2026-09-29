@@ -85,18 +85,38 @@ SSH_PORT=$((app_port + 2))"
 	cp "${REPO_ROOT}/.taskfiles/devcontainer.yml" "${test_root}/.taskfiles/devcontainer.yml"
 	cp "${IDENTITY}" "${test_root}/.taskfiles/scripts/project-identity.sh"
 	cp "${REPO_ROOT}/.taskfiles/scripts/locale-env.py" "${test_root}/.taskfiles/scripts/locale-env.py"
-	printf 'version: "3"\nincludes:\n  container:\n    taskfile: ./.taskfiles/devcontainer.yml\n' >"${test_root}/Taskfile.yml"
+	printf 'version: "3"\nincludes:\n  container:\n    taskfile: ./.taskfiles/devcontainer.yml\ntasks:\n  regenerate:\n    cmds:\n      - task: container:ensure-identity-env\n' >"${test_root}/Taskfile.yml"
 	printf 'SECRET=keep\n' >"${test_root}/.devcontainer/.env"
-	for invalid in 'LOCALE=$(touch /tmp/unsafe)' 'TZ=../etc/passwd' 'TZ=Not/AZone' 'LOCALE=one
+	for invalid in 'LOCALE=$(touch /tmp/unsafe)' 'TZ=../etc/passwd' 'TZ=Region/../City' 'LOCALE=one
 LOCALE=two' 'export LOCALE=en_US.UTF-8'; do
 		printf '%s\n' "${invalid}" >"${test_root}/.env"
 		cp "${test_root}/.env" "${test_root}/before"
 		cd "${test_root}"
-		run env FORCE_HOST_CONTEXT=1 task container:ensure-identity-env
+		run env FORCE_HOST_CONTEXT=1 task regenerate
 		[ "${status}" -ne 0 ]
 		cmp -s .env before
 		[ "$(<.devcontainer/.env)" = SECRET=keep ]
 	done
+}
+
+@test "a syntactically valid zone missing from host zoneinfo reaches generated build settings" {
+	test_root="${BATS_TEST_TMPDIR}/fixture"
+	mkdir -p "${test_root}/.taskfiles/scripts" "${test_root}/.devcontainer"
+	cp "${REPO_ROOT}/.taskfiles/devcontainer.yml" "${test_root}/.taskfiles/devcontainer.yml"
+	cp "${IDENTITY}" "${test_root}/.taskfiles/scripts/project-identity.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/locale-env.py" "${test_root}/.taskfiles/scripts/locale-env.py"
+	printf 'version: "3"\nincludes:\n  container:\n    taskfile: ./.taskfiles/devcontainer.yml\ntasks:\n  regenerate:\n    cmds:\n      - task: container:ensure-identity-env\n' >"${test_root}/Taskfile.yml"
+	printf 'TZ=Test_Zone/Unavailable_12345\n' >"${test_root}/.env"
+	printf 'SECRET=keep\n' >"${test_root}/.devcontainer/.env"
+	printf 'raise RuntimeError("host zoneinfo must not be consulted")\n' >"${test_root}/zoneinfo.py"
+	cd "${test_root}"
+	run env PYTHONPATH="${test_root}" python3 .taskfiles/scripts/locale-env.py .env TZ
+	[ "${status}" -eq 0 ]
+	[ "${output}" = 'Test_Zone/Unavailable_12345' ]
+	run env FORCE_HOST_CONTEXT=1 task regenerate
+	[ "${status}" -eq 0 ]
+	grep -Fxq 'TZ=Test_Zone/Unavailable_12345' .devcontainer/.env
+	grep -Fxq 'SECRET=keep' .devcontainer/.env
 }
 
 @test "missing root locale settings use image defaults" {

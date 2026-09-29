@@ -12,6 +12,16 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 : "${TZ:=America/Mexico_City}"
 : "${LOCALE:=es_MX.UTF-8}"
 locale_gen_file="${DEVCONTAINER_LOCALE_GEN_FILE:-/etc/locale.gen}"
+zoneinfo_dir="${DEVCONTAINER_ZONEINFO_DIR:-/usr/share/zoneinfo}"
+
+if [[ ! "${TZ}" =~ ^[A-Za-z0-9][A-Za-z0-9_+.-]*(/[A-Za-z0-9_+.-]+)*$ || "${TZ}" == *"/.."* ]]; then
+	devcontainer_log_error "Invalid timezone name: ${TZ}"
+	exit 1
+fi
+if [ ! -f "${zoneinfo_dir}/${TZ}" ]; then
+	devcontainer_log_error "Timezone is unavailable in ${zoneinfo_dir}: ${TZ}"
+	exit 1
+fi
 
 if [[ ! "${LOCALE}" =~ ^[A-Za-z][A-Za-z0-9_.@-]*$ ]]; then
 	devcontainer_log_error "Invalid locale name: ${LOCALE}"

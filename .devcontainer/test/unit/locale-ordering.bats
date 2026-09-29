@@ -6,7 +6,8 @@ setup() {
 	INSTALL_ROOT="${TEST_ROOT}/install"
 	BIN_DIR="${TEST_ROOT}/bin"
 	CALLS="${TEST_ROOT}/calls"
-	mkdir -p "${INSTALL_ROOT}/01-foundation" "${INSTALL_ROOT}/lib" "${BIN_DIR}"
+	mkdir -p "${INSTALL_ROOT}/01-foundation" "${INSTALL_ROOT}/lib" "${BIN_DIR}" "${TEST_ROOT}/zoneinfo/America"
+	printf 'fixture zone\n' >"${TEST_ROOT}/zoneinfo/America/Mexico_City"
 	cp "${REPO_ROOT}/.devcontainer/install/01-foundation/11-locale.sh" "${INSTALL_ROOT}/01-foundation/"
 	cat >"${INSTALL_ROOT}/lib/common.sh" <<'SH'
 devcontainer_log_info() { :; }
@@ -33,7 +34,22 @@ teardown() {
 run_locale_installer() {
 	run env PATH="${BIN_DIR}:${PATH}" CALLS="${CALLS}" \
 		DEVCONTAINER_LOCALE_GEN_FILE="${TEST_ROOT}/locale.gen" LOCALE="${1:-es_MX.UTF-8}" \
-		TZ=America/Mexico_City bash "${INSTALL_ROOT}/01-foundation/11-locale.sh"
+		DEVCONTAINER_ZONEINFO_DIR="${TEST_ROOT}/zoneinfo" \
+		TZ="${2:-America/Mexico_City}" bash "${INSTALL_ROOT}/01-foundation/11-locale.sh"
+}
+
+@test "unavailable or traversal timezone fails before locale mutation or dpkg-reconfigure" {
+	cp "${TEST_ROOT}/locale.gen" "${TEST_ROOT}/before"
+	run_locale_installer es_MX.UTF-8 Test_Zone/Unavailable_12345
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *'Timezone is unavailable'* ]]
+	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/locale.gen"
+	[ ! -e "${CALLS}" ]
+
+	run_locale_installer es_MX.UTF-8 'America/../Mexico_City'
+	[ "${status}" -ne 0 ]
+	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/locale.gen"
+	[ ! -e "${CALLS}" ]
 }
 
 @test "locale generation is ordered after the package installer" {
