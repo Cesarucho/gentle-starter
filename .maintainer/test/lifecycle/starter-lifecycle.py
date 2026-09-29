@@ -17,6 +17,39 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from test_resources import LABEL, Run, Unsafe
 
+VERIFY_CHECKS = frozenset({"container-replaced", "managed-state", "candidate-unchanged"})
+
+
+def failure_message(lifecycle):
+    check = getattr(lifecycle, "verify_check", None)
+    detail = f"; verify check: {check}" if check in VERIFY_CHECKS else ""
+    if check == "candidate-unchanged" and hasattr(lifecycle, "snapshot_diagnostic"):
+        detail += "; snapshot difference: " + ", ".join(
+            f"{key}={value}" for key, value in lifecycle.snapshot_diagnostic.items())
+    return "Sandbox failed" + detail + "; stage/exit are retained in the run inventory; private output withheld"
+
+
+def snapshot_difference(before, after):
+    """Summarize snapshot differences without disclosing paths or file contents."""
+    counts = {key: 0 for key in ("added", "removed", "mode", "kind", "hash-or-link", "identity")}
+    for key in ("head", "branch", "index"):
+        counts["identity"] += before[key] != after[key]
+    original, current = before["files"], after["files"]
+    for name in original.keys() | current.keys():
+        if name not in original:
+            counts["added"] += 1
+        elif name not in current:
+            counts["removed"] += 1
+        elif original[name] != current[name]:
+            old, new = original[name], current[name]
+            if old is None or new is None:
+                counts["kind"] += 1
+            else:
+                counts["mode"] += old[0] != new[0]
+                counts["kind"] += old[1] != new[1]
+                counts["hash-or-link"] += old[2:] != new[2:]
+    return counts
+
 
 def run(*args, cwd=None, env=None):
     environment = {**(os.environ if env is None else env), "GIT_OPTIONAL_LOCKS": "0"}
@@ -70,6 +103,26 @@ def snapshot(root):
             "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD", cwd=root),
             "index": run("git", "ls-files", "--stage", "-z", cwd=root),
             "files": files}
+
+
+def expected_after_setup(root, configured):
+    """Predict setup's public file modes without changing the candidate."""
+    ignored = run("git", "ls-files", "--others", "--ignored", "--exclude-standard",
+                  "--directory", "-z", cwd=root).split("\0")
+    ignored_dirs = tuple(path.rstrip("/") + "/" for path in ignored if path.endswith("/"))
+    tracked = {}
+    for entry in configured["index"].split("\0"):
+        if entry:
+            mode, _, path = entry.partition("\t")
+            tracked[path] = mode.split(" ", 1)[0]
+    files = {}
+    for name, value in configured["files"].items():
+        if value is None or value[1] != "file" or name.startswith(ignored_dirs):
+            files[name] = value
+            continue
+        mode = {"100644": 0o644, "100755": 0o755}.get(tracked.get(name, ""))
+        files[name] = [mode if mode is not None else (0o755 if Path(name).name.endswith(".sh") else 0o644), *value[1:]]
+    return {**configured, "files": files}
 
 
 def configure(root):
@@ -231,7 +284,7 @@ class Lifecycle:
         self.env.update(APP_NAME=self.candidate.name, APP_PORT=port, OPENCODE_PORT=str(int(port) + 1))
         self.validate_base()
         self.label_candidate()
-        configured = snapshot(self.candidate)
+        configured = expected_after_setup(self.candidate, snapshot(self.candidate))
         self.task("build")
         self.task("up")
         first = self.container()
@@ -239,11 +292,17 @@ class Lifecycle:
         self.task("recreate")
         second = self.container()
         self.ownership.stage("verify")
+        self.verify_check = "container-replaced"
         if first == second:
             raise RuntimeError("Recreate did not replace the service container")
+        self.verify_check = "managed-state"
         self.assert_state(second)
-        if snapshot(self.candidate) != configured:
+        self.verify_check = "candidate-unchanged"
+        current = snapshot(self.candidate)
+        if current != configured:
+            self.snapshot_diagnostic = snapshot_difference(configured, current)
             raise RuntimeError("Candidate public source bytes, links, or modes changed")
+        self.verify_check = None
 
     def cleanup(self):
         result = self.ownership.cleanup(apply=True)
@@ -311,7 +370,7 @@ def main():
     try:
         lifecycle.execute()
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt):
-        failure = "Sandbox failed; stage/exit are retained in the run inventory; private output withheld"
+        failure = failure_message(lifecycle)
         was_interrupted |= isinstance(sys.exc_info()[1], KeyboardInterrupt)
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
