@@ -307,11 +307,16 @@ def main():
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         try:
-            errors = lifecycle.cleanup()
+            cleanup_failed = True
             try:
-                ownership.finish("interrupted" if was_interrupted else "failed" if failure or errors else "passed")
-            except (OSError, Unsafe):
-                errors.append("could not persist test outcome")
+                errors = lifecycle.cleanup()
+                cleanup_failed = False
+            finally:
+                try:
+                    ownership.finish("interrupted" if was_interrupted else "failed" if cleanup_failed or failure or errors else "passed")
+                except (OSError, Unsafe):
+                    if not cleanup_failed:
+                        errors.append("could not persist test outcome")
         finally:
             ownership.close()
             os.environ.clear()

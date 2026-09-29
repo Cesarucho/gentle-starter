@@ -150,6 +150,31 @@ class LifecycleTests(unittest.TestCase):
                 H.main()
         run.create.assert_not_called()
 
+    def test_cleanup_exception_persists_failed_probe_outcome_and_restores_environment(self):
+        owner = Mock()
+        owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
+        owner.path = self.root / "inventory.json"
+        original_env = dict(os.environ)
+        with patch.object(sys, "argv", ["lifecycle", "--daemon-visible-scratch", str(self.root.parent)]), \
+             patch.object(H, "run", return_value=str(self.root)), patch.object(H, "Run") as run, \
+             patch.object(H, "Lifecycle") as lifecycle_class, \
+             patch.object(H.shutil, "which", return_value="available"), \
+             patch.object(H.Path, "cwd", return_value=self.root), \
+             patch.object(H.signal, "signal"), patch("builtins.print"):
+            run.create.return_value = owner
+            lifecycle = lifecycle_class.return_value
+            lifecycle.env = {"PATH": original_env["PATH"], "HOME": str(self.root / "home")}
+            owner.probe_bind.side_effect = H.Unsafe("probe failed")
+            lifecycle.execute.side_effect = lambda: (owner.arm(), owner.probe_bind())
+            lifecycle.cleanup.side_effect = RuntimeError("cleanup failed")
+            with self.assertRaisesRegex(RuntimeError, "cleanup failed"):
+                H.main()
+        owner.finish.assert_called_once_with("failed")
+        owner.close.assert_called_once_with()
+        self.assertEqual(os.environ, original_env)
+        owner.produce.assert_not_called()
+        lifecycle.task.assert_not_called()
+
     def test_task_failure_keeps_diagnosis_and_does_not_continue(self):
         lifecycle = self.lifecycle()
         lifecycle.ownership.produce.side_effect = H.Unsafe("build failed (17)")
