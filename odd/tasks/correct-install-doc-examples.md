@@ -52,10 +52,12 @@ odd/tasks/correct-install-doc-examples.md` reported 0 issues (configuration
 expanded to 21 Markdown files); `git diff --check` passed; the example
 installer path is unused and the template exists. Runtime harness: N/A,
 docs only and Docker prohibited. Rollback boundary: extending guide and
-this task evidence. Commit identity recorded below.
+this task evidence. V2 commit: `c1287eb`.
 
 Relevant local fixture tests: `bats .devcontainer/test/unit/install-dependencies.bats
 .devcontainer/test/unit/volume-repair.bats` passed 29/29; these verify
 activation and volume dispatch, not Redis/PostgreSQL behavior. Final focused
 lint again reported 0 issues and `git diff --check` passed before the second
 commit.
+
+Final evidence-only commit records V2's identity; no source changes.
