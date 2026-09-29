@@ -57,3 +57,7 @@ still uncommitted. Mirror topic: `odd/locale-env-build-args/tasks`.
   arguments, three focused test changes, `.env.example` locale guidance and this
   task document. The README locale paragraph is a separate uncommitted change;
   user's other README hunks remain untouched and unstaged.
+- Work-unit commit: `801b823fafc904756d68cd44d902e910f0d9e9d2`,
+  `feat(container): forward root locale settings to image builds`. No README
+  content was staged or committed. Review candidate is this commit against
+  `759dece`; delivery remains one local work unit, no PR or remote operation.
