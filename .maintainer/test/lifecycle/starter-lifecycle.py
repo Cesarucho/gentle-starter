@@ -328,13 +328,21 @@ class Lifecycle:
             raise RuntimeError("Candidate public source bytes, links, or modes changed")
         self.verify_check = None
 
+
     def cleanup(self):
         result = self.ownership.cleanup(apply=True)
         errors = list(result["failed"])
         for message in result["removed"] + result["retained"]:
             print(f"[starter-lifecycle:cleanup] {message}")
-        if len(result["retained"]) > 1:
-            errors.append("run images retained; inspect the recovery preview")
+        features = result.get("feature_volumes", set())
+        expected_retention = ["shared build cache (no dedicated builder)"] + [
+            "feature state volume " + name for name in sorted(features)]
+        if not result["failed"] and self.ownership.data.get("variant") == "consumer":
+            if (len(features) != 2 or set(self.ownership.data.get("feature_volumes", {})) != features
+                    or result["retained"] != expected_retention):
+                errors.append("consumer cleanup retained unexpected resources or lacks two verified feature volumes")
+        elif not result["failed"] and (result["retained"] != expected_retention or features):
+            errors.append("base cleanup retained unexpected resources; inspect the recovery preview")
         try:
             if snapshot(self.root) != self.before or run("git", "status", "--porcelain=v1", "--untracked-files=all", cwd=self.root) != self.source_status:
                 errors.append("primary branch, HEAD, index, public files, modes, links, or status changed")
@@ -347,13 +355,91 @@ class Lifecycle:
         self.ownership.retain()
 
 
+class ConsumerLifecycle(Lifecycle):
+    """Exercise the filtered release without reducing its published Features."""
+
+    def assert_nested_docker(self, container):
+        mounts = json.loads(self.docker("inspect", "--format", "{{json .Mounts}}", container))
+        forbidden = {"/var/run/docker.sock", "/run/docker.sock", "/var/run", "/run"}
+        if any(m["Type"] == "bind" and (
+                m["Source"] in forbidden or m["Destination"] in forbidden) for m in mounts):
+            raise RuntimeError("Consumer container binds the host Docker socket")
+        host_id = self.ownership.data["daemon"]
+        nested = ("exec", "--user", "ubuntu", container, "docker", "-H", "unix:///var/run/docker.sock")
+        nested_id = self.docker(*nested, "info", "--format", "{{.ID}}")
+        if not nested_id or nested_id == host_id:
+            raise RuntimeError("Nested Docker daemon is unavailable or matches the host daemon")
+        self.docker(*nested, "run", "--rm", "hello-world")
+
+    def execute(self):
+        self.ownership.arm()
+        self.ownership.probe_bind()
+        source = self.scratch / "fixture-source"
+        self.ownership.produce(["bash", str(HERE / "create-candidate.sh"), str(self.root), str(source)],
+                               self.root, self.env, "prepare")
+        for path in source.rglob("*"):
+            if ".git" not in path.relative_to(source).parts and path.is_symlink() and not path.resolve().is_relative_to(source):
+                raise ValueError("Fixture source contains an escaping symlink")
+        # The release builders accept committed objects only. Stage the fixture
+        # overlay in its independent Git repository, never in the primary source.
+        fixture_env = {**self.env, "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+                       "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid"}
+        self.ownership.produce(["git", "add", "-A"], source, fixture_env, "prepare")
+        self.ownership.produce(["git", "commit", "--allow-empty", "-m", "Fixture source"], source, fixture_env, "prepare")
+        self.ownership.produce(["git", "branch", "fixture-source", "HEAD"], source, fixture_env, "prepare")
+        fixture_head = run("git", "rev-parse", "HEAD", cwd=source, env=self.env)
+        self.ownership.produce(["python3", ".maintainer/scripts/starter-candidate.py",
+                                "--source", "fixture-source", "--base-absent"], source, fixture_env, "prepare")
+        rc = run("git", "rev-parse", "refs/heads/starter-rc", cwd=source, env=self.env)
+        tree = run("git", "rev-parse", f"{rc}^{{tree}}", cwd=source, env=self.env)
+        self.ownership.produce(["python3", ".maintainer/scripts/starter-promote.py",
+                                "--approved-rc", rc, "--expected-tree", tree,
+                                "--expected-base", "absent", "--expected-source", fixture_head],
+                               source, fixture_env, "prepare")
+        release = run("git", "rev-parse", "refs/heads/starter", cwd=source, env=self.env)
+        # No checkout or Docker build is allowed until the clone loses its origin.
+        self.ownership.produce(["git", "clone", "--quiet", "--no-local", "--no-hardlinks",
+                                "--no-checkout", "--branch", "starter", str(source), str(self.candidate)],
+                               self.scratch, self.env, "prepare")
+        self.ownership.produce(["git", "remote", "remove", "origin"], self.candidate, self.env, "prepare")
+        self.ownership.produce(["git", "reset", "--hard", "HEAD"], self.candidate, self.env, "prepare")
+        if run("git", "rev-parse", "HEAD", cwd=self.candidate, env=self.env) != release or run(
+                "git", "rev-parse", "HEAD^{tree}", cwd=self.candidate, env=self.env) != tree:
+            raise RuntimeError("Consumer clone does not match fixture release")
+        if run("git", "remote", cwd=self.candidate, env=self.env):
+            raise RuntimeError("Consumer clone retained a remote")
+        for path in self.candidate.rglob("*"):
+            if ".git" not in path.relative_to(self.candidate).parts and path.is_symlink() and not path.resolve().is_relative_to(self.candidate):
+                raise ValueError("Consumer clone contains an escaping symlink")
+        config = (self.candidate / ".devcontainer/devcontainer.json").read_text()
+        if '"ghcr.io/devcontainers/features/docker-in-docker:4"' not in config or '"--privileged"' not in config:
+            raise ValueError("Published consumer lacks DinD feature or privileged runArgs")
+        for name in (".env", ".devcontainer/.env"):
+            path = self.candidate / name
+            path.write_text("LOCALE=en_GB.UTF-8\nTZ=Europe/Madrid\n" if name == ".env" else "")
+            path.chmod(0o600)
+        port = run("bash", ".taskfiles/scripts/project-identity.sh", "-o", "code", cwd=self.candidate, env=self.env)
+        self.env.update(APP_NAME=self.candidate.name, APP_PORT=port, OPENCODE_PORT=str(int(port) + 1))
+        self.validate_base()
+        self.label_candidate()
+        configured = expected_after_setup(self.candidate, snapshot(self.candidate))
+        self.task("build")
+        self.task("up")
+        container = self.container()
+        self.ownership.stage("verify")
+        self.assert_nested_docker(container)
+        if snapshot(self.candidate) != configured:
+            raise RuntimeError("Consumer clone public files changed during startup")
+
 def main():
-    if len(sys.argv) == 1:
+    consumer = "--consumer" in sys.argv[1:]
+    args = [arg for arg in sys.argv[1:] if arg != "--consumer"]
+    if not args:
         parent = Path("/home/ubuntu")
-    elif len(sys.argv) == 3 and sys.argv[1] == "--daemon-visible-scratch":
-        parent = Path(sys.argv[2])
+    elif len(args) == 2 and args[0] == "--daemon-visible-scratch":
+        parent = Path(args[1])
     else:
-        raise SystemExit("Usage: task test:starter:lifecycle [-- --daemon-visible-scratch ABSOLUTE_PARENT]\n"
+        raise SystemExit("Usage: task test:starter:lifecycle [-- --consumer] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
                          "Explicit expensive build/start/recreate; the local Docker daemon must pass an exact-byte bind probe first.")
     root = Path(run("git", "rev-parse", "--show-toplevel")).resolve()
     if Path.cwd() != root or not parent.is_absolute() or not parent.is_dir() or parent.resolve() != parent or parent == root or parent.is_relative_to(root):
@@ -361,15 +447,15 @@ def main():
     for command in ("docker", "devcontainer", "task", "git", "rsync", "yq"):
         if not shutil.which(command):
             raise SystemExit(f"Required command unavailable: {command}")
-    print("[starter-lifecycle] Explicit base scenario: one build, start, noninteractive connection, recreate. "
+    print("[starter-lifecycle] Explicit " + ("consumer release/DinD" if consumer else "base lifecycle") + " scenario. "
           "Expect downloads, minutes of CPU/build time and substantial disk use; startup may build. "
            "Shared build cache is retained; owned images are removed only when exclusive ownership is verified. "
            "Local daemon only; no initialization or optional socket proof.", flush=True)
-    ownership = Run.create(root, parent)
+    ownership = Run.create(root, parent, variant="consumer") if consumer else Run.create(root, parent)
     scratch = Path(ownership.data["scratch"])
     print(f"[starter-lifecycle] Recovery run: {ownership.data['run']}; inventory: {ownership.path}", flush=True)
     try:
-        lifecycle = Lifecycle(root, scratch, ownership)
+        lifecycle = (ConsumerLifecycle if consumer else Lifecycle)(root, scratch, ownership)
     except BaseException:
         try:
             try:
@@ -432,8 +518,10 @@ def main():
         print(f"[starter-lifecycle:cleanup] {error}", file=sys.stderr)
     if failure or errors:
         return 1
-    print("Base build/start/connect/recreate, managed persistence and primary preservation verified. "
-           "Registered resources removed; shared build cache and compact run diagnostics retained.")
+    print(("Fixture release clone/build/start and nested Docker verified. Exactly two verified feature state volumes retained; "
+           "this is not complete resource cleanup. " if consumer else
+           "Base build/start/connect/recreate, managed persistence verified. ") + "Primary preservation verified. "
+          "Registered owned resources removed; shared build cache and compact run diagnostics retained.")
     return 0
 
 

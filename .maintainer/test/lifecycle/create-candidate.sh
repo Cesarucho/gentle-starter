@@ -25,7 +25,8 @@ done < <(git -C "${candidate}" remote)
 # metadata while excluding local credentials, caches, and runtime state.
 rsync -a --delete \
 	--include='/.env.example' \
-	--exclude='/.git' --exclude='/.env*' --exclude='/.env.d/' \
+	--include='/.env.d/' --include='/.env.d/.gitkeep' --exclude='/.env.d/***' \
+	--exclude='/.git' --exclude='/.env*' \
 	--exclude='/.devcontainer/.env*' --exclude='/.devcontainer/.volume-manifest.json' \
 	--exclude='/.atl/' --exclude='/.pi/' --exclude='/.base-backup/' \
 	--exclude='/*-config.local/' --exclude='/.vscode/' \

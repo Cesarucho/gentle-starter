@@ -58,6 +58,31 @@ with the old unpublished branch.
 
 ## Explicit base lifecycle proof
 
+For an explicit **consumer release/DinD smoke** instead of the reduced base
+scenario, run `task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --consumer`
+(the same optional `--daemon-visible-scratch ABSOLUTE_PARENT` applies). This
+uses the same registered scratch, exact-byte cached-image bind probe, local
+daemon identity, success cleanup and failed-run retention described below.
+After probing it copies the current public, possibly uncommitted source into
+independent fixture Git metadata, commits that fixture, creates and promotes a
+filtered root release **only there**, clones that fixture's `starter` without
+retaining a remote, then runs `container:build` and `container:up` and checks a
+Docker `hello-world` run inside the consumer container. The original release
+refs, remotes and source worktree are not used for promotion or cleanup.
+Expect a potentially long build, feature downloads, nested image pull, disk
+usage and retained shared build cache; authorize live execution separately
+and set a supervisor timeout beyond the build and cleanup forecast. The test
+does not contain arbitrary build hooks or guarantee no external side effects.
+Inspect the current source hooks and build inputs before running it. Report
+fixture clone/build/up separately from the optional nested-daemon check. A pass
+is scoped consumer evidence, not a universal integration proof. New consumer
+runs persist a variant marker before execution. Only these runs may recognize
+the two DinD Feature state volumes when their project labels and actual container
+mounts match `/var/lib/docker` and `/var/lib/containerd`. They are retained,
+never claimed or deleted; unexpected or conflicting volumes stop recovery.
+Old inventories without the marker cannot infer consumer identity from names:
+their preview fails closed. Retention is not complete removal.
+
 The maintainer-only `test:starter:lifecycle` replaces the removed
 `test:pi-lifecycle`; it no longer proves Pi. Run it only with explicit
 operational authorization, outside the normal `task test`, `task test:starter`,

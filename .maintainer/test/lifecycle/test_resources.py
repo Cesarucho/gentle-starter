@@ -87,11 +87,23 @@ def validate_record(data, path, root):
             raise ValueError
         expected = {"version", "run", "source", "registry", "endpoint", "daemon", "scratch", "inode",
                     "project", "tag", "armed", "resources", "running", "stage", "exit", "test", "outcome", "worker"}
-        if set(data) not in (expected, expected - {"running"}) or data["version"] != 1 or data["source"] != str(root):
+        variant = data.get("variant", "base")
+        if (set(data) not in (expected, expected - {"running"}, expected | {"variant"},
+                              expected | {"variant", "feature_volumes"})
+                or variant not in {"base", "consumer"} or ("variant" not in data and variant != "base")
+                or data["version"] != 1 or data["source"] != str(root)):
+            raise ValueError
+        if "feature_volumes" in data and (variant != "consumer" or not isinstance(data["feature_volumes"], dict)
+                or len(data["feature_volumes"]) not in (0, 2)
+                or any(not isinstance(name, str) or not isinstance(created, str) or not created or len(created) > 64
+                       for name, created in data["feature_volumes"].items())):
             raise ValueError
         if data["registry"] != str(path.parent) or data["endpoint"] != ENDPOINT:
             raise ValueError
         if data["project"] != "starter-lifecycle-" + run + "_devcontainer" or data["tag"] != "starter-lifecycle-" + run + "-img:0.1":
+            raise ValueError
+        recorded_features = data.get("feature_volumes", {})
+        if recorded_features and feature_volume_names(data["project"], set(recorded_features)) != set(recorded_features):
             raise ValueError
         if not isinstance(data["daemon"], str) or not data["daemon"] or len(data["daemon"]) > 128:
             raise ValueError
@@ -138,6 +150,17 @@ def validate_record(data, path, root):
     except (ValueError, TypeError, KeyError, AttributeError):
         raise Unsafe("malformed inventory or conflicting worktree binding") from None
     return data
+
+
+def feature_volume_names(project, names):
+    prefix = project + "_dind-var-lib-docker-"
+    docker_names = [name for name in names if name.startswith(prefix)]
+    if len(names) != 2 or len(docker_names) != 1:
+        return set()
+    suffix = docker_names[0][len(prefix):]
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,255}", suffix):
+        return set()
+    return {project + "_dind-var-lib-" + logical + "-" + suffix for logical in ("docker", "containerd")}
 
 
 class Docker:
@@ -188,13 +211,24 @@ class Docker:
         except (ValueError, TypeError, IndexError, KeyError):
             raise Unsafe("resource identity response is unverifiable") from None
 
+    def mounts(self, identity):
+        try:
+            mounts = json.loads(self("container", "inspect", "--format", "{{json .Mounts}}", identity))
+            if not isinstance(mounts, list):
+                raise ValueError
+            return mounts
+        except (ValueError, TypeError):
+            raise Unsafe("container mounts are unverifiable") from None
+
 
 class Run:
     def __init__(self, path, data, docker, lease):
         self.path, self.data, self.docker, self.lease = path, data, docker, lease
 
     @classmethod
-    def create(cls, root, parent, store=None, docker=None):
+    def create(cls, root, parent, store=None, docker=None, variant="base"):
+        if variant not in {"base", "consumer"}:
+            raise Unsafe("unknown lifecycle variant")
         root, parent = Path(root), Path(parent)
         store = registry_path(root) if store is None else Path(store)
         if not plain(root) or not plain(parent) or not parent.is_dir():
@@ -218,7 +252,10 @@ class Run:
                 "project": "starter-lifecycle-" + token + "_devcontainer",
                 "tag": "starter-lifecycle-" + token + "-img:0.1", "armed": False,
                 "resources": {kind: {} for kind in KINDS}, "running": [], "stage": "registered", "exit": None,
-                "outcome": "pending", "test": "pending", "worker": 0}
+                 "outcome": "pending", "test": "pending", "worker": 0}
+        data["variant"] = variant
+        if variant == "consumer":
+            data["feature_volumes"] = {}
         run = cls(path, data, docker, lease)
         try:
             run.save()  # Durable intent precedes sandbox or Docker mutation.
@@ -349,8 +386,11 @@ class Run:
         self.check_daemon()
         if not self.data["armed"]:
             return
+        retained = self.retained_feature_volumes()
         for kind in KINDS:
             for identity in self.discover(kind):
+                if kind == "volume" and identity in retained:
+                    continue
                 resource = self.inspect_owned(kind, identity)
                 if resource is not None:
                     previous = self.data["resources"][kind].get(identity)
@@ -359,6 +399,60 @@ class Run:
                                                             "created": resource.get("created", "")}
                     if persist:
                         self.save()
+
+    def retained_feature_volumes(self):
+        """Validate feature state without granting ownership or deletion authority."""
+        if self.data.get("variant") != "consumer":
+            return set()
+        discovered = self.discover("volume")
+        candidates = discovered - set(self.data["resources"]["volume"])
+        recorded = self.data.get("feature_volumes", {})
+        expected = feature_volume_names(self.data["project"], candidates)
+        if candidates and (candidates != expected or discovered != candidates):
+            raise Unsafe("consumer feature volume scope conflicts")
+
+        def check_volumes():
+            for identity in candidates:
+                logical = identity[len(self.data["project"]) + 1:]
+                labels = self.docker.inspect("volume", identity)
+                if labels is None:
+                    raise Unsafe("consumer feature volume is missing")
+                fields = labels.get("labels")
+                if (not isinstance(fields, dict) or fields.get("com.docker.compose.project") != self.data["project"]
+                        or fields.get("com.docker.compose.volume") != logical
+                        or set(fields) - {"com.docker.compose.project", "com.docker.compose.volume",
+                                          "com.docker.compose.config-hash", "com.docker.compose.version"}
+                        or not labels.get("created") or (recorded and recorded.get(identity) != labels["created"])):
+                    raise Unsafe("consumer feature volume labels or identity conflict")
+
+        if not candidates:
+            if recorded:
+                raise Unsafe("recorded consumer feature volumes are missing")
+            return set()
+        containers = self.discover("container")
+        if not containers and recorded:
+            if candidates != set(recorded):
+                raise Unsafe("recorded consumer feature volumes differ from discovery")
+            check_volumes()
+            return candidates
+        if len(containers) != 1:
+            raise Unsafe("consumer feature container identity is ambiguous")
+        container = next(iter(containers))
+        if self.inspect_owned("container", container) is None:
+            raise Unsafe("consumer feature container is missing")
+        mounts = self.docker.mounts(container)
+        actual = [(m.get("Name"), m.get("Destination")) for m in mounts
+                  if isinstance(m, dict) and m.get("Type") == "volume"]
+        if len(actual) != 2 or {name for name, _ in actual} != candidates:
+            raise Unsafe("consumer feature volumes differ from container mounts")
+        destinations = {name: "/var/lib/" + logical for logical in ("docker", "containerd")
+                        for name in candidates if name.startswith(self.data["project"] + "_dind-var-lib-" + logical + "-")}
+        if set(actual) != set(destinations.items()):
+            raise Unsafe("consumer feature volume mount identity conflicts")
+        check_volumes()
+        if recorded and set(recorded) != candidates:
+            raise Unsafe("recorded consumer feature volume scope changed")
+        return candidates
 
     def check_worker(self):
         if self.data["worker"]:
@@ -479,7 +573,8 @@ class Run:
         return identity
 
     def cleanup(self, apply=False):
-        result = {"removed": [], "retained": ["shared build cache (no dedicated builder)"], "failed": []}
+        result = {"removed": [], "retained": ["shared build cache (no dedicated builder)"], "failed": [],
+                  "feature_volumes": set()}
         validated = False
         original = json.loads(json.dumps(self.data))
         try:
@@ -491,7 +586,14 @@ class Run:
                 raise Unsafe("cleanup requires an exclusive run lease")
             self.check_worker()
             self.check_scratch()
+            retained_volumes = self.retained_feature_volumes() if self.data["armed"] else set()
+            result["feature_volumes"] = retained_volumes
+            if apply and retained_volumes and not self.data["feature_volumes"]:
+                self.data["feature_volumes"] = {
+                    identity: self.docker.inspect("volume", identity)["created"] for identity in retained_volumes}
+                self.save()
             self.capture(persist=apply)
+            result["retained"].extend("feature state volume " + name for name in sorted(retained_volumes))
             validate_record(self.data, self.path, Path(self.data["source"]))
             # Validate the entire known scope before the first destructive call.
             for kind in KINDS:
@@ -516,7 +618,7 @@ class Run:
                             raise Unsafe("resource removal could not be verified")
                     result["removed"].append(("removed and verified " if apply else "would remove ") + kind + " " + identity)
             if apply:
-                if any(self.discover(kind) for kind in KINDS[:3]):
+                if any(self.discover(kind) - (retained_volumes if kind == "volume" else set()) for kind in KINDS[:3]):
                     raise Unsafe("sandbox resources remain after cleanup")
                 self.remove_scratch()
             result["removed"].append(("removed and verified " if apply else "would remove ") + "scratch " + self.data["scratch"])
@@ -544,6 +646,7 @@ class Run:
             raise Unsafe("inventory changed during execution")
         self.check_worker()
         self.check_scratch()
+        self.retained_feature_volumes()
         self.capture()
         for kind in KINDS:
             for identity in self.data["resources"][kind]:

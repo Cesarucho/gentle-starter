@@ -37,10 +37,17 @@ def main(argv=None):
                 print(f"Run {run.data['run']}: test={run.data['test']} stage={run.data['stage']} exit={run.data['exit']} cleanup={run.data['outcome']}")
                 print(f"  registered scratch: {run.data['scratch']}")
                 result = run.cleanup(apply=args.apply)
-                for outcome, messages in result.items():
+                for outcome in ("removed", "retained", "failed"):
+                    messages = result[outcome]
                     for message in messages:
                         print(f"  {outcome}: {message}")
-                failed |= bool(result["failed"]) or len(result["retained"]) > 1
+                features = result["feature_volumes"]
+                expected = ["shared build cache (no dedicated builder)"] + [
+                    "feature state volume " + name for name in sorted(features)]
+                recorded = set(run.data.get("feature_volumes", {}))
+                valid_retention = (run.data.get("variant") == "consumer" and len(features) == 2
+                                   and (recorded == features or (not args.apply and not recorded)))
+                failed |= bool(result["failed"]) or result["retained"] != expected or (bool(features) and not valid_retention)
                 if args.forget and not failed:
                     run.forget()
             finally:

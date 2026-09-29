@@ -61,6 +61,9 @@ class FakeDocker:
         self.daemon()
         return copy.deepcopy(self.items[kind].get(identity))
 
+    def mounts(self, identity):
+        return copy.deepcopy(self.items["container"][identity]["mounts"])
+
     def __call__(self, *args):
         self.daemon()
         self.mutations.append(args)
@@ -101,6 +104,117 @@ class ResourceTests(unittest.TestCase):
 
     def arm(self):
         self.owner.arm()
+
+    def feature_volumes(self):
+        self.owner = R.Run.create(self.root, self.base, self.store, self.docker, variant="consumer")
+        self.addCleanup(self.owner.close)
+        self.owner.arm()
+        container = self.docker.add(self.owner)
+        suffix = "fixture-id"
+        volumes = {}
+        for name, target in (("dind-var-lib-docker-", "/var/lib/docker"),
+                             ("dind-var-lib-containerd-", "/var/lib/containerd")):
+            identity = self.owner.data["project"] + "_" + name + suffix
+            self.docker.items["volume"][identity] = {
+                "id": identity, "labels": {"com.docker.compose.project": self.owner.data["project"],
+                                            "com.docker.compose.volume": name.removesuffix("-") + "-" + suffix,
+                                            "com.docker.compose.config-hash": "hash", "com.docker.compose.version": "2.0"},
+                "tags": [], "digests": [], "created": "2026-01-01T00:00:00Z"}
+            volumes[identity] = target
+        self.docker.items["container"][container]["mounts"] = [
+            {"Type": "volume", "Name": name, "Destination": target}
+            for name, target in volumes.items()]
+        return volumes
+
+    def test_consumer_feature_volumes_are_retained_not_owned(self):
+        volumes = self.feature_volumes()
+        before = self.owner.path.read_bytes()
+        preview = self.owner.cleanup()
+        self.assertFalse(preview["failed"])
+        self.assertEqual(self.owner.path.read_bytes(), before)
+        self.assertEqual(self.docker.mutations, [])
+        recovered = R.Run.open(self.owner.path, self.root, docker=self.docker)
+        self.assertFalse(recovered.cleanup()["failed"])
+        self.assertEqual(self.owner.path.read_bytes(), before)
+        result = self.owner.cleanup(apply=True)
+        self.assertFalse(result["failed"])
+        self.assertEqual(self.owner.data["outcome"], "retained")
+        self.assertEqual(self.owner.data["resources"]["volume"], {})
+        self.assertEqual(set(volumes), set(self.docker.items["volume"]))
+        self.assertTrue(all(name in " ".join(result["retained"]) for name in volumes))
+        recovered = R.Run.open(self.owner.path, self.root, docker=self.docker)
+        self.assertFalse(recovered.cleanup()["failed"])
+        with self.assertRaises(R.Unsafe):
+            self.owner.forget()
+
+    def test_consumer_cli_expected_retention_succeeds_but_forget_refuses(self):
+        volumes = self.feature_volumes()
+        cli = load_script("starter-test-clean")
+        self.owner.close()
+        with patch.object(cli, "command", return_value=str(self.root)), patch.object(cli, "registry_path", return_value=self.store), \
+                patch.object(R, "Docker", return_value=self.docker), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(["--run", self.owner.data["run"]]), 0)
+            self.assertEqual(cli.main(["--run", self.owner.data["run"], "--apply"]), 0)
+            self.assertEqual(cli.main(["--run", self.owner.data["run"], "--apply", "--forget"]), 1)
+        self.assertEqual(set(volumes), set(self.docker.items["volume"]))
+        self.assertTrue(self.owner.path.exists())
+
+    def test_consumer_rejects_extra_or_mismounted_volume(self):
+        volumes = self.feature_volumes()
+        self.docker.items["volume"]["unexpected"] = {
+            **next(iter(self.docker.items["volume"].values())), "id": "unexpected"}
+        self.assertTrue(self.owner.cleanup(apply=True)["failed"])
+        self.assertEqual(self.docker.mutations, [])
+        del self.docker.items["volume"]["unexpected"]
+        container = next(iter(self.docker.items["container"].values()))
+        container["mounts"][0]["Destination"] = "/wrong"
+        self.assertTrue(self.owner.cleanup(apply=True)["failed"])
+        self.assertEqual(self.docker.mutations, [])
+
+    def test_consumer_rejects_foreign_labels_replacement_and_tracked_collision(self):
+        for condition in ("project", "logical", "run-label", "created", "tracked"):
+            with self.subTest(condition=condition):
+                self.docker.items["container"].clear()
+                self.docker.items["volume"].clear()
+                volumes = self.feature_volumes()
+                identity = next(iter(volumes))
+                item = self.docker.items["volume"][identity]
+                if condition == "project":
+                    item["labels"]["com.docker.compose.project"] = "foreign"
+                    item["labels"][R.LABEL] = self.owner.data["run"]
+                elif condition == "logical":
+                    item["labels"]["com.docker.compose.volume"] = "foreign"
+                elif condition == "run-label":
+                    item["labels"][R.LABEL] = self.owner.data["run"]
+                elif condition == "created":
+                    self.owner.data["feature_volumes"] = {name: "original" for name in volumes}
+                    self.owner.save()
+                else:
+                    self.owner.data["resources"]["volume"][identity] = {
+                        "labels": self.owner.expected("volume"), "tags": [], "created": item["created"]}
+                    self.owner.save()
+                self.assertTrue(self.owner.cleanup(apply=True)["failed"])
+                self.assertEqual(self.docker.mutations, [])
+
+    def test_consumer_record_rejects_unprefixed_or_mismatched_suffix(self):
+        volumes = self.feature_volumes()
+        for names in (("dind-var-lib-docker-fixture-id", "dind-var-lib-containerd-fixture-id"),
+                      (next(iter(volumes)), self.owner.data["project"] + "_dind-var-lib-containerd-other")):
+            with self.subTest(names=names):
+                self.owner.data["feature_volumes"] = dict.fromkeys(names, "created")
+                with self.assertRaises(R.Unsafe):
+                    self.owner.save()
+
+    def test_old_inventory_cannot_infer_consumer_variant(self):
+        self.arm()
+        name = "dind-var-lib-docker-fixture-id"
+        self.docker.items["volume"][name] = {
+            "id": name, "labels": {"com.docker.compose.project": self.owner.data["project"]},
+            "tags": [], "created": "2026-01-01T00:00:00Z"}
+        before = self.owner.path.read_bytes()
+        self.assertTrue(self.owner.cleanup()["failed"])
+        self.assertEqual(self.owner.path.read_bytes(), before)
+        self.assertEqual(self.docker.mutations, [])
 
     def test_intent_is_private_outside_scratch_and_bound_to_worktree(self):
         self.assertFalse(self.owner.path.is_relative_to(self.scratch))

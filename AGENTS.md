@@ -22,20 +22,8 @@ owner explicitly approves the reviewed diff; preserve unrelated local edits.
 - Once a linear `starter` release is published, consumers should clone that
   branch to retain ancestry with later releases. Its history does not descend
   from producer `dev`; a fork of `dev` is not equivalent to a consumer clone.
-- `task project:init` is an optional one-time project setup. It prompts for a
-  branch (default `main`) and optional project `origin`, configures canonical
-  Gentle Starter `upstream`, removes identity, and creates the normal child
-  commit `chore: initialize project`.
-- Initialization preserves history, unrelated branches/tags/refs and Git
-  configuration, `LICENSE` bytes and mode, and `AGENTS.md.TEMPLATE`. Intentional
-  local branch and remote changes are transactional and roll back on failure.
-- Initialization and standalone identity cleanup remove `AGENTS.md` and
-  `AGENTS.md.TEMPLATE.EXAMPLE`; they never create `AGENTS.md` from the template.
 - The distributed `starter` tree excludes `AGENTS.md`, `AGENTS.md.TEMPLATE`,
   and `AGENTS.md.TEMPLATE.EXAMPLE`; the dev template remains tracked.
-- `task project:init -- --dry-run` prints branch, remote, cleanup, and commit
-  actions without mutation. Initialization never fetches, pushes, rewrites
-  history, or creates a parentless root.
 - After a release is published, consumer updates use conventional Git:
 
   ```bash
@@ -124,7 +112,7 @@ task --taskfile .maintainer/Taskfile.yml test:starter
 
 `task test` is application-owned and fails as not configured until the project
 owner replaces `tasks.test.cmds`. Starter editorial/distribution tests remain
-maintainer-only; derived applications need not satisfy them after initialization.
+maintainer-only; derived applications need not satisfy them.
 The maintainer unit suite includes lifecycle/build fixtures: inspect and select
 safe tests when execution permissions are restricted. `validate` and
 `install:doctor` are not application test proof.
@@ -139,7 +127,7 @@ different existing parent but requires the same probe. Missing parent, image,
 daemon visibility, or verified cleanup fails closed; no image pull or build is
 used for the probe. It is not a seventh test layer or included in
 `test:starter`/`validate`; it automates only those operational full-validation
-items. Initialization and optional Pi/SSH/audio/GUI integrations remain separate.
+items. Optional Pi/SSH/audio/GUI integrations remain separate.
 Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
 See `.maintainer/README-distribution.md#explicit-base-lifecycle-proof` for its
 deliberately reduced sandbox scenario.
@@ -186,19 +174,11 @@ Host-only `task container:*` commands should skip when run inside the active
 devcontainer. To verify a real host flow from inside a container, use a temporary
 repository copy under the mounted workspace and `FORCE_HOST_CONTEXT=1`; never
 mutate the primary worktree for destructive bootstrap tests.
-
-Test `task clean` and `task project:init` only in temporary repository copies.
-For `project:init`, verify that:
-
-- the new commit has the pre-init `HEAD` as its parent;
-- unrelated branches, tags, refs, remotes, and upstream settings are unchanged;
-- branch and remote changes follow the documented matrix and roll back exactly;
-- dry-run leaves files, refs, configuration, index, and worktree unchanged;
-- identity files are removed and docs are migrated;
-- `LICENSE` and `AGENTS.md.TEMPLATE` retain their bytes and mode;
-- only `AGENTS.md.TEMPLATE` remains among the AGENTS identity files;
-- the final worktree is clean; and
-- a second run refuses without creating another commit.
+The current devcontainer is a simulated host for that fixture, not evidence of
+the consumer's optional inside-container Docker daemon. Report clone/build/up
+separately from nested-daemon checks. Consumer DinD Feature state volumes are
+retained, not owned or removed by the test; retention is not complete removal.
+See `.maintainer/README-distribution.md` for preview and recovery effects.
 
 ## Known issues
 

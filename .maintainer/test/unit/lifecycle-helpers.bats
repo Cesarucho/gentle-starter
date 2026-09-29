@@ -72,6 +72,11 @@ EOF
 	chmod 0751 "${source_repo}/untracked"
 	ln -s tracked "${source_repo}/untracked-link"
 	printf 'secret\n' >"${source_repo}/.env.local"
+	mkdir "${source_repo}/.env.d"
+	printf 'placeholder\n' >"${source_repo}/.env.d/.gitkeep"
+	git -C "${source_repo}" add .env.d/.gitkeep
+	git -C "${source_repo}" commit -qm 'track env placeholder'
+	printf 'runtime secret\n' >"${source_repo}/.env.d/credentials"
 	local object_path primary_before
 	object_path="$(git -C "${source_repo}" rev-parse HEAD)"
 	object_path="${object_path:0:2}/${object_path:2}"
@@ -94,6 +99,8 @@ EOF
 	[ "$(stat -c '%a' "${candidate}/untracked")" = 751 ]
 	[ "$(readlink "${candidate}/untracked-link")" = tracked ]
 	[ ! -e "${candidate}/.env.local" ]
+	cmp "${source_repo}/.env.d/.gitkeep" "${candidate}/.env.d/.gitkeep"
+	[ ! -e "${candidate}/.env.d/credentials" ]
 	[ "$(
 		git -C "${source_repo}" show-ref
 		git -C "${source_repo}" status --porcelain=v1 --untracked-files=all

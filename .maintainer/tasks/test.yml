@@ -16,7 +16,7 @@ tasks:
             test:starter:unit          Run starter behavior and distribution contracts
             test:starter:integration   Check core and selected installed tools
             test:starter               Run both suites (mocked unit fixtures)
-            test:starter:lifecycle     Explicit expensive lifecycle proof; generates and probes scratch under /home/ubuntu
+            test:starter:lifecycle     Explicit expensive base lifecycle proof; --consumer exercises filtered release and DinD
             test:starter:image-contract Explicit Docker image build contract proof
             test:starter:clean         Preview registered test-run recovery (read-only)
             test:install               Install BATS if not present
