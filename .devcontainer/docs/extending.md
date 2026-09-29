@@ -124,6 +124,13 @@ The `seed_config_tree` helper detects that `/etc/redis` is outside
 `$HOME` and escalates to `sudo` for the `cp` and `mkdir` automatically
 — no flag, no extra wiring on your part.
 
+The apt package normally installs `/etc/redis/redis.conf` first, so seeding
+skips it: this snippet does not activate the versioned baseline by itself.
+Review the package config and plan a separate, explicit installer-owned
+configuration step if Redis must use the versioned file. Do not remove the
+package config in anticipation of a later postCreate run; rebuilding the image
+can restore it before seeding runs.
+
 ### Step 3: volume — installer-owned bind + repair mapping
 
 In `docker-compose.yml`:
@@ -159,7 +166,7 @@ task container:up          # creates/starts the updated environment
 # inside the container:
 which redis-cli             # /usr/bin/redis-cli
 redis-cli --version         # compare with the configured version policy
-cat /etc/redis/redis.conf | head -3   # the versioned baseline (copied)
+test -f /etc/redis/redis.conf  # package config exists; verify service usage separately
 ls /var/lib/redis            # inspect the mounted data directory
 ```
 
@@ -167,7 +174,7 @@ The three surfaces are mapped, but this sketch alone does not demonstrate
 runtime initialization or a reproducible Redis version. Complete those
 installer steps and verify actual state before relying on persistence.
 Config seeding preserves existing `/etc/redis/redis.conf`; a missing file is
-re-copied on the next postCreate when the installer is active.
+copied on the next postCreate when the installer is active.
 
 ## FAQ
 
