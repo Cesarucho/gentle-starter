@@ -266,8 +266,10 @@ the software and start it. Then [attach VS Code](https://code.visualstudio.com/d
 
 ### 🌱 Update from Gentle Starter
 
-Clones and forks share ancestry with Gentle Starter, so updates use ordinary Git.
-The clone already has `upstream`. From your branch, fetch and merge the consumer branch:
+Clones of the published `starter` branch share its linear release ancestry, so
+updates use ordinary Git. This does not mean `starter` descends from the producer
+`dev` branch. The clone already has `upstream`. From your branch, fetch and merge
+the consumer branch:
 
 ```bash
 git fetch upstream
@@ -427,7 +429,8 @@ skills list --json
 ## 🗂️ Repository structure for consumers
 
 The `starter` branch contains the reusable development environment without
-maintainer identity or planning files. Its shared ancestry supports later merges.
+maintainer identity or planning files. Its own release ancestry supports later
+consumer merges; it does not include producer `dev` history.
 
 ```text
 .

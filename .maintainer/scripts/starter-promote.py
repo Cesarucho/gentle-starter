@@ -42,6 +42,8 @@ def release_source(base):
     assert match is not None
     source = match.group(1)
     require(git("cat-file", "-t", source) == "commit", "release source is missing")
+    require(git("rev-parse", f"{base}^{{tree}}") == candidate.distribution.filtered_tree(source),
+            "release tree does not match committed source")
     if parents:
         require(ancestor(release_source(parents[0]), source), "release source ancestry diverged")
     return source

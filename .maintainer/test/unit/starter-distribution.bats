@@ -188,6 +188,87 @@ Starter-Candidate-Base: ${base}")"
   [ "$(git -C "${REPO}" rev-parse starter)" = "$base" ]
 }
 
+@test "promotion rejects a forged prior release tree before changing refs" {
+  candidate --base-absent
+  approval
+  prior_source="$source"
+  base=absent
+  promote
+  legitimate="$(git -C "${REPO}" rev-parse starter)"
+  candidate --cancel
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+  wrong_tree="$(git -C "${REPO}" rev-parse dev^{tree})"
+  forged="$(git -C "${REPO}" commit-tree "$wrong_tree" -m 'Publish consumer starter' -m "Starter-Release-Source: ${prior_source}")"
+  git -C "${REPO}" update-ref refs/heads/starter "$forged" "$legitimate"
+  candidate
+  approval
+  base="$forged"
+  run promote
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"release tree does not match committed source"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$forged" ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+}
+
+@test "clone keeps consumer commits through two linear merges and a source-only release" {
+  candidate --base-absent
+  approval
+  base=absent
+  promote
+  first="$(git -C "${REPO}" rev-parse starter)"
+  git clone -q --no-local --branch starter "${REPO}" "${TEMP}/consumer"
+  consumer="${TEMP}/consumer"
+  git -C "$consumer" config user.name 'Consumer Fixture'
+  git -C "$consumer" config user.email 'consumer@example.test'
+  mkdir -p "$consumer/.agents/skills/custom"
+  printf 'consumer readme\n' > "$consumer/README.md"
+  printf 'consumer skill\n' > "$consumer/.agents/skills/custom/SKILL.md"
+  git -C "$consumer" add -A
+  git -C "$consumer" commit -qm 'Customize consumer'
+  consumer_head="$(git -C "$consumer" rev-parse HEAD)"
+  ! git -C "$consumer" merge-base --is-ancestor "$(git -C "${REPO}" rev-parse dev)" HEAD
+
+  for version in v2 v3; do
+    candidate --cancel
+    printf '%s\n' "$version" > "${REPO}/.devcontainer/docs/guide.md"
+    git -C "${REPO}" commit -qam "Update guide to ${version}"
+    candidate
+    approval
+    base="$(git -C "${REPO}" rev-parse starter)"
+    promote
+    release="$(git -C "${REPO}" rev-parse starter)"
+    git -C "$consumer" fetch -q "${REPO}" refs/heads/starter:refs/remotes/upstream/starter
+    git -C "$consumer" merge -q --no-ff -m "Merge ${version} starter" upstream/starter
+    [ "$(git -C "$consumer" show -s --format=%P HEAD)" = "${consumer_head} ${release}" ]
+    [ "$(git -C "$consumer" show HEAD:.devcontainer/docs/guide.md)" = "$version" ]
+    [ "$(git -C "$consumer" show HEAD:README.md)" = 'consumer readme' ]
+    [ "$(git -C "$consumer" show HEAD:.agents/skills/custom/SKILL.md)" = 'consumer skill' ]
+    consumer_head="$(git -C "$consumer" rev-parse HEAD)"
+  done
+  [ "$(git -C "${REPO}" rev-list --count starter)" -eq 3 ]
+  git -C "$consumer" merge-base --is-ancestor "$first" HEAD
+
+  candidate --cancel
+  printf 'producer readme only\n' > "${REPO}/README.md"
+  git -C "${REPO}" commit -qam 'Update producer README only'
+  candidate
+  approval
+  [ "$tree" = "$(git -C "${REPO}" rev-parse starter^{tree})" ]
+  base="$release"
+  promote
+  source_only="$(git -C "${REPO}" rev-parse starter)"
+  [ "$source_only" != "$release" ]
+  [ "$(git -C "${REPO}" show -s --format=%P starter)" = "$release" ]
+  git -C "$consumer" fetch -q "${REPO}" refs/heads/starter:refs/remotes/upstream/starter
+  git -C "$consumer" merge -q --no-ff -m 'Merge source-only starter' upstream/starter
+  [ "$(git -C "$consumer" show -s --format=%P HEAD)" = "${consumer_head} ${source_only}" ]
+  [ "$(git -C "$consumer" show HEAD:README.md)" = 'consumer readme' ]
+  [ "$(git -C "$consumer" show HEAD:.agents/skills/custom/SKILL.md)" = 'consumer skill' ]
+  [ "$(git -C "$consumer" show HEAD:.devcontainer/docs/guide.md)" = v3 ]
+  [ -z "$(git -C "$consumer" status --porcelain)" ]
+}
+
 @test "cancel refuses changed release without legitimate publication or with tampered candidate" {
   candidate --base-absent
   approval

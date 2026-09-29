@@ -1,4 +1,4 @@
-# Prepare the consumer branch locally
+# Prepare linear consumer releases locally
 
 ## Isolated candidate preparation (local only)
 
@@ -32,13 +32,55 @@ task --taskfile .maintainer/Taskfile.yml distribution:promote -- \
 Promotion refuses a moved or canceled candidate, mismatched tree/source/base,
 unrecognized or legacy release history, symbolic refs, dirty checkout, or a
 release checked out in any worktree. It verifies the entire candidate chain,
-filtered trees, and previous release source ancestry; it then creates one root
+filtered trees for every previous release against its recorded source, and
+previous release source ancestry; it then creates one root
 release (initial) or one commit with the prior release as its sole parent and
 compare-and-swap updates the local release ref. It does not require the source
 branch to be checked out or at the approved source tip. No remote is touched.
-The existing `distribution` and `distribution:producer` commands remain
-available but are deprecated for new linear releases; they retain their legacy
+After promotion, `starter-rc` remains pinned to the approved candidate but its
+base is stale. Cancel the verified candidate with
+`distribution:candidate -- --cancel` before preparing another; cancellation
+verifies that the new release published that candidate. A canceled candidate
+cannot be promoted. Neither candidate creation, cancellation, nor promotion
+fetches, pushes, or deletes remote refs. The existing `distribution` and
+`distribution:producer` commands remain available but are deprecated for new
+linear releases; they retain their legacy
 source-parent and merge behavior until a later task replaces them.
+
+## Local cutover from the unpublished legacy branch
+
+The old local `starter` created by `distribution` has a `dev` source parent; it
+cannot be used as the base of a linear release. There are no consumers yet, but
+do not assume a clone of the new `starter` shares ancestry with `dev` or with
+the old unpublished branch. Cutover is a separate, explicitly authorized LOCAL
+operation; do not run it as part of candidate preparation or promotion.
+
+1. Inspect `git status --short --branch`, `git worktree list`, and
+   `git show-ref --verify refs/heads/starter`. Require a clean checkout and no
+   worktree using `starter`; record its full SHA. Preserve it with
+   `git branch backup/starter-before-linear starter` and verify both refs point
+   to the recorded SHA. Do not delete the backup during cutover.
+2. Only after explicit authorization to replace the local unpublished ref,
+   verify the branch SHA still matches the recorded SHA, then run
+   `git branch -d starter` if Git accepts it, or `git branch -D starter` only
+   with explicit approval for forced deletion of this verified local ref.
+   Never delete an unknown, moved, checked-out, or remote branch.
+3. With `starter` absent, prepare `distribution:candidate -- --base-absent`.
+   Review the candidate commit, filtered tree and source marker. Promote with
+   `--expected-base absent` and the other full approved IDs shown above.
+   Verify the release has zero parents, its tree matches the candidate, and
+   the backup still points to the old SHA. Cancel the published candidate
+   only after verifying publication. Retain the backup until a separate
+   authorization to remove it after verifying the new release and any
+   consumer migration; do not automatically delete old refs.
+
+No remote operation is performed by these tasks or by this playbook. Publishing
+or replacing a remote branch needs its own destination, credential/session,
+review, and explicit authorization. Existing clones of the old branch would
+not gain ancestry with a new root; migrate them deliberately rather than
+assuming an ordinary merge will work.
+
+## Legacy distribution commands (not for linear releases)
 
 From a clean producer checkout, commit the source changes on `dev` first (or
 pass another committed local source branch explicitly).
@@ -82,8 +124,8 @@ not invoke the direct task from it.
 Each release constructs its tree from the committed source with root README,
 identity (including `AGENTS.md.TEMPLATE`), maintainer tooling, and planning
 paths excluded. The template remains tracked and unchanged in the dev source;
-it is omitted only from the published `starter` tree. It retains the
-source commit in the release ancestry. A source-only update still records the
+it is omitted only from the published `starter` tree. Legacy distribution retains
+the source commit in the release ancestry. A source-only update still records the
 new source parent and marker even when the sanitized tree is unchanged; a
 rerun with that source is a no-op. Consumer-owned README, workflows, and
 planning files are never rewritten by the distribution step. Git merges shared

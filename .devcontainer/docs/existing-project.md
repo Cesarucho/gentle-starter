@@ -77,4 +77,7 @@ abort rather than forcing an overwrite. Preflight cannot certify this path.
 
 After the reviewed merge, later updates use ordinary `git fetch upstream` and
 `git merge upstream/starter` on your project branch, with conflicts resolved
-manually. Inspect the imported Task commands before running them.
+manually. The published release commits form their own linear history; they
+do not descend from the producer `dev` branch. An older, separately published
+starter history may need a deliberate migration rather than an ordinary update.
+Inspect the imported Task commands before running them.
