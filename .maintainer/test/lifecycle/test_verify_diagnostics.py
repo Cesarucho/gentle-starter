@@ -17,6 +17,33 @@ def lifecycle_module():
 
 
 class VerifyDiagnosticTests(unittest.TestCase):
+    def test_direct_ignored_files_normalize_but_ignored_directory_contents_do_not(self):
+        module = lifecycle_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / ".gitignore").write_text("ignored.txt\nignored.sh\nignored/\n")
+            (root / "ignored.txt").write_text("file")
+            (root / "ignored.sh").write_text("script")
+            (root / "ignored").mkdir()
+            (root / "ignored" / "private.txt").write_text("private")
+            (root / "ignored" / "private.sh").write_text("private script")
+            modes = {"ignored.txt": 0o600, "ignored.sh": 0o600,
+                     "ignored/private.txt": 0o600, "ignored/private.sh": 0o700}
+            for name, mode in modes.items():
+                (root / name).chmod(mode)
+            ignored = subprocess.check_output(
+                ["git", "-C", str(root), "ls-files", "--others", "--ignored",
+                 "--exclude-standard", "--directory", "-z"], text=True).split("\0")
+            self.assertEqual(set(ignored) - {""}, {"ignored.txt", "ignored.sh", "ignored/"})
+            configured = {"head": "head", "branch": "branch", "index": "",
+                          "files": {name: [mode, "file", name] for name, mode in modes.items()}}
+            expected = module.expected_after_setup(root, configured)
+            self.assertEqual({name: value[0] for name, value in expected["files"].items()}, {
+                "ignored.txt": 0o644, "ignored.sh": 0o755,
+                "ignored/private.txt": 0o600, "ignored/private.sh": 0o700})
+            self.assertEqual({name: value[0] for name, value in configured["files"].items()}, modes)
+
     def test_overlay_modes_expect_setup_normalization_without_changing_source(self):
         module = lifecycle_module()
         with tempfile.TemporaryDirectory() as directory:
