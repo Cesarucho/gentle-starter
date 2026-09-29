@@ -318,7 +318,9 @@ bats .devcontainer/test/unit/*.bats
 ```
 
 `validate` and `install:doctor` are environment/repository checks, not
-application test proof. `common.sh.bats` covers
+application test proof. For version intent, generated locks, and updater
+ownership, see the [tool-version policy](../tool-versions.conf).
+`common.sh.bats` covers
 `common.sh` helpers (phase detection, logging, fetching, version extraction,
 version comparison, idempotency), `tools-update.bats` covers the tool-version
 policy updater and direct-release checksum behavior, and `gentle-ai.bats` covers
@@ -360,9 +362,8 @@ Two integration tests (`GOROOT` and `DEVCONTAINER_PHASE`) also skip
 when run outside the devcontainer — this is by design; they need
 the lifecycle environment variables. The rest run anywhere.
 
-BATS itself is installed by the `1000-test-bats.sh` script in
-`install/available/`, linked from `install/03-enabled/` for
-default activation.
+Bats itself is installed by `install/available/1000-test-bats.sh`, linked
+from mandatory `install/02-core-tools/`, not the optional enabled group.
 
 ### Disposable container checks without mounts
 

@@ -99,10 +99,11 @@ or the centralized version policy for pnpm itself.
 
 ### `03-enabled/` — optional tools
 
-This group runs after all core tools. It retains SSH client, SSH server,
-PulseAudio clients, Glow, and Playwright in this checkout; Pi remains disabled.
-SSH server and audio still require their separately selected Compose overrides.
-Use `task install:disable -- NAME` or `task install:enable -- NAME` here.
+This group runs after all core tools. The active selection is defined by its
+symlinks, not a fixed inventory in this guide. Run `task install:list` to inspect
+the current selection. SSH server and audio still require their separately
+selected Compose overrides. Use `task install:disable -- NAME` or
+`task install:enable -- NAME` here.
 
 Disabling changes the active set for future image builds and postCreate
 repairs. It does not uninstall packages from the current container or delete

@@ -13,6 +13,10 @@ Pi, Go, Java, and other catalog tools remain optional.
 At session start, inspect the current branch, `HEAD`, worktree, and remotes.
 Never rely on branch or commit metadata copied into documentation.
 
+For code and documentation edits, leave changes unstaged and uncommitted after
+verification so the owner can review them in VS Code. Commit only after the
+owner explicitly approves the reviewed diff; preserve unrelated local edits.
+
 ## Project initialization and updates
 
 - Once a linear `starter` release is published, consumers should clone that

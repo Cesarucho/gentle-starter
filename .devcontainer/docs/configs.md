@@ -173,10 +173,10 @@ customisations stay put.
 #   runtime: ~/.pi/agent/banner-presets.json
 ```
 
-Commit the file. The next `task container:up` for a fresh clone
-copies it; for an existing clone, it stays in `config/pi/` (the
-symlink-or-file in `~/.pi/agent/banner-presets.json` was already
-populated by some prior build, or by the tool writing it).
+Commit the file. On the next postCreate setup, a fresh or existing clone
+copies it if Pi Coding is active and the target file is absent. An existing
+target is left untouched, whether it was seeded previously or written by
+the tool.
 
 ### Case 2: a new tool whose config is in `$HOME`
 
@@ -231,7 +231,7 @@ setup_versioned_configs() {
 |---|---|
 | First run, target dir is empty | Every file is copied. |
 | First run, target dir is empty BUT the tool already wrote some files at the target (e.g. `pi` wrote `mcp.json` after a `/login`) | The tool-written files already exist at the target; they stay. Only files the tool hasn't written yet get copied. |
-| Subsequent runs | Nothing changes (all targets already exist). |
+| Subsequent runs | Existing targets stay unchanged; new source files with missing targets are copied when their tool is active. |
 | User deletes a target file and rebuilds | The file is re-copied from the source (back to baseline). |
 | User wants to "reset to defaults" for one file | `rm <target>/<file>` then `task container:up` (or re-run `setup.sh` inside the container). |
 
@@ -257,10 +257,10 @@ The current `seed_config_tree` solves both: real files are
 unaffected by atomic-replace, and the user can edit them freely
 without breaking anything.
 
-For existing users, the symlinks are still in place (their mtime
-predates the switch). The new function's `if [ -e ]` guard
-correctly leaves them alone. To migrate, delete the symlinks and
-re-run `setup.sh`:
+Some existing users may still have legacy symlinks. If a link resolves to
+an existing file, the new function's `if [ -e ]` guard leaves it alone.
+If you have these links and want regular files instead, remove only the
+confirmed legacy links and re-run `setup.sh`:
 
 ```bash
 docker exec ${APP_NAME}-run rm -f \
