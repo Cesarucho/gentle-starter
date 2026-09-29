@@ -2,10 +2,15 @@
 
 ## Isolated candidate preparation (local only)
 
-With a clean checkout and committed `dev`, run
-`task --taskfile .maintainer/Taskfile.yml distribution:candidate` to create or
-advance `starter-rc`. The command reads the current local `starter` as its pinned
-base; it does not change `starter`, the checkout, or remotes. Inspect the candidate
+Integrate the release code into `dev` separately before preparing a release;
+this feature branch alone does not make it available on `dev`. The old local and
+remote `starter` refs are absent, and no new `starter-rc` or `starter` release has
+been published. A local `backup/starter-before-linear` preserves the old ref at
+`42b5d16`; it is not a release base. With a clean checkout and committed `dev`,
+run `task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --base-absent`
+for the first local candidate. For later releases, omit `--base-absent` to pin the
+existing local `starter` as the base. The command does not change `starter`, the
+checkout, or remotes. Inspect the candidate
 commit message for `Starter-Candidate-Source` and `Starter-Candidate-Base`, and
 inspect its tree before any separate promotion. The first candidate is a root;
 subsequent candidate commits have only the preceding candidate as parent. A
@@ -15,7 +20,8 @@ no local `starter` ref, pass `--base-absent` explicitly to candidate creation
 and cancellation. Never use this flag when `starter` already exists.
 
 To discard a candidate, run
-`task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel`.
+`task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel --base-absent`
+for the first candidate (omit `--base-absent` for later releases).
 This deletes only a verified local candidate ref; it refuses a changed base or
 unrecognized candidate. After cancellation, a new candidate starts from a new
 root. Candidate preparation is not publication; promotion to a linear `starter`
@@ -39,116 +45,16 @@ compare-and-swap updates the local release ref. It does not require the source
 branch to be checked out or at the approved source tip. No remote is touched.
 After promotion, `starter-rc` remains pinned to the approved candidate but its
 base is stale. Cancel the verified candidate with
-`distribution:candidate -- --cancel` before preparing another; cancellation
+`task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel`
+before preparing another; the new local `starter` exists, so do not pass
+`--base-absent`. Cancellation
 verifies that the new release published that candidate. A canceled candidate
 cannot be promoted. Neither candidate creation, cancellation, nor promotion
-fetches, pushes, or deletes remote refs. The existing `distribution` and
-`distribution:producer` commands remain available but are deprecated for new
-linear releases; they retain their legacy
-source-parent and merge behavior until a later task replaces them.
-
-## Local cutover from the unpublished legacy branch
-
-The old local `starter` created by `distribution` has a `dev` source parent; it
-cannot be used as the base of a linear release. There are no consumers yet, but
-do not assume a clone of the new `starter` shares ancestry with `dev` or with
-the old unpublished branch. Cutover is a separate, explicitly authorized LOCAL
-operation; do not run it as part of candidate preparation or promotion.
-
-1. Inspect `git status --short --branch`, `git worktree list`, and
-   `git show-ref --verify refs/heads/starter`. Require a clean checkout and no
-   worktree using `starter`; record its full SHA. Preserve it with
-   `git branch backup/starter-before-linear starter` and verify both refs point
-   to the recorded SHA. Do not delete the backup during cutover.
-2. Only after explicit authorization to replace the local unpublished ref,
-   verify the branch SHA still matches the recorded SHA, then run
-   `git branch -d starter` if Git accepts it, or `git branch -D starter` only
-   with explicit approval for forced deletion of this verified local ref.
-   Never delete an unknown, moved, checked-out, or remote branch.
-3. With `starter` absent, prepare `distribution:candidate -- --base-absent`.
-   Review the candidate commit, filtered tree and source marker. Promote with
-   `--expected-base absent` and the other full approved IDs shown above.
-   Verify the release has zero parents, its tree matches the candidate, and
-   the backup still points to the old SHA. Cancel the published candidate
-   only after verifying publication. Retain the backup until a separate
-   authorization to remove it after verifying the new release and any
-   consumer migration; do not automatically delete old refs.
-
-No remote operation is performed by these tasks or by this playbook. Publishing
-or replacing a remote branch needs its own destination, credential/session,
-review, and explicit authorization. Existing clones of the old branch would
-not gain ancestry with a new root; migrate them deliberately rather than
-assuming an ordinary merge will work.
-
-## Legacy distribution commands (not for linear releases)
-
-From a clean producer checkout, commit the source changes on `dev` first (or
-pass another committed local source branch explicitly).
-Keep the existing local `starter` branch available (not checked out in another
-worktree), then prepare it without switching branches:
-
-```bash
-task --taskfile .maintainer/Taskfile.yml distribution:producer -- --source dev --target starter
-git status --short --branch
-git log --oneline --decorate -5 starter
-git diff dev...starter --stat
-git ls-tree -r --name-only starter
-git merge-base --is-ancestor dev starter
-bats .maintainer/test/unit/starter-distribution.bats
-```
-
-Review the resulting branch tree and ancestry before any publication. The
-producer task uses a temporary target checkout and normally removes it afterward;
-on conflict it aborts that merge and reports failure. If addition or cleanup fails,
-it reports the original error and cleanup uncertainty separately. A dirty or
-unverifiable checkout may remain at the reported temporary path; inspect it and
-the target ref before retrying. The task checks the target HEAD on failure and
-does not claim it was preserved when it changed or cannot be verified.
-Resolve the divergence deliberately before retrying. It never fetches or
-pushes. If publication is separately authorized, a human may push explicitly:
-
-```bash
-git push origin starter
-```
-
-Replace `origin` only with the reviewed, authorized destination. The producer
-task requires an existing `starter` and committed source that advances the
-previous release source. A different source branch may be passed explicitly
-if it descends from that source. For an initial release, the original direct
-`distribution` task still creates a missing target from a clean source checkout.
-The original direct `distribution` task still accepts a target checkout that
-contains `.maintainer/` and retains merge conflicts for manual resolution.
-The filtered published `starter` checkout does not contain that Taskfile; do
-not invoke the direct task from it.
-
-Each release constructs its tree from the committed source with root README,
-identity (including `AGENTS.md.TEMPLATE`), maintainer tooling, and planning
-paths excluded. The template remains tracked and unchanged in the dev source;
-it is omitted only from the published `starter` tree. Legacy distribution retains
-the source commit in the release ancestry. A source-only update still records the
-new source parent and marker even when the sanitized tree is unchanged; a
-rerun with that source is a no-op. Consumer-owned README, workflows, and
-planning files are never rewritten by the distribution step. Git merges shared
-paths normally; on conflict the producer task aborts the temporary merge and
-checks the target HEAD. The direct task instead retains merge state for
-manual resolution or `git merge --abort`. Never reset a consumer repository to
-resolve an update.
-
-The release includes only `.agents/skills/add-tool/` from the source skill tree.
-It excludes the source `skills-lock.json` and generates
-`.devcontainer/skills/recommended.json` from the committed source lock, with
-each external skill's name, source, and skill path. No Skills CLI installation
-occurs during distribution. A consumer-added skill directory and lock remain
-outside the release tree and survive later merges. When migrating a previously
-distributed skill tree, unchanged old external skills are removed; edits to
-those tracked paths or the old lock cause a Git conflict rather than being
-silently discarded. Resolve conflicts deliberately if retaining those paths,
-or abort the merge to restore the consumer branch.
-
-Git stores regular-file mode as executable or non-executable, not arbitrary
-POSIX permission bits. LICENSE and the dev-source AGENTS.md.TEMPLATE retain
-their Git blobs and executable flags; local checkout umask determines exact
-read permissions. The template is not included in the starter tree.
+fetches, pushes, or deletes remote refs. Verify the local root release and its
+tree after first promotion. Any remote publication requires separate review and
+explicit authorization for destination, operation, and credential/session.
+Future consumer clones of the new root will not share ancestry with `dev` or
+with the old unpublished branch.
 
 ## Explicit base lifecycle proof
 

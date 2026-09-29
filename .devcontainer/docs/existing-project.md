@@ -1,8 +1,10 @@
 # Integrate starter into an unrelated Git project
 
-Use a reviewed merge to connect histories once. Copying starter files alone does
-not create ancestry for future updates. Run the preflight from a **separate**
-checkout of the published `starter` branch, on the host, before importing files.
+Use this guide only after a new `starter` release is published; the old remote
+branch is absent today. Use a reviewed merge to connect histories once. Copying
+starter files alone does not create ancestry for future updates. Run the
+preflight from a **separate** checkout of the published `starter` branch, on
+the host, before importing files.
 This requires host Git, Task, and Python 3; no container or project Taskfile is
 needed. The preflight is read-only and does not fetch, merge, or commit.
 

@@ -28,8 +28,9 @@ achieved.
 
 The project on this branch is the **producer** designed to provide a clean baseline
 structure before starting a new project or integrating it with an existing project.
-As a **consumer**, you should clone the `starter` branch and create the remote `upstream`
-for future upgrades; these are the exclusive files that belong to:
+Once a linear `starter` release is published, consumers can clone it with
+`upstream` for future upgrades. No new `starter` branch is published yet;
+these are the reusable environment surfaces:
 
 ```bash
 .
@@ -185,6 +186,10 @@ cloud/provider credentials are needed only for the application workflows you use
 
 ### Start a new project from the `starter` branch
 
+This path is available **only after** a new `starter` release is published.
+The old remote branch has been removed; the current producer feature branch is
+not a consumer release. After publication:
+
 1. On your PC:
 
     ```bash
@@ -266,10 +271,10 @@ the software and start it. Then [attach VS Code](https://code.visualstudio.com/d
 
 ### 🌱 Update from Gentle Starter
 
-Clones of the published `starter` branch share its linear release ancestry, so
-updates use ordinary Git. This does not mean `starter` descends from the producer
-`dev` branch. The clone already has `upstream`. From your branch, fetch and merge
-the consumer branch:
+After publication, clones of the new `starter` branch share its linear release
+ancestry, so updates use ordinary Git. `starter` does not descend from producer
+`dev` or the old unpublished branch. A clone made with the command above already
+has `upstream`. From your branch, fetch and merge the consumer branch:
 
 ```bash
 git fetch upstream
@@ -428,7 +433,7 @@ skills list --json
 
 ## 🗂️ Repository structure for consumers
 
-The `starter` branch contains the reusable development environment without
+The future `starter` release contains the reusable development environment without
 maintainer identity or planning files. Its own release ancestry supports later
 consumer merges; it does not include producer `dev` history.
 

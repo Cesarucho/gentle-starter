@@ -15,8 +15,10 @@ Never rely on branch or commit metadata copied into documentation.
 
 ## Project initialization and updates
 
-- Users should clone or fork this repository so their projects retain shared
-  Git ancestry.
+- Once a linear `starter` release is published, consumers should clone that
+  branch to retain ancestry with later releases. Its history does not descend
+  from producer `dev`; a fork of `dev` is not equivalent to a consumer clone.
+  No new `starter` release is published yet.
 - `task project:init` is an optional one-time project setup. It prompts for a
   branch (default `main`) and optional project `origin`, configures canonical
   Gentle Starter `upstream`, removes identity, and creates the normal child
@@ -31,16 +33,19 @@ Never rely on branch or commit metadata copied into documentation.
 - `task project:init -- --dry-run` prints branch, remote, cleanup, and commit
   actions without mutation. Initialization never fetches, pushes, rewrites
   history, or creates a parentless root.
-- Future starter updates use conventional Git:
+- After a release is published, consumer updates use conventional Git:
 
   ```bash
+  # Add upstream only if the consumer clone does not already have it.
   git remote add upstream https://github.com/Cesarucho/gentle-starter.git
   git fetch upstream
-  git merge upstream/main
+  git merge upstream/starter
   ```
 
   Resolve conflicts manually. GitHub template-generated repositories do not
   share ancestry; shallow clones may require `git fetch --unshallow upstream`.
+  For unrelated existing projects, use the reviewed first-merge procedure in
+  `.devcontainer/docs/existing-project.md`.
 
 ## Extension architecture
 
