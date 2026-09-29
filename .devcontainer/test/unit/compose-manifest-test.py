@@ -83,7 +83,7 @@ class ManifestTests(ManifestFixture):
         scripts = self.root / ".taskfiles/scripts"
         scripts.mkdir(parents=True)
         for name in ("compose-manifest.py", "prepare-bind-mounts.py", "prepare-bind-mounts.sh",
-                     "project-identity.sh", "yq-compatibility.sh"):
+                     "project-identity.sh", "locale-env.py", "yq-compatibility.sh"):
             shutil.copy2(ROOT / ".taskfiles/scripts" / name, scripts / name)
         shutil.copy2(ROOT / ".taskfiles/devcontainer.yml", self.root / ".taskfiles/devcontainer.yml")
         (self.root / "Taskfile.yml").write_text('version: "3"\nincludes:\n  container: .taskfiles/devcontainer.yml\n')
@@ -422,7 +422,18 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
     def test_default_selection_keeps_core_active_and_optional_overrides_disabled(self):
         shutil.copytree(ROOT / ".devcontainer/config/compose", self.root / ".devcontainer/config/compose")
         shutil.copyfile(ROOT / ".devcontainer/docker-compose.yml", self.root / ".devcontainer/docker-compose.yml")
-        self.config.write_text((ROOT / ".devcontainer/devcontainer.json").read_text())
+        self.config.write_text('''{
+  "service": "container-svc",
+  "dockerComposeFile": [
+    "./docker-compose.yml",
+    "./config/compose/docker-compose-core-tools.yml"
+    // , "./config/compose/docker-compose.pi.yml"
+    // , "./config/compose/docker-compose.codegraph.yml"
+    // , "./config/compose/docker-compose.ssh-agent.yml"
+    // , "./config/compose/docker-compose.ssh-server.yml"
+    // , "./config/compose/docker-compose.audio.yml"
+  ]
+}''')
         paths = [str(path.relative_to(self.root / ".devcontainer")) for path in manifest.selection(self.root)[1]]
         self.assertEqual(paths, ["docker-compose.yml", "config/compose/docker-compose-core-tools.yml"])
 

@@ -5,9 +5,9 @@
         , "./config/compose/docker-compose-core-tools.yml"
         // , "./config/compose/docker-compose.pi.yml"
         // , "./config/compose/docker-compose.codegraph.yml"
-        // , "./config/compose/docker-compose.ssh-agent.yml"
+        , "./config/compose/docker-compose.ssh-agent.yml"
         // , "./config/compose/docker-compose.ssh-server.yml"
-        // , "./config/compose/docker-compose.audio.yml"
+        , "./config/compose/docker-compose.audio.yml"
     ],
     "service": "container-svc",
     "workspaceFolder": "/home/ubuntu/${localEnv:APP_NAME}",

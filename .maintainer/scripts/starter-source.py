@@ -13,6 +13,19 @@ EXCLUDED = (
     "skills-lock.json",
 )
 CATALOG = ".devcontainer/skills/recommended.json"
+DEVCONTAINER = ".devcontainer/devcontainer.json"
+REQUIRED_COMPOSE = (
+    "./docker-compose.yml",
+    "./config/compose/docker-compose-core-tools.yml",
+)
+JSONC_TOKEN = re.compile(
+    r'\s+|//[^\r\n]*|/\*[\s\S]*?\*/|"(?:\\[\s\S]|[^"\\])*"|'
+    r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|'
+    r'true|false|null|[{}\[\]:,]'
+)
+COMPOSE_ENTRY = re.compile(r'(?P<indent>[ \t]*)(?P<comment>//[ \t]*)?'
+                           r'(?P<comma>,[ \t]*)?(?P<value>"(?:\\.|[^"\\])*")'
+                           r'[ \t]*')
 
 
 def git(*args, env=None, input=None):
@@ -55,8 +68,108 @@ def recommendations(source):
     return (json.dumps({"version": 1, "skills": skills}, indent=2) + "\n").encode()
 
 
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate JSONC property")
+        result[key] = value
+    return result
+
+
+def jsonc_tokens(text):
+    tokens = []
+    cleaned = list(text)
+    position = 0
+    while position < len(text):
+        match = JSONC_TOKEN.match(text, position)
+        require(match is not None, "invalid devcontainer JSONC token")
+        assert match is not None
+        token = match.group()
+        if token.startswith("//") or token.startswith("/*"):
+            for index in range(position, match.end()):
+                if cleaned[index] not in "\r\n":
+                    cleaned[index] = " "
+        elif not token.isspace():
+            tokens.append((token, position, match.end()))
+        position = match.end()
+    return tokens, "".join(cleaned)
+
+
+def compose_defaults(blob):
+    try:
+        text = blob.decode("utf-8")
+        tokens, cleaned = jsonc_tokens(text)
+        document = json.loads(cleaned, object_pairs_hook=unique_object)
+        require(isinstance(document, dict), "devcontainer JSONC must be an object")
+        require(isinstance(document.get("dockerComposeFile"), list),
+                "dockerComposeFile must be an array")
+        depth = 0
+        locations = []
+        for index, (token, start, end) in enumerate(tokens):
+            if depth == 1 and token == '"dockerComposeFile"':
+                require(index + 2 < len(tokens) and tokens[index + 1][0] == ":" and
+                        tokens[index + 2][0] == "[", "ambiguous dockerComposeFile property")
+                locations.append((start, tokens[index + 2][2]))
+            if token in ("{", "["):
+                depth += 1
+            elif token in ("}", "]"):
+                depth -= 1
+        require(len(locations) == 1, "expected one top-level dockerComposeFile")
+        start, opening = locations[0]
+        lines = text.splitlines(keepends=True)
+        prefix = text[:start]
+        first = prefix.count("\n")
+        require(re.fullmatch(r'[ \t]*"dockerComposeFile"[ \t]*:[ \t]*\[[ \t]*',
+                             lines[first].rstrip("\r\n")), "unsupported dockerComposeFile layout")
+        closing = next((index for index in range(first + 1, len(lines))
+                        if re.fullmatch(r'[ \t]*\][ \t]*,?[ \t]*',
+                                        lines[index].rstrip("\r\n"))), None)
+        require(closing is not None, "missing dockerComposeFile closing line")
+        assert closing is not None
+        closing_position = sum(len(line) for line in lines[:closing]) + len(lines[closing]) - len(lines[closing].lstrip())
+        require(any(token == "]" and position == closing_position for token, position, _ in tokens)
+                and opening < closing_position, "ambiguous compose array closing line")
+        seen = []
+        active = []
+        output = lines[:]
+        for index in range(first + 1, closing):
+            line = lines[index].rstrip("\r\n")
+            require(bool(line.strip()), "unsupported empty compose entry line")
+            match = COMPOSE_ENTRY.fullmatch(line)
+            require(match is not None, "unsupported compose entry layout")
+            assert match is not None
+            value = json.loads(match["value"])
+            require(isinstance(value, str) and value and value not in seen,
+                    "duplicate or empty compose path")
+            seen.append(value)
+            if match["comment"] is None:
+                active.append(value)
+            if value in REQUIRED_COMPOSE:
+                require(match["comment"] is None, "mandatory compose path is commented")
+            elif match["comment"] is None:
+                output[index] = (match["indent"] + "// " + line[len(match["indent"]):] +
+                                 lines[index][len(line):])
+        require(tuple(seen[:2]) == REQUIRED_COMPOSE and
+                all(seen.count(path) == 1 for path in REQUIRED_COMPOSE),
+                "mandatory compose paths must be first and unique")
+        require(document["dockerComposeFile"] == active,
+                "ambiguous compose entries")
+        result = "".join(output)
+        _, cleaned_result = jsonc_tokens(result)
+        published = json.loads(cleaned_result, object_pairs_hook=unique_object)
+        require(published["dockerComposeFile"] == list(REQUIRED_COMPOSE),
+                "published compose selection is not the required pair")
+        return result.encode("utf-8")
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid devcontainer JSONC: {error}") from error
+
+
 def filtered_tree(source):
     catalog = recommendations(source)
+    compose = compose_defaults(subprocess.run(
+        ["git", "show", f"{source}:{DEVCONTAINER}"], stdout=subprocess.PIPE,
+        check=True,
+    ).stdout)
     # A private index builds the tree entirely from committed source files. Never
     # walk or remove worktree paths: excluded directories may contain symlinks.
     with tempfile.TemporaryDirectory(prefix="starter-index-") as temp:
@@ -74,4 +187,6 @@ def filtered_tree(source):
                 input=b"\0".join(os.fsencode(path) for path in paths) + b"\0")
         blob = git("hash-object", "-w", "--stdin", input=catalog)
         git("update-index", "--add", "--cacheinfo", "100644", blob, CATALOG, env=env)
+        blob = git("hash-object", "-w", "--stdin", input=compose)
+        git("update-index", "--add", "--cacheinfo", "100644", blob, DEVCONTAINER, env=env)
         return git("write-tree", env=env)

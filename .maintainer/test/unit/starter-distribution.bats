@@ -17,6 +17,10 @@ setup() {
   printf 'shared\n' > "${REPO}/.devcontainer/test/unit/shared.bats"
   printf 'authored\n' > "${REPO}/.agents/skills/add-tool/SKILL.md"
   printf 'external\n' > "${REPO}/.agents/skills/external/SKILL.md"
+  printf '%s\n' '{' '  "dockerComposeFile": [' \
+    '    "./docker-compose.yml"' \
+    '    , "./config/compose/docker-compose-core-tools.yml"' \
+    '  ],' '  "service": "container-svc"' '}' > "${REPO}/.devcontainer/devcontainer.json"
   printf '{"version":1,"skills":{"external":{"source":"example/repo","skillPath":"skills/external/SKILL.md","computedHash":"dev-only"}}}\n' > "${REPO}/skills-lock.json"
   for path in README.md AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
     .github/workflow odd/task openspec/spec docs/guide .maintainer/tool; do
@@ -59,6 +63,67 @@ approval() {
   approved="$(git -C "${REPO}" rev-parse starter-rc)"
   tree="$(git -C "${REPO}" rev-parse starter-rc^{tree})"
   source="$(git -C "${REPO}" rev-parse dev)"
+}
+
+@test "candidate comments active optional and future paths without changing committed or dirty producer bytes" {
+  printf '%s\n' '{' '  "dockerComposeFile": [' \
+    '    "./docker-compose.yml"' \
+    '    , "./config/compose/docker-compose-core-tools.yml"' \
+    '    , "./config/compose/docker-compose.audio.yml"' \
+    '    // , "./config/compose/docker-compose.pi.yml"' \
+    '    , "./future/extra.yml"' \
+    '  ],' '  // unrelated comment' '  "service": "container-svc"' '}' \
+    > "${REPO}/.devcontainer/devcontainer.json"
+  git -C "${REPO}" add .devcontainer/devcontainer.json
+  git -C "${REPO}" commit -qm 'Add producer compose selections'
+  original="$(git -C "${REPO}" hash-object .devcontainer/devcontainer.json)"
+  candidate --base-absent
+  approval
+  base=absent
+  [ "$(git -C "${REPO}" hash-object .devcontainer/devcontainer.json)" = "$original" ]
+  [ "$(git -C "${REPO}" rev-parse dev:.devcontainer/devcontainer.json)" = "$original" ]
+  git -C "${REPO}" show starter-rc:.devcontainer/devcontainer.json > "${TEMP}/published"
+  [ "$(grep -c '^    // , ' "${TEMP}/published")" -eq 3 ]
+  grep -q '"./future/extra.yml"' "${TEMP}/published"
+  grep -q '^    // , "./config/compose/docker-compose.pi.yml"$' "${TEMP}/published"
+  grep -q '// unrelated comment' "${TEMP}/published"
+  python3 - "${TEMP}/published" <<'PY'
+import json
+import pathlib
+import sys
+lines = pathlib.Path(sys.argv[1]).read_text().splitlines()
+data = json.loads('\n'.join(line for line in lines if not line.lstrip().startswith('//')))
+assert data['dockerComposeFile'] == ['./docker-compose.yml', './config/compose/docker-compose-core-tools.yml']
+assert data['service'] == 'container-svc'
+PY
+  repeated="$(git -C "${REPO}" rev-parse starter-rc)"
+  candidate --base-absent
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$repeated" ]
+  promote
+  [ "$(git -C "${REPO}" rev-parse starter:.devcontainer/devcontainer.json)" = \
+    "$(git -C "${REPO}" rev-parse starter-rc:.devcontainer/devcontainer.json)" ]
+  printf 'user edit\n' >> "${REPO}/.devcontainer/devcontainer.json"
+  dirty="$(git -C "${REPO}" hash-object .devcontainer/devcontainer.json)"
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" hash-object .devcontainer/devcontainer.json)" = "$dirty" ]
+}
+
+@test "candidate rejects malformed or ambiguous source compose JSONC before creating refs" {
+  local input
+  for input in \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./future.yml"\n  ]\n}' \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ]\n}' \
+    $'{\n  "dockerComposeFile": [\n    // "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ]\n}' \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ],\n  "dockerComposeFile": []\n}' \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ]\n} garbage'; do
+    printf '%s\n' "$input" > "${REPO}/.devcontainer/devcontainer.json"
+    git -C "${REPO}" commit -qam 'Set invalid source JSONC'
+    run candidate --base-absent
+    [ "$status" -ne 0 ]
+    ! git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+    ! git -C "${REPO}" show-ref --verify -q refs/heads/starter
+  done
 }
 
 @test "initial promotion publishes a root and later release has only the previous release as parent" {
