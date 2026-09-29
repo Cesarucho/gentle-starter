@@ -28,9 +28,8 @@ achieved.
 
 The project on this branch is the **producer** designed to provide a clean baseline
 structure before starting a new project or integrating it with an existing project.
-Once a linear `starter` release is published, consumers can clone it with
-`upstream` for future upgrades. No new `starter` branch is published yet;
-these are the reusable environment surfaces:
+As a **consumer**, you should clone the `starter` branch and create the remote `upstream`
+for future upgrades; these are examples of the files that belong to it:
 
 ```bash
 .
@@ -159,38 +158,25 @@ tracked by Git. Host audio integration is separate from audio clients.
 
 ## ✅ Requirements
 
-On your host, install current stable releases compatible with your OS and Docker
-environment (not the container's exact, policy-pinned tool versions):
+On your PC host, install current stable releases:
 
 - **[Git](https://git-scm.com/downloads)**
 - **[Task](https://taskfile.dev/installation/)**
 - **[Docker](https://docs.docker.com/get-started/get-docker/)**
 - **[Dev Container CLI](https://github.com/devcontainers/cli#installation)**
 - **[jq](https://jqlang.org/download/)**
-- **[yq](https://github.com/mikefarah/yq/#install)** — use a current stable
-  Mike Farah v4 that supports `-o=json -I=0` (v4.2.0 is too old), or a
-  compatible [Kislyuk yq](https://github.com/kislyuk/yq).
+- **[yq](https://github.com/mikefarah/yq/#install)** — Mike Farah yq v4 is
+  recommended; volume discovery also supports Kislyuk yq.
 - **[Python 3](https://www.python.org/downloads/)**
 
 An IDE is optional and **does not replace** these host requirements.
 `attach to running container` is the only supported method.
-Docker must be running and accessible to your host user. The base container
-publishes the generated application and OpenCode ports; ensure those host ports
-are available. SSH agent forwarding, incoming SSH, and audio have separate,
-conditional host prerequisites in the
-[optional integrations guide](.devcontainer/docs/optional-integrations.md#host-prerequisites).
-Catalog CLIs are installed in the image when selected, not all on the host;
-cloud/provider credentials are needed only for the application workflows you use.
 
 ## 🚀 Quick start
 
 ### Start a new project from the `starter` branch
 
-This path is available **only after** a new `starter` release is published.
-The old remote branch has been removed; the current producer feature branch is
-not a consumer release. After publication:
-
-1. On your PC:
+1. On your PC host:
 
     ```bash
     git clone --branch starter --origin upstream https://github.com/Cesarucho/gentle-starter.git <my-project>
@@ -201,6 +187,7 @@ not a consumer release. After publication:
     ```
 
     > Add your project remote when ready: `git remote add origin <your-project-url>`.
+    >
     > Already have a project? Follow the
     > [existing-project integration guide](.devcontainer/docs/existing-project.md).
 
@@ -210,7 +197,7 @@ Use the terminal workflow below. For the container life cycle only, `Task` is
 the supported entry point (build, create, run, stop, remove, restart, and more);
 an IDE may only attach after `task container:up`.
 
-1. In your **host terminal**, from the project directory, run:
+1. In your **PC host terminal**, from the project directory, run:
 
     ```bash
     task container:up         # it will build the image if needed
@@ -240,11 +227,17 @@ an IDE may only attach after `task container:up`.
     ❯_ /connect
     ```
 
+    configure the models
+
+    ```bash
+    ❯_ /sdd-models
+    ```
+
+    > It is recommended to automate your own profiles, details [in Tool Configurations](#️-tool-configurations-opencode-pi)
+
     and prompting, examples:
 
     ```text
-    ❯_ Help me draft AGENTS.md with instructions specific to this project.
-
     ❯_ Use "add-tool" skill for add PostgreSQL-16 with a version-controlled
        `pg_hba.conf` and persistent data volume.
     ```
@@ -271,10 +264,10 @@ the software and start it. Then [attach VS Code](https://code.visualstudio.com/d
 
 ### 🌱 Update from Gentle Starter
 
-After publication, clones of the new `starter` branch share its linear release
-ancestry, so updates use ordinary Git. `starter` does not descend from producer
-`dev` or the old unpublished branch. A clone made with the command above already
-has `upstream`. From your branch, fetch and merge the consumer branch:
+Clones of the published `starter` branch share its linear release ancestry, so
+updates use ordinary Git. This does not mean `starter` descends from the producer
+`dev` branch. The clone already has `upstream`. From your branch, fetch and merge
+the consumer branch:
 
 ```bash
 git fetch upstream
@@ -287,11 +280,11 @@ Resolve merge conflicts manually and commit the resolution normally. Existing
 ### 📦 Update development tools
 
 ```bash
-task tools:update         # From inside container, update the repository's approved version policy
-git diff                  # Review user intent and generated locks together
+task tools:update          # From inside container, update the repository's approved version policy
+git diff                   # Review user intent and generated locks together
 task container:rebuild     # From host, remove the container and build the updated image
 task container:up          # From host, create/start the updated development environment
-task validate             # Inside container: diagnosis and strict quality
+task validate              # Inside container: diagnosis and strict quality
 ```
 
 Edit only `TOOL_*_VERSION` fields. `tools:update` alone resolves stable exact versions,
@@ -311,7 +304,25 @@ discovery responses are regenerated in the private local cache at
 `${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/` and
 use ETags to avoid unchanged requests.
 
-### ⚙️ Tool Configurations (OpenCode, Pi and others)
+### ⚙️ Tool Configurations (OpenCode, Pi)
+
+- OpenCode profiles
+
+    You can configure each **"sdd-*"** sub-agent with the model and effort to your liking
+    (command: `/sdd-model`); these preferences are saved in runtime files
+    `~/.config/opencode/opencode.json` and `~/.config/opencode/profiles/` which you
+    can then export to default preferences `task config:export`:
+
+    ```bash
+    .devcontainer/config/opencode
+    ├── opencode.json
+    └── profiles/
+        ├── openai-100usd-astral.json
+        ├── openai-100usd-solar.json
+        └── openai-20usd-pareto.json
+    ```
+
+    > Currently, opencode has the `openai-20usd-pareto` profile configured.
 
 - Keep your preferences as the default setting.
 
@@ -346,24 +357,6 @@ use ETags to avoid unchanged requests.
     > remember to request it from the ai-agent using the `add-tool` skill.
 
     See [Configuration](.devcontainer/docs/configs.md) for the complete contract.
-
-- OpenCode profiles
-
-    You can configure each **"sdd-*"** sub-agent with the model and effort to your liking
-    (command: `/sdd-model`); these preferences are saved in runtime files
-    `~/.config/opencode/opencode.json` and `~/.config/opencode/profiles/` which you
-    can then export to default preferences `task config:export`:
-
-    ```bash
-    .devcontainer/config/opencode
-    ├── opencode.json
-    └── profiles/
-        ├── openai-100usd-astral.json
-        ├── openai-100usd-solar.json
-        └── openai-20usd-pareto.json
-    ```
-
-    > Currently, opencode has the `openai-20usd-pareto` profile configured.
 
 ## 🛠️ Useful commands
 
@@ -423,13 +416,6 @@ task container:opencode:server  # attach to a reused or task-owned OpenCode serv
 > - **opencode_port** is calculated and found in the `.env` file.
 > - Optional credentials can be configured in the `.env` file
 > using `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
-
-### Skills
-
-```bash
-# Inspect installed project and global skills
-skills list --json
-```
 
 ## 🗂️ Repository structure for consumers
 
@@ -502,11 +488,12 @@ Edit `.devcontainer/install/01-foundation/10-system.sh` to add packages installe
 
 ### 🌎 Update timezone and locales
 
-Edit the Dockerfile arguments in `.devcontainer/Dockerfile`, for example:
+Default configuration are in Dockerfile `.devcontainer/Dockerfile`, but you can
+change it for each container instance from `.env` file, example:
 
-```dockerfile
-ARG LOCALE=es_MX.UTF-8
-ARG TZ=America/Mexico_City
+```env
+LOCALE=es_MX.UTF-8
+TZ=America/Mexico_City
 ```
 
 ### 🧩 Add development tools
