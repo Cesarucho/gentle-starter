@@ -98,3 +98,9 @@ run_locale_installer() {
 	[[ "${foundation}" == *$'RUN LANG=C.UTF-8 LANGUAGE=C.UTF-8 LC_ALL=C.UTF-8 \\\n    chown '* ]]
 	[[ "${foundation}" == *$'run-installers.sh ./.devcontainer-install/01-foundation\n\nENV LANG=${LOCALE}\nENV LANGUAGE=${LOCALE}\nENV LC_ALL=${LOCALE}'* ]]
 }
+
+@test "Compose forwards synchronized locale settings as build arguments" {
+	compose="$(<"${REPO_ROOT}/.devcontainer/docker-compose.yml")"
+	[[ "${compose}" == *'LOCALE: ${LOCALE}'* ]]
+	[[ "${compose}" == *'TZ: ${TZ}'* ]]
+}

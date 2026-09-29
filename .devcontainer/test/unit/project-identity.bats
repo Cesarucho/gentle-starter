@@ -40,6 +40,7 @@ IDENTITY="${REPO_ROOT}/.taskfiles/scripts/project-identity.sh"
 	mkdir -p "${test_root}/.taskfiles/scripts" "${test_root}/.devcontainer"
 	cp "${REPO_ROOT}/.taskfiles/devcontainer.yml" "${test_root}/.taskfiles/devcontainer.yml"
 	cp "${IDENTITY}" "${test_root}/.taskfiles/scripts/project-identity.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/locale-env.py" "${test_root}/.taskfiles/scripts/locale-env.py"
 	cat >"${test_root}/Taskfile.yml" <<'EOF'
 version: "3"
 includes:
@@ -50,8 +51,8 @@ tasks:
     cmds:
       - task: container:ensure-identity-env
 EOF
-	printf 'KEEP_ME=yes\nAPP_PORT=1\nOPENCODE_PORT=2\nSSH_PORT=3\nAPP_PORT=4\n' >"${test_root}/.env"
-	printf 'OTHER=value\nSSH_PORT=9\n' >"${test_root}/.devcontainer/.env"
+	printf 'KEEP_ME=yes\nLOCALE="en_US.UTF-8" # local\nTZ=Europe/Madrid\nAPP_PORT=1\nOPENCODE_PORT=2\nSSH_PORT=3\nAPP_PORT=4\n' >"${test_root}/.env"
+	printf 'OTHER=value\nLOCALE=stale\nTZ=stale\nSSH_PORT=9\n' >"${test_root}/.devcontainer/.env"
 
 	cd "${test_root}"
 	run env FORCE_HOST_CONTEXT=1 task regenerate
@@ -65,11 +66,43 @@ SSH_PORT=$((app_port + 2))"
 	[ "$(grep -E '^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT)=' .devcontainer/.env)" = "${expected}" ]
 	grep -Fxq 'KEEP_ME=yes' .env
 	grep -Fxq 'OTHER=value' .devcontainer/.env
+	grep -Fxq 'LOCALE=en_US.UTF-8' .devcontainer/.env
+	grep -Fxq 'TZ=Europe/Madrid' .devcontainer/.env
+	grep -Fxq 'LOCALE="en_US.UTF-8" # local' .env
+	run env LOCALE=wrong TZ=wrong bash -c 'set -a; . .devcontainer/.env; printf "%s %s" "$LOCALE" "$TZ"'
+	[ "${status}" -eq 0 ]
+	[ "${output}" = 'en_US.UTF-8 Europe/Madrid' ]
 	cp .env before
 	FORCE_HOST_CONTEXT=1 task regenerate
 	cmp -s before .env
 
 	rm -rf "${test_root%/Identity Fixture}"
+}
+
+@test "invalid or duplicate locale input leaves both fixture env files untouched" {
+	test_root="${BATS_TEST_TMPDIR}/fixture"
+	mkdir -p "${test_root}/.taskfiles/scripts" "${test_root}/.devcontainer"
+	cp "${REPO_ROOT}/.taskfiles/devcontainer.yml" "${test_root}/.taskfiles/devcontainer.yml"
+	cp "${IDENTITY}" "${test_root}/.taskfiles/scripts/project-identity.sh"
+	cp "${REPO_ROOT}/.taskfiles/scripts/locale-env.py" "${test_root}/.taskfiles/scripts/locale-env.py"
+	printf 'version: "3"\nincludes:\n  container:\n    taskfile: ./.taskfiles/devcontainer.yml\n' >"${test_root}/Taskfile.yml"
+	printf 'SECRET=keep\n' >"${test_root}/.devcontainer/.env"
+	for invalid in 'LOCALE=$(touch /tmp/unsafe)' 'TZ=../etc/passwd' 'TZ=Not/AZone' 'LOCALE=one
+LOCALE=two' 'export LOCALE=en_US.UTF-8'; do
+		printf '%s\n' "${invalid}" >"${test_root}/.env"
+		cp "${test_root}/.env" "${test_root}/before"
+		cd "${test_root}"
+		run env FORCE_HOST_CONTEXT=1 task container:ensure-identity-env
+		[ "${status}" -ne 0 ]
+		cmp -s .env before
+		[ "$(<.devcontainer/.env)" = SECRET=keep ]
+	done
+}
+
+@test "missing root locale settings use image defaults" {
+	run python3 "${REPO_ROOT}/.taskfiles/scripts/locale-env.py" "${BATS_TEST_TMPDIR}/missing"
+	[ "${status}" -eq 0 ]
+	[ "${output}" = $'es_MX.UTF-8\nAmerica/Mexico_City' ]
 }
 
 @test "compose publishes generated host ports on all host interfaces" {

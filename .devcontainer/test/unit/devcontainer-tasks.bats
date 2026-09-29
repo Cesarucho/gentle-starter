@@ -72,6 +72,17 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ "${prepare}" -lt "${running}" ]
 }
 
+@test "build and up regenerate locale settings before sourcing generated env" {
+	for operation in build up; do
+		definition="$(awk -v task="${operation}:" '$0 == "  " task {capture=1} capture && /^  [[:alnum:]-]+:/ && $0 != "  " task {exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+		[[ "${definition}" == *'- task: ensure-identity-env'* ]]
+		[[ "${definition}" == *'. .devcontainer/.env'* ]]
+	done
+	definition="$(awk '/^  ensure-identity-env:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  ensure-identity-env:/{exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+	[[ "${definition}" == *'locale-env.py .env LOCALE'* ]]
+	[[ "${definition}" == *'locale-env.py .env TZ'* ]]
+}
+
 @test "container:rebuild runs remove and build without startup" {
 	cd "${REPO_ROOT}"
 	task_definition="$(awk '/^  rebuild:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  rebuild:/{exit} capture' .taskfiles/devcontainer.yml)"

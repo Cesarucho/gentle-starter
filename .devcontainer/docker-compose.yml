@@ -7,6 +7,8 @@ services:
       dockerfile: ./Dockerfile
       args:
         APP_NAME: ${APP_NAME}
+        LOCALE: ${LOCALE}
+        TZ: ${TZ}
     privileged: true
     environment:
       # Task exports this after resolution; startup rejects an empty identity.

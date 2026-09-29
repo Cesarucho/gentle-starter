@@ -33,6 +33,8 @@ tasks:
         if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
           exit 0
         fi
+        locale="$(python3 .taskfiles/scripts/locale-env.py .env LOCALE)" || exit 1
+        timezone="$(python3 .taskfiles/scripts/locale-env.py .env TZ)" || exit 1
         app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
         app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
         opencode_port="$((app_port + 1))"
@@ -44,7 +46,11 @@ tasks:
           touch "$env_file"
 
           tmp_file="$(mktemp)"
-          awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT|HOST_UID)=/' "$env_file" > "$tmp_file"
+          if [ "$env_file" = ".devcontainer/.env" ]; then
+            awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT|HOST_UID|LOCALE|TZ)=/' "$env_file" > "$tmp_file"
+          else
+            awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT|HOST_UID)=/' "$env_file" > "$tmp_file"
+          fi
           {
             cat "$tmp_file"
             printf 'APP_NAME=%s\n' "$app_name"
@@ -52,6 +58,9 @@ tasks:
             printf 'OPENCODE_PORT=%s\n' "$opencode_port"
             printf 'SSH_PORT=%s\n' "$ssh_port"
             printf 'HOST_UID=%s\n' "$host_uid"
+            if [ "$env_file" = ".devcontainer/.env" ]; then
+              printf 'LOCALE=%s\nTZ=%s\n' "$locale" "$timezone"
+            fi
           } > "$env_file"
           rm -f "$tmp_file"
         done
