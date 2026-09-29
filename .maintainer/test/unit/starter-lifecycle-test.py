@@ -66,7 +66,8 @@ class LifecycleTests(unittest.TestCase):
         self.assertNotIn("pulse", json.dumps(config))
         self.assertEqual(sorted(p.name for p in (self.root / ".devcontainer/install/03-enabled").iterdir()), ["3020-ai-gentle-ai.sh"])
         self.assertTrue((self.root / ".devcontainer/install/02-core-tools/3020-ai-gentle-ai.sh").is_symlink())
-        self.assertEqual((self.root / ".env").read_bytes(), b"")
+        self.assertEqual((self.root / ".env").read_text(), "LOCALE=en_GB.UTF-8\nTZ=Europe/Madrid\n")
+        self.assertEqual((self.root / ".devcontainer/.env").read_bytes(), b"")
         self.assertEqual((self.root / ".devcontainer/.env").stat().st_mode & 0o777, 0o600)
 
     def test_custom_service_fails_actionably(self):
@@ -95,14 +96,30 @@ class LifecycleTests(unittest.TestCase):
         events = Mock()
         lifecycle.task = events.task
         lifecycle.assert_state = events.state
+        lifecycle.assert_locale = events.locale
         with patch.object(H, "configure"), patch.object(H, "snapshot", return_value=source_snapshot) as snapshot, \
                 patch.object(H, "run", return_value="12000"), patch.object(H.subprocess, "run"):
             lifecycle.execute()
         self.assertEqual(events.mock_calls, [call.task("build"), call.task("up"), call.state("first", write=True),
-                                             call.task("recreate"), call.state("second")])
+                                             call.locale("first"), call.task("recreate"), call.state("second"),
+                                             call.locale("second")])
         lifecycle.ownership.arm.assert_called_once_with()
         lifecycle.ownership.probe_bind.assert_called_once_with()
         self.assertEqual(snapshot.call_args_list, [call(lifecycle.candidate), call(lifecycle.candidate)])
+
+    def test_locale_assertion_checks_generated_values_runtime_locale_and_timezone(self):
+        lifecycle = self.lifecycle()
+        lifecycle.candidate.mkdir()
+        (lifecycle.candidate / ".devcontainer").mkdir()
+        (lifecycle.candidate / ".env").write_text("LOCALE=en_GB.UTF-8\nTZ=Europe/Madrid\n")
+        (lifecycle.candidate / ".devcontainer/.env").write_text("LOCALE=en_GB.UTF-8\nTZ=Europe/Madrid\n")
+        lifecycle.docker = Mock(side_effect=["en_GB.UTF-8", "en_GB.UTF-8", "en_GB.UTF-8",
+                                              "Europe/Madrid", "C\nen_GB.utf8", "/usr/share/zoneinfo/Europe/Madrid"])
+        lifecycle.assert_locale("candidate")
+        self.assertEqual(lifecycle.docker.call_count, 6)
+        (lifecycle.candidate / ".devcontainer/.env").write_text("LOCALE=es_MX.UTF-8\nTZ=Europe/Madrid\n")
+        with self.assertRaisesRegex(RuntimeError, "generated LOCALE"):
+            lifecycle.assert_locale("candidate")
 
     def test_probe_failure_prevents_candidate_and_build(self):
         lifecycle = self.lifecycle()

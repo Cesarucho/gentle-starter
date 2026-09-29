@@ -17,7 +17,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from test_resources import LABEL, Run, Unsafe
 
-VERIFY_CHECKS = frozenset({"container-replaced", "managed-state", "candidate-unchanged"})
+VERIFY_CHECKS = frozenset({"container-replaced", "managed-state", "candidate-unchanged", "locale-timezone"})
+TEST_LOCALE = "en_GB.UTF-8"
+TEST_TIMEZONE = "Europe/Madrid"
 
 
 def failure_message(lifecycle):
@@ -148,6 +150,7 @@ def configure(root):
     for name in (".env", ".devcontainer/.env"):
         (root / name).write_text("")
         (root / name).chmod(0o600)
+    (root / ".env").write_text(f"LOCALE={TEST_LOCALE}\nTZ={TEST_TIMEZONE}\n")
 
 
 class Lifecycle:
@@ -270,6 +273,23 @@ class Lifecycle:
             if (source / marker).read_text() != marker:
                 raise RuntimeError("Sandbox host marker differs from connected container state")
 
+    def assert_locale(self, container):
+        expected = {"LOCALE": TEST_LOCALE, "TZ": TEST_TIMEZONE}
+        root_values = (self.candidate / ".env").read_text().splitlines()
+        generated = (self.candidate / ".devcontainer/.env").read_text().splitlines()
+        for key, value in expected.items():
+            if root_values.count(f"{key}={value}") != 1 or generated.count(f"{key}={value}") != 1:
+                raise RuntimeError(f"Candidate root or generated {key} differs from fixture")
+        for key, value in {"LOCALE": TEST_LOCALE, "LANG": TEST_LOCALE,
+                           "LC_ALL": TEST_LOCALE, "TZ": TEST_TIMEZONE}.items():
+            if self.docker("exec", "--user", "ubuntu", container, "printenv", key) != value:
+                raise RuntimeError(f"Container {key} differs from candidate locale fixture")
+        available = self.docker("exec", "--user", "ubuntu", container, "locale", "-a").splitlines()
+        if TEST_LOCALE.lower().replace("-", "") not in {value.lower().replace("-", "") for value in available}:
+            raise RuntimeError("Candidate locale was not generated")
+        if self.docker("exec", container, "readlink", "-f", "/etc/localtime") != f"/usr/share/zoneinfo/{TEST_TIMEZONE}":
+            raise RuntimeError("Container timezone link differs from candidate fixture")
+
     def execute(self):
         self.ownership.arm()
         self.ownership.probe_bind()
@@ -289,6 +309,8 @@ class Lifecycle:
         self.task("up")
         first = self.container()
         self.assert_state(first, write=True)
+        self.verify_check = "locale-timezone"
+        self.assert_locale(first)
         self.task("recreate")
         second = self.container()
         self.ownership.stage("verify")
@@ -297,6 +319,8 @@ class Lifecycle:
             raise RuntimeError("Recreate did not replace the service container")
         self.verify_check = "managed-state"
         self.assert_state(second)
+        self.verify_check = "locale-timezone"
+        self.assert_locale(second)
         self.verify_check = "candidate-unchanged"
         current = snapshot(self.candidate)
         if current != configured:

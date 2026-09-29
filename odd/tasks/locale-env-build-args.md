@@ -61,3 +61,37 @@ still uncommitted. Mirror topic: `odd/locale-env-build-args/tasks`.
   `feat(container): forward root locale settings to image builds`. No README
   content was staged or committed. Review candidate is this commit against
   `759dece`; delivery remains one local work unit, no PR or remote operation.
+
+## Authorized isolated lifecycle extension
+
+- [x] L7: Candidate-only root `.env` injects `en_GB.UTF-8` and `Europe/Madrid`;
+  generated `.devcontainer/.env`, runtime `LOCALE`/`LANG`/`LC_ALL`/`TZ`,
+  generated locale availability, and `/etc/localtime` are checked after start
+  and recreation. The default fixture is replaced only in this isolated test;
+  production defaults are unchanged. No primary `.env` or container is touched.
+- [x] L8: Focused mocked lifecycle Bats and diff check passed (2/2 tests);
+  the separate Python discovery command found zero tests because the filename
+  does not match Python's importable module naming convention.
+- [x] L9: Run the explicitly authorized isolated lifecycle command after disk
+  and daemon preflight; record stage, elapsed time, run ID, cleanup and cache
+  delta. No retries were needed.
+- [x] L10: Commit the bounded harness, regression test, and evidence without
+  staging the user-owned README; mirror this entire document in Engram.
+
+Forecast before launch: one full image build, start and recreate may take tens
+of minutes and download tools; shared cache (42.87 GB before launch) remains.
+Docker server 29.8.1-1 and cached ubuntu:24.04 confirmed; `/tmp/opencode` had
+16 GB free and root filesystem 1.4 TB free. The scratch exact-byte probe must
+pass before candidate creation; no global prune or primary container action.
+Actual command: `time task --taskfile .maintainer/Taskfile.yml
+test:starter:lifecycle` passed in 2m26.853s, including exact-byte scratch bind
+probe, candidate build, start, connection, recreation, managed-state and
+primary-source preservation. The locale assertion passed both after start and
+after recreation, checking candidate root and generated values, four runtime
+environment keys, `locale -a`, and `/etc/localtime` link. Run ID:
+`06586dcd-b8a1-4c0c-b016-aaf66ef8781d`; inventory preview reports
+`test=passed stage=verify cleanup=removed`. Owned containers, network, images,
+and scratch were removed and verified. Shared cache remains, increasing from
+42.87 GB to 46.51 GB (+3.64 GB reported). No primary container action.
+Post-run focused Bats passed 2/2; `git diff --check` passed. Rollback boundary:
+the lifecycle harness, its mocked regression tests, and this ODD evidence only.
