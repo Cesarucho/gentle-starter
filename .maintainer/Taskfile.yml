@@ -1,23 +1,11 @@
 version: "3"
 
 includes:
-  clean:
-    taskfile: ./tasks/clean.yml
-    dir: ..
-  project:
-    taskfile: ./tasks/project.yml
-    dir: ..
   test:
     taskfile: ./tasks/test.yml
     dir: ..
 
 tasks:
-  clean:
-    desc: Review and execute project identity cleanup
-    dir: ..
-    cmds:
-      - task: clean:identity
-
   help:
     desc: Show maintainer task help
     dir: ..
