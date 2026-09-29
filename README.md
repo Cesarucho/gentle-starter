@@ -318,7 +318,6 @@ use ETags to avoid unchanged requests.
     ├── opencode.json
     └── profiles/
         ├── openai-100usd-astral.json
-        ├── openai-100usd-solar.json
         └── openai-20usd-pareto.json
     ```
 
