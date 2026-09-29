@@ -1,5 +1,25 @@
 # Prepare the consumer branch locally
 
+## Isolated candidate preparation (local only)
+
+With a clean checkout and committed `dev`, run
+`task --taskfile .maintainer/Taskfile.yml distribution:candidate` to create or
+advance `starter-rc`. The command reads the current local `starter` as its pinned
+base; it does not change `starter`, the checkout, or remotes. Inspect the candidate
+commit message for `Starter-Candidate-Source` and `Starter-Candidate-Base`, and
+inspect its tree before any separate promotion. The first candidate is a root;
+subsequent candidate commits have only the preceding candidate as parent. A
+source-only advance creates a new candidate even when its filtered tree is
+unchanged. Repeating the same source is a no-op.
+
+To discard a candidate, run
+`task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel`.
+This deletes only a verified local candidate ref; it refuses a changed base or
+unrecognized candidate. After cancellation, a new candidate starts from a new
+root. Candidate preparation is not publication; promotion to a linear `starter`
+release is not implemented by this command. The legacy distribution commands
+below still use their existing ancestry and merge behavior.
+
 From a clean producer checkout, commit the source changes on `dev` first (or
 pass another committed local source branch explicitly).
 Keep the existing local `starter` branch available (not checked out in another

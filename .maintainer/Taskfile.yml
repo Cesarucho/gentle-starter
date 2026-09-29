@@ -35,3 +35,9 @@ tasks:
     dir: ..
     cmds:
       - python3 .maintainer/scripts/starter-producer.py {{.CLI_ARGS}}
+
+  distribution:candidate:
+    desc: Build or cancel a local starter-rc candidate without changing starter
+    dir: ..
+    cmds:
+      - python3 .maintainer/scripts/starter-candidate.py {{.CLI_ARGS}}

@@ -72,34 +72,8 @@ def recommendations(source):
     return (json.dumps({"version": 1, "skills": skills}, indent=2) + "\n").encode()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", required=True, help="local committed source branch")
-    parser.add_argument("--target", required=True, help="local consumer branch")
-    args = parser.parse_args()
-    source_ref, target_ref = branch(args.source), branch(args.target)
-    require(source_ref != target_ref, "source and target must differ")
-    require(git("rev-parse", "--show-toplevel") == os.getcwd(),
-            "run from the repository root")
-    require(not git("status", "--porcelain", "--untracked-files=all"),
-            "worktree and index must be clean")
-    require(not os.path.exists(git("rev-parse", "--git-path", "MERGE_HEAD")),
-            "resolve the existing merge first")
-    require(exists(source_ref), "source must be an existing local branch")
-    source = git("rev-parse", source_ref)
+def filtered_tree(source):
     catalog = recommendations(source)
-    updating = exists(target_ref)
-    prior = None
-    if updating:
-        require(git("symbolic-ref", "-q", "HEAD") == target_ref,
-                "check out the target branch before updating")
-        prior, old_source = previous_release(target_ref)
-        require(subprocess.run(["git", "merge-base", "--is-ancestor", old_source, source]).returncode == 0,
-                "source must advance the previous distribution source")
-        if old_source == source:
-            print("Target already contains this source; nothing to update.")
-            return
-
     # A private index builds the tree entirely from committed source files. Never
     # walk or remove worktree paths: excluded directories may contain symlinks.
     with tempfile.TemporaryDirectory(prefix="starter-index-") as temp:
@@ -117,7 +91,38 @@ def main():
                 input=b"\0".join(os.fsencode(path) for path in paths) + b"\0")
         blob = git("hash-object", "-w", "--stdin", input=catalog)
         git("update-index", "--add", "--cacheinfo", "100644", blob, CATALOG, env=env)
-        tree = git("write-tree", env=env)
+        return git("write-tree", env=env)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", required=True, help="local committed source branch")
+    parser.add_argument("--target", required=True, help="local consumer branch")
+    args = parser.parse_args()
+    source_ref, target_ref = branch(args.source), branch(args.target)
+    require(source_ref != target_ref, "source and target must differ")
+    require(git("rev-parse", "--show-toplevel") == os.getcwd(),
+            "run from the repository root")
+    require(not git("status", "--porcelain", "--untracked-files=all"),
+            "worktree and index must be clean")
+    require(not os.path.exists(git("rev-parse", "--git-path", "MERGE_HEAD")),
+            "resolve the existing merge first")
+    require(exists(source_ref), "source must be an existing local branch")
+    source = git("rev-parse", source_ref)
+    recommendations(source)
+    updating = exists(target_ref)
+    prior = None
+    if updating:
+        require(git("symbolic-ref", "-q", "HEAD") == target_ref,
+                "check out the target branch before updating")
+        prior, old_source = previous_release(target_ref)
+        require(subprocess.run(["git", "merge-base", "--is-ancestor", old_source, source]).returncode == 0,
+                "source must advance the previous distribution source")
+        if old_source == source:
+            print("Target already contains this source; nothing to update.")
+            return
+
+    tree = filtered_tree(source)
 
     # Even when the sanitized tree is unchanged, the new source parent and
     # marker must be recorded so the next update starts from this source.

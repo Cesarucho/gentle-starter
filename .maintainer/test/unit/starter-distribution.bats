@@ -31,6 +31,110 @@ teardown() { rm -rf "${TEMP}"; }
 
 prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter); }
 
+candidate() { (cd "${REPO}" && python3 "${ROOT}/.maintainer/scripts/starter-candidate.py" "$@"); }
+
+@test "candidate starts at a root, advances without source ancestry, and pins its base" {
+  prepare
+  base="$(git -C "${REPO}" rev-parse starter)"
+  source="$(git -C "${REPO}" rev-parse dev)"
+  run candidate
+  [ "$status" -eq 0 ]
+  first="$(git -C "${REPO}" rev-parse starter-rc)"
+  [ -z "$(git -C "${REPO}" show -s --format=%P starter-rc)" ]
+  ! git -C "${REPO}" merge-base --is-ancestor dev starter-rc
+  [ "$(git -C "${REPO}" rev-parse starter-rc^{tree})" = "$(git -C "${REPO}" rev-parse starter^{tree})" ]
+  [[ "$(git -C "${REPO}" show -s --format=%B starter-rc)" == *"Starter-Candidate-Source: ${source}"* ]]
+  [[ "$(git -C "${REPO}" show -s --format=%B starter-rc)" == *"Starter-Candidate-Base: ${base}"* ]]
+  run candidate
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$first" ]
+  printf 'maintainer-only\n' > "${REPO}/README.md"
+  git -C "${REPO}" commit -qam 'Source-only change'
+  run candidate
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" show -s --format=%P starter-rc)" = "$first" ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc^{tree})" = "$(git -C "${REPO}" rev-parse "${first}^{tree}")" ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$base" ]
+  [ "$(git -C "${REPO}" branch --show-current)" = dev ]
+}
+
+@test "candidate keeps filtered skills and refuses stale or unexpected refs" {
+  prepare
+  candidate
+  ! git -C "${REPO}" cat-file -e starter-rc:README.md
+  ! git -C "${REPO}" cat-file -e starter-rc:skills-lock.json
+  ! git -C "${REPO}" cat-file -e starter-rc:.agents/skills/external/SKILL.md
+  [ "$(git -C "${REPO}" show starter-rc:.agents/skills/add-tool/SKILL.md)" = authored ]
+  old="$(git -C "${REPO}" rev-parse starter-rc)"
+  base="$(git -C "${REPO}" rev-parse starter)"
+  git -C "${REPO}" branch -f starter dev
+  run candidate
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$old" ]
+  git -C "${REPO}" branch -f starter "$base"
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$(git -C "${REPO}" rev-parse dev)"
+  run candidate
+  [ "$status" -ne 0 ]
+  run candidate --cancel
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$(git -C "${REPO}" rev-parse dev)" ]
+}
+
+@test "cancel removes only a verified candidate and allows a fresh root" {
+  prepare
+  candidate
+  first="$(git -C "${REPO}" rev-parse starter-rc)"
+  run candidate --cancel
+  [ "$status" -eq 0 ]
+  ! git -C "${REPO}" show-ref --verify --quiet refs/heads/starter-rc
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+  run candidate
+  [ "$status" -eq 0 ]
+  [ -z "$(git -C "${REPO}" show -s --format=%P starter-rc)" ]
+  [ "$(git -C "${REPO}" show starter-rc:.devcontainer/docs/guide.md)" = v2 ]
+  ! git -C "${REPO}" merge-base --is-ancestor "$first" starter-rc
+}
+
+@test "candidate rejects a symbolic target without updating or deleting its aliased branch" {
+  prepare
+  candidate --target retained-rc
+  before="$(git -C "${REPO}" rev-parse retained-rc)"
+  git -C "${REPO}" symbolic-ref refs/heads/starter-rc refs/heads/retained-rc
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+
+  run candidate
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"candidate target must not be a symbolic ref"* ]]
+  [ "$(git -C "${REPO}" rev-parse retained-rc)" = "$before" ]
+  [ "$(git -C "${REPO}" symbolic-ref refs/heads/starter-rc)" = refs/heads/retained-rc ]
+
+  run candidate --cancel
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"candidate target must not be a symbolic ref"* ]]
+  [ "$(git -C "${REPO}" rev-parse retained-rc)" = "$before" ]
+  [ "$(git -C "${REPO}" symbolic-ref refs/heads/starter-rc)" = refs/heads/retained-rc ]
+}
+
+@test "candidate refuses divergent source and dirty checkout without changing refs" {
+  prepare
+  candidate
+  first="$(git -C "${REPO}" rev-parse starter-rc)"
+  base="$(git -C "${REPO}" rev-parse starter)"
+  git -C "${REPO}" switch -q -c divergent "$base"
+  git -C "${REPO}" commit --allow-empty -qm divergent
+  git -C "${REPO}" switch -q dev
+  run candidate --source divergent
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$first" ]
+  printf 'dirty\n' > "${REPO}/README.md"
+  run candidate --cancel
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$first" ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$base" ]
+}
+
 producer() {
   (cd "${REPO}" && task --taskfile .maintainer/Taskfile.yml distribution:producer -- --source dev --target starter)
 }
