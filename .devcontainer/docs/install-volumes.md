@@ -74,7 +74,7 @@ rather than Docker named volumes because the primary use case is
 **physical access from the host**:
 
 - Edit `.env.d/.pi/agent/models.json` with a host editor.
-- `cat .env.d/.engram/.engram.db | jq` from a host terminal.
+- `ls -la .env.d/.engram/` from a host terminal.
 - `cp -r .env.d/ .env.d.backup/` for an offline snapshot.
 - `grep -r` across the whole state tree from the host.
 
@@ -171,36 +171,28 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
 
    ```bash
    cp .devcontainer/install/templates/install-script.sh \
-      .devcontainer/install/available/40-data-postgresql.sh
+      .devcontainer/install/available/7100-data-postgresql.sh
    ```
 
-   Fill the script. Make it idempotent (skip if already present) and
-   **runtime-safe** (it will be called as ubuntu, not root — the
-   `setup.sh` heredoc for SDKMAN is the model).
+   Fill the script and preserve mode `0755`. Make build-time installation
+   idempotent and runtime repair safe as ubuntu: a binary-presence guard
+   alone cannot populate an empty data mount. Follow the installer's version
+   policy and declare any prerequisites in `dependencies.conf`.
 
 3. **Add the target-to-script mapping** in
    `.devcontainer/lifecycle/setup-volumes.sh` (the `case` block in
    `compose_target_to_install_scripts`):
 
    ```bash
-   case "${target}" in
-        "/home/ubuntu/.pi")
-            scripts_ref+=("3040-ai-pi-gentle")
-           ;;
-        "/home/ubuntu/.engram")
-           scripts_ref+=("3010-ai-engram")
-           ;;
-        "/home/ubuntu/.postgresql")
-           scripts_ref+=("40-data-postgresql")
-           ;;
-       esac
+    "/home/ubuntu/.postgresql")
+        scripts_ref+=("7100-data-postgresql")
+        ;;
    ```
 
-4. **Enable the optional script** by linking from `03-enabled/`:
+4. **Enable the optional script** through the activation helper:
 
    ```bash
-   cd .devcontainer/install/03-enabled
-   ln -sfn ../available/40-data-postgresql.sh 40-data-postgresql.sh
+    task install:enable -- 7100-data-postgresql
    ```
 
 5. **Verify the live contract**:
@@ -220,10 +212,12 @@ Let's say you want to add a PostgreSQL data dir that survives rebuilds.
    task container:up
    ```
 
-   The build log should include a `Running: .../40-data-postgresql.sh`
+   The build log should include a `Running: .../7100-data-postgresql.sh`
    line during build, and the postCreate log should include a
-   `Volume repair: /home/ubuntu/.postgresql -> 40-data-postgresql.sh`
-   line.
+   `Volume repair: /home/ubuntu/.postgresql -> 7100-data-postgresql.sh`
+   line when the target is in the applied manifest. Confirm the installer's
+   runtime branch actually initializes missing state; dispatch alone does
+   not prove the data directory was populated.
 
 ## Troubleshooting
 
