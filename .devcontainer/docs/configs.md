@@ -93,13 +93,12 @@ its unique settings are not merged into `opencode.json`. Existing runtime
 `~/.config/opencode/opencode.jsonc` files are left untouched and may remain
 active: neither export nor seeding automatically deletes them.
 
-The root `~/.config/opencode/.gentle-ai-telemetry-runtime.json` is managed by both
-tasks and exports to `config/opencode/.gentle-ai-telemetry-runtime.json`. Missing
-runtime files are reported without deleting the seed. Export preserves exact bytes
-and the existing seed mode (new files use `0644`). The same hidden filename remains
-excluded below the OpenCode root and in other trees; this is not a general hidden
-state allowlist. Public plugin source such as `plugins/telemetry-runtime.ts` remains
-managed configuration.
+The root `.gentle-ai-telemetry-runtime.json` and
+`plugins/telemetry-runtime.ts` are excluded from diff and export, even if a
+versioned seed copy exists. Other managed plugins remain eligible. This does not
+change first-run seeding from `.devcontainer/config/opencode/`; neither command
+deletes existing seed or runtime files.
+
 `.git` (file or directory), `node_modules`, and JSONC `opencode.jsonc` are mandatory
 exclusions at any depth, even if a managed pattern would match.
 OpenCode's known credential, session, state, log, cache, and generated

@@ -363,79 +363,70 @@ PY
   cmp "${FIXTURE}/legacy-before" "${HOME_FIXTURE}/.config/opencode/opencode.jsonc"
 }
 
-@test "root telemetry diff and export preserve exact bytes and destination modes" {
-  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
-  initialize_git_fixture
-  local name=.gentle-ai-telemetry-runtime.json
+@test "both tasks exclude telemetry while exporting another plugin" {
   local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/config/opencode"
-  local state
-  for state in new modified; do
-    printf '{"fixture":"%s"}\r\n\x00' "$state" >"${runtime}/${name}"
-    cp "${runtime}/${name}" "${FIXTURE}/telemetry-before"
-    run task --exit-code --dir "${REPOSITORY_ROOT}" config:diff -- \
-      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"${state}: OpenCode: ${name}"* ]]
-    [[ "$output" == *"candidates=0"* ]]
-    run task --exit-code --dir "${REPOSITORY_ROOT}" config:export -- \
-      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Exported: files=1"* ]]
-    cmp "${FIXTURE}/telemetry-before" "${seed}/${name}"
-    cmp "${FIXTURE}/telemetry-before" "${runtime}/${name}"
-    if [ "$state" = new ]; then
-      [ "$(stat -c %a "${seed}/${name}")" = 644 ]
-      chmod 0600 "${seed}/${name}"
-    else
-      [ "$(stat -c %a "${seed}/${name}")" = 600 ]
-    fi
-    commit_fixture "export ${state} telemetry"
-    run_helper diff
-    [ "$status" -eq 0 ]
-  done
-}
-
-@test "root telemetry missing runtime is reported and export never deletes seed" {
-  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
-  local name=.gentle-ai-telemetry-runtime.json
-  local seed="${REPO_FIXTURE}/.devcontainer/config/opencode"
-  printf 'fixture\r\n\x00' >"${seed}/${name}"
-  chmod 0600 "${seed}/${name}"
-  cp "${seed}/${name}" "${FIXTURE}/telemetry-before"
+  mkdir -p "${runtime}/plugins" "${seed}/plugins"
+  printf 'runtime telemetry' >"${runtime}/.gentle-ai-telemetry-runtime.json"
+  printf 'runtime plugin' >"${runtime}/plugins/telemetry-runtime.ts"
+  printf 'seed telemetry' >"${seed}/.gentle-ai-telemetry-runtime.json"
+  printf 'seed plugin' >"${seed}/plugins/telemetry-runtime.ts"
+  printf 'portable plugin' >"${runtime}/plugins/portable.ts"
   commit_fixture "seed telemetry"
+
   run_helper diff
   [ "$status" -eq 1 ]
-  [[ "$output" == *"missing-runtime: OpenCode: ${name}"* ]]
+  [[ "$output" == *"new: OpenCode: plugins/portable.ts"* ]]
+  [[ "$output" == *"candidates=0"* ]]
+  [[ "$output" != *"OpenCode: .gentle-ai-telemetry-runtime.json"* ]]
+  [[ "$output" != *"OpenCode: plugins/telemetry-runtime.ts"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=1"* ]]
+  [ "$(<"${seed}/.gentle-ai-telemetry-runtime.json")" = "seed telemetry" ]
+  [ "$(<"${seed}/plugins/telemetry-runtime.ts")" = "seed plugin" ]
+  [ "$(<"${seed}/plugins/portable.ts")" = "portable plugin" ]
+  [ "$(<"${runtime}/.gentle-ai-telemetry-runtime.json")" = "runtime telemetry" ]
+  [ "$(<"${runtime}/plugins/telemetry-runtime.ts")" = "runtime plugin" ]
+}
+
+@test "missing telemetry runtime is not reported or deleted by either task" {
+  local seed="${REPO_FIXTURE}/.devcontainer/config/opencode"
+  mkdir -p "${seed}/plugins"
+  printf 'seed telemetry' >"${seed}/.gentle-ai-telemetry-runtime.json"
+  printf 'seed plugin' >"${seed}/plugins/telemetry-runtime.ts"
+  commit_fixture "seed telemetry"
+
+  run_helper diff
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"candidates=0"* ]]
+  [[ "$output" != *"missing-runtime: OpenCode"* ]]
   run_helper export
   [ "$status" -eq 0 ]
   [[ "$output" == *"Exported: files=0"* ]]
-  cmp "${FIXTURE}/telemetry-before" "${seed}/${name}"
-  [ "$(stat -c %a "${seed}/${name}")" = 600 ]
+  [ "$(<"${seed}/.gentle-ai-telemetry-runtime.json")" = "seed telemetry" ]
+  [ "$(<"${seed}/plugins/telemetry-runtime.ts")" = "seed plugin" ]
 }
 
-@test "root telemetry exception retains explicit exclusions and rejects unsafe files" {
-  local name=.gentle-ai-telemetry-runtime.json
-  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.config/opencode/${name}"
-  run_helper diff
-  [ "$status" -eq 2 ]
-  [[ "$output" == *"symlink is not allowed"* ]]
-  printf dirty >"${REPO_FIXTURE}/.devcontainer/config/opencode/${name}"
-  run_helper export
-  [ "$status" -eq 2 ]
-  [[ "$output" == *"pending Git worktree or index changes"* ]]
-  [[ "$output" != *"symlink is not allowed"* ]]
-  python3 - "${REPO_FIXTURE}/.devcontainer/config-export.json" "$name" <<'PY'
-import json
-import sys
-from pathlib import Path
-path = Path(sys.argv[1])
-data = json.loads(path.read_text())
-data["trees"][0]["excluded"].append(sys.argv[2])
-path.write_text(json.dumps(data))
-PY
+@test "excluded telemetry symlinks are skipped before inspection" {
+  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/config/opencode"
+  mkdir -p "${runtime}/plugins" "${seed}/plugins"
+  local name
+  for name in .gentle-ai-telemetry-runtime.json plugins/telemetry-runtime.ts; do
+    ln -s "${FIXTURE}/must-not-read" "${runtime}/${name}"
+    ln -s "${FIXTURE}/must-not-read" "${seed}/${name}"
+  done
+  commit_fixture "seed telemetry links"
+
   run_helper diff
   [ "$status" -eq 0 ]
-  [[ "$output" == *"excluded-files=2"* ]]
+  [[ "$output" == *"excluded-files=4"* ]]
+  [[ "$output" != *"symlink is not allowed"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=0"* ]]
+  [ -L "${seed}/.gentle-ai-telemetry-runtime.json" ]
+  [ -L "${seed}/plugins/telemetry-runtime.ts" ]
 }
 
 @test "production manifest exports recursive portable config and excludes nested state before reads" {
@@ -448,7 +439,7 @@ PY
     mkdir -p "${runtime}/${tree}/new/deep"
     printf 'portable' >"${runtime}/${tree}/new/deep/future.any"
   done
-  printf 'public plugin' >"${runtime}/plugins/telemetry-runtime.ts"
+  printf 'runtime telemetry plugin' >"${runtime}/plugins/telemetry-runtime.ts"
   for boundary in .git node_modules state sessions logs cache caches profile-versions; do
     mkdir -p "${runtime}/skills/new/${boundary}"
     ln -s "${FIXTURE}/must-not-read" "${runtime}/skills/new/${boundary}/secret"
@@ -467,11 +458,12 @@ PY
   run_helper diff
   [ "$status" -eq 1 ]
   [[ "$output" == *"modified: OpenCode: opencode-non-sdd.json"* ]]
-  [[ "$output" == *"new: OpenCode: plugins/telemetry-runtime.ts"* ]]
+  [[ "$output" != *"new: OpenCode: plugins/telemetry-runtime.ts"* ]]
   [[ "$output" == *"candidates=0"* ]]
   run_helper export
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Exported: files=7"* ]]
+  [[ "$output" == *"Exported: files=6"* ]]
+  [ ! -e "${seed}/plugins/telemetry-runtime.ts" ]
   cmp "${runtime}/opencode-non-sdd.json" "${seed}/opencode-non-sdd.json"
   for tree in commands plugins profiles prompts skills; do
     cmp "${runtime}/${tree}/new/deep/future.any" "${seed}/${tree}/new/deep/future.any"
