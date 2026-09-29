@@ -86,8 +86,8 @@ def validate_record(data, path, root):
         if str(uuid.UUID(run)) != run or path.name != run + ".json":
             raise ValueError
         expected = {"version", "run", "source", "registry", "endpoint", "daemon", "scratch", "inode",
-                    "project", "tag", "armed", "resources", "stage", "exit", "test", "outcome", "worker"}
-        if set(data) != expected or data["version"] != 1 or data["source"] != str(root):
+                    "project", "tag", "armed", "resources", "running", "stage", "exit", "test", "outcome", "worker"}
+        if set(data) not in (expected, expected - {"running"}) or data["version"] != 1 or data["source"] != str(root):
             raise ValueError
         if data["registry"] != str(path.parent) or data["endpoint"] != ENDPOINT:
             raise ValueError
@@ -106,6 +106,11 @@ def validate_record(data, path, root):
         if data["inode"] is not None and (not isinstance(data["inode"], list) or len(data["inode"]) != 2 or any(type(v) is not int for v in data["inode"])):
             raise ValueError
         resources = data["resources"]
+        running = data.get("running", [])
+        if not isinstance(running, list) or len(running) > 256 or any(
+                not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity)
+                for identity in running) or len(set(running)) != len(running):
+            raise ValueError
         if set(resources) != set(KINDS):
             raise ValueError
         for kind, items in resources.items():
@@ -212,7 +217,7 @@ class Run:
                 "endpoint": ENDPOINT, "daemon": daemon, "scratch": str(scratch), "inode": None,
                 "project": "starter-lifecycle-" + token + "_devcontainer",
                 "tag": "starter-lifecycle-" + token + "-img:0.1", "armed": False,
-                "resources": {kind: {} for kind in KINDS}, "stage": "registered", "exit": None,
+                "resources": {kind: {} for kind in KINDS}, "running": [], "stage": "registered", "exit": None,
                 "outcome": "pending", "test": "pending", "worker": 0}
         run = cls(path, data, docker, lease)
         try:
@@ -275,7 +280,7 @@ class Run:
         self.stage(stage)
         handshake = "import os,sys; token=os.read(0,1); token == b'x' and os.execvpe(sys.argv[1], sys.argv[1:], os.environ)"
         log = Path(self.data["scratch"]) / "task.log"
-        with log.open("w") as stream:
+        with os.fdopen(os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "w") as stream:
             process = subprocess.Popen([sys.executable, "-c", handshake, *argv], cwd=cwd, env=env,
                                        stdout=stream, stderr=stream, stdin=subprocess.PIPE,
                                        pass_fds=(self.lease,), start_new_session=True)
@@ -530,6 +535,36 @@ class Run:
         if not apply:
             self.data = original
         return result
+
+    def retain(self):
+        """Keep failed-run evidence and stop only fully verified running containers."""
+        if self.lease is None:
+            raise Unsafe("retention requires an exclusive run lease")
+        if read_record(self.path, Path(self.data["source"])) != self.data:
+            raise Unsafe("inventory changed during execution")
+        self.check_worker()
+        self.check_scratch()
+        self.capture()
+        for kind in KINDS:
+            for identity in self.data["resources"][kind]:
+                self.inspect_owned(kind, identity)
+        running = self.docker.ids("container", ["status=running"])
+        targets = sorted(running & set(self.data["resources"]["container"]))
+        # Inspect and persist every target before the first stop. A failed
+        # enumeration or conflicting label prevents all destructive actions.
+        for identity in targets:
+            if self.inspect_owned("container", identity) is None:
+                raise Unsafe("running container identity disappeared")
+        self.data["running"] = targets
+        self.data["outcome"] = "retained"
+        self.save()
+        for identity in targets:
+            self.check_daemon()
+            if self.inspect_owned("container", identity) is None:
+                raise Unsafe("running container identity disappeared")
+            self.docker("stop", identity)
+            if identity in self.docker.ids("container", ["status=running"]):
+                raise Unsafe("owned container stop could not be verified")
 
     def forget(self):
         if self.lease is None or self.data["outcome"] != "removed":

@@ -91,10 +91,10 @@ fresh random marker bytes from the **exact** scratch path via a read-only bind.
 The probe uses `--pull=never` and `--network none`, with no image build, network,
 credentials, or SSH agent. It verifies the owned probe container's identity and
 removal. Visibility is proven only at probe time, not guaranteed for later mounts.
-If the parent, cached image, daemon identity, probe creation/read/removal, or
-scoped cleanup is unverifiable, execution fails before any build. A failed probe
-triggers native scoped cleanup before test outcome persistence; no global prune or
-automatic mode switch occurs. Remote Docker contexts are not reused. Missing
+If the parent, cached image, daemon identity, or probe creation/read/removal is
+unverifiable, execution fails before any build. A failed probe retains its
+private scratch and inventory for inspection; no global prune or automatic
+mode switch occurs. Remote Docker contexts are not reused. Missing
 commands or unsupported base customization fail rather than selecting a fallback.
 
 **Cost forecast:** one explicit `container:build`, then `container:up`, then
@@ -136,13 +136,14 @@ environment contents are never hashed. Source preservation is checked on failure
 as well as success. Mock regressions cover failure/interrupt cleanup; a successful
 live cycle does not itself inject every possible operational failure.
 
-Automatic cleanup runs after success, failure, and handled SIGINT/SIGTERM, using
-the same ownership engine as explicit recovery below. Cleanup failure makes the
-test fail without replacing its separate stage/status diagnostic. SIGKILL cannot
-run a finalizer; the durable inventory supports later recovery instead.
-Set a realistic external supervisor timeout beyond the forecast build/cleanup
-budget; a hard kill may leave resources for scoped recovery. Inspect the run
-inventory and use the read-only recovery preview before authorizing deletion.
+Successful tests automatically clean up through the ownership engine. Failed
+tests and handled SIGINT/SIGTERM retain private scratch, `task.log`, inventory,
+and identified owned resources; they verify and stop running owned containers
+without removing them. Uncertain ownership prevents a stop. A failed run does
+not block a new run with a distinct UUID. SIGKILL and supervisor hard kills
+cannot run a finalizer: resources may still be running and the inventory may
+be incomplete. Set a realistic timeout beyond the forecast build/cleanup budget,
+then inspect the record and preview before authorizing recovery.
 
 ## Recovering test-owned resources
 
@@ -153,7 +154,7 @@ task --taskfile .maintainer/Taskfile.yml test:starter:clean
 task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --run RUN_UUID
 # After reviewing that run's scope, explicitly authorize deletion:
 task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --apply --run RUN_UUID
-# Also discard its compact diagnostics, only after resources are verified gone:
+# Also discard its diagnostics, only after resources are verified gone:
 task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --apply --run RUN_UUID --forget
 ```
 
@@ -165,8 +166,8 @@ mock tests of the cleaner, not an invocation of live recovery.
 
 **Scope:** the base lifecycle harness and the Docker image-contract fixture in
 `.maintainer/test/operational/image-contract.bats` register their resources.
-The latter has a unique run tag and
-`finally` cleanup even when build/assertion fails. Other suites retain their own
+The latter has a unique run tag and retains failure evidence even when a build
+or assertion fails. Other suites retain their own
 fixture cleanup; arbitrary commands, custom hook resources, unlabelled resources,
 and the real devcontainer are not automatically adopted by this helper.
 
@@ -207,13 +208,16 @@ a successful complete test cleanup. **Shared build cache is deliberately retaine
 there is no dedicated test builder, so removing it would affect unrelated builds.
 
 Outcomes distinguish removed-and-verified resources, deliberately retained cache
-or images, and failed/unverifiable cleanup. Recovery records remain until resources
-are proven gone; successful runs retain compact diagnostics indefinitely until
-explicit `--forget`. Diagnostics contain bounded structured stage, exit, test, and
-cleanup outcomes—not raw command lines, environment, Compose output, inspect dumps,
-or excerpts from arbitrary logs. Raw build logs stay only in disposable private
-scratch. If filesystem cleanup fails, those logs may remain there along with the
-ownership marker; the report names the exact scratch scope for manual inspection.
+or images, and failed/unverifiable cleanup. Preview does not write records, stop
+containers, or delete files. `--apply --run` is the explicit deletion request;
+`--forget` additionally requires `--apply --run` and verified resource absence.
+Applying cleanup without forget keeps the compact record; retained images or
+unverifiable ownership prevent forgetting. Failed runs preserve private scratch
+and raw `task.log` until explicitly cleaned. Treat these files as sensitive:
+inspect locally, do not publish or paste logs without reviewing and redacting
+secrets. The structured inventory contains bounded stage, exit, test, cleanup,
+and previously running IDs—not raw commands, environment, or log excerpts.
+Recovery reports the scratch scope if filesystem cleanup fails.
 Do not remove ownership metadata or escalate to global cleanup when uncertain.
 Interrupted registration can leave a directory whose marker was not completed;
 recovery refuses to guess ownership. This is a scoped operational aid, not a commit

@@ -29,8 +29,9 @@ def main(root, parent):
         if owner.docker("image", "inspect", "--format", template, owner.data["tag"]) != "verified":
             raise Unsafe("runtime build argument assertion failed")
         owner.finish("passed")
-    except (Unsafe, OSError):
+    except (Unsafe, OSError, KeyboardInterrupt):
         failure = True
+        was_interrupted |= isinstance(sys.exc_info()[1], KeyboardInterrupt)
         try:
             owner.finish("interrupted" if was_interrupted else "failed")
         except (Unsafe, OSError):
@@ -39,10 +40,19 @@ def main(root, parent):
     finally:
         for sig in previous:
             signal.signal(sig, signal.SIG_IGN)
-        result = owner.cleanup(apply=True)
-        owner.close()
-        for sig, handler in previous.items():
-            signal.signal(sig, handler)
+        try:
+            if failure:
+                result = {"removed": [], "retained": ["recovery inventory and scratch scope " + owner.data["scratch"]], "failed": []}
+                try:
+                    owner.retain()
+                except (Unsafe, OSError):
+                    result["failed"].append("could not verify or stop retained owned resources")
+            else:
+                result = owner.cleanup(apply=True)
+        finally:
+            owner.close()
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
     for outcome, messages in result.items():
         for message in messages:
             print(f"{outcome}: {message}")

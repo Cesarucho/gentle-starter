@@ -160,9 +160,14 @@ an interrupted run PASS. See
 | Recover registered test resources | `task --taskfile .maintainer/Taskfile.yml test:starter:clean` | Read-only preview by default; deletion requires explicit apply and one selected run. |
 | Work on the real environment | `task container:*` | Normal host workflow, not test cleanup; up/recreate can build, restart preserves the container. |
 
-After authorized sandbox work, use its automatic cleanup and review retained or
-failed outcomes. Recovery uses the same scoped engine for participating lifecycle
-and image-contract fixtures; it does not own arbitrary scripts or hook resources.
+After authorized sandbox work, successful runs clean up automatically; failed or
+interrupted runs retain private inventory, scratch, logs, and identified owned
+resources. The finalizer stops only verified running owned containers; a hard
+kill may bypass it. Treat retained logs as sensitive and do not share them without
+review and redaction. Preview recovery before explicitly applying selected-run
+deletion; `--forget` also requires verified absence. Recovery uses the same scoped
+engine for participating lifecycle and image-contract fixtures; it does not own
+arbitrary scripts or hook resources.
 Never use global Docker pruning as normal test recovery. Stop and report uncertain
 ownership, daemon mismatches, or permission failures rather than escalating cleanup.
 The helper is not a delivery gate or commit authorization. Human recovery examples

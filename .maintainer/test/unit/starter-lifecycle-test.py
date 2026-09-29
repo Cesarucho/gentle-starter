@@ -135,10 +135,10 @@ class LifecycleTests(unittest.TestCase):
                     lifecycle = lifecycle_class.return_value
                     lifecycle.env = dict(os.environ)
                     lifecycle.execute.side_effect = lambda: execute(lifecycle)
-                    lifecycle.cleanup.side_effect = lambda: events.append("cleanup") or []
+                    lifecycle.retain.side_effect = lambda: events.append("retain")
                     self.assertEqual(H.main(), 1)
                 run.create.assert_called_once_with(self.root, parent)
-                self.assertEqual(events, ["armed", "probe", "cleanup"])
+                self.assertEqual(events, ["armed", "probe", "retain"])
                 owner.finish.assert_called_once_with("failed")
                 owner.close.assert_called_once_with()
 
@@ -150,7 +150,7 @@ class LifecycleTests(unittest.TestCase):
                 H.main()
         run.create.assert_not_called()
 
-    def test_cleanup_exception_persists_failed_probe_outcome_and_restores_environment(self):
+    def test_retention_exception_persists_failed_probe_outcome_and_restores_environment(self):
         owner = Mock()
         owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
         owner.path = self.root / "inventory.json"
@@ -166,9 +166,8 @@ class LifecycleTests(unittest.TestCase):
             lifecycle.env = {"PATH": original_env["PATH"], "HOME": str(self.root / "home")}
             owner.probe_bind.side_effect = H.Unsafe("probe failed")
             lifecycle.execute.side_effect = lambda: (owner.arm(), owner.probe_bind())
-            lifecycle.cleanup.side_effect = RuntimeError("cleanup failed")
-            with self.assertRaisesRegex(RuntimeError, "cleanup failed"):
-                H.main()
+            lifecycle.retain.side_effect = H.Unsafe("retention failed")
+            self.assertEqual(H.main(), 1)
         owner.finish.assert_called_once_with("failed")
         owner.close.assert_called_once_with()
         self.assertEqual(os.environ, original_env)

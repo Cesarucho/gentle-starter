@@ -260,6 +260,9 @@ class Lifecycle:
             errors.append("could not verify primary preservation")
         return errors
 
+    def retain(self):
+        self.ownership.retain()
+
 
 def main():
     if len(sys.argv) == 1:
@@ -285,8 +288,14 @@ def main():
     try:
         lifecycle = Lifecycle(root, scratch, ownership)
     except BaseException:
-        ownership.cleanup(apply=True)
-        ownership.close()
+        try:
+            try:
+                ownership.finish("failed")
+                ownership.retain()
+            except (OSError, Unsafe):
+                print("[starter-lifecycle:error] Constructor failed; retained scope could not be verified", file=sys.stderr)
+        finally:
+            ownership.close()
         raise
     original_env = dict(os.environ)
     os.environ.clear()
@@ -301,15 +310,28 @@ def main():
     signal.signal(signal.SIGINT, interrupted)
     try:
         lifecycle.execute()
-    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError):
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt):
         failure = "Sandbox failed; stage/exit are retained in the run inventory; private output withheld"
+        was_interrupted |= isinstance(sys.exc_info()[1], KeyboardInterrupt)
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         try:
             cleanup_failed = True
+            errors = []
             try:
-                errors = lifecycle.cleanup()
+                if failure or was_interrupted:
+                    try:
+                        lifecycle.retain()
+                    except (OSError, Unsafe):
+                        errors.append("could not verify or stop retained owned resources; inspect recovery inventory")
+                    try:
+                        if snapshot(root) != lifecycle.before or run("git", "status", "--porcelain=v1", "--untracked-files=all", cwd=root) != lifecycle.source_status:
+                            errors.append("primary branch, HEAD, index, public files, modes, links, or status changed")
+                    except (OSError, ValueError, Unsafe, subprocess.CalledProcessError):
+                        errors.append("could not verify primary preservation")
+                else:
+                    errors = lifecycle.cleanup()
                 cleanup_failed = False
             finally:
                 try:
