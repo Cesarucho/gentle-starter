@@ -513,6 +513,8 @@ class ResourceTests(unittest.TestCase):
             calls.append(args)
             if args[:2] == ("image", "inspect"):
                 return "sha256:" + "b" * 64
+            if args[:2] == ("container", "inspect"):
+                return json.dumps([identity, "/starter-bind-probe-" + self.owner.data["run"]])
             return original(*args)
 
         with patch.object(self.owner, "produce", side_effect=produce), patch.object(FakeDocker, "__call__", docker):
@@ -520,6 +522,38 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.docker.mutations, [("rm", "-f", identity)])
         self.assertEqual(list(self.scratch.glob(".bind-probe-*")), [])
         self.assertFalse(any("build" in str(call) for call in calls))
+
+    def test_bind_probe_rejects_matching_labels_with_wrong_or_unverifiable_name(self):
+        self.arm()
+        self.docker.env = {"DOCKER_HOST": R.ENDPOINT}
+        identity = "a" * 64
+
+        def produce(argv, cwd, env, stage):
+            marker = self.scratch / argv[-1].removeprefix("/probe/")
+            (self.scratch / "task.log").write_bytes(marker.read_bytes())
+            self.docker.add(self.owner)
+            self.owner.capture()
+
+        for response in (json.dumps([identity, "/foreign"]),
+                         json.dumps(["b" * 64, "/starter-bind-probe-" + self.owner.data["run"]]),
+                         "", "null"):
+            with self.subTest(response=response):
+                def docker(_fake, *args):
+                    if args[:2] == ("image", "inspect"):
+                        return "sha256:" + "b" * 64
+                    if args[:2] == ("container", "inspect"):
+                        self.assertEqual(args[-1], identity)
+                        return response
+                    raise AssertionError("probe must not remove an unverified container")
+
+                with patch.object(self.owner, "produce", side_effect=produce), \
+                        patch.object(FakeDocker, "__call__", docker):
+                    with self.assertRaisesRegex(R.Unsafe, "bind probe container name is unverifiable"):
+                        self.owner.probe_bind()
+                self.assertIn(identity, self.docker.items["container"])
+                self.assertEqual(self.docker.mutations, [])
+                self.assertTrue(self.owner.path.exists())
+                self.assertEqual(list(self.scratch.glob(".bind-probe-*")), [])
 
     def test_bind_probe_missing_image_fails_before_container_creation(self):
         self.arm()

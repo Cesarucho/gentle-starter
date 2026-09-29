@@ -414,6 +414,13 @@ class Run:
             if identity not in self.data["resources"]["container"]:
                 raise Unsafe("bind probe container was not registered")
             self.inspect_owned("container", identity)
+            try:
+                observed = json.loads(self.docker("container", "inspect", "--format",
+                                                  "[{{json .Id}},{{json .Name}}]", identity))
+                if observed != [identity, "/" + name]:
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise Unsafe("bind probe container name is unverifiable") from None
             self.docker("rm", "-f", identity)
             if self.docker.inspect("container", identity) is not None or self.discover("container"):
                 raise Unsafe("bind probe removal could not be verified")

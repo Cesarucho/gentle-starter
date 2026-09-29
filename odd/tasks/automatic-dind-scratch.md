@@ -12,12 +12,12 @@ Run the explicit maintainer base lifecycle test without asking for a scratch pat
 - TDD mode not established; run focused hermetic unit tests and check-only documentation formatting. Delivery strategy ask-on-risk; initial forecast 300–500 authored lines, with the ~400-line figure advisory for work-unit sizing, not a code limit.
 
 ## Tasks
-- [x] ADS-1 (delegated writer: ownership, probe and tests): Added test-owned, registered, cleanup-verified exact-path daemon bind probe using cached `ubuntu:24.04` only; generates a non-secret marker and checks exact bytes through a read-only, no-network bind. Unit tests cover success/failure with ownership and cleanup boundaries. Checks: `python3 .maintainer/test/unit/test-resources-test.py` 40 passed (parent reran), `git diff --check`; live Docker N/A for this primitive unit, ADS-2 wiring still required before operational proof. Commit pending.
+- [x] ADS-1 (delegated writer: ownership, probe and tests): Added exact-path bind probe in `cb1bae6` with 40 passing unit tests. An independent verifier caught missing unique-name verification before container removal; the follow-up now verifies exact container ID/name and fails closed on mismatches, with 41 unit tests passing (parent reran). ADS-2 must still wire failure cleanup before any build. Runtime harness N/A until ADS-2 wiring; rollback boundary is the probe method and unit cases. Follow-up commit pending.
 - [ ] ADS-2 (delegated writer: CLI and docs): Default to generated `/home/ubuntu/starter-test-<UUID>` with no path prompt, run probe before lifecycle build and preserve optional explicit parent safely. Update CLI/Task help, AGENTS.md and maintainer guide for authorization, scope, umask versus inventory permissions, topology/fallback and limits. Focused tests, markdownlint and diff check pass. Commit pending.
 
 ## Progress and verification
 - Read-only exploration found dockerd in the devcontainer but in a different mount namespace from the client; a prior statement that namespaces matched was incorrect. Exact-byte bind proof is required for the generated directory.
-- ADS-1 implementation is confined to `test_resources.py` and its hermetic unit tests; rollback boundary is the probe method and new test cases. It does not yet change the lifecycle CLI or start a build. Reviewed boundary starts at `c2cc757`; per-task assessed tier/outcome and commit evidence pending.
+- ADS-1 first commit `cb1bae6` assessed high risk; user declined native review for this candidate only. Separate verifier returned partial for missing probe-name identity; corrective follow-up completed with exact identity test. Failure cleanup must be wired by ADS-2 before any build. Reviewed boundary remains `c2cc757`; review outcome for first unit: declined.
 
 ## Next step
-Commit ADS-1 and assess its work-unit candidate, then wire ADS-2; synchronize full progress to Engram after each task.
+Commit ADS-1 identity correction, then wire ADS-2; synchronize full progress to Engram after each task.
