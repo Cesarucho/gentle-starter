@@ -99,5 +99,4 @@ tasks:
 
         Testing:
           task test                       Application tests (configure tasks.test.cmds first)
-          Maintainers: task --taskfile .maintainer/Taskfile.yml --list
         EOF

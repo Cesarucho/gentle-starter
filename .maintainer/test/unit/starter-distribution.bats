@@ -590,6 +590,23 @@ PY
   [[ "$output" == *"MANUAL INTEGRATION"* ]]
 }
 
+@test "filtered starter clone shows help without a missing maintainer command" {
+  cp "${ROOT}/Taskfile.yml" "${REPO}/Taskfile.yml"
+  mkdir -p "${REPO}/.taskfiles"
+  cp -a "${ROOT}/.taskfiles/." "${REPO}/.taskfiles/"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Include task help entry'
+  candidate --base-absent
+  ! git -C "${REPO}" cat-file -e starter-rc:.maintainer/Taskfile.yml
+  git clone -q --no-local --branch starter-rc "${REPO}" "${TEMP}/consumer"
+
+  run task --dir "${TEMP}/consumer" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Tasks help"* ]]
+  [[ "$output" == *"task test"* ]]
+  [[ "$output" != *".maintainer/Taskfile.yml"* ]]
+}
+
 @test "unrelated consumer reviews two-parent import and later merges starter by ancestry" {
   printf 'starter env defaults\n' > "${REPO}/.env.example"
   printf 'starter-state/\n' > "${REPO}/.gitignore"
