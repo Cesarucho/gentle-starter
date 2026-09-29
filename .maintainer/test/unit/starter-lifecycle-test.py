@@ -87,6 +87,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_execute_orders_build_up_persistence_recreate_and_rechecks_source(self):
         lifecycle = self.lifecycle()
+        source_snapshot = {"head": "commit", "branch": "main", "index": "", "files": {}}
         lifecycle.docker = Mock(return_value="")
         lifecycle.validate_base = Mock()
         lifecycle.label_candidate = Mock()
@@ -94,13 +95,14 @@ class LifecycleTests(unittest.TestCase):
         events = Mock()
         lifecycle.task = events.task
         lifecycle.assert_state = events.state
-        with patch.object(H, "configure"), patch.object(H, "snapshot", return_value={}), \
+        with patch.object(H, "configure"), patch.object(H, "snapshot", return_value=source_snapshot) as snapshot, \
                 patch.object(H, "run", return_value="12000"), patch.object(H.subprocess, "run"):
             lifecycle.execute()
         self.assertEqual(events.mock_calls, [call.task("build"), call.task("up"), call.state("first", write=True),
                                              call.task("recreate"), call.state("second")])
         lifecycle.ownership.arm.assert_called_once_with()
         lifecycle.ownership.probe_bind.assert_called_once_with()
+        self.assertEqual(snapshot.call_args_list, [call(lifecycle.candidate), call(lifecycle.candidate)])
 
     def test_probe_failure_prevents_candidate_and_build(self):
         lifecycle = self.lifecycle()
