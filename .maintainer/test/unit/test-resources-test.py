@@ -487,6 +487,77 @@ class ResourceTests(unittest.TestCase):
         self.assertTrue(self.scratch.exists())
         self.assertEqual(self.docker.mutations, [])
 
+    def test_bind_probe_uses_owned_container_and_verifies_bytes_and_removal(self):
+        self.arm()
+        self.docker.env = {"DOCKER_HOST": R.ENDPOINT}
+        identity = "a" * 64
+        calls = []
+
+        def produce(argv, cwd, env, stage):
+            calls.append(argv)
+            self.assertEqual(stage, "prepare")
+            self.assertEqual(cwd, self.scratch)
+            self.assertIn("--pull=never", argv)
+            self.assertIn("none", argv)
+            self.assertIn(f"type=bind,source={self.scratch},target=/probe,readonly", argv)
+            self.assertEqual(env["DOCKER_HOST"], R.ENDPOINT)
+            marker = self.scratch / argv[-1].removeprefix("/probe/")
+            self.assertEqual(len(marker.read_bytes()), 64)
+            self.assertTrue(json.loads(self.owner.path.read_text())["armed"])
+            (self.scratch / "task.log").write_bytes(marker.read_bytes())
+            self.docker.add(self.owner)
+            self.owner.capture()
+
+        original = self.docker.__call__
+        def docker(_fake, *args):
+            calls.append(args)
+            if args[:2] == ("image", "inspect"):
+                return "sha256:" + "b" * 64
+            return original(*args)
+
+        with patch.object(self.owner, "produce", side_effect=produce), patch.object(FakeDocker, "__call__", docker):
+            self.owner.probe_bind()
+        self.assertEqual(self.docker.mutations, [("rm", "-f", identity)])
+        self.assertEqual(list(self.scratch.glob(".bind-probe-*")), [])
+        self.assertFalse(any("build" in str(call) for call in calls))
+
+    def test_bind_probe_missing_image_fails_before_container_creation(self):
+        self.arm()
+        self.docker.env = {"DOCKER_HOST": R.ENDPOINT}
+        with patch.object(FakeDocker, "__call__", side_effect=R.Unsafe("cached image unavailable")), \
+                patch.object(self.owner, "produce") as produce:
+            with self.assertRaises(R.Unsafe):
+                self.owner.probe_bind()
+        produce.assert_not_called()
+        self.assertEqual(self.docker.mutations, [])
+
+    def test_bind_probe_wrong_bytes_and_interrupt_keep_recovery_scope(self):
+        self.arm()
+        self.docker.env = {"DOCKER_HOST": R.ENDPOINT}
+        def image(*args):
+            return "sha256:" + "b" * 64
+        for failure in ("wrong", "interrupt"):
+            with self.subTest(failure=failure):
+                def produce(argv, cwd, env, stage):
+                    self.docker.add(self.owner)
+                    if failure == "interrupt":
+                        raise KeyboardInterrupt()
+                    (self.scratch / "task.log").write_bytes(b"wrong")
+                    self.owner.capture()
+                with patch.object(FakeDocker, "__call__", image), patch.object(self.owner, "produce", side_effect=produce):
+                    with self.assertRaises(KeyboardInterrupt if failure == "interrupt" else R.Unsafe):
+                        self.owner.probe_bind()
+                self.assertTrue(self.owner.path.exists())
+                self.assertTrue(self.scratch.exists())
+                self.assertEqual(self.docker.mutations, [])
+                self.assertFalse(self.owner.cleanup(apply=True)["failed"])
+                if failure == "wrong":
+                    self.owner = R.Run.create(self.root, self.base, self.store, self.docker)
+                    self.addCleanup(self.owner.close)
+                    self.scratch = Path(self.owner.data["scratch"])
+                    self.arm()
+                    self.docker.mutations.clear()
+
     def test_nested_sandbox_symlink_is_unlinked_without_following_primary(self):
         self.arm()
         primary = self.root / "precious"

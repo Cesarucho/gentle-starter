@@ -380,6 +380,50 @@ class Run:
             raise Unsafe("scratch ownership marker conflicts")
         return path
 
+    def probe_bind(self):
+        """Prove exact scratch bytes through a cached local image before building."""
+        if self.lease is None or not self.data["armed"]:
+            raise Unsafe("bind probe requires an armed run and exclusive lease")
+        self.check_daemon()
+        scratch = self.check_scratch()
+        if scratch is None:
+            raise Unsafe("bind probe scratch is missing")
+        image = "ubuntu:24.04"
+        # Inspect is local-only; run also forbids an implicit pull if the tag changes.
+        image_id = self.docker("image", "inspect", "--format", "{{.Id}}", image)
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
+            raise Unsafe("cached probe image identity is unverifiable")
+        marker = scratch / (".bind-probe-" + uuid.uuid4().hex)
+        expected = os.urandom(32).hex().encode("ascii")
+        name = "starter-bind-probe-" + self.data["run"]
+        try:
+            with marker.open("xb") as stream:
+                stream.write(expected)
+            marker.chmod(0o600)
+            self.produce(["docker", "run", "--pull=never", "--network", "none", "--name", name,
+                          "--label", f"{LABEL}={self.data['run']}",
+                          "--label", f"com.docker.compose.project={self.data['project']}",
+                          "--mount", f"type=bind,source={scratch},target=/probe,readonly",
+                          image, "cat", "/probe/" + marker.name], scratch, self.docker.env, "prepare")
+            if (scratch / "task.log").read_bytes() != expected:
+                raise Unsafe("daemon bind bytes differ from the local marker")
+            owned = self.discover("container")
+            if len(owned) != 1:
+                raise Unsafe("bind probe container identity is ambiguous")
+            identity = next(iter(owned))
+            if identity not in self.data["resources"]["container"]:
+                raise Unsafe("bind probe container was not registered")
+            self.inspect_owned("container", identity)
+            self.docker("rm", "-f", identity)
+            if self.docker.inspect("container", identity) is not None or self.discover("container"):
+                raise Unsafe("bind probe removal could not be verified")
+        except BaseException:
+            # Unknown create/start outcomes remain discoverable under the durable
+            # armed labels. Caller must apply shared cleanup before any build.
+            raise
+        finally:
+            marker.unlink(missing_ok=True)
+
     def remove_scratch(self):
         path = self.check_scratch()
         if path is None:
