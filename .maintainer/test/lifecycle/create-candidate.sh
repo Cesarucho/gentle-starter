@@ -10,6 +10,8 @@ candidate="${2:?candidate path is required}"
 	exit 1
 }
 
+# Preserve ordinary checkout readability/executability; inventory privacy is separate.
+umask 022
 git clone --quiet --no-checkout --no-local --no-hardlinks "${source_root}" "${candidate}"
 git -C "${candidate}" read-tree HEAD
 

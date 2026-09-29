@@ -219,6 +219,7 @@ class Lifecycle:
 
     def execute(self):
         self.ownership.arm()
+        self.ownership.probe_bind()
         self.ownership.stage("prepare")
         self.ownership.produce(["bash", str(HERE / "create-candidate.sh"), str(self.root), str(self.candidate)],
                                self.root, self.env, "prepare")
@@ -261,13 +262,14 @@ class Lifecycle:
 
 
 def main():
-    if len(sys.argv) != 3 or sys.argv[1] != "--daemon-visible-scratch":
-        raise SystemExit("Usage: task test:starter:lifecycle -- --daemon-visible-scratch ABSOLUTE_PARENT\n"
-                         "Explicitly confirm a local-daemon-visible scratch parent outside this repository; "
-                         "inside a devcontainer use a mounted workspace sibling. Expensive: one build, up, recreate; "
-                         "downloads, disk and CPU use; startup may build automatically. No initialization or optional socket proof.")
+    if len(sys.argv) == 1:
+        parent = Path("/home/ubuntu")
+    elif len(sys.argv) == 3 and sys.argv[1] == "--daemon-visible-scratch":
+        parent = Path(sys.argv[2])
+    else:
+        raise SystemExit("Usage: task test:starter:lifecycle [-- --daemon-visible-scratch ABSOLUTE_PARENT]\n"
+                         "Explicit expensive build/start/recreate; the local Docker daemon must pass an exact-byte bind probe first.")
     root = Path(run("git", "rev-parse", "--show-toplevel")).resolve()
-    parent = Path(sys.argv[2])
     if Path.cwd() != root or not parent.is_absolute() or not parent.is_dir() or parent.resolve() != parent or parent == root or parent.is_relative_to(root):
         raise SystemExit("Run from repository root with an existing plain scratch parent outside the repository")
     for command in ("docker", "devcontainer", "task", "git", "rsync", "yq"):
@@ -299,18 +301,17 @@ def main():
     signal.signal(signal.SIGINT, interrupted)
     try:
         lifecycle.execute()
-        ownership.finish("passed")
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError):
         failure = "Sandbox failed; stage/exit are retained in the run inventory; private output withheld"
-        try:
-            ownership.finish("interrupted" if was_interrupted else "failed")
-        except (OSError, Unsafe):
-            failure += "; could not persist test outcome"
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         try:
             errors = lifecycle.cleanup()
+            try:
+                ownership.finish("interrupted" if was_interrupted else "failed" if failure or errors else "passed")
+            except (OSError, Unsafe):
+                errors.append("could not persist test outcome")
         finally:
             ownership.close()
             os.environ.clear()

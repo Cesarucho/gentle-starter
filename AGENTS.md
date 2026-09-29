@@ -121,9 +121,15 @@ The maintainer unit suite includes lifecycle/build fixtures: inspect and select
 safe tests when execution permissions are restricted. `validate` and
 `install:doctor` are not application test proof.
 
-`task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --daemon-visible-scratch ABSOLUTE_PARENT` is a
+`task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle` is a
 separate, explicitly authorized expensive base build/start/connect/recreate and
-managed-state/preservation proof. It is not a seventh test layer or included in
+managed-state/preservation proof. It generates a unique
+`/home/ubuntu/starter-test-<UUID>` scratch scope and proves exact bytes through
+a cached-image, local-Docker read-only bind probe before creating a candidate or
+building. The optional `-- --daemon-visible-scratch ABSOLUTE_PARENT` selects a
+different existing parent but requires the same probe. Missing parent, image,
+daemon visibility, or verified cleanup fails closed; no image pull or build is
+used for the probe. It is not a seventh test layer or included in
 `test:starter`/`validate`; it automates only those operational full-validation
 items. Initialization and optional Pi/SSH/audio/GUI integrations remain separate.
 Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
@@ -150,7 +156,7 @@ an interrupted run PASS. See
 | Application proof | `task test` | Application-owned; inspect the configured command and its effects first. |
 | Starter regression proof | `task --taskfile .maintainer/Taskfile.yml test:starter` | Unit + integration only; inspect fixtures before authorizing builds or lifecycle operations. |
 | Repository checks | `task validate` | Host preflight is partial; container runs diagnosis and strict quality. Neither is application or full runtime proof. |
-| Isolated operational proof | `task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle` | Separate explicit authorization, cost forecast, and daemon-visible scratch required; reduced base coverage only. |
+| Isolated operational proof | `task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle` | Separate explicit authorization and cost forecast; generated scratch requires exact-byte local daemon probe; reduced base coverage only. |
 | Recover registered test resources | `task --taskfile .maintainer/Taskfile.yml test:starter:clean` | Read-only preview by default; deletion requires explicit apply and one selected run. |
 | Work on the real environment | `task container:*` | Normal host workflow, not test cleanup; up/recreate can build, restart preserves the container. |
 

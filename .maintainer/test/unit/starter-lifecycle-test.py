@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, call, patch
@@ -97,7 +98,57 @@ class LifecycleTests(unittest.TestCase):
                 patch.object(H, "run", return_value="12000"), patch.object(H.subprocess, "run"):
             lifecycle.execute()
         self.assertEqual(events.mock_calls, [call.task("build"), call.task("up"), call.state("first", write=True),
-                                            call.task("recreate"), call.state("second")])
+                                             call.task("recreate"), call.state("second")])
+        lifecycle.ownership.arm.assert_called_once_with()
+        lifecycle.ownership.probe_bind.assert_called_once_with()
+
+    def test_probe_failure_prevents_candidate_and_build(self):
+        lifecycle = self.lifecycle()
+        lifecycle.ownership.probe_bind.side_effect = H.Unsafe("probe failed")
+        with self.assertRaisesRegex(H.Unsafe, "probe failed"):
+            lifecycle.execute()
+        lifecycle.ownership.arm.assert_called_once_with()
+        lifecycle.ownership.produce.assert_not_called()
+        lifecycle.ownership.stage.assert_not_called()
+
+    def test_cli_default_and_explicit_parent_both_require_probe_before_build(self):
+        for argv, parent in ((["lifecycle"], Path("/home/ubuntu")),
+                             (["lifecycle", "--daemon-visible-scratch", str(self.root.parent)], self.root.parent)):
+            with self.subTest(argv=argv):
+                owner = Mock()
+                owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
+                owner.path = self.root / "inventory.json"
+                owner.cleanup.return_value = {"failed": [], "removed": [], "retained": ["shared cache"]}
+                events = []
+                def execute(lifecycle):
+                    lifecycle.ownership.arm()
+                    events.append("armed")
+                    lifecycle.ownership.probe_bind()
+                    events.append("probe")
+                    raise H.Unsafe("probe failed")
+                with patch.object(sys, "argv", argv), patch.object(H, "run", return_value=str(self.root)), \
+                     patch.object(H, "Run") as run, patch.object(H, "Lifecycle") as lifecycle_class, \
+                     patch.object(H.shutil, "which", return_value="available"), patch.object(H.Path, "cwd", return_value=self.root), \
+                     patch.object(H.Path, "is_dir", return_value=True), patch.object(H, "snapshot", return_value={}), \
+                     patch.object(H.signal, "signal"), patch("builtins.print"):
+                    run.create.return_value = owner
+                    lifecycle = lifecycle_class.return_value
+                    lifecycle.env = dict(os.environ)
+                    lifecycle.execute.side_effect = lambda: execute(lifecycle)
+                    lifecycle.cleanup.side_effect = lambda: events.append("cleanup") or []
+                    self.assertEqual(H.main(), 1)
+                run.create.assert_called_once_with(self.root, parent)
+                self.assertEqual(events, ["armed", "probe", "cleanup"])
+                owner.finish.assert_called_once_with("failed")
+                owner.close.assert_called_once_with()
+
+    def test_default_missing_parent_fails_without_registering_run(self):
+        with patch.object(sys, "argv", ["lifecycle"]), patch.object(H, "run", return_value=str(self.root)), \
+             patch.object(H.Path, "cwd", return_value=self.root), patch.object(H.Path, "is_dir", return_value=False), \
+             patch.object(H, "Run") as run:
+            with self.assertRaisesRegex(SystemExit, "existing plain scratch parent"):
+                H.main()
+        run.create.assert_not_called()
 
     def test_task_failure_keeps_diagnosis_and_does_not_continue(self):
         lifecycle = self.lifecycle()

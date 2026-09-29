@@ -16,7 +16,7 @@ tasks:
             test:starter:unit          Run starter behavior and distribution contracts
             test:starter:integration   Check core and selected installed tools
             test:starter               Run both suites (mocked unit fixtures)
-            test:starter:lifecycle     Explicit expensive lifecycle proof; requires scratch argument
+            test:starter:lifecycle     Explicit expensive lifecycle proof; generates and probes scratch under /home/ubuntu
             test:starter:image-contract Explicit Docker image build contract proof
             test:starter:clean         Preview registered test-run recovery (read-only)
             test:install               Install BATS if not present
@@ -47,7 +47,7 @@ tasks:
       - bats {{.DEVCONTAINER_DIR}}/test/integration/tools.bats
 
   starter:lifecycle:
-    desc: Explicit base lifecycle proof (expensive; one build, start, recreate; cache may remain)
+    desc: Explicit base lifecycle proof (expensive; auto-probed scratch, one build, start, recreate; cache may remain)
     cmds:
       - python3 .maintainer/test/lifecycle/starter-lifecycle.py {{.CLI_ARGS}}
 

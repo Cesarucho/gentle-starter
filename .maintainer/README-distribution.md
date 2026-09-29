@@ -76,14 +76,25 @@ operational authorization, outside the normal `task test`, `task test:starter`,
 and `task validate` routes:
 
 ```bash
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle
+# Optional alternative existing parent (still probed):
 task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --daemon-visible-scratch /absolute/scratch-parent
 ```
 
-The existing parent must be outside the source repository and visible at the same
-absolute path to the **local** Docker daemon at `/var/run/docker.sock`. The flag
-is the operator's explicit confirmation of that mapping, not an automatic probe.
-Inside a devcontainer, use a sibling under the mounted workspace, not an arbitrary
-container-private `/tmp` directory. Remote Docker contexts are not reused. Missing
+The default requires an existing canonical `/home/ubuntu` and generates a unique
+`/home/ubuntu/starter-test-<UUID>` directory per run. The optional existing,
+canonical parent must be outside the source repository and its Git metadata.
+Neither path is accepted on an operator's assertion of daemon visibility: after
+arming the ownership record and before candidate creation or build, the harness
+uses the pinned local Unix Docker socket and cached `ubuntu:24.04` image to read
+fresh random marker bytes from the **exact** scratch path via a read-only bind.
+The probe uses `--pull=never` and `--network none`, with no image build, network,
+credentials, or SSH agent. It verifies the owned probe container's identity and
+removal. Visibility is proven only at probe time, not guaranteed for later mounts.
+If the parent, cached image, daemon identity, probe creation/read/removal, or
+scoped cleanup is unverifiable, execution fails before any build. A failed probe
+triggers native scoped cleanup before test outcome persistence; no global prune or
+automatic mode switch occurs. Remote Docker contexts are not reused. Missing
 commands or unsupported base customization fail rather than selecting a fallback.
 
 **Cost forecast:** one explicit `container:build`, then `container:up`, then
@@ -103,6 +114,10 @@ and setup command. Optional Compose overrides, custom attach settings, and CLI
 features (including nested Docker and GitHub CLI) are omitted. Pi coding/Gentle and
 SSH-server activation links are removed in the candidate; other selected installers
 and user hooks remain trusted build inputs. Original selections are untouched.
+The candidate clone uses umask `022` for ordinary `0644` files and `0755`
+executables, while the source overlay preserves its existing modes; it does not
+apply umask `077` to the whole clone.
+The separate `.git/starter-test-runs/` inventory stays private at `0700`.
 
 Only synthetic environment files and a private empty host HOME are supplied:
 no inherited SSH keys, agent sockets, Pulse endpoints, Docker credentials, or
@@ -125,6 +140,9 @@ Automatic cleanup runs after success, failure, and handled SIGINT/SIGTERM, using
 the same ownership engine as explicit recovery below. Cleanup failure makes the
 test fail without replacing its separate stage/status diagnostic. SIGKILL cannot
 run a finalizer; the durable inventory supports later recovery instead.
+Set a realistic external supervisor timeout beyond the forecast build/cleanup
+budget; a hard kill may leave resources for scoped recovery. Inspect the run
+inventory and use the read-only recovery preview before authorizing deletion.
 
 ## Recovering test-owned resources
 
