@@ -27,7 +27,7 @@ No remote or Docker operations, source changes, or unrelated documentation edits
 ## Tasks and progress
 
 - [x] V1: Correct volume guide examples, verify and commit scoped work unit.
-- [ ] V2: Correct Redis guide examples, verify and commit scoped work unit.
+- [x] V2: Correct Redis guide examples, verify and commit scoped work unit.
 
 ## Evidence
 
@@ -40,6 +40,22 @@ reported 0 issues (configuration also selected other repository Markdown);
 `git diff --check` passed; `test ! -e
 .devcontainer/install/available/7100-data-postgresql.sh` passed.
 Runtime harness: N/A, docs only and Docker prohibited. V1 rollback boundary:
-the volume guide and this task evidence. Commit identity recorded below.
+the volume guide and this task evidence. V1 commit: `a2523e2`.
 
-V2 pending. Rollback boundary: extending guide and its task evidence.
+V2: `7000-tool-redis` is absent from the catalog. The guide now uses
+`task install:enable -- 7000-tool-redis`, adds a guarded config seed inside
+the existing enabled-aware function without replacing its branches, and
+identifies the apt snippet as build-only, not a version-pinned installer or
+runtime data initializer. Focused checks: `markdownlint-cli2
+.devcontainer/docs/install-volumes.md .devcontainer/docs/extending.md
+odd/tasks/correct-install-doc-examples.md` reported 0 issues (configuration
+expanded to 21 Markdown files); `git diff --check` passed; the example
+installer path is unused and the template exists. Runtime harness: N/A,
+docs only and Docker prohibited. Rollback boundary: extending guide and
+this task evidence. Commit identity recorded below.
+
+Relevant local fixture tests: `bats .devcontainer/test/unit/install-dependencies.bats
+.devcontainer/test/unit/volume-repair.bats` passed 29/29; these verify
+activation and volume dispatch, not Redis/PostgreSQL behavior. Final focused
+lint again reported 0 issues and `git diff --check` passed before the second
+commit.

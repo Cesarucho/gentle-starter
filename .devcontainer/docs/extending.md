@@ -61,8 +61,12 @@ This touches the install, config, and volume surfaces.
 
 ### Step 1: install — `install/available/7000-tool-redis.sh`
 
-The script downloads and installs the redis packages via apt. It
-skips itself if redis is already present.
+This build-phase sketch installs the Redis packages via apt. It
+skips installation if Redis is already present; add separate runtime
+initialization if the installer must populate an empty data mount.
+For a managed tool, register version intent and a lock strategy under
+the [tool-version policy](../tool-versions.conf) rather than treating
+unversioned apt packages as a complete managed installer.
 
 ```bash
 #!/usr/bin/env bash
@@ -72,6 +76,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/common.sh"
+
+if ! devcontainer_is_build; then
+    # Add idempotent, ubuntu-safe data initialization here if needed.
+    exit 0
+fi
 
 if devcontainer_has_cmd redis-cli && devcontainer_has_cmd redis-server; then
     devcontainer_log_info "redis already installed: $(redis-cli --version)"
@@ -89,8 +98,7 @@ devcontainer_log_info "redis installed: $(redis-cli --version)"
 Enable it for default activation:
 
 ```bash
-cd .devcontainer/install/03-enabled
-ln -s ../available/7000-tool-redis.sh 7000-tool-redis.sh
+task install:enable -- 7000-tool-redis
 ```
 
 ### Step 2: config — `.devcontainer/config/redis/redis.conf`
@@ -102,13 +110,14 @@ Create the versioned source:
 #   runtime: /etc/redis/redis.conf
 ```
 
-Wire it in `.devcontainer/setup.sh`:
+Add this guarded seed inside the existing `setup_versioned_configs` in
+`.devcontainer/setup.sh`, after its Pi and OpenCode branches (keep those
+branches unchanged):
 
 ```bash
-setup_versioned_configs() {
-    seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi" "${HOME}/.pi"
+if install_script_is_enabled "${SCRIPT_DIR}/install/available/7000-tool-redis.sh"; then
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/redis" "/etc/redis"
-}
+fi
 ```
 
 The `seed_config_tree` helper detects that `/etc/redis` is outside
@@ -128,7 +137,8 @@ volumes:
 ```
 
 `task container:up` derives and creates this source as the host user before
-Docker starts. Redis owns this state, so it also needs the repair mapping below.
+Docker starts. If the installer owns and initializes this state, add the
+repair mapping below; the build-phase sketch in step 1 does not initialize data.
 
 In `.devcontainer/lifecycle/setup-volumes.sh`'s `compose_target_to_install_scripts`:
 
@@ -148,14 +158,16 @@ task container:up          # creates/starts the updated environment
 
 # inside the container:
 which redis-cli             # /usr/bin/redis-cli
-redis-cli --version         # 7.x.x
+redis-cli --version         # compare with the configured version policy
 cat /etc/redis/redis.conf | head -3   # the versioned baseline (copied)
-ls /var/lib/redis            # data dir, persists across rebuilds
+ls /var/lib/redis            # inspect the mounted data directory
 ```
 
-The three relevant surfaces are now wired together. Future rebuilds preserve
-your customisations in `/etc/redis/redis.conf` and in the data dir,
-and the postCreate hook re-seeds anything that was deleted.
+The three surfaces are mapped, but this sketch alone does not demonstrate
+runtime initialization or a reproducible Redis version. Complete those
+installer steps and verify actual state before relying on persistence.
+Config seeding preserves existing `/etc/redis/redis.conf`; a missing file is
+re-copied on the next postCreate when the installer is active.
 
 ## FAQ
 
