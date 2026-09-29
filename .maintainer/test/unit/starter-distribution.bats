@@ -33,6 +33,189 @@ prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter);
 
 candidate() { (cd "${REPO}" && python3 "${ROOT}/.maintainer/scripts/starter-candidate.py" "$@"); }
 
+promote() {
+  (cd "${REPO}" && python3 "${ROOT}/.maintainer/scripts/starter-promote.py" \
+    --approved-rc "${approved}" --expected-tree "${tree}" \
+    --expected-base "${base}" --expected-source "${source}" "$@")
+}
+
+approval() {
+  approved="$(git -C "${REPO}" rev-parse starter-rc)"
+  tree="$(git -C "${REPO}" rev-parse starter-rc^{tree})"
+  source="$(git -C "${REPO}" rev-parse dev)"
+}
+
+@test "initial promotion publishes a root and later release has only the previous release as parent" {
+  candidate --base-absent
+  approval
+  base=absent
+  git -C "${REPO}" commit --allow-empty -qm 'Advance dev after approval'
+  promote
+  first="$(git -C "${REPO}" rev-parse starter)"
+  [ -z "$(git -C "${REPO}" show -s --format=%P starter)" ]
+  [ "$(git -C "${REPO}" rev-parse starter^{tree})" = "$tree" ]
+  ! git -C "${REPO}" merge-base --is-ancestor dev starter
+  ! git -C "${REPO}" merge-base --is-ancestor starter-rc starter
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  run candidate
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  candidate --cancel
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+  candidate
+  approval
+  base="$first"
+  promote
+  second="$(git -C "${REPO}" rev-parse starter)"
+  [ "$(git -C "${REPO}" show -s --format=%P starter)" = "$first" ]
+  [ "$(git -C "${REPO}" show starter:.devcontainer/docs/guide.md)" = v2 ]
+  [ "$(git -C "${REPO}" rev-parse starter^{tree})" = "$tree" ]
+  git -C "${REPO}" clone -q --no-local --branch starter "${REPO}" "${TEMP}/consumer"
+  [ "$(git -C "${TEMP}/consumer" rev-parse HEAD)" = "$second" ]
+  [ "$(git -C "${TEMP}/consumer" rev-list --count HEAD)" -eq 2 ]
+  candidate --cancel
+  printf 'v3\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update-again
+  candidate
+  approval
+  base="$second"
+  promote
+  candidate --cancel
+  git -C "${TEMP}/consumer" fetch -q "${REPO}" refs/heads/starter:refs/remotes/upstream/starter
+  git -C "${TEMP}/consumer" merge -q --ff-only upstream/starter
+  [ "$(git -C "${TEMP}/consumer" show HEAD:.devcontainer/docs/guide.md)" = v3 ]
+}
+
+@test "promotion rejects stale identity, canceled candidates and dirty checkout" {
+  candidate --base-absent
+  approval
+  base=absent
+  run promote --expected-tree "$source"
+  [ "$status" -ne 0 ]
+  run promote --expected-source "$tree"
+  [ "$status" -ne 0 ]
+  run promote --expected-base "$source"
+  [ "$status" -ne 0 ]
+  run promote --approved-rc "$source"
+  [ "$status" -ne 0 ]
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+  candidate --base-absent
+  run promote
+  [ "$status" -ne 0 ]
+  candidate --base-absent --cancel
+  run promote
+  [ "$status" -ne 0 ]
+  candidate --base-absent
+  approval
+  printf 'dirty\n' > "${REPO}/README.md"
+  run promote
+  [ "$status" -ne 0 ]
+  ! git -C "${REPO}" show-ref --verify -q refs/heads/starter
+}
+
+@test "promotion refuses symbolic and legacy release targets and checked-out worktrees" {
+  candidate --base-absent
+  approval
+  base=absent
+  git -C "${REPO}" symbolic-ref refs/heads/starter refs/heads/dev
+  run promote
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse dev)" = "$source" ]
+  git -C "${REPO}" symbolic-ref --delete refs/heads/starter
+  git -C "${REPO}" branch starter dev
+  base="$source"
+  run promote
+  [ "$status" -ne 0 ]
+  git -C "${REPO}" branch -D starter
+  base=absent
+  promote
+  base="$(git -C "${REPO}" rev-parse starter)"
+  git -C "${REPO}" worktree add -q "${TEMP}/target" starter
+  run promote
+  [ "$status" -ne 0 ]
+  git -C "${REPO}" worktree remove "${TEMP}/target"
+  git -C "${REPO}" symbolic-ref refs/heads/starter-rc refs/heads/dev
+  run promote
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$base" ]
+}
+
+@test "candidate refuses checked-out secondary worktree and cancel accepts missing source branch" {
+  candidate --base-absent
+  approval
+  git -C "${REPO}" worktree add -q "${TEMP}/candidate" starter-rc
+  run candidate --base-absent --cancel
+  [ "$status" -ne 0 ]
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  git -C "${REPO}" worktree remove "${TEMP}/candidate"
+  git -C "${REPO}" switch -q -c retained
+  git -C "${REPO}" branch -D dev
+  run candidate --base-absent --cancel
+  [ "$status" -eq 0 ]
+  ! git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+}
+
+@test "promotion checks every candidate ancestor and previous release source ancestry" {
+  candidate --base-absent
+  approval
+  base=absent
+  promote
+  base="$(git -C "${REPO}" rev-parse starter)"
+  candidate --cancel
+  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update
+  candidate
+  first="$(git -C "${REPO}" rev-parse starter-rc)"
+  printf 'v3\n' > "${REPO}/.devcontainer/docs/guide.md"
+  git -C "${REPO}" commit -qam update-again
+  candidate
+  approval
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$(git -C "${REPO}" commit-tree "$tree" -p "$first" -m 'unrecognized candidate')"
+  run promote --approved-rc "$(git -C "${REPO}" rev-parse starter-rc)"
+  [ "$status" -ne 0 ]
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$approved"
+  bad="$(git -C "${REPO}" commit-tree "$tree" -p "$base" -m "Prepare starter release candidate" -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: ${base}")"
+  child="$(git -C "${REPO}" commit-tree "$tree" -p "$bad" -m "Prepare starter release candidate" -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: ${base}")"
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$child"
+  run promote --approved-rc "$child"
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$base" ]
+}
+
+@test "cancel refuses changed release without legitimate publication or with tampered candidate" {
+  candidate --base-absent
+  approval
+  base=absent
+  git -C "${REPO}" branch starter dev
+  changed="$(git -C "${REPO}" rev-parse starter)"
+  run candidate --cancel
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$changed" ]
+  git -C "${REPO}" branch -D starter
+  promote
+  published="$(git -C "${REPO}" rev-parse starter)"
+  wrong_tree="$(git -C "${REPO}" rev-parse dev^{tree})"
+  impostor="$(git -C "${REPO}" commit-tree "$wrong_tree" -m 'Publish consumer starter' -m "Starter-Release-Source: ${source}")"
+  git -C "${REPO}" update-ref refs/heads/starter "$impostor" "$published"
+  run candidate --cancel
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  git -C "${REPO}" update-ref refs/heads/starter "$published" "$impostor"
+  forged="$(git -C "${REPO}" commit-tree "$tree" -p "$approved" -m 'unrecognized candidate')"
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$forged" "$approved"
+  run candidate --cancel
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$forged" ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$published" ]
+}
+
 @test "candidate starts at a root, advances without source ancestry, and pins its base" {
   prepare
   base="$(git -C "${REPO}" rev-parse starter)"

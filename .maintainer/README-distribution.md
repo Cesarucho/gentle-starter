@@ -10,15 +10,35 @@ commit message for `Starter-Candidate-Source` and `Starter-Candidate-Base`, and
 inspect its tree before any separate promotion. The first candidate is a root;
 subsequent candidate commits have only the preceding candidate as parent. A
 source-only advance creates a new candidate even when its filtered tree is
-unchanged. Repeating the same source is a no-op.
+unchanged. Repeating the same source is a no-op. For an initial release with
+no local `starter` ref, pass `--base-absent` explicitly to candidate creation
+and cancellation. Never use this flag when `starter` already exists.
 
 To discard a candidate, run
 `task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel`.
 This deletes only a verified local candidate ref; it refuses a changed base or
 unrecognized candidate. After cancellation, a new candidate starts from a new
 root. Candidate preparation is not publication; promotion to a linear `starter`
-release is not implemented by this command. The legacy distribution commands
-below still use their existing ancestry and merge behavior.
+release is not performed by this command. After reviewing the candidate,
+record its full commit SHA, tree SHA, source SHA from the candidate marker, and
+the exact base SHA (or `absent` for a new release ref). Promote locally with:
+
+```bash
+task --taskfile .maintainer/Taskfile.yml distribution:promote -- \
+  --approved-rc FULL_RC_SHA --expected-tree FULL_TREE_SHA \
+  --expected-base FULL_BASE_SHA_OR_absent --expected-source FULL_SOURCE_SHA
+```
+
+Promotion refuses a moved or canceled candidate, mismatched tree/source/base,
+unrecognized or legacy release history, symbolic refs, dirty checkout, or a
+release checked out in any worktree. It verifies the entire candidate chain,
+filtered trees, and previous release source ancestry; it then creates one root
+release (initial) or one commit with the prior release as its sole parent and
+compare-and-swap updates the local release ref. It does not require the source
+branch to be checked out or at the approved source tip. No remote is touched.
+The existing `distribution` and `distribution:producer` commands remain
+available but are deprecated for new linear releases; they retain their legacy
+source-parent and merge behavior until a later task replaces them.
 
 From a clean producer checkout, commit the source changes on `dev` first (or
 pass another committed local source branch explicitly).

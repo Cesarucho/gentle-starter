@@ -41,3 +41,9 @@ tasks:
     dir: ..
     cmds:
       - python3 .maintainer/scripts/starter-candidate.py {{.CLI_ARGS}}
+
+  distribution:promote:
+    desc: Publish an approved local candidate to a linear starter release
+    dir: ..
+    cmds:
+      - python3 .maintainer/scripts/starter-promote.py {{.CLI_ARGS}}
