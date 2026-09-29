@@ -12,9 +12,9 @@ Integrate the reviewed local feature branch into local `dev` by fast-forward, ve
 
 ## Tasks
 
-- [ ] I1: Fast-forward local `dev` from `48c84a9` to feature tip after confirming ancestry, clean checkout and worktree assignments; run focused and applicable maintainer checks. Record observed results and commit boundary (existing feature commits, no synthetic merge).
+- [x] I1: Fast-forwarded local `dev` from `48c84a9` to feature tip `3ed5a21` after confirming ancestry and clean worktree. Focused Bats 21/21 and `task validate` (0 errors/warnings, 0 Markdown issues) passed; `git diff --check` passed. Full `test:starter` not run at this boundary: verifier inspection found live HTTPS fetches in its unit suite, incompatible with this run's no-remote constraint. Prior feature run passed 480 unit tests and 34 integration tests (17 optional skips). Existing feature commits retained; no merge commit.
 - [ ] I2: On clean `dev`, run `distribution:candidate -- --base-absent` once; inspect root parents, filtered tree, source/base markers, ref state and backup. Do not promote or publish; record candidate identity and evidence.
 
 ## Progress
 
-Not started. Feature tip `a04832d`; local `dev` at `48c84a9`, confirmed ancestor; backup present at `42b5d16`. Next: mirror, fast-forward local dev, verify, then prepare candidate.
+I1 integrated and verified locally; `dev` at `3ed5a21` before this progress record, ahead of `origin/dev`; backup present at `42b5d16`, old `starter` absent. Next: commit this record on a feature branch, fast-forward `dev`, then prepare first local candidate from its exact tip.
