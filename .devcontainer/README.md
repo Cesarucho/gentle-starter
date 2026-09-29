@@ -92,10 +92,10 @@ seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgres
 
 ## Updating from Gentle Starter
 
-Once a new `starter` branch is published, a consumer cloned with
+A project cloned from the published `starter` branch with
 `git clone --branch starter --origin upstream` already has `upstream`.
-The old remote branch is absent today; do not run this update against producer
-`dev`. After publication, fetch and merge the consumer branch:
+Do not run this update against producer `dev`. To update your project, fetch
+and merge the consumer branch:
 
 ```bash
 git fetch upstream
