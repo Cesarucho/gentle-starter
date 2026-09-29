@@ -2,7 +2,6 @@
 
 setup() {
   ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-  SCRIPT="${ROOT}/.maintainer/scripts/starter-distribution.py"
   TEMP="$(mktemp -d)"
   REPO="${TEMP}/repo"
   git init -q -b dev "${REPO}"
@@ -29,7 +28,24 @@ setup() {
 
 teardown() { rm -rf "${TEMP}"; }
 
-prepare() { (cd "${REPO}" && python3 "${SCRIPT}" --source dev --target starter); }
+prepare() {
+  local current base source tree approved
+  current="$(git -C "${REPO}" branch --show-current)"
+  if [ "$current" = starter ]; then git -C "${REPO}" switch -q dev; fi
+  if git -C "${REPO}" show-ref --verify --quiet refs/heads/starter; then
+    base="$(git -C "${REPO}" rev-parse starter)"
+    candidate
+  else
+    base=absent
+    candidate --base-absent
+  fi
+  approved="$(git -C "${REPO}" rev-parse starter-rc)"
+  tree="$(git -C "${REPO}" rev-parse starter-rc^{tree})"
+  source="$(git -C "${REPO}" rev-parse dev)"
+  promote
+  candidate --cancel
+  if [ "$current" = starter ]; then git -C "${REPO}" switch -q starter; fi
+}
 
 candidate() { (cd "${REPO}" && python3 "${ROOT}/.maintainer/scripts/starter-candidate.py" "$@"); }
 
@@ -325,10 +341,28 @@ Starter-Candidate-Base: ${base}")"
 @test "candidate keeps filtered skills and refuses stale or unexpected refs" {
   prepare
   candidate
+  [ "$(git -C "${REPO}" show starter-rc:LICENSE)" = license ]
+  [ "$(git -C "${REPO}" ls-tree starter-rc LICENSE | cut -f1 | cut -d' ' -f1)" = 100644 ]
+  [ "$(git -C "${REPO}" show starter-rc:.devcontainer/test/unit/shared.bats)" = shared ]
+  [ "$(git -C "${REPO}" show starter-rc:.devcontainer/docs/guide.md)" = v1 ]
   ! git -C "${REPO}" cat-file -e starter-rc:README.md
   ! git -C "${REPO}" cat-file -e starter-rc:skills-lock.json
   ! git -C "${REPO}" cat-file -e starter-rc:.agents/skills/external/SKILL.md
   [ "$(git -C "${REPO}" show starter-rc:.agents/skills/add-tool/SKILL.md)" = authored ]
+  for path in AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
+    .github odd openspec docs .maintainer; do
+    ! git -C "${REPO}" cat-file -e "starter-rc:${path}"
+  done
+  run python3 - "${REPO}" <<'PY'
+import json
+import subprocess
+import sys
+catalog = json.loads(subprocess.check_output(
+    ['git', '-C', sys.argv[1], 'show', 'starter-rc:.devcontainer/skills/recommended.json']))
+assert catalog == {'version': 1, 'skills': {
+    'external': {'source': 'example/repo', 'skillPath': 'skills/external/SKILL.md'}}}
+PY
+  [ "$status" -eq 0 ]
   old="$(git -C "${REPO}" rev-parse starter-rc)"
   base="$(git -C "${REPO}" rev-parse starter)"
   git -C "${REPO}" branch -f starter dev
@@ -399,297 +433,106 @@ Starter-Candidate-Base: ${base}")"
   [ "$(git -C "${REPO}" rev-parse starter)" = "$base" ]
 }
 
-producer() {
-  (cd "${REPO}" && task --taskfile .maintainer/Taskfile.yml distribution:producer -- --source dev --target starter)
-}
+@test "published release preserves the filtered whitelist and external skill catalog" {
+  candidate --base-absent
+  approval
+  base=absent
+  promote
 
-producer_fixture() {
-  mkdir -p "${REPO}/.maintainer/scripts"
-  cp "${ROOT}/.maintainer/Taskfile.yml" "${REPO}/.maintainer/Taskfile.yml"
-  cp -a "${ROOT}/.maintainer/tasks" "${REPO}/.maintainer/"
-  cp "${ROOT}/.maintainer/scripts/starter-distribution.py" "${REPO}/.maintainer/scripts/"
-  cp "${ROOT}/.maintainer/scripts/starter-producer.py" "${REPO}/.maintainer/scripts/"
-  git -C "${REPO}" add -A
-  git -C "${REPO}" commit -qm 'Add producer fixture'
-  prepare
-}
-
-@test "producer cleans a registered checkout after worktree add reports failure" {
-  producer_fixture
-  before="$(git -C "${REPO}" rev-parse starter)"
-  mkdir -p "${TEMP}/bin"
-  cat > "${TEMP}/bin/git" <<'SH'
-#!/bin/sh
-if [ "$1" = worktree ] && [ "$2" = add ]; then
-  /usr/bin/git "$@" || exit $?
-  printf 'injected add failure\n' >&2
-  exit 71
-fi
-exec /usr/bin/git "$@"
-SH
-  chmod +x "${TEMP}/bin/git"
-  run bash -c 'cd "$1" && PATH="$2:$PATH" python3 "$3" --source dev --target starter' _ "${REPO}" "${TEMP}/bin" "${ROOT}/.maintainer/scripts/starter-producer.py"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"injected add failure"* ]]
-  [ "$(git -C "${REPO}" rev-parse starter)" = "$before" ]
-  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
-}
-
-@test "producer reports dirty cleanup failure without masking original failure" {
-  producer_fixture
-  before="$(git -C "${REPO}" rev-parse starter)"
-  mkdir -p "${TEMP}/bin"
-  cat > "${TEMP}/bin/git" <<'SH'
-#!/bin/sh
-if [ "$1" = worktree ] && [ "$2" = add ]; then
-  /usr/bin/git "$@" || exit $?
-  printf 'dirty\n' > "$4/README.md"
-  printf 'injected add failure\n' >&2
-  exit 71
-fi
-exec /usr/bin/git "$@"
-SH
-  chmod +x "${TEMP}/bin/git"
-  run bash -c 'cd "$1" && PATH="$2:$PATH" python3 "$3" --source dev --target starter' _ "${REPO}" "${TEMP}/bin" "${ROOT}/.maintainer/scripts/starter-producer.py"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"injected add failure"* ]]
-  [[ "$output" == *"cleanup"* ]]
-  [ "$(git -C "${REPO}" rev-parse starter)" = "$before" ]
-}
-
-@test "producer retains unregistered checkout and detects target ref mutation" {
-  producer_fixture
-  mkdir -p "${TEMP}/bin"
-  cat > "${TEMP}/bin/git" <<'SH'
-#!/bin/sh
-if [ "$1" = worktree ] && [ "$2" = add ]; then
-  mkdir -p "$4"
-  printf 'unknown\n' > "$4/README.md"
-  /usr/bin/git branch -f starter dev
-  printf 'injected partial add failure\n' >&2
-  exit 72
-fi
-exec /usr/bin/git "$@"
-SH
-  chmod +x "${TEMP}/bin/git"
-  run bash -c 'cd "$1" && PATH="$2:$PATH" python3 "$3" --source dev --target starter' _ "${REPO}" "${TEMP}/bin" "${ROOT}/.maintainer/scripts/starter-producer.py"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"injected partial add failure"* ]]
-  [[ "$output" == *"unregistered checkout remains"* ]]
-  [[ "$output" == *"target HEAD changed or could not be verified"* ]]
-  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
-}
-
-@test "producer task updates target from source while retaining current branch" {
-  producer_fixture
-  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
-  git -C "${REPO}" commit -qam update
-  before="$(git -C "${REPO}" rev-parse HEAD)"
-  run producer
-  [ "$status" -eq 0 ]
-  [ "$(git -C "${REPO}" branch --show-current)" = dev ]
-  [ "$(git -C "${REPO}" rev-parse HEAD)" = "$before" ]
-  [ "$(git -C "${REPO}" show starter:.devcontainer/docs/guide.md)" = v2 ]
-  [ -z "$(git -C "${REPO}" worktree list --porcelain | grep '^worktree ' | grep -v "${REPO}$")" ]
-  [ -z "$(git -C "${REPO}" status --porcelain)" ]
-}
-
-@test "producer conflict leaves target intact and removes temporary worktree" {
-  producer_fixture
-  git -C "${REPO}" switch -q starter
-  printf 'consumer\n' > "${REPO}/.devcontainer/docs/guide.md"
-  git -C "${REPO}" commit -qam consumer
-  target_before="$(git -C "${REPO}" rev-parse HEAD)"
-  git -C "${REPO}" switch -q dev
-  printf 'producer\n' > "${REPO}/.devcontainer/docs/guide.md"
-  git -C "${REPO}" commit -qam producer
-  run producer
-  [ "$status" -ne 0 ]
-  [ "$(git -C "${REPO}" rev-parse starter)" = "$target_before" ]
-  [ "$(git -C "${REPO}" branch --show-current)" = dev ]
-  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
-  [ -z "$(git -C "${REPO}" status --porcelain)" ]
-}
-
-@test "producer refuses dirty checkout before touching target" {
-  producer_fixture
-  before="$(git -C "${REPO}" rev-parse starter)"
-  printf 'dirty\n' > "${REPO}/README.md"
-  run producer
-  [ "$status" -ne 0 ]
-  [ "$(git -C "${REPO}" rev-parse starter)" = "$before" ]
-  [ "$(git -C "${REPO}" worktree list --porcelain | grep -c '^worktree ')" -eq 1 ]
-}
-
-@test "first release has source ancestry and excludes only maintainer paths" {
-  run prepare
-  [ "$status" -eq 0 ]
-  git -C "${REPO}" merge-base --is-ancestor dev starter
-  [ "$(git -C "${REPO}" branch --show-current)" = dev ]
+  [ "$(git -C "${REPO}" rev-parse starter^{tree})" = "$tree" ]
   [ "$(git -C "${REPO}" show starter:LICENSE)" = license ]
-  [ "$(git -C "${REPO}" show dev:AGENTS.md.TEMPLATE)" = template ]
   [ "$(git -C "${REPO}" ls-tree starter LICENSE | cut -f1 | cut -d' ' -f1)" = 100644 ]
   [ "$(git -C "${REPO}" show starter:.devcontainer/test/unit/shared.bats)" = shared ]
-  [ "$(git -C "${REPO}" show starter:.devcontainer/docs/guide.md)" = v1 ]
   [ "$(git -C "${REPO}" show starter:.agents/skills/add-tool/SKILL.md)" = authored ]
-  ! git -C "${REPO}" cat-file -e starter:.agents/skills/external/SKILL.md
-  ! git -C "${REPO}" cat-file -e starter:skills-lock.json
-  [ "$(git -C "${REPO}" show dev:.agents/skills/external/SKILL.md)" = external ]
-  [ "$(git -C "${REPO}" show dev:skills-lock.json)" = '{"version":1,"skills":{"external":{"source":"example/repo","skillPath":"skills/external/SKILL.md","computedHash":"dev-only"}}}' ]
-  run python3 - "${REPO}" <<'PY'
-import json
-import subprocess
-import sys
-repo = sys.argv[1]
-catalog = json.loads(subprocess.check_output(['git', '-C', repo, 'show', 'starter:.devcontainer/skills/recommended.json']))
-assert catalog == {'version': 1, 'skills': {'external': {'source': 'example/repo', 'skillPath': 'skills/external/SKILL.md'}}}
-PY
-  [ "$status" -eq 0 ]
-  for path in README.md AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
-    .github odd openspec docs .maintainer; do
+  for path in README.md AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE \
+    CHANGELOG.md .github odd openspec docs .maintainer skills-lock.json \
+    .agents/skills/external/SKILL.md; do
     ! git -C "${REPO}" cat-file -e "starter:${path}"
   done
-}
-
-@test "later releases retain consumer lock and custom skill while refreshing recommendations" {
-  prepare
-  git -C "${REPO}" switch -q starter
-  mkdir -p "${REPO}/.agents/skills/custom"
-  printf 'custom\n' > "${REPO}/.agents/skills/custom/SKILL.md"
-  printf 'consumer lock\n' > "${REPO}/skills-lock.json"
-  git -C "${REPO}" add -A
-  git -C "${REPO}" commit -qm consumer
-  git -C "${REPO}" switch -q dev
-  printf '{"version":1,"skills":{"new":{"source":"other/repo","skillPath":"new/SKILL.md"}}}\n' > "${REPO}/skills-lock.json"
-  git -C "${REPO}" commit -qam update
-  git -C "${REPO}" switch -q starter
-  run prepare
-  [ "$status" -eq 0 ]
-  [ "$(git -C "${REPO}" show HEAD:skills-lock.json)" = 'consumer lock' ]
-  [ "$(git -C "${REPO}" show HEAD:.agents/skills/custom/SKILL.md)" = custom ]
-  ! git -C "${REPO}" cat-file -e HEAD:.agents/skills/external/SKILL.md
   run python3 - "${REPO}" <<'PY'
 import json
 import subprocess
 import sys
-catalog = json.loads(subprocess.check_output(['git', '-C', sys.argv[1], 'show', 'HEAD:.devcontainer/skills/recommended.json']))
-assert catalog['skills'] == {'new': {'source': 'other/repo', 'skillPath': 'new/SKILL.md'}}
+
+catalog = json.loads(subprocess.check_output(
+    ['git', '-C', sys.argv[1], 'show', 'starter:.devcontainer/skills/recommended.json']))
+assert catalog == {'version': 1, 'skills': {
+    'external': {'source': 'example/repo', 'skillPath': 'skills/external/SKILL.md'}}}
 PY
   [ "$status" -eq 0 ]
 }
 
-@test "legacy release conflicts instead of deleting consumer edits to distributed skills and lock" {
-  # Model a previously published release with the old unfiltered skill tree.
-  python3 - "${REPO}" <<'PY'
+@test "new release refreshes recommendations without publishing consumer-owned files" {
+  prepare
+  first="$(git -C "${REPO}" rev-parse starter)"
+  printf '{"version":1,"skills":{"new":{"source":"other/repo","skillPath":"new/SKILL.md"}}}\n' > "${REPO}/skills-lock.json"
+  printf 'maintainer update\n' > "${REPO}/README.md"
+  git -C "${REPO}" commit -qam 'Update source catalog and README'
+  candidate
+  approval
+  base="$first"
+  promote
+
+  [ "$(git -C "${REPO}" show -s --format=%P starter)" = "$first" ]
+  ! git -C "${REPO}" cat-file -e starter:README.md
+  ! git -C "${REPO}" cat-file -e starter:skills-lock.json
+  run python3 - "${REPO}" <<'PY'
+import json
 import subprocess
 import sys
-repo = sys.argv[1]
-source = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'dev']).decode().strip()
-tree = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'dev^{tree}']).decode().strip()
-commit = subprocess.check_output(['git', '-C', repo, 'commit-tree', tree, '-p', source],
-    input=f'Prepare consumer starter\n\nStarter-Distribution-Source: {source}\n'.encode()).decode().strip()
-subprocess.check_call(['git', '-C', repo, 'branch', 'starter', commit])
+
+catalog = json.loads(subprocess.check_output(
+    ['git', '-C', sys.argv[1], 'show', 'starter:.devcontainer/skills/recommended.json']))
+assert catalog['skills'] == {
+    'new': {'source': 'other/repo', 'skillPath': 'new/SKILL.md'}}
 PY
-  git -C "${REPO}" switch -q starter
-  printf 'consumer skill\n' > "${REPO}/.agents/skills/external/SKILL.md"
-  printf 'consumer lock\n' > "${REPO}/skills-lock.json"
-  git -C "${REPO}" commit -qam consumer
-  git -C "${REPO}" switch -q dev
-  git -C "${REPO}" commit --allow-empty -qm update
-  git -C "${REPO}" switch -q starter
-  run prepare
-  [ "$status" -ne 0 ]
-  [ -f "${REPO}/.git/MERGE_HEAD" ]
-  [ "$(git -C "${REPO}" show HEAD:skills-lock.json)" = 'consumer lock' ]
-  [ "$(git -C "${REPO}" show HEAD:.agents/skills/external/SKILL.md)" = 'consumer skill' ]
-  git -C "${REPO}" merge --abort
-  [ "$(git -C "${REPO}" show HEAD:skills-lock.json)" = 'consumer lock' ]
+  [ "$status" -eq 0 ]
 }
 
-@test "second release merges without touching consumer-owned paths" {
+@test "candidate rejects malformed skill lock and leaves release and candidate unchanged" {
   prepare
-  git -C "${REPO}" switch -q starter
-  mkdir -p "${REPO}/.github" "${REPO}/odd" "${REPO}/openspec"
-  for path in README.md .github/workflow odd/task openspec/spec; do
-    printf 'consumer\n' > "${REPO}/${path}"
-  done
-  git -C "${REPO}" add -A
-  git -C "${REPO}" commit -qm consumer
-  git -C "${REPO}" switch -q dev
-  printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
-  printf 'legacy template update\n' > "${REPO}/AGENTS.md.TEMPLATE"
-  printf 'new maintainer\n' > "${REPO}/README.md"
-  printf 'new maintainer\n' > "${REPO}/.github/workflow"
-  git -C "${REPO}" add -A
-  git -C "${REPO}" commit -qm update
-  git -C "${REPO}" switch -q starter
-  run prepare
-  [ "$status" -eq 0 ]
-  [ "$(git -C "${REPO}" show HEAD:.devcontainer/docs/guide.md)" = v2 ]
-  ! git -C "${REPO}" cat-file -e HEAD:AGENTS.md.TEMPLATE
-  [ "$(git -C "${REPO}" show dev:AGENTS.md.TEMPLATE)" = 'legacy template update' ]
-  for path in README.md .github/workflow odd/task openspec/spec; do
-    [ "$(git -C "${REPO}" show "HEAD:${path}")" = consumer ]
-  done
-  git -C "${REPO}" merge-base --is-ancestor dev starter
-  run prepare
-  [ "$status" -eq 0 ]
-}
+  candidate
+  prior="$(git -C "${REPO}" rev-parse starter-rc)"
+  release="$(git -C "${REPO}" rev-parse starter)"
+  printf '{"version":2,"skills":{}}\n' > "${REPO}/skills-lock.json"
+  git -C "${REPO}" commit -qam 'Unsupported skill lock'
 
-@test "source-only release advances ancestry and marker without changing the target tree" {
-  prepare
-  git -C "${REPO}" switch -q starter
-  printf 'consumer\n' > "${REPO}/README.md"
-  git -C "${REPO}" add README.md
-  git -C "${REPO}" commit -qm consumer
-  before_tree="$(git -C "${REPO}" rev-parse HEAD^{tree})"
-  git -C "${REPO}" switch -q dev
-  printf 'maintainer update\n' > "${REPO}/README.md"
-  git -C "${REPO}" commit -qam source-only
-  source_commit="$(git -C "${REPO}" rev-parse dev)"
-  git -C "${REPO}" switch -q starter
-
-  run prepare
-  [ "$status" -eq 0 ]
-  [ "$(git -C "${REPO}" rev-parse HEAD^{tree})" = "$before_tree" ]
-  [ "$(git -C "${REPO}" show HEAD:README.md)" = consumer ]
-  git -C "${REPO}" merge-base --is-ancestor "$source_commit" HEAD
-  marker="$(git -C "${REPO}" log -1 --format=%B --grep='^Prepare consumer starter$' HEAD)"
-  [[ "$marker" == *"Starter-Distribution-Source: ${source_commit}"* ]]
-  first_head="$(git -C "${REPO}" rev-parse HEAD)"
-
-  run prepare
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"nothing to update"* ]]
-  [ "$(git -C "${REPO}" rev-parse HEAD)" = "$first_head" ]
-  [ -z "$(git -C "${REPO}" status --porcelain)" ]
-}
-
-@test "unrelated target and dirty worktree fail without mutations" {
-  git -C "${REPO}" branch starter dev
-  run prepare
+  run candidate
   [ "$status" -ne 0 ]
-  [ "$(git -C "${REPO}" rev-parse starter)" = "$(git -C "${REPO}" rev-parse dev)" ]
-  git -C "${REPO}" branch -D starter
+  [[ "$output" == *"unsupported source skills lock"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$release" ]
+}
+
+@test "dirty candidate checkout rejects creation without changing refs" {
   printf 'dirty\n' > "${REPO}/README.md"
-  run prepare
+  run candidate --base-absent
   [ "$status" -ne 0 ]
   ! git -C "${REPO}" show-ref --verify --quiet refs/heads/starter
+  ! git -C "${REPO}" show-ref --verify --quiet refs/heads/starter-rc
 }
 
-@test "conflict leaves consumer merge state for explicit resolution" {
+@test "conflicting consumer merge retains the merge state for explicit resolution" {
   prepare
-  git -C "${REPO}" switch -q starter
-  printf 'consumer edit\n' > "${REPO}/.devcontainer/docs/guide.md"
-  git -C "${REPO}" commit -qam consumer
-  git -C "${REPO}" switch -q dev
+  consumer="${TEMP}/consumer"
+  git clone -q --no-local --branch starter "${REPO}" "$consumer"
+  git -C "$consumer" config user.name 'Consumer Fixture'
+  git -C "$consumer" config user.email 'consumer@example.test'
+  printf 'consumer edit\n' > "$consumer/.devcontainer/docs/guide.md"
+  git -C "$consumer" commit -qam 'Customize guide'
+  consumer_head="$(git -C "$consumer" rev-parse HEAD)"
+
   printf 'upstream edit\n' > "${REPO}/.devcontainer/docs/guide.md"
-  git -C "${REPO}" commit -qam upstream
-  git -C "${REPO}" switch -q starter
-  run prepare
+  git -C "${REPO}" commit -qam 'Update guide'
+  prepare
+  release="$(git -C "${REPO}" rev-parse starter)"
+  git -C "$consumer" fetch -q "${REPO}" refs/heads/starter:refs/remotes/upstream/starter
+  run git -C "$consumer" merge --no-ff upstream/starter
   [ "$status" -ne 0 ]
-  [ -f "${REPO}/.git/MERGE_HEAD" ]
-  [ "$(git -C "${REPO}" show HEAD:.devcontainer/docs/guide.md)" = 'consumer edit' ]
+  [ "$(git -C "$consumer" rev-parse HEAD)" = "$consumer_head" ]
+  [ "$(git -C "$consumer" rev-parse MERGE_HEAD)" = "$release" ]
+  [ "$(git -C "$consumer" show HEAD:.devcontainer/docs/guide.md)" = 'consumer edit' ]
+  [ -n "$(git -C "$consumer" ls-files -u -- .devcontainer/docs/guide.md)" ]
 }
 
 @test "distributed guides do not instruct consumers to run maintainer tasks" {
@@ -810,7 +653,6 @@ PY
   printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
   git -C "${REPO}" add .devcontainer/docs/guide.md
   git -C "${REPO}" commit -qm 'Update starter guide'
-  git -C "${REPO}" switch -q starter
   prepare
   second_release="$(git -C "${REPO}" rev-parse starter)"
   git -C "${consumer}" fetch -q "${REPO}" \

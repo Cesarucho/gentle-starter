@@ -24,18 +24,6 @@ tasks:
     cmds:
       - task: test:help
 
-  distribution:
-    desc: Prepare or update a local consumer branch from an explicit source
-    dir: ..
-    cmds:
-      - python3 .maintainer/scripts/starter-distribution.py {{.CLI_ARGS}}
-
-  distribution:producer:
-    desc: Update an existing local starter branch from committed source without switching branches
-    dir: ..
-    cmds:
-      - python3 .maintainer/scripts/starter-producer.py {{.CLI_ARGS}}
-
   distribution:candidate:
     desc: Build or cancel a local starter-rc candidate without changing starter
     dir: ..

@@ -10,15 +10,15 @@ import subprocess
 import sys
 
 
-script = Path(__file__).with_name("starter-distribution.py")
-spec = importlib.util.spec_from_file_location("starter_distribution", script)
+script = Path(__file__).with_name("starter-source.py")
+spec = importlib.util.spec_from_file_location("starter_source", script)
 assert spec is not None and spec.loader is not None
-distribution = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(distribution)
-git = distribution.git
-require = distribution.require
-branch = distribution.branch
-exists = distribution.exists
+source_tree = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(source_tree)
+git = source_tree.git
+require = source_tree.require
+branch = source_tree.branch
+exists = source_tree.exists
 
 SOURCE = "Starter-Candidate-Source: "
 BASE = "Starter-Candidate-Base: "
@@ -45,7 +45,7 @@ def identity(commit):
     require(len(parents) <= 1, "candidate must have at most one candidate parent")
     require(git("cat-file", "-t", source) == "commit", "invalid candidate source")
     require(base == ZERO or git("cat-file", "-t", base) == "commit", "invalid candidate base")
-    require(git("rev-parse", f"{commit}^{{tree}}") == distribution.filtered_tree(source),
+    require(git("rev-parse", f"{commit}^{{tree}}") == source_tree.filtered_tree(source),
             "candidate tree does not match committed source")
     return source, base, parents
 
@@ -113,7 +113,7 @@ def main():
         require(not args.cancel, "no candidate to cancel")
     require(source is not None, "source must be an existing local branch")
 
-    tree = distribution.filtered_tree(source)
+    tree = source_tree.filtered_tree(source)
     message = f"{SUBJECT}\n\n{SOURCE}{source}\n{BASE}{base}\n"
     commit = git("commit-tree", tree, *(["-p", prior] if prior else []), input=message.encode())
     git("update-ref", target_ref, commit, prior or ZERO)
