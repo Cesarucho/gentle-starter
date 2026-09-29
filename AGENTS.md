@@ -18,7 +18,6 @@ Never rely on branch or commit metadata copied into documentation.
 - Once a linear `starter` release is published, consumers should clone that
   branch to retain ancestry with later releases. Its history does not descend
   from producer `dev`; a fork of `dev` is not equivalent to a consumer clone.
-  No new `starter` release is published yet.
 - `task project:init` is an optional one-time project setup. It prompts for a
   branch (default `main`) and optional project `origin`, configures canonical
   Gentle Starter `upstream`, removes identity, and creates the normal child
