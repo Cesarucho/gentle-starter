@@ -29,8 +29,10 @@ reports that suggestions are unavailable instead of reading its development
 lock. You can install any other skill directly with the Skills CLI:
 
 ```bash
-skills add owner/repo --skill skill-name --agent pi --copy -y
+skills add owner/repo --skill skill-name --agent universal --copy -y
 ```
+
+The universal target installs the skill in `.agents/skills/`.
 
 The task validates the whole selection before calling Skills CLI. Each selected
 skill is added separately; if one fails, the remaining selected skills are still

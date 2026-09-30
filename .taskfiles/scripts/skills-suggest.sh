@@ -81,7 +81,7 @@ fi
 
 failed=()
 for name in "${selected[@]}"; do
-	if ! skills add "${sources[$name]}" --skill "$name" --agent pi --copy -y; then
+	if ! skills add "${sources[$name]}" --skill "$name" --agent universal --copy -y; then
 		failed+=("$name")
 	fi
 done

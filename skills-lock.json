@@ -49,12 +49,6 @@
       "skillPath": "skills/markdown-documentation/SKILL.md",
       "computedHash": "bebe932f4f94560dd90ae7534f2a8731edb70a3ca33f96ad8127cb1de4464780"
     },
-    "rfc-specification": {
-      "source": "jpoutrin/product-forge",
-      "sourceType": "github",
-      "skillPath": "plugins/devops-data/skills/rfc-specification/SKILL.md",
-      "computedHash": "7beaec93d328ba8cb90105c919d2da3f732000a4dfc4bd9168cbd0ce1b19e0af"
-    },
     "subagent-creator": {
       "source": "tech-leads-club/agent-skills",
       "sourceType": "github",

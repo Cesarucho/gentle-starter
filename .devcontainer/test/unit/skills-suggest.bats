@@ -52,7 +52,7 @@ export -f suggest
 	run bash -c 'printf "2,2\ny\n" | suggest'
 	[ "$status" -eq 0 ]
 	[ "$(wc -l <"$CALLS")" -eq 1 ]
-	[ "$(<"$CALLS")" = 'add example/two --skill beta --agent pi --copy -y' ]
+	[ "$(<"$CALLS")" = 'add example/two --skill beta --agent universal --copy -y' ]
 }
 
 @test "all selection and explicit batch names install selected entries" {
@@ -66,7 +66,7 @@ export -f suggest
 	[ "$(
 		read -r first <"$CALLS"
 		printf '%s' "$first"
-	)" = 'add example/two --skill beta --agent pi --copy -y' ]
+	)" = 'add example/two --skill beta --agent universal --copy -y' ]
 }
 
 @test "partial failure reports failed names and continues selected installs" {

@@ -66,7 +66,7 @@ Start with `.devcontainer/docs/extending.md`; use the linked deep dives for each
 - External skills restored by the Skills CLI remain in `skills-lock.json`.
 - Repository-authored `add-tool` lives in `.agents/skills/add-tool/` and is
   tracked by Git, not by external lock metadata.
-- Use the installed `skills` CLI: `skills add <source> --skill <name> --agent pi --copy -y`,
+- Use the installed `skills` CLI: `skills add <source> --skill <name> --agent universal --copy -y`,
   `skills experimental_install -y` (experimental lock restore),
   `skills update --project -y`, and `skills list --json`.
 - Remove only by explicit name: `skills remove <name> -y`. NEVER run
