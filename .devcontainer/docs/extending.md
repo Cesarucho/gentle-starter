@@ -71,9 +71,11 @@ Use the existing SSH-agent integration for outbound Git authentication with my h
 ```
 
 This reuses the host agent socket rather than adding a new tool or copying keys.
-The SSH-agent override is already selected in the current
-[`devcontainer.json`](../devcontainer.json). The host must provide a running agent
-and an `SSH_AUTH_SOCK` socket visible to the Docker daemon. No SSH server is needed;
+The SSH-agent integration is available but optional. After providing a running
+host agent and an `SSH_AUTH_SOCK` socket visible to the Docker daemon, explicitly
+select `config/compose/docker-compose.ssh-agent.yml` in `dockerComposeFile` in
+[`devcontainer.json`](../devcontainer.json). Installer enable/disable does not
+select this override. No SSH server is needed;
 see the [SSH integration requirements](optional-integrations.md#host-prerequisites).
 
 ## The extension surfaces in one diagram

@@ -103,6 +103,16 @@ run_pi_volume_repair() {
 	[ ! -s "${CALLS_FILE}" ]
 }
 
+@test "SSH client trust state remains passive without runtime installer calls" {
+	write_installer "4000-tool-ssh"
+	enable_installer_as "4000-tool-ssh" "4000-tool-ssh.sh"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.ssh, target: /home/ubuntu/.ssh, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
+	run_pi_volume_repair
+	[ "${status}" -eq 0 ]
+	[ ! -s "${CALLS_FILE}" ]
+}
+
 @test "enabling an optional fixture uses its canonical basename" {
 	write_installer "3000-ai-opencode"
 

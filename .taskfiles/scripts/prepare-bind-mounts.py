@@ -53,12 +53,14 @@ def required_components(paths, workspace):
 
 
 def prepare_directory(path, expected_owner):
+    private = os.path.basename(path) == ".ssh" and os.path.basename(os.path.dirname(path)) == ".env.d"
+    mode = 0o700 if private else CREATED_MODE
     created = False
     try:
         before = os.lstat(path)
     except FileNotFoundError:
         try:
-            os.mkdir(path, CREATED_MODE)
+            os.mkdir(path, mode)
         except OSError as error:
             raise SystemExit(f"[bind-prep:error] could not create {path}: {error}")
         before = os.lstat(path)
@@ -69,7 +71,7 @@ def prepare_directory(path, expected_owner):
     if not stat.S_ISDIR(before.st_mode):
         raise SystemExit(f"[bind-prep:error] managed path is not a directory: {path}")
     if created:
-        set_exact_created_mode(path)
+        set_exact_created_mode(path, mode)
         before = os.lstat(path)
     if (before.st_uid, before.st_gid) != expected_owner:
         uid, gid = expected_owner
@@ -77,7 +79,11 @@ def prepare_directory(path, expected_owner):
             f"[bind-prep:error] managed directory has wrong owner: {path}; "
             f"remediate this exact path only: sudo chown {uid}:{gid} '{path}'"
         )
-    if created and stat.S_IMODE(before.st_mode) != CREATED_MODE:
+    if private and (stat.S_IMODE(before.st_mode) & 0o7077 or not before.st_mode & stat.S_IWUSR
+                    or not before.st_mode & stat.S_IXUSR):
+        raise SystemExit(f"[bind-prep:error] unsafe .ssh directory mode: {path}; "
+                         f"inspect this exact path, then chmod 0700 '{path}'")
+    if created and stat.S_IMODE(before.st_mode) != mode:
         raise SystemExit(f"[bind-prep:error] managed directory mode verification failed: {path}")
 
     after = os.lstat(path)
@@ -86,11 +92,11 @@ def prepare_directory(path, expected_owner):
         raise SystemExit(f"[bind-prep:error] managed directory changed during verification: {path}")
 
 
-def set_exact_created_mode(path):
+def set_exact_created_mode(path, mode=CREATED_MODE):
     descriptor = None
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        os.fchmod(descriptor, CREATED_MODE)
+        os.fchmod(descriptor, mode)
     except OSError as error:
         raise SystemExit(f"[bind-prep:error] could not set exact mode on {path}: {error}")
     finally:

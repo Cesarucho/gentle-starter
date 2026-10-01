@@ -35,6 +35,41 @@ No data is migrated.
 Existing Pi data is never deleted when disabled. Pi configuration is seeded only
 with Pi Coding enabled; Gentle AI alone does not create `~/.pi/gentle-ai`.
 
+## Optional outbound SSH and manual host trust
+
+Select `config/compose/docker-compose.ssh-agent.yml` independently of installer
+activation. Start and populate your host agent yourself and export a daemon-visible
+`SSH_AUTH_SOCK`, then run `task container:recreate` on the host. Restart does not
+apply the new mounts. No SSH server is required.
+
+The override mounts only the external agent socket and per-clone `.env.d/.ssh`
+at `/home/ubuntu/.ssh`; it never mounts host `~/.ssh` or copies private keys.
+Task creates new managed `.ssh` roots as 0700, preserves safe existing contents
+and modes, and refuses unsafe roots with exact-path remediation rather than
+repairing them. This is passive state with no runtime ownership repair.
+Disabling the override or recreating the container does not delete that state.
+
+Only an interactive TTY opened by `task container:connect` shows local onboarding.
+It preserves readable `~/.bashrc` and checks the applied manifest, expected socket,
+and existing plain or hashed GitHub entries without printing keys or writing trust.
+Socket existence does not prove responsiveness or loaded keys. Entry presence
+does not prove valid trust; revoked or differing records and lookup errors require
+manual inspection. IDE terminals, nested ordinary shells, and other entrypoints
+do not run this welcome.
+
+When trust is missing, manually run:
+
+```bash
+ssh -o StrictHostKeyChecking=ask -T git@github.com
+```
+
+Compare the displayed fingerprint with [GitHub's official fingerprints](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
+before accepting. Never bypass a changed or revoked key. Authentication and host
+trust are separate; GitHub's successful authentication message can accompany exit
+status 1 because it does not provide shell access. After intentional recreation,
+repeat the manual check to verify persisted trust. Startup never runs SSH,
+`ssh-keyscan`, `ssh-add`, network checks, or automatic acceptance.
+
 ## Optional CodeGraph
 
 1. Run `task install:enable -- 3060-ai-codegraph`.

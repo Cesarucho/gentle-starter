@@ -244,6 +244,19 @@ def load_manifest(workspace, runtime=False):
     return manifest
 
 
+def check_ssh_agent(manifest):
+    """Check only the already validated applied snapshot, never live Compose."""
+    if ".devcontainer/config/compose/docker-compose.ssh-agent.yml" not in manifest["files"]:
+        fail("SSH agent override is not applied")
+    records = {record["target"]: record for record in manifest["volumes"]}
+    agent = records.get("/ssh-agent", {})
+    state = records.get("/home/ubuntu/.ssh", {})
+    if (agent.get("managed") is not False or agent.get("source") != "external"
+            or state.get("managed") is not True or state.get("source") != ".env.d/.ssh"
+            or state.get("read_only") is not False):
+        fail("SSH agent requires its external socket and writable managed .ssh binds")
+
+
 def check_existing_container(name, identity):
     result = subprocess.run(["docker", "container", "ls", "-a", "--format", "{{.Names}}"],
                             capture_output=True, check=False, text=True)
@@ -313,8 +326,11 @@ def main():
             if not isinstance(name, str) or not name:
                 fail("Selected service requires container_name")
             print(name)
-    elif command in {"records", "runtime", "check", "ssh-server", "service"}:
-        manifest = load_manifest(workspace, runtime=command in {"runtime", "ssh-server"})
+    elif command in {"records", "runtime", "check", "ssh-server", "ssh-agent", "service"}:
+        manifest = load_manifest(workspace, runtime=command in {"runtime", "ssh-server", "ssh-agent"})
+        if command == "ssh-agent":
+            check_ssh_agent(manifest)
+            return
         if command == "ssh-server":
             installer = workspace / ".devcontainer/install/available/4010-tool-ssh-server.sh"
             aliases = (link for group in ("02-core-tools", "03-enabled")

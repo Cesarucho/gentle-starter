@@ -214,7 +214,7 @@ tasks:
       - task: ensure-running
       - task: run-devcontainer
         vars:
-          ARGS: exec --workspace-folder {{.WORKSPACE}} bash
+          ARGS: exec --workspace-folder {{.WORKSPACE}} bash --rcfile .taskfiles/scripts/container-connect.bash -i
 
   opencode:
     desc: Continue the direct OpenCode TUI inside devcontainer

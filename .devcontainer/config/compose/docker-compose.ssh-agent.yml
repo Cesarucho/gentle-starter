@@ -7,3 +7,7 @@ services:
         source: ${SSH_AUTH_SOCK:?Missing SSH_AUTH_SOCK}
         target: /ssh-agent
         bind: { create_host_path: false }
+      - type: bind
+        source: ../.env.d/.ssh
+        target: /home/ubuntu/.ssh
+        bind: { create_host_path: false }

@@ -230,6 +230,45 @@ module.prepare_directory(sys.argv[2], (os.getuid() + 1, os.getgid()))
 	[[ "${output}" != *"chown -R"* ]]
 }
 
+@test "SSH root direct preparation preserves safe state and rejects unsafe roots" {
+	run python3 -c '
+import importlib.util, os, pathlib, sys
+spec = importlib.util.spec_from_file_location("prep", sys.argv[1])
+prep = importlib.util.module_from_spec(spec); spec.loader.exec_module(prep)
+root = pathlib.Path(sys.argv[2]) / ".env.d"; root.mkdir()
+owner = (os.getuid(), os.getgid())
+state = root / ".ssh"
+prep.prepare_directory(str(state), owner)
+assert state.stat().st_mode & 0o7777 == 0o700
+sentinel = state / "known_hosts"; sentinel.write_text("preserve"); sentinel.chmod(0o600)
+before = sentinel.stat()
+prep.prepare_directory(str(state), owner)
+assert sentinel.read_text() == "preserve" and sentinel.stat() == before
+for mode in (0o755, 0o770, 0o1700, 0o500):
+    state.chmod(mode)
+    try: prep.prepare_directory(str(state), owner)
+    except SystemExit: pass
+    else: raise AssertionError(mode)
+    assert state.stat().st_mode & 0o7777 == mode
+state.chmod(0o700)
+try: prep.prepare_directory(str(state), (os.getuid()+1, os.getgid()))
+except SystemExit: pass
+else: raise AssertionError("owner accepted")
+sentinel.unlink(); state.rmdir(); state.symlink_to(root, target_is_directory=True)
+try: prep.prepare_directory(str(state), owner)
+except SystemExit: pass
+else: raise AssertionError("symlink accepted")
+state.unlink(); state.write_text("collision")
+try: prep.prepare_directory(str(state), owner)
+except SystemExit: pass
+else: raise AssertionError("file accepted")
+assert state.read_text() == "collision"
+other = root / ".pi"; prep.prepare_directory(str(other), owner)
+assert other.stat().st_mode & 0o7777 == 0o755
+' "${WORKSPACE}/.taskfiles/scripts/prepare-bind-mounts.py" "${WORKSPACE}"
+	[ "${status}" -eq 0 ]
+}
+
 @test "Compose managed binds fail closed while setup repair excludes the passive bind root" {
 	cp "${REPO_ROOT}/.devcontainer/config/compose/docker-compose-core-tools.yml" "${WORKSPACE}/.devcontainer/docker-compose.yml"
 	write_expected_managed_directories \

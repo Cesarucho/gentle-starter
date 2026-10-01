@@ -61,6 +61,43 @@ class ManifestFixture(unittest.TestCase):
 
 
 class ManifestTests(ManifestFixture):
+    def test_agent_override_static_independence(self):
+        selected = manifest.read_compose_fragment(
+            ROOT / ".devcontainer/config/compose/docker-compose.ssh-agent.yml")["services"]["container-svc"]
+        self.assertEqual(selected["environment"], {"SSH_AUTH_SOCK": "/ssh-agent"})
+        self.assertEqual(set(selected), {"environment", "volumes"})
+        self.assertEqual(selected["volumes"], [
+            self.bind("${SSH_AUTH_SOCK:?Missing SSH_AUTH_SOCK}", "/ssh-agent"),
+            self.bind("../.env.d/.ssh", "/home/ubuntu/.ssh")])
+
+    def test_connect_agent_applied_snapshot_only(self):
+        self.selected["volumes"][0] = self.bind(str(self.root / ".env.d/.ssh"), "/home/ubuntu/.ssh")
+        value = self.projection()
+        value["files"].append(".devcontainer/config/compose/docker-compose.ssh-agent.yml")
+        value["id"] = manifest.digest({key: value[key] for key in manifest.IDENTITY_FIELDS})
+        value["snapshot_digest"] = manifest.digest({key: item for key, item in value.items()
+                                                     if key != "snapshot_digest"})
+        (self.root / manifest.MANIFEST).write_text(json.dumps(value))
+        with patch.object(manifest.sys, "argv", ["manifest", "ssh-agent", str(self.root)]), \
+                patch.object(manifest.subprocess, "run", side_effect=AssertionError("external command")), \
+                patch.object(manifest, "selection", side_effect=AssertionError("live selection")):
+            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": "old"}):
+                with self.assertRaisesRegex(ValueError, "not applied"):
+                    manifest.main()
+            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}):
+                manifest.main()
+        for change in ("selection", "readonly", "source", "agent"):
+            invalid = copy.deepcopy(value)
+            if change == "selection":
+                invalid["files"].pop()
+            elif change == "agent":
+                invalid["volumes"] = [record for record in invalid["volumes"] if record["target"] != "/ssh-agent"]
+            else:
+                state = next(record for record in invalid["volumes"] if record["target"] == "/home/ubuntu/.ssh")
+                state["read_only" if change == "readonly" else "source"] = True if change == "readonly" else ".env.d/other"
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                manifest.check_ssh_agent(invalid)
+
     def test_selection_preserves_order_and_jsonc_strings(self):
         service, files, _ = manifest.selection(self.root)
         self.assertEqual(service, "custom")

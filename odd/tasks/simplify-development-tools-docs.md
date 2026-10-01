@@ -84,3 +84,27 @@ behavior changes, installed-skill edits, staging, commits, network, or builds.
   alone was insufficient evidence, not proof that zero files were checked.
 - No operational or application proof was attempted. Owner review remains
   pending; no content rewrite or semantic guarantee was added for state copying.
+
+## Accepted SSH selection correction
+
+- [x] Replace the guide's claim that the SSH-agent override is already selected
+  with optional availability, host prerequisites, and explicit `dockerComposeFile`
+  selection independent of installer enable/disable. No configuration changed.
+- [x] Cancel only verified `starter-rc` at
+  `b4df354edd499dd190cbd437a0c412add5cb7221` using
+  `task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel`
+  before editing; cancellation requires a clean worktree. Its source was
+  `b64b5fe2a4cc89aab4ee2f8720710f9cc596e2d5`, tree
+  `7fe26399f6623502d119a5508d901d546bae1782`, and pinned base
+  `f11a05661d5773db7a435e562f2f539a3448e161`; `starter` remains unchanged.
+- [x] `git diff --check`: PASS, no output.
+- [x] `markdownlint-cli2 --no-globs .devcontainer/docs/extending.md odd/tasks/simplify-development-tools-docs.md`:
+  PASS, 2 files linted, 0 issues.
+- [x] `bats .maintainer/test/unit/guide-links.bats .maintainer/test/unit/readme-contract.bats .maintainer/test/unit/starter-distribution.bats`:
+  PASS, 32/32 tests; temporary local Git fixtures only.
+- [ ] Owner inspects and authorizes a source commit; edits remain unstaged and
+  uncommitted. Only after committing and restoring a clean worktree, regenerate
+  with `task --taskfile .maintainer/Taskfile.yml distribution:candidate`.
+
+No candidate was regenerated from the old source. No network, build, Docker,
+download, SSH trust change, remote operation, promotion, tag, or review was run.
