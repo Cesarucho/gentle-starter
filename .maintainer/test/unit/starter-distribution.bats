@@ -554,6 +554,26 @@ PY
   [ "$status" -eq 0 ]
 }
 
+@test "published starter preserves manual workaround selector and guide bytes" {
+  mkdir -p "${REPO}/.taskfiles/scripts"
+  for name in skills-suggest.sh skills-catalog.py; do
+    cp "${ROOT}/.taskfiles/scripts/${name}" "${REPO}/.taskfiles/scripts/${name}"
+  done
+  cp "${ROOT}/.devcontainer/docs/optional-skills.md" "${REPO}/.devcontainer/docs/optional-skills.md"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Include manual skills guidance'
+  candidate --base-absent
+  approval
+  base=absent
+  promote
+
+  for path in .taskfiles/scripts/skills-suggest.sh .taskfiles/scripts/skills-catalog.py \
+    .devcontainer/docs/optional-skills.md; do
+    [ "$(git -C "${REPO}" rev-parse "starter:${path}")" = "$(git -C "${ROOT}" hash-object "${path}")" ]
+  done
+  ! git -C "${REPO}" cat-file -e starter:odd/tasks/skills-manual-workaround.md
+}
+
 @test "candidate rejects malformed skill lock and leaves release and candidate unchanged" {
   prepare
   candidate

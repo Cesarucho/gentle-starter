@@ -87,6 +87,16 @@ for name in "${selected[@]}"; do
 done
 if ((${#failed[@]})); then
 	printf 'skills:suggest: install failed for: %s; other selected installs may have succeeded; inspect skills-lock.json and installed skills\n' "${failed[*]}" >&2
+else
+	printf 'Installed: %s\n' "${selected[*]}"
+fi
+
+printf '\n%s\n' 'Temporary user-requested workaround (manual; the user monitors the patch).'
+printf '%s\n' \
+	'The following commands are shown only, NOT executed. Run them manually if you choose:' \
+	'skills add wondelai/skills/clean-code -a opencode -y' \
+	'skills add wondelai/skills/domain-driven-design -a opencode -y' \
+	'skills add https://github.com/upstash/context7/tree/master/plugins/agent-plugins/context7/skills/context7-mcp -a opencode -y'
+if ((${#failed[@]})); then
 	exit 1
 fi
-printf 'Installed: %s\n' "${selected[*]}"
