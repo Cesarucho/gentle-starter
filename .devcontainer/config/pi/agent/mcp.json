@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "context7": {
+      "args": [
+        "-y",
+        "--package=@upstash/context7-mcp@2.2.5",
+        "--",
+        "context7-mcp"
+      ],
+      "command": "npx",
+      "directTools": [
+        "resolve-library-id",
+        "query-docs"
+      ],
+      "lifecycle": "lazy"
+    },
+    "engram": {
+      "args": [
+        "mcp",
+        "--tools=agent"
+      ],
+      "command": "/home/ubuntu/.local/bin/engram",
+      "directTools": false,
+      "lifecycle": "lazy"
+    }
+  }
+}

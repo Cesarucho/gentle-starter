@@ -1,0 +1,69 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+  },
+  "default_agent": "gentle-orchestrator",
+  "lsp": true,
+  "mcp": {
+    "codegraph": {
+      "command": [
+        "codegraph",
+        "serve",
+        "--mcp"
+      ],
+      "enabled": false,
+      "environment": {
+        "CODEGRAPH_NO_DOWNLOAD": "1",
+        "CODEGRAPH_NO_UPDATE_CHECK": "1",
+        "CODEGRAPH_TELEMETRY": "0"
+      },
+      "type": "local"
+    },
+    "context7": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "engram": {
+      "command": [
+        "engram",
+        "mcp",
+        "--tools=agent"
+      ],
+      "type": "local"
+    }
+  },
+  "permission": {
+    "edit": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      "*.git-credentials": "deny",
+      "*auth.json": "deny",
+      ".devcontainer/.env": "allow"
+    },
+    "external_directory": {
+      "*": "ask",
+      "/home/ubuntu/.claude/skills/**": "allow",
+      "/home/ubuntu/.config/opencode/**": "allow",
+      "/home/ubuntu/.engram/**": "allow",
+      "/home/ubuntu/.gentle-ai/**": "allow",
+      "/tmp/**": "allow"
+    },
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      "*.git-credentials": "deny",
+      "*auth.json": "deny",
+      ".devcontainer/.env": "allow"
+    }
+  },
+  "plugin": [
+    "@mohak34/opencode-notifier@latest"
+  ],
+  "server": {
+    "hostname": "0.0.0.0"
+  },
+  "share": "disabled"
+}

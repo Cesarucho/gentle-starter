@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "skills": {
+    "architecture-patterns": {
+      "source": "wshobson/agents",
+      "skillPath": "plugins/backend-development/skills/architecture-patterns/SKILL.md"
+    },
+    "clean-code": {
+      "source": "wondelai/skills",
+      "skillPath": "clean-code/SKILL.md"
+    },
+    "context7-mcp": {
+      "source": "upstash/context7",
+      "skillPath": "plugins/agent-plugins/context7/skills/context7-mcp/SKILL.md"
+    },
+    "design-patterns": {
+      "source": "ratacat/claude-skills",
+      "skillPath": "skills/design-patterns/SKILL.md"
+    },
+    "domain-driven-design": {
+      "source": "wondelai/skills",
+      "skillPath": "domain-driven-design/SKILL.md"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "skillPath": "skills/find-skills/SKILL.md"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "skillPath": "skills/frontend-design/SKILL.md"
+    },
+    "markdown-documentation": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "skillPath": "skills/markdown-documentation/SKILL.md"
+    },
+    "subagent-creator": {
+      "source": "tech-leads-club/agent-skills",
+      "skillPath": "packages/skills-catalog/skills/(creation)/subagent-creator/SKILL.md"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "skillPath": "skills/react-best-practices/SKILL.md"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "skillPath": "skills/web-design-guidelines/SKILL.md"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+services:
+  container-svc:
+    image: "${APP_NAME}-img:0.1"
+    container_name: "${APP_NAME}-run"
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        APP_NAME: ${APP_NAME}
+        LOCALE: ${LOCALE}
+        TZ: ${TZ}
+    privileged: true
+    environment:
+      # Task exports this after resolution; startup rejects an empty identity.
+      GENTLE_VOLUME_MANIFEST_ID: ${GENTLE_VOLUME_MANIFEST_ID:-}
+    ports:
+      - "${APP_PORT}:${APP_PORT}" # App port
+    env_file:
+      - ../.env

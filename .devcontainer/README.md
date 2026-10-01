@@ -1,0 +1,108 @@
+# `.devcontainer/`
+
+Devcontainer configuration. Read this top-down.
+
+For deep-dive material (the install/ convention, the volume
+contract, config seeding, the FAQ), start at
+[`docs/extending.md`](docs/extending.md) and follow the
+links from there.
+
+To opt into suggested agent skills, see [optional skills](docs/optional-skills.md).
+
+## What's in here
+
+| Path | Purpose |
+|---|---|
+| `Dockerfile` | Cached foundation → core-tools → devcontainer stages. Runs `01-foundation/`, `02-core-tools/`, `03-enabled/`, then `04-hooks/`. |
+| `devcontainer.json` | Task-driven Dev Container CLI configuration and ordered Compose selection. IDEs attach only. |
+| `docker-compose.yml` | Base service, build, application port and manifest identity; always first. |
+| `config/compose/` | Active core-tools binds/OpenCode port and independently selected optional overrides, including disabled CodeGraph. |
+| `install/` | Build-time install scripts. See [install tree](docs/install-tree.md). |
+| `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
+| `test/` | Shared environment tests; not application tests. |
+| `config/pi/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
+| `config/opencode/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
+| `config/ssh/` | Versioned SSH server configuration and startup wrapper. |
+| `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
+| `Taskfile.yml` (sibling) | Root project task entry. Includes `container:`, `install:`, etc. |
+
+## Test ownership
+
+The project owner configures `tasks.test.cmds` in the root `Taskfile.yml` with
+the application's test command. Until then, `task test` fails with actionable
+instructions rather than reporting success or running starter tests.
+
+Shared environment tests live here; application tests belong to the project.
+See [test scope](docs/extending.md#how-do-i-run-the-test-suite).
+`validate` and `install:doctor` are environment/repository
+checks, not proof that the application works.
+
+## The four systems
+
+The devcontainer has four extension surfaces:
+
+1. **Install scripts** (`install/`) — build-time tools and
+   dependencies. Adding a new tool or a new runtime lands here.
+   Deep dive in [`docs/install-tree.md`](docs/install-tree.md).
+
+2. **Stateful volumes** (selected Compose files + `lifecycle/setup-volumes.sh`)
+   — bind mounts that survive rebuilds. Installer-owned targets trigger
+   their repair scripts; passive state mounts persist without repair.
+   Deep dive in [`docs/install-volumes.md`](docs/install-volumes.md).
+   Select optional Pi, SSH-agent, SSH-server, and audio integrations using
+   [`optional-integrations.md`](docs/optional-integrations.md). Task prepares
+   a semantic host snapshot; runtime rejects invalid or unapplied mount identities.
+
+3. **Config files** (`config/<name>/` + `seed_config_tree` in
+   `setup.sh`) — versioned baseline configs copied to the runtime
+   path on first run. Deep dive in
+   [`docs/configs.md`](docs/configs.md).
+
+4. **Tool-version policy** (`tool-versions.conf`) — editable provider-specific
+   `TOOL_*_VERSION` intent plus a final generated `LOCK_*` section. Only
+   `task tools:update` may modify it; builds and installers are read-only.
+
+The comprehensive view (how the three systems interact, a worked
+example adding Redis end-to-end, and the FAQ) is in
+[`docs/extending.md`](docs/extending.md).
+
+## Adding a new tool's baseline config (the short version)
+
+For the full convention, see
+[`docs/configs.md`](docs/configs.md). The one-paragraph
+version:
+
+1. Create `.devcontainer/config/<name>/` with the file tree that
+   mirrors the tool's runtime config location.
+2. Add a `seed_config_tree` call to `setup_versioned_configs()`
+   in `setup.sh` with the absolute target. Targets outside `$HOME`
+   auto-escalate to `sudo` — no flag needed.
+
+Example: adding a baseline postgresql config:
+
+```text
+.devcontainer/config/postgres/16/main/pg_hba.conf
+#   runtime: /etc/postgresql/16/main/pg_hba.conf
+```
+
+```bash
+# in setup.sh
+seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
+```
+
+## Updating from Gentle Starter
+
+A project cloned from the published `starter` branch with
+`git clone --branch starter --origin upstream` already has `upstream`.
+Do not run this update against producer `dev`. To update your project, fetch
+and merge the consumer branch:
+
+```bash
+git fetch upstream
+git merge upstream/starter
+```
+
+If you cloned by another method without that remote, add it first:
+`git remote add upstream https://github.com/Cesarucho/gentle-starter.git`.
+Resolve conflicts manually. GitHub template-generated repositories do not
+share ancestry, and shallow clones may need `git fetch --unshallow upstream`.

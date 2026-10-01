@@ -1,0 +1,112 @@
+{
+  "model_profiles": {
+    "review-readability": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "review-reliability": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "review-resilience": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "review-risk": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "reviewer": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "scout": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "worker": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "sdd-init": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "effort": "low"
+    },
+    "sdd-onboard": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "effort": "low"
+    },
+    "sdd-explore": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "effort": "low"
+    },
+    "sdd-proposal": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "xhigh"
+    },
+    "sdd-spec": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "low"
+    },
+    "sdd-design": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "sdd-tasks": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "effort": "low"
+    },
+    "sdd-status": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "effort": "low"
+    },
+    "sdd-apply": {
+      "model": "openai-codex/gpt-5.3-codex-spark",
+      "effort": "high"
+    },
+    "sdd-verify": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "sdd-sync": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "sdd-archive": {
+      "model": "openai-codex/gpt-5.6-luna",
+      "effort": "low"
+    },
+    "jd-judge-a": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "high"
+    },
+    "jd-judge-b": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "high"
+    },
+    "jd-fix-agent": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "context-builder": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "delegate": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "oracle": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "effort": "medium"
+    },
+    "planner": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "medium"
+    },
+    "researcher": {
+      "model": "openai-codex/gpt-5.6-terra",
+      "effort": "high"
+    }
+  }
+}

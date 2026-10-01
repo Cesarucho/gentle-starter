@@ -1,0 +1,20 @@
+{
+  "description": "Optional MCP server presets. Copy entries into mcp.json > mcpServers to enable them.",
+  "mcpServers": {
+    "github": {
+      "description": "GitHub MCP server. Requires GITHUB_PERSONAL_ACCESS_TOKEN in the container environment.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "lifecycle": "lazy"
+    },
+    "playwright": {
+      "description": "Playwright MCP server for browser automation and UI inspection.",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "lifecycle": "lazy"
+    }
+  }
+}

@@ -1,0 +1,1 @@
+../available/3050-ai-skills.sh

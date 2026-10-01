@@ -1,0 +1,102 @@
+version: "3"
+
+includes:
+  config:
+    taskfile: ./.taskfiles/config.yml
+  container:
+    taskfile: ./.taskfiles/devcontainer.yml
+  tools:
+    taskfile: ./.taskfiles/tools.yml
+  doctor:
+    taskfile: ./.taskfiles/doctor.yml
+    internal: true
+  install:
+    taskfile: ./.taskfiles/install.yml
+  quality:
+    taskfile: ./.taskfiles/quality.yml
+    internal: true
+  ssh:
+    taskfile: ./.taskfiles/ssh.yml
+  skills:
+    taskfile: ./.taskfiles/skills.yml
+
+tasks:
+  default:
+    desc: Show project task help
+    cmds:
+      - task: help
+
+  validate:
+    desc: Diagnose the current context; require strict quality inside the container
+    vars:
+      VALIDATE_CONTEXT:
+        sh: ./.taskfiles/scripts/doctor.sh context
+    cmds:
+      - ./.taskfiles/scripts/doctor.sh validate
+      - task: quality:full
+        if: '{{eq .VALIDATE_CONTEXT "container"}}'
+
+  test:
+    desc: Run application tests (project owner must configure this task)
+    cmds:
+      - |
+        printf '%s\n' 'Application tests are not configured. Replace tasks.test.cmds in Taskfile.yml with your application test command.' >&2
+        exit 2
+
+  project:check-existing:
+    desc: Read-only host preflight (set PROJECT to an absolute existing project path)
+    cmds:
+      - python3 ./.taskfiles/scripts/check-existing-project.py "$PROJECT"
+
+  help:
+    desc: Show task help
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Tasks help
+
+        General:
+          task help                       Show this help
+          task --list                     List all available tasks
+          PROJECT=/absolute/path task project:check-existing  Read-only existing-project preflight
+          task validate                   Host preflight (partial) or container diagnosis and strict quality
+          task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
+          task skills:suggest              Choose optional skills interactively
+                                          Does not update installed tools; apply later with container:rebuild then container:up
+                                          Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update
+                                          GitHub REST cache: ${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/ (safe to clear)
+          task --exit-code config:diff    Compare runtime configuration with its seed
+          task config:export              Export managed runtime configuration to its seed
+
+        SSH:
+          task ssh:help                   Show SSH workflow help
+          task ssh:register-keys          Auto-detect and register .pub keys
+          task ssh:start                  Start SSH agent and add keys
+          task ssh:check                  Verify SSH agent and GitHub connectivity
+          task ssh:status                 Show current SSH agent status
+          task ssh:stop                   Stop the SSH agent
+
+        Container:
+          task container:help             Show container workflow examples
+          task container:build            Build devcontainer
+          task container:up               Start devcontainer
+          task container:rm               Force-remove the devcontainer service container
+          task container:rebuild          Remove container and build; does not start
+          task container:restart          Restart the same existing container
+          task container:recreate         Remove and start devcontainer
+          task container:connect          Open bash inside devcontainer
+          task container:opencode         Continue the direct OpenCode TUI
+          task container:opencode:server  Attach; stop only the task-owned server on exit
+          task container:pi               Connect to Pi inside devcontainer
+          task container:engram           Connect to Engram TUI inside devcontainer
+
+        Install:
+          task install:list               Show install scripts and full catalog status
+          task install:enable -- NAME     Enable an available install script (NAME = filename without .sh)
+          task install:disable -- NAME    Disable an enabled install script (NAME = filename without .sh)
+          task install:doctor             Check install layout integrity
+
+        Testing:
+          task test                       Application tests (configure tasks.test.cmds first)
+        EOF

@@ -1,0 +1,62 @@
+# Repository tool architecture
+
+## Inspect before editing
+
+Run `scripts/inspect-install-tree.sh` from this skill directory, then read the paths it reports. Derived repositories may rename tasks, disable tools, change slot order, or omit a surface. Treat current files—not this reference—as authoritative.
+
+## Extension surfaces
+
+1. **Catalog:** `.devcontainer/install/available/` owns both core and optional tool installers. Start from the closest real installer; use the canonical repository template only as a skeleton. `01-foundation/` is OS/bootstrap only; personal tools belong in `04-hooks/`.
+2. **Activation:** Catalog installers use `BBPP-category-tool.sh`: related block `BB`, position `PP` from `00` to `99`, unique full prefix, gaps allowed. Generated aliases retain the identical basename. Preserve valid custom aliases by resolved canonical target. Build order is explicit Dockerfile group order, then lexical alias filename order, never global canonical numeric rank. Reject duplicate identities and per-layer alias prefixes.
+3. **Enable helper:** Enable/disable modifies only `03-enabled/` and refuses core tools. `dependencies.conf` alone defines real dependencies. Plan the required transitive closure even for active consumers, reuse existing core dependencies, and never autoactivate companions. Structurally validate image requirements without executing host installers. Validate the complete projected selection under the shared enable/disable directory lock before changing links; roll back only operation-created links. Disable protects active dependents and retains orphan prerequisites. Missing core must fail against selective Dockerfile COPY inputs, not be duplicated into optional. Intentional core customization coordinates those inputs and aliases; never broaden core COPY to the full catalog. Keep project identity, optional selectors/sources, and hooks downstream of the cached `core-tools` stage.
+4. **Version policy:** `.devcontainer/tool-versions.conf` contains user-editable
+   `TOOL_*_VERSION` intent followed by generated exact `LOCK_*` values and
+   checksums. `tools:update` is the sole mutation authority. Installers retain
+   URLs, paths, architecture gates, permissions, and verification, but never
+   local version/checksum defaults or release discovery.
+   Go Task is a narrow existing external APT-managed core bootstrap exception:
+   it stays outside policy to preserve the foundation/cache boundary. Do not use
+   it as precedent for a new unmanaged tool.
+5. **Persistent state:** classify each bind as passive or installer-owned. Every repository-managed source uses Compose long syntax with `bind.create_host_path: false` and is prepared before Docker by the host-user `prepare-bind-mounts.sh`/Python path. Passive mounts stop there; installer-owned mounts also require `compose_target_to_install_scripts`, an enabled runtime-safe installer, and idempotent repair tests. Mapping values are installer basenames without `.sh`.
+6. **Config seeding:** baseline user configuration belongs in a versioned `.devcontainer/config/<tool>/` tree wired through the repository's copy-on-first-run helper. Preserve existing user files. Never restore the legacy symlink pattern.
+
+## Lifecycle
+
+Build installers normally run as root with `DEVCONTAINER_PHASE=build`. PostCreate and volume repair normally run as the development user with `DEVCONTAINER_PHASE=runtime`. A script may run repeatedly in both phases. Detect the actual repository contract before assuming user, HOME, copied build path, or workspace path.
+
+Runtime-only tools must explicitly skip build and reject accidental root execution when user ownership matters. Global binary installation must not invoke commands that create or rewrite user configuration.
+
+Host Task preparation lets Docker Compose resolve the service and ordered files
+from JSONC. Keep full config in memory; atomically publish only the versioned
+volume projection with input/source fingerprints. Normalize managed sources to
+workspace-relative `.env.d` paths. Create only missing components as the host
+user with exact mode `0755`; preserve existing paths and descendants and reject
+symlinks, files, and foreign ownership. Never prepare external sockets as
+directories. Runtime requires fresh repository inputs and the creation-time
+manifest identity before any mutation; desired mounts alone are insufficient.
+Check producer completion before dispatch, not through unchecked process
+substitution. Use JSON or NUL records, never delimiter splitting or base64 eval.
+
+Select independent Pi, SSH-agent, SSH-server, and audio overrides manually in
+`devcontainer.json`; installer enable/disable integration is deferred. Mount
+changes require Task recreation, package changes Task rebuilding. SSH client is
+downstream/default; server needs both installer and persisted-key override.
+Pulse clients are downstream/optional; `HOST_UID` only locates the host socket
+after the host guard, never container identity. Preserve foundation cache inputs.
+Keep the external Pulse socket at `/pulse-native` with `PULSE_SERVER=unix:/pulse-native`;
+DinD startup can hide binds beneath `/tmp` with tmpfs. Preserve read-only binding
+and `create_host_path: false`; never prepare the socket as managed state. Apply
+this mount/environment change with host `task container:recreate`, not a package rebuild.
+
+## Lessons from Gentle AI
+
+- Install the CLI binary only; do not run configuration-mutating setup or sync commands.
+- Validate version policy and architecture digest before an exact-version early exit.
+- Replace stale binaries through a staged file; retain and restore the previous binary if final verification fails.
+- Bound retries and preserve the previous installation on every download, digest, extraction, or verification failure.
+- Test the canonical enabled slot and doctor contract; avoid stale hardcoded catalog counts.
+- Old running containers do not prove a new image install. Use a temporary PATH for isolated tests and rebuild only through the documented host or host-simulation flow.
+
+## Local skill lifecycle
+
+Inspect the derivative's installed Skills CLI and Git-tracked skill tree before adding project-authored skills. External skills are recorded in `skills-lock.json`; this repository's `add-tool` is tracked under `.agents/skills/add-tool/`, without fabricated external lock metadata. Use `skills add <source> --skill <name> --agent universal --copy -y` for external skills; the universal target installs them in `.agents/skills/`. Use `skills experimental_install -y` for experimental lock restore, `skills update --project -y` for project updates, and `skills list --json` to inspect. Remove only by explicit name (`skills remove <name> -y`); NEVER run `skills remove --skill '*'`, which deletes tracked local skills too. Review Git status and diff after CLI operations; restore a mistakenly removed `add-tool` from Git. Generated `.claude/` is ignored, but never delete personal content there. Check the derivative's own policies rather than assuming this repository's ignore rules apply.
