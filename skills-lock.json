@@ -15,9 +15,10 @@
     },
     "context7-mcp": {
       "source": "upstash/context7",
+      "ref": "master",
       "sourceType": "github",
-      "skillPath": "skills/context7-mcp/SKILL.md",
-      "computedHash": "38728e71e4773f70b3e7d2a2c90b1b0466ba7829603d790b05e0a3ab12f8e569"
+      "skillPath": "plugins/agent-plugins/context7/skills/context7-mcp/SKILL.md",
+      "computedHash": "a9872afc619d758fba46a4a3918bcf7e722e160907be15c6159df21f678280c4"
     },
     "design-patterns": {
       "source": "ratacat/claude-skills",
@@ -41,7 +42,7 @@
       "source": "anthropics/skills",
       "sourceType": "github",
       "skillPath": "skills/frontend-design/SKILL.md",
-      "computedHash": "4eabc66183767153e404b39d1b839b1c37f2d82d86f0a0d7e880a579d8d62336"
+      "computedHash": "89496d5dd00f4810205f351759594fc2742bf8eea85a2f2b2d1de59f4bd91576"
     },
     "markdown-documentation": {
       "source": "aj-geddes/useful-ai-prompts",
