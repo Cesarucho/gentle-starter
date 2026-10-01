@@ -7,7 +7,8 @@ fi
 gentle_connect_welcome() (
 	[[ $- == *i* && -t 0 && -t 1 ]] || return 0
 	printf 'Welcome to Gentle Starter.\n'
-	local script_dir workspace matches status line record previous='' conflict=0 revoked=0
+	local script_dir workspace matches status line algorithm blob conflict=0 revoked=0
+	local -A key_blobs=()
 	script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || return 0
 	workspace="$(cd -- "${script_dir}/../.." && pwd)" || return 0
 	if ! python3 "${script_dir}/compose-manifest.py" ssh-agent "${workspace}"; then
@@ -34,10 +35,14 @@ gentle_connect_welcome() (
 			while IFS= read -r line; do
 				[[ ${line} == \#* || -z ${line} ]] && continue
 				[[ ${line} == '@revoked '* ]] && revoked=1
-				record="${line#* }"
-				[[ ${line} == @* ]] && record="${record#* }"
-				[[ -n ${previous} && ${previous} != "${record}" ]] && conflict=1
-				previous="${record}"
+				if [[ ${line} == @* ]]; then
+					read -r _ _ algorithm blob _ <<<"${line}"
+				else
+					read -r _ algorithm blob _ <<<"${line}"
+				fi
+				[[ -n ${algorithm} && -n ${blob} ]] || continue
+				[[ -n ${key_blobs[${algorithm}]:-} && ${key_blobs[${algorithm}]} != "${blob}" ]] && conflict=1
+				key_blobs[${algorithm}]="${blob}"
 			done <<<"${matches}"
 			printf 'GitHub known_hosts entry present; presence does not establish valid trust.\n'
 			((revoked)) && printf 'WARNING: revoked GitHub entry; resolve manually, never bypass revocation.\n'

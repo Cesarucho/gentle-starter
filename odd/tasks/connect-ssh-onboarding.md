@@ -4,7 +4,66 @@ Persist manually verified GitHub host trust in optional managed `.ssh` state.
 Only `task container:connect` receives a dedicated interactive startup file;
 ordinary shells and all other entrypoints remain unchanged.
 
-## Route and constraints
+## Current local commit authorization
+
+The owner explicitly authorized two local work-unit commits: the SSH comparison
+fix with its tests and this record, and the owner-edited OpenCode configuration.
+This current authorization overrides earlier no-commit constraints below; those
+sections remain historical snapshots. Commit creation is still pending and
+belongs to the parent, not this bounded preparation worker.
+
+- [x] C05 Owner approval granted for these two current local commit scopes.
+  This records owner authorization, not native review approval.
+- [ ] Parent creates the two authorized commits after preparation.
+- SSH unit: `.taskfiles/scripts/container-connect.bash`,
+  `.devcontainer/test/unit/container-connect-test.py`, and this document.
+- OpenCode unit: `.devcontainer/config/opencode/opencode.json` only. The owner
+  manually fixed the JSON; current parsing and semantic comparison against HEAD
+  confirm exactly 20 fallback-agent profiles removed, with retained content
+  unchanged. No configuration or source changes are authorized for this worker.
+- Exclude `.devcontainer/install/03-enabled/4000-tool-ssh.sh` from both units;
+  leave the existing untracked alias untouched and unstaged.
+- Native review preflight was attempted but did not reach START or approval.
+  Status remains pending: `intended_untracked_selection_required`. No review
+  execution, approval, or provider repair is claimed; none is invoked here.
+- Worker boundary: edit only this document and mirror it to Engram #2425;
+  foreground check-only normalization and local checks only. No staging, commits,
+  push, network, remote access, Docker, source/config edits, subdelegation, or
+  native review invocation. TDD remains unconfigured; these are ordinary tests.
+- Rollback boundaries: revert the SSH unit independently of the owner OpenCode
+  unit; restore only removed fallback profiles for the OpenCode unit. Neither
+  rollback includes the excluded alias or unrelated work.
+
+### Current preparation evidence
+
+Observed `dev` at `cfc8f0e7e34cb0889a13e12b313a1b4d98561ab3`; index unchanged
+and cached diff empty. No commits were created by this preparation worker.
+
+- Foreground normalization/check-only first:
+  `shfmt -d .taskfiles/scripts/container-connect.bash .devcontainer/test/unit/container-connect.bats`:
+  exit 0, no differences; no formatter writes.
+- `PYTHONDONTWRITEBYTECODE=1 python3 .devcontainer/test/unit/container-connect-test.py`:
+  exit 0; 10 plain/hashed algorithm cases and all retained controls passed;
+  timeout 0.753s, PID 12156, SIGKILL reaped, no live or waitable child.
+- `bats .devcontainer/test/unit/container-connect.bats`: exit 0, 1/1 passed.
+- `bash -n .taskfiles/scripts/container-connect.bash`: exit 0, no diagnostics.
+- `shellcheck -s bash .taskfiles/scripts/container-connect.bash .devcontainer/test/unit/container-connect.bats`:
+  exit 0, no diagnostics.
+- `shfmt -d .taskfiles/scripts/container-connect.bash .devcontainer/test/unit/container-connect.bats`:
+  exit 0, no differences.
+- `markdownlint-cli2 --no-globs odd/tasks/connect-ssh-onboarding.md`:
+  exit 0, 1 input file, 0 issues.
+- `git diff --check`: exit 0, no diagnostics.
+- JSON proof: `json.loads` accepts both current configuration and HEAD;
+  semantic equality after removing precisely the 20 fallback profiles proves
+  all retained agents and other configuration unchanged.
+- Bounded secret scan: full tracked candidate diff checked for private-key
+  headers, common GitHub/AWS credential patterns, and quoted credential
+  assignments; no matches. This is heuristic, not a comprehensive secret audit.
+- Runtime boundary: local PTY fixtures only; actual SSH authentication, agent
+  responsiveness, consumer persistence and Docker lifecycle remain unverified.
+
+## Historical route and constraints
 
 - Multi-file implementation triggers the delegated route; the assigned writer
   executes directly, with no further delegation or agent/review usage authorized.
@@ -26,7 +85,8 @@ ordinary shells and all other entrypoints remain unchanged.
   and read-only known-host checks, with manual guidance and focused tests.
 - [x] C04 Document activation, persistence and manual verification; normalize
   sources before functional tests, record exact local results and preservation.
-- [ ] C05 Owner reviews the unstaged diff and authorizes any later commit.
+- [ ] C05 At this historical snapshot, owner review and later commit authorization
+  were pending; current scoped approval is recorded above.
 
 ## Checks
 
@@ -104,3 +164,68 @@ Engram full-document mirror: `odd/connect-ssh-onboarding/tasks`.
 - Rollback boundary: remove only this advisory section and the PTY timeout
   helper/regression changes in `container-connect-test.py`; prior proof remains.
   Operational SSH/authentication/persistence proof remains out of scope.
+
+## Authorized correction: algorithm-scoped host-key comparison
+
+Historic sections above remain snapshots, not current branch or proof claims.
+Current preparation observed `dev` at `cfc8f0e7e34cb0889a13e12b313a1b4d98561ab3`.
+
+- Route: delegated (two nontrivial source/test files and preparation trigger);
+  this assigned writer works directly without further delegation or native review.
+- Scope: `.taskfiles/scripts/container-connect.bash`,
+  `.devcontainer/test/unit/container-connect-test.py`, and this document only.
+- Acceptance: compare blobs per algorithm regardless of ordering or comments;
+  different algorithms and identical duplicates do not warn, same-algorithm
+  differing blobs warn, and revoked records warn independently. Retain privacy,
+  nonfatal startup, eligibility, TTY, bashrc, and forbidden-call controls.
+- Fixtures: temporary HOME and local key generation only; plain/hashed
+  ED25519/RSA/ECDSA, commented duplicates, interleaved conflicts and revocation.
+- Forecast: fewer than 200 authored changed lines, advisory, one cohesive work
+  unit. Delivery: ask-on-risk if scope or forecast becomes unsafe; no staging,
+  commit or publication authorization. Owner retains review authority.
+- TDD is not explicitly configured: ordinary focused testing, regressions first
+  and safe observed pre-fix failure; no claimed configured strict mode.
+- No network, remote access, ambient agent inspection/calls, real consumer trust
+  edits, Docker, builds, or broad lifecycle suites. Preserve initial unrelated
+  OpenCode configuration and untracked SSH alias bytes, index and HEAD.
+- [x] F01 Add comparison regressions, observe safe focused failure, then fix
+  algorithm-scoped comparison and normalize source.
+- [x] F02 Run all seven required foreground checks, record exact outcomes and
+  preservation proof, then re-mirror and read back the complete document.
+- Rollback: remove only this correction section, algorithm comparison changes,
+  and its regression fixture additions; preserve prior behavior and snapshots.
+- Relative locator: `odd/tasks/connect-ssh-onboarding.md`.
+  Full-document mirror: `odd/connect-ssh-onboarding/tasks` (Engram #2425).
+
+### Correction evidence
+
+- Regression-first command:
+  `PYTHONDONTWRITEBYTECODE=1 python3 .devcontainer/test/unit/container-connect-test.py`:
+  expected pre-fix exit 1, `AssertionError: ('mixed algorithms', False)`.
+  The bounded timeout control passed (0.753s); no configured strict TDD claimed.
+- Normalization: `shfmt -w .taskfiles/scripts/container-connect.bash` passed
+  before final functional checks; Python additions use existing formatting.
+- Post-fix focused Python command passed: ten new plain/hashed cases and all
+  retained controls; bounded timeout 0.752s, SIGKILL reaped, no live child.
+- Final foreground commands all passed:
+  - `PYTHONDONTWRITEBYTECODE=1 python3 .devcontainer/test/unit/container-connect-test.py`:
+    ten new cases plus retained controls; timeout 0.753s, child reaped.
+  - `bats .devcontainer/test/unit/container-connect.bats`: 1/1 wrapper test.
+  - `bash -n .taskfiles/scripts/container-connect.bash`: no diagnostics.
+  - `shellcheck -s bash .taskfiles/scripts/container-connect.bash .devcontainer/test/unit/container-connect.bats`:
+    no diagnostics; historic K06 concerns other fixtures and is unchanged.
+  - `shfmt -d .taskfiles/scripts/container-connect.bash .devcontainer/test/unit/container-connect.bats`:
+    no differences.
+  - `markdownlint-cli2 --no-globs odd/tasks/connect-ssh-onboarding.md`:
+    1 input file, 0 issues.
+  - `git diff --check`: no diagnostics.
+- Preservation: before/after SHA-256 matched for unrelated OpenCode bytes
+  (`5a66faf62c1128715531023faa4491ba2beab636a4a7bfc6994aaf3b4f67cd93`)
+  and untracked SSH alias target bytes
+  (`f296eaa560a6135621163e71c763492b909ef49f0ddb424ec763c0ee7cbb9f4a`);
+  alias remains `../available/4000-tool-ssh.sh`. Raw index hash remains
+  `c7fd9a874da9153fafb22ef1cdc9a755c313bac3b516f409b0845dcabe2ba342`;
+  HEAD unchanged and cached diff empty. Nothing staged or committed.
+- Runtime boundary: local PTY harness only. Actual SSH authentication, agent
+  responsiveness, consumer trust, Docker/build/lifecycle and publication remain
+  unverified and forbidden. No native review; parent owns subsequent review.

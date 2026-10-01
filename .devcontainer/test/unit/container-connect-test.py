@@ -157,6 +157,41 @@ with tempfile.TemporaryDirectory() as temporary:
     known.write_text("@revoked " + entry + entry.replace(public[1], "AAAA"))
     output = execute()
     assert "revoked GitHub" in output and "possible conflicts" in output
+    keys = [public[:2]]
+    for name, algorithm in (("rsa", "rsa"), ("ecdsa", "ecdsa"),
+                            ("other-ed25519", "ed25519")):
+        key = root / name
+        subprocess.run(["/usr/bin/ssh-keygen", "-q", "-t", algorithm,
+                        "-N", "", "-f", str(key)], env=environment, check=True)
+        keys.append(Path(str(key) + ".pub").read_text().split()[:2])
+    records = ["github.com " + " ".join(key) for key in keys]
+    scenarios = [
+        ("mixed algorithms", records[:3], False, False),
+        ("reordered algorithms", list(reversed(records[:3])), False, False),
+        ("commented duplicates", [records[0] + " first comment", records[1],
+                                 records[0] + " different comment", records[2],
+                                 records[1] + " duplicate", records[2]], False, False),
+        ("interleaved same-type conflict", [records[0], records[1], records[3],
+                                            records[2], records[0]], True, False),
+        ("independent revocation", [records[0], records[1],
+                                    "@revoked " + records[2]], False, True),
+    ]
+    for hashed in (False, True):
+        for label, entries, conflict, revoked in scenarios:
+            known.write_text("\n".join(entries) + "\n")
+            if hashed:
+                subprocess.run(["/usr/bin/ssh-keygen", "-H", "-f", str(known)],
+                               env=environment, capture_output=True, check=True)
+            before = known.read_bytes()
+            output = execute()
+            assert ("possible conflicts" in output) == conflict, (label, hashed)
+            assert ("revoked GitHub" in output) == revoked, (label, hashed)
+            assert "presence does not establish valid trust" in output
+            assert all(key[1] not in output for key in keys)
+            assert known.read_bytes() == before
+            assert "bashrc:yes" in output and "nested-ok" in output
+            assert not calls.exists()
+    print("PASS: 10 plain/hashed algorithm, duplicate, conflict and revocation cases")
     shim = bin_dir / "ssh-keygen"
     shim.write_text('#!/bin/bash\nexit 2\n')
     shim.chmod(0o755)
