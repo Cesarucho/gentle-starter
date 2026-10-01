@@ -28,6 +28,54 @@ Each surface has a deep-dive document or ADR.
 This file is the entry point and the FAQ. If you only have time to read one
 doc, read this one.
 
+## Extension examples
+
+These short prompts describe requirements for the assisted workflow introduced
+in the README. Only include the configuration, state, or host integration you
+need; the implementation depends on the existing tool and extension surfaces.
+
+### Install only: btop
+
+```text
+Add btop for CLI monitoring. Installation only; no custom config or persistent state.
+```
+
+This is an install-tree request. Managed tools also need a supported version
+policy; configuration and state wiring are separate concerns.
+
+### Versioned configuration: Nginx
+
+```text
+Add Nginx with a version-controlled baseline configuration.
+```
+
+Specify the defaults you need. Follow the [config-seeding contract](configs.md)
+and verify which configuration the service actually uses; existing runtime
+files are preserved by seeding.
+
+### Host access: Nginx
+
+```text
+Make Nginx reachable from my host. Confirm an available host port before configuring it.
+```
+
+Host access needs an explicit port mapping and conflict check, not a guaranteed
+project-derived port. If a Compose override is needed, select it explicitly in
+`dockerComposeFile`; selection is independent of installer enable/disable.
+See [optional integrations](optional-integrations.md) for the host workflow.
+
+### Host resource: SSH agent
+
+```text
+Use the existing SSH-agent integration for outbound Git authentication with my host keys.
+```
+
+This reuses the host agent socket rather than adding a new tool or copying keys.
+The SSH-agent override is already selected in the current
+[`devcontainer.json`](../devcontainer.json). The host must provide a running agent
+and an `SSH_AUTH_SOCK` socket visible to the Docker daemon. No SSH server is needed;
+see the [SSH integration requirements](optional-integrations.md#host-prerequisites).
+
 ## The extension surfaces in one diagram
 
 ```text

@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[[ "${tree}" == *"lifecycle/"* ]]
 	[[ "${tree}" == *"tool-versions.conf"* ]]
 	[[ "${tree}" != *"openspec/"* ]]
-	run grep -E '\.env\.d/[[:space:]]+Local environment state([,[:space:]]|$)' <<< "${tree}"
+	run grep -E '\.env\.d/[[:space:]]+\*[[:space:]]+Local environment state([,[:space:]]|$)' <<< "${tree}"
 	[ "${status}" -eq 0 ]
 }
 

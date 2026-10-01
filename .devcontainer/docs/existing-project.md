@@ -58,6 +58,23 @@ and retains a merge commit even if Git could fast-forward. Do not squash merge.
 Do not start the merge with a dirty index or worktree. If Git reports conflicts,
 resolve each one individually and stage only the intended result.
 
+### 💾 Preserve the current sessions of OpenCode & Engram
+
+A simple way to maintain the OpenCode and Engram session history is to copy
+all state files, including SQLite databases. While not ideal, stopping
+OpenCode/Engram services in both directions while copying and pasting should
+work correctly.
+
+| type   | typical location                          | starter-repo location   |
+|--------|-------------------------------------------|-------------------------|
+| state  | ~/.local/share/opencode/*                 | .env.d/.opencode/share/ |
+| state  | ~/.engram/*                               | .env.d/.engram/         |
+| id     | <repo>/.git/opencode                      | .git/                   |
+| id     | <repo>/.git/engram-project-identity.json  | .git/                   |
+
+> ⚠️: Keep in mind that **you are copying highly sensitive information**, especially
+> `auth.json` from opencode. So do it manually, don't use AI.
+
 ### 🛡️ Review before you commit
 
 - Protect the project's `README.md`, `LICENSE`, `AGENTS.md`,

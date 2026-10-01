@@ -57,8 +57,9 @@ Completed on `feat/skills-universal-installs` before committing:
 - `bats .devcontainer/test/unit/skills-suggest.bats` — PASS: 8/8 tests.
 - `bats .maintainer/test/unit/starter-distribution.bats` — PASS: 24/24 tests.
 - `shfmt -d .taskfiles/scripts/skills-suggest.sh` — PASS: no output.
-- `markdownlint-cli2 .devcontainer/docs/optional-skills.md AGENTS.md` — PASS:
-  0 issues in 0 files.
+- `markdownlint-cli2 .devcontainer/docs/optional-skills.md AGENTS.md` — reported
+  `Summary: 0 issues in 0 files` only. Without the `Linting:` count, that retained
+  summary alone is not proof of which files were checked.
 - `git diff --check` — PASS: no output.
 
 The selector now preserves `--copy` while using `--agent universal`, which
@@ -68,4 +69,19 @@ local `.agents/skills/rfc-specification/` directory remains untouched.
 
 ## Next step
 
-Delegate the bounded multi-file implementation and run focused verification.
+Implementation is complete in the current branch. Owner review and any further
+commit or publication remain pending; this documentation cleanup does not
+authorize staging, committing, or publishing. See the latest local documentation
+verification below; the earlier selector and distribution results were not rerun.
+
+## Latest local documentation verification
+
+- The six-path markdownlint command recorded in
+  [the cleanup task](simplify-development-tools-docs.md#authorized-final-cleanup)
+  checked 22 files because repository configuration adds broader globs: no issues.
+- The same six paths with `--no-globs` checked 6 files: no issues.
+- `git diff --check` passed; focused guide-link and README-contract Bats passed
+  8/8 tests. These checks do not re-prove Skills CLI installation behavior.
+- In markdownlint-cli2 0.23.3, the summary counts files with reported issues;
+  `Linting: 22 files` is the checked-file count. A zero-file summary does not
+  mean zero files were linted.

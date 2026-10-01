@@ -29,7 +29,7 @@ achieved.
 The project on this branch is the **producer** designed to provide a clean baseline
 structure before starting a new project or integrating it with an existing project.
 As a **consumer**, you should clone the `starter` branch and create the remote `upstream`
-for future upgrades; these are examples of the files that belong to it:
+for future upgrades. These are core files:
 
 ```bash
 .
@@ -38,12 +38,12 @@ for future upgrades; these are examples of the files that belong to it:
 │       └── add-tool/
 ├── .devcontainer/
 ├── .taskfiles/
-├── .env.example
+├── .env.d/
 ├── .markdownlint-cli2.yaml
 └── Taskfile.yml
 ```
 
-> Common files have not been mentioned
+> The complete structure is [mentioned here](#️-repository-structure-for-consumers)
 
 ## 📦 What's included?
 
@@ -372,19 +372,22 @@ task test
 
 ### Install tools catalog management
 
+There is a catalog of standardized tools that can be enabled from
+`.devcontainer/install/available/` to `.devcontainer/install/03-enabled/`.
+
 ```bash
-# Show install scripts and the full dynamic catalog from .devcontainer/install/available/
 task install:list
 
-# Enable a new tool from .devcontainer/install/available/
-task install:enable -- 2300-php-lang
+task install:enable -- 2300-php-lang    # Enable by symlink
+task install:disable -- 2300-php-lang   # Remove the symlink
+task install:doctor                     # Verify integrity
 
-# Disable a tool for future builds and postCreate runs
-task install:disable -- 2300-php-lang
-
-# Verify install layout and symlink integrity
-task install:doctor
+# For changes to take effect
+task container:rebuild
+task container:up
 ```
+
+> [Do you want to add a new standardized tool?](#-add-development-tools)
 
 ### Container lifecycle
 
@@ -418,29 +421,37 @@ task container:opencode:server  # attach to a reused or task-owned OpenCode serv
 
 ## 🗂️ Repository structure for consumers
 
-The future `starter` release contains the reusable development environment without
+The `starter` branch contains the reusable development environment without
 maintainer identity or planning files. Its own release ancestry supports later
 consumer merges; it does not include producer `dev` history.
 
-```text
+```bash
 .
-├── .agents/                         Project-authored and installed skills
-├── .devcontainer/                   Reusable development environment
-│   ├── docs/                        Local devcontainer guides
-│   ├── install/                     Foundation, core, enabled, hook, and catalog installers
-│   ├── lifecycle/                   Internal post-create lifecycle helpers
-│   ├── docker-compose.yml           Dev Container service and persistent binds
-│   ├── README.md                    Devcontainer-specific documentation
-│   ├── setup.sh                     Post-create configuration
-│   └── tool-versions.conf           Centralized tool-version policy
-├── .taskfiles/                      Task implementations and lifecycle tasks
-├── .env.d/                          Local environment state, details below section
-├── .env.example                     Safe local environment-variable template
-├── .gitignore                       Excludes local state and credentials
-├── LICENSE                          Inherited Gentle Starter MIT attribution
-├── skills-lock.json                 External skills lock file
-└── Taskfile.yml                     Main Task entry point
+├── .agents/
+│   └── skills
+│       └── add-tool/                * Unique local-installed skill
+├── .devcontainer/                   * Reusable development environment
+│   ├── docs/                            Guides
+│   ├── install/                         Installers core/opt tools
+│   ├── lifecycle/                       Internal helpers
+│   ├── docker-compose.yml               Dev Container service
+│   ├── README.md                        Devcontainer-specific documentation
+│   ├── setup.sh                         Post-create configuration
+│   └── tool-versions.conf               Centralized tool-version policy
+├── .taskfiles/                      * Task implementations
+├── .env.d/                          * Local environment state, details below section
+├── .env.example
+├── .gitattributes
+├── .gitignore
+├── .markdownlint-cli2.yaml
+├── LICENSE
+└── Taskfile.yml                     * Automation commands entry point
+
+# (*) It's a main file or directory
 ```
+
+> ⚠️ If you are integrating an existing project and any main file coincides
+> (even if there is no conflict), considers that integration is **not compatible**.
 
 ## 💾 Local state and persistence
 
@@ -501,12 +512,16 @@ Ask OpenCode to use the project `add-tool` skill. Describe the tool, version,
 whether it should be enabled by default, and any configuration or persistent
 state it needs.
 
-```text
-Use the `add-tool` skill to add PostgreSQL 16.
+For example, this request covers installation, version policy, configuration,
+and persistent data:
 
-Enable it by default, persist its data, add a version-controlled `pg_hba.conf`,
-run the applicable tests.
+```text
+Add PostgreSQL 16 and enable it by default. Persist its data across container
+recreations, add a version-controlled pg_hba.conf, and run the applicable tests.
 ```
+
+For simpler requests or host integration, see the
+[extension examples](.devcontainer/docs/extending.md#extension-examples).
 
 Use the earlier [install catalog commands](#install-tools-catalog-management), or see
 [Extending Gentle Starter](.devcontainer/docs/extending.md) for the manual architecture.
