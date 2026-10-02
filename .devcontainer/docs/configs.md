@@ -5,9 +5,9 @@
 `.devcontainer/config/<name>/` to their runtime path. It is
 copy-on-first-run (idempotent, preserves user customisations across
 rebuilds) and auto-escalates to `sudo` for targets outside `$HOME`.
-The built-in mappings split `config/pi/` by owner: `agent/` is seeded only
-when Pi Coding is enabled, while `gentle-ai/` currently requires both Pi Coding
-and core Gentle AI (not Pi Gentle). OpenCode configuration is seeded when enabled, to
+The base Pi `config/pi/agent/` mapping is seeded only when Pi Coding is enabled.
+No Pi extension packages or extension configuration are provisioned.
+OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 
@@ -63,13 +63,12 @@ Both commands resolve the same groups once, before scanning configuration:
 | --- | --- | --- |
 | OpenCode | `~/.config/opencode/` → `.devcontainer/config/opencode/` | Always |
 | Pi Coding | `~/.pi/agent/` → `.devcontainer/config/pi/agent/` | `3030-ai-pi-coding.sh` enabled |
-| Pi Gentle | `~/.pi/gentle-ai/` → `.devcontainer/config/pi/gentle-ai/` | `3040-ai-pi-gentle.sh` enabled |
 
 Pi ownership requires a valid `03-enabled/` alias resolving to the canonical
 installer, including custom alias names. The shared installer catalog, core,
 dependency, and order checks run read-only; no binary/version probes, installer
-execution, or automatic installation is involved. Invalid or broken aliases and
-Pi Gentle without its Pi Coding dependency are errors, not disabled statuses.
+execution, or automatic installation is involved. Invalid or broken aliases are
+errors, not disabled statuses.
 
 Disabled groups print `skipped` and their runtime and seed roots are not scanned,
 even if stale or unsafe. Skips alone do not require review. An enabled group whose
@@ -77,8 +76,8 @@ runtime root is absent prints `enabled-runtime-missing` and makes diff return `1
 even with no seed files; permission or other I/O errors still return `2`. Export
 retains seed files and returns `0` on success, including when no copies are needed.
 
-This export ownership intentionally differs from the current bootstrap seeding
-gate for `config/pi/gentle-ai/` described above. Bootstrap is unchanged.
+Pi export manages only `settings.json`; legacy MCP and subagent files are not
+exported. Runtime state exclusions remain protective, not plugin provisioning.
 
 ### Managed paths and exclusions
 
@@ -197,7 +196,7 @@ Three steps:
 
    ```bash
    setup_versioned_configs() {
-       # Existing enabled-aware Pi and Gentle AI mappings omitted here.
+       # Existing enabled-aware Pi and OpenCode mappings omitted here.
        seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/kubectl" "${HOME}/.kube"
    }
    ```
@@ -220,7 +219,7 @@ automatically — no flag, no extra wiring on your part.
 
 ```bash
 setup_versioned_configs() {
-    # Existing enabled-aware Pi and Gentle AI mappings omitted here.
+    # Existing enabled-aware Pi and OpenCode mappings omitted here.
     seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/postgres" "/etc/postgresql/16/main"
 }
 ```
@@ -263,14 +262,9 @@ If you have these links and want regular files instead, remove only the
 confirmed legacy links and re-run `setup.sh`:
 
 ```bash
-docker exec ${APP_NAME}-run rm -f \
-    ~/.pi/agent/settings.json \
-    ~/.pi/agent/mcp.json \
-    ~/.pi/gentle-ai/banner.json \
-    ~/.pi/gentle-ai/models.json \
-    ~/.pi/gentle-ai/persona.json
+docker exec ${APP_NAME}-run rm -f ~/.pi/agent/settings.json
 docker exec ${APP_NAME}-run bash /home/ubuntu/${APP_NAME}/.devcontainer/setup.sh
 ```
 
-After that, all five files are regular files owned by ubuntu and
-editable freely.
+After that, the base settings file is a regular file owned by ubuntu and
+editable freely. Existing extension configuration is not removed or reseeded.

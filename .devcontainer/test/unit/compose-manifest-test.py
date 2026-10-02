@@ -269,14 +269,19 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                          ".devcontainer/install/03-enabled", ".devcontainer/install/lib", ".taskfiles/scripts"):
             (self.root / relative).mkdir(parents=True, exist_ok=True)
         for relative in (".devcontainer/lifecycle/setup-volumes.sh",
-                         ".devcontainer/install/lib/activation.sh",
+                          ".devcontainer/install/lib/activation.sh",
+                          ".devcontainer/install/lib/selection.py",
                          ".devcontainer/lifecycle/compose-volume-records.py",
                          ".taskfiles/scripts/compose-manifest.py"):
             shutil.copy2(ROOT / relative, self.root / relative)
-        installer = self.root / ".devcontainer/install/available/3040-ai-pi-gentle.sh"
+        installer = self.root / ".devcontainer/install/available/3010-ai-engram.sh"
         installer.write_text('#!/bin/bash\nprintf repaired >"$WORKSPACE_DIR/calls"\n')
         link = self.root / ".devcontainer/install/03-enabled/47-custom.sh"
-        link.symlink_to("../available/3040-ai-pi-gentle.sh")
+        link.symlink_to("../available/3010-ai-engram.sh")
+        (self.root / ".devcontainer/install/02-core-tools").mkdir()
+        (self.root / ".devcontainer/install/dependencies.conf").write_text("")
+        (self.root / ".devcontainer/Dockerfile").write_text("FROM fixture AS core-tools\nCOPY install/02-core-tools/ /tmp/\n")
+        self.selected["volumes"] = [self.bind(str(self.root / ".env.d/.engram"), "/home/ubuntu/.engram")]
         value = self.publish()
         environment = {**os.environ, "WORKSPACE_DIR": str(self.root), "GENTLE_VOLUME_MANIFEST_ID": "old"}
         command = ["bash", "-c", 'source "$WORKSPACE_DIR/.devcontainer/lifecycle/setup-volumes.sh"; repair_installed_volumes']
@@ -334,6 +339,44 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertEqual((target / "opencode.json").read_text(), "user config\n")
         self.assertFalse((home / ".pi").exists())
 
+    def test_base_pi_and_core_gentle_seed_only_base_preferences_and_preserve_trust(self):
+        source = (ROOT / ".devcontainer/setup.sh").read_text()
+        seed = source[source.index("seed_config_tree() {"):source.index("\nrepair_user_local_parents()")]
+        setup = source[source.index("setup_versioned_configs() {"):source.index("\nsetup_pi_workspace_trust()")]
+        trust = source[source.index("setup_pi_workspace_trust() {"):source.index("\n# Setup git files configurations")]
+        baseline = self.root / ".devcontainer/config/pi/agent"
+        shutil.copytree(ROOT / ".devcontainer/config/pi/agent", baseline)
+        settings = json.loads((baseline / "settings.json").read_text())
+        self.assertEqual(settings["defaultModel"], "gpt-5.6-sol")
+        self.assertEqual(settings["defaultProvider"], "openai-codex")
+        self.assertEqual(settings["defaultThinkingLevel"], "low")
+        self.assertFalse(set(settings) & {"packages", "hud", "subagents", "theme", "powerline"})
+        home = self.root / "home"
+        agent = home / ".pi/agent"
+        agent.mkdir(parents=True)
+        (agent / "trust.json").write_text('{"/existing": true}')
+        command = ('install_script_is_enabled() { [[ "$1" == *3030-ai-pi-coding.sh || '
+                   '"$1" == *3020-ai-gentle-ai.sh ]]; }; ' + seed + setup + trust +
+                   '\nsetup_versioned_configs\nsetup_pi_workspace_trust\nsetup_versioned_configs')
+        result = subprocess.run(["bash", "-eu", "-c", command],
+                                env={**os.environ, "HOME": str(home), "WORKSPACE_DIR": str(self.root),
+                                     "SCRIPT_DIR": str(self.root / ".devcontainer")}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((agent / "settings.json").read_bytes(), (baseline / "settings.json").read_bytes())
+        self.assertFalse((home / ".pi/gentle-ai").exists())
+        self.assertFalse((agent / "mcp.json").exists())
+        self.assertFalse((agent / "subagents.json").exists())
+        trusted = json.loads((agent / "trust.json").read_text())
+        self.assertTrue(trusted["/existing"])
+        self.assertTrue(trusted[str(self.root)])
+        self.assertTrue(trusted["/home/ubuntu/code"])
+        (agent / "settings.json").write_text('{"defaultModel":"user-preference"}')
+        result = subprocess.run(["bash", "-eu", "-c", command],
+                                env={**os.environ, "HOME": str(home), "WORKSPACE_DIR": str(self.root),
+                                     "SCRIPT_DIR": str(self.root / ".devcontainer")}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((agent / "settings.json").read_text())["defaultModel"], "user-preference")
+
     def test_server_requires_both_enabled_installer_and_persisted_override(self):
         installer = self.root / ".devcontainer/install/available/4010-tool-ssh-server.sh"
         installer.parent.mkdir(parents=True)
@@ -367,7 +410,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
 
     def test_optional_installers_are_downstream_and_do_not_install_each_other(self):
         available = ROOT / ".devcontainer/install/available"
-        for name in ("4010-tool-ssh-server.sh", "4100-tool-pulseaudio-utils.sh", "3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh"):
+        for name in ("4010-tool-ssh-server.sh", "4100-tool-pulseaudio-utils.sh", "3030-ai-pi-coding.sh"):
             self.assertTrue((available / name).is_file())
         bin_dir = self.root / "bin"
         bin_dir.mkdir()

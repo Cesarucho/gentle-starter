@@ -142,10 +142,6 @@ setup_versioned_configs() {
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh"; then
 		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent"
 	fi
-	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh" &&
-		install_script_is_enabled "${SCRIPT_DIR}/install/available/3020-ai-gentle-ai.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai"
-	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3000-ai-opencode.sh"; then
 		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/opencode" "${HOME}/.config/opencode"
 	fi

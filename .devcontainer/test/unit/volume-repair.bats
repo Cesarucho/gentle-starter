@@ -36,7 +36,7 @@ setup() {
 	: >"${CALLS_FILE}"
 
 	write_installer "3030-ai-pi-coding"
-	write_installer "3040-ai-pi-gentle"
+	write_installer "3010-ai-engram"
 }
 
 publish_manifest() {
@@ -124,27 +124,27 @@ run_pi_volume_repair() {
 }
 
 @test "runtime activation rejects a broken alias with a matching textual target basename" {
-	ln -s /does/not/exist/3040-ai-pi-gentle.sh \
-		"${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-gentle.sh"
+	ln -s /does/not/exist/3010-ai-engram.sh \
+		"${WORKSPACE}/.devcontainer/install/03-enabled/79-broken-engram.sh"
 
 	run env WORKSPACE_DIR="${WORKSPACE}" bash -c '
 		source "$1"
 		install_script_is_enabled "$2"
 	' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh" \
-		"${WORKSPACE}/.devcontainer/install/available/3040-ai-pi-gentle.sh"
+		"${WORKSPACE}/.devcontainer/install/available/3010-ai-engram.sh"
 	[ "${status}" -ne 0 ]
 }
 
-@test "disabling Pi Gentle preserves persisted Pi state" {
+@test "disabling base Pi preserves persisted Pi state" {
 	local sentinel="${WORKSPACE}/.env.d/.pi/agent/npm/persisted-package"
 	mkdir -p "$(dirname "${sentinel}")"
 	printf 'keep\n' >"${sentinel}"
-	enable_installer_as "3040-ai-pi-gentle" "80-pi-gentle.sh"
+	enable_installer_as "3030-ai-pi-coding" "80-pi-coding.sh"
 
-	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" disable 3040-ai-pi-gentle
+	run bash "${WORKSPACE}/.taskfiles/scripts/install.sh" disable 3030-ai-pi-coding
 
 	[ "${status}" -eq 0 ]
-	[ ! -L "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-gentle.sh" ]
+	[ ! -L "${WORKSPACE}/.devcontainer/install/03-enabled/80-pi-coding.sh" ]
 	[ "$(cat "${sentinel}")" = "keep" ]
 }
 
@@ -156,7 +156,9 @@ run_pi_volume_repair() {
 
 	compose_target_to_install_scripts "/home/ubuntu/.pi" scripts
 
-	[ "${scripts[*]}" = "3040-ai-pi-gentle" ]
+	[ "${scripts[*]}" = "" ]
+	compose_target_to_install_scripts "/home/ubuntu/.engram" scripts
+	[ "${scripts[*]}" = "3010-ai-engram" ]
 }
 
 @test "volume parser supports long syntax and ignores long-syntax named volumes" {
@@ -220,24 +222,28 @@ YAML
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *".env.d/a|b c"* ]]
 	[[ "${output}" == *"/home/ubuntu/.pi"* ]]
-	[[ "${output}" == *"3040-ai-pi-gentle"* ]]
+	[[ "${output}" == *"(no mapping yet)"* ]]
 }
 
 @test "volume repair accepts an arbitrary enabled alias" {
-	enable_installer_as "3040-ai-pi-gentle" "47-custom-gentle.sh"
+	enable_installer_as "3010-ai-engram" "47-custom-engram.sh"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
 
 	run_pi_volume_repair
 
 	[ "${status}" -eq 0 ]
-	[ "$(cat "${CALLS_FILE}")" = "3040-ai-pi-gentle|runtime" ]
+	[ "$(cat "${CALLS_FILE}")" = "3010-ai-engram|runtime" ]
 }
 
-@test "volume repair skips a disabled mapped installer" {
+@test "volume repair leaves Pi passive even with a stale retired owner alias" {
+	write_installer "3040-ai-pi-gentle"
+	enable_installer_as "3040-ai-pi-gentle" "47-retired.sh"
 	run_pi_volume_repair
 
 	[ "${status}" -eq 0 ]
 	[ ! -s "${CALLS_FILE}" ]
-	[[ "${output}" != *"3040-ai-pi-gentle.sh"* ]]
+	[[ "${output}" != *"47-retired.sh"* ]]
 }
 
 @test "core Engram owner is repaired with Pi disabled" {
@@ -271,7 +277,6 @@ YAML
 	[ "${status}" -eq 0 ]
 	[ ! -s "${CALLS_FILE}" ]
 	[[ "${output}" != *"3030-ai-pi-coding.sh"* ]]
-	[[ "${output}" != *"3040-ai-pi-gentle.sh"* ]]
 }
 
 @test "Task volumes reports last host-prepared Engram ownership without dispatch" {
@@ -303,7 +308,9 @@ YAML
 }
 
 @test "repair dispatches the runtime-validated response without a second snapshot read" {
-	enable_installer_as "3040-ai-pi-gentle" "47-custom.sh"
+	enable_installer_as "3010-ai-engram" "47-custom.sh"
+	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
+	publish_manifest
 	local bin="${TEST_ROOT}/bin"
 	mkdir "${bin}"
 	cat >"${bin}/python3" <<'EOF'
@@ -324,5 +331,5 @@ EOF
 		bash -c 'source "$1"; repair_installed_volumes' _ "${WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 	[ "$status" -eq 0 ]
 	[ "$(cat "${TEST_ROOT}/reads")" = runtime ]
-	[ "$(cat "${CALLS_FILE}")" = "3040-ai-pi-gentle|runtime" ]
+	[ "$(cat "${CALLS_FILE}")" = "3010-ai-engram|runtime" ]
 }

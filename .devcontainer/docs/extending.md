@@ -319,18 +319,33 @@ fi
 # runtime-only install steps here
 ```
 
-`3040-ai-pi-gentle.sh` and `3010-ai-engram.sh` are real examples of
-this pattern.
+`3010-ai-engram.sh` is a real example of this pattern.
+
+### Retire obsolete generated locks offline
+
+After removing a tool's editable intents and updater registrations, retire only
+its explicitly named generated assignments through the policy authority:
+
+```bash
+task tools:update -- --retire-locks LOCK_RETIRED_VERSION
+```
+
+This action does not query providers, use authentication, install tools, or
+change user state. Malformed, duplicate, still-managed, or active-intent keys
+are rejected. An already absent, otherwise eligible key is an idempotent no-op;
+unknown locks not explicitly requested remain errors, never automatic pruning.
+The final generated section and complete surviving inventory are validated before
+atomic same-directory publication. Surviving bytes, order, and file mode are
+preserved; failures leave the original policy unchanged. No release upgrade is
+part of retirement.
 
 ### What happens if I delete `.env.d/` and rebuild?
 
 The volume-repair contract kicks in for installer-owned targets.
-For `.env.d/.pi/`, `repair_installed_volumes` can re-run
-`3040-ai-pi-gentle.sh` with `DEVCONTAINER_PHASE=runtime` when it is enabled; its
-idempotency guards decide what work is needed. Pi Coding is image-owned, while
-Pi Gentle remains the runtime owner of packages under `~/.pi`. Disabling it
-does not uninstall packages already persisted in `.env.d/.pi`. Passive
-mounts are different: OpenCode recreates its
+Engram has an installer-owned target. Pi Coding is image-owned; `.env.d/.pi/`
+is passive and has no extension-package repair owner. Base Pi configuration is
+seeded only when Pi Coding is enabled. Existing user packages are never removed
+by this provisioning retirement. Passive mounts are different: OpenCode recreates its
 own mutable share state as it runs, so no repair installer is mapped.
 
 This is the same distinction on a fresh clone: installer-owned mounts
@@ -542,7 +557,7 @@ appeared at the same path, you're on the pre-`seed_config_tree`
 behavior. As of the current build, the function copies real files,
 not symlinks. If you still see symlinks, you may have an old
 build's state; run
-`docker exec ${APP_NAME}-run rm -f ~/.pi/agent/{settings,mcp}.json ~/.pi/gentle-ai/{banner,models,persona}.json`
+`docker exec ${APP_NAME}-run rm -f ~/.pi/agent/settings.json`
 to clear the legacy symlinks, then `bash /home/ubuntu/${APP_NAME}/.devcontainer/setup.sh`
 inside the container. See the migration section in
 [configs.md](configs.md) for the full procedure.

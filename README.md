@@ -132,17 +132,9 @@ Run `task install:list` for the current catalog and activation state.
 | --- | --- |
 | [Skills CLI](https://github.com/vercel-labs/skills) | Install and update reusable agent skills |
 | [Gentleman Guardian Angel (GGA)](https://github.com/Gentleman-Programming/gentleman-guardian-angel) | Provide image-installed review tooling; project setup and Git hooks are optional manual steps |
-| [Gentle Pi](https://www.npmjs.com/package/gentle-pi) | Extend Pi workflows with Gentle AI integrations |
-| [Pi Subagents](https://www.npmjs.com/package/pi-subagents) | Run delegated Pi tasks through reusable subagent support |
-| [Pi Intercom](https://www.npmjs.com/package/pi-intercom) | Exchange messages between Pi workflows and agents |
-| [Pi Web Access](https://www.npmjs.com/package/pi-web-access) | Give Pi workflows controlled access to web resources |
-| [Pi Lens](https://www.npmjs.com/package/pi-lens) | Provide real-time feedback while reviewing code changes |
-| [RPIV Todo](https://www.npmjs.com/package/@juicesharp/rpiv-todo) | Track implementation tasks within Pi workflows |
-| [RPIV Ask User Question](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) | Collect structured answers from users during Pi workflows |
-| [RPIV BTW](https://www.npmjs.com/package/@juicesharp/rpiv-btw) | Handle side questions without interrupting the main task |
-| [Gentle Engram](https://www.npmjs.com/package/gentle-engram) | Connect Pi workflows to persistent project memory |
-| [Pi MCP Adapter](https://www.npmjs.com/package/pi-mcp-adapter) | Connect Pi to MCP servers and their tools |
-| [Pi Terminal Theme](https://www.npmjs.com/package/pi-terminal-theme) | Customize terminal appearance for Pi sessions |
+
+Base Pi remains optional. Repository-managed Pi extension provisioning has been
+retired without uninstalling existing user packages or deleting persisted state.
 
 ### Audio
 
@@ -481,8 +473,7 @@ be versioned. It is currently used to mount data such as:
 │   ├── cache/
 │   └── state.json
 └── .pi                       Local Pi state and configuration
-    ├── agent/
-    └── gentle-ai/
+    └── agent/
 ```
 
 > Important: do not commit tokens, credentials, or local databases to Git. The

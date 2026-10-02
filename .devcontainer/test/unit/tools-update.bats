@@ -527,16 +527,14 @@ EOF
 @test "policy groups representative editable keys by owning installer" {
 	awk '
 		/^# Java — install\/available\/20-runtime-java\.sh$/ { group = "java"; next }
-		/^# Pi Gentle — install\/available\/30-ai-pi-gentle\.sh$/ { group = "pi-gentle"; next }
 		/^# Node contracts — install\/available\/40-node-contracts\.sh$/ { group = "contracts"; next }
 		/^# Playwright — install\/available\/50-browser-playwright\.sh$/ { group = "playwright"; next }
 		/^# .* — install\/available\// { group = ""; next }
 		/^#/ || /^$/ { next }
 		group == "java" && /^TOOL_JAVA_/ { java++ }
-		group == "pi-gentle" && /^(TOOL_GENTLE_PI_|TOOL_PI_|TOOL_RPIV_|TOOL_GENTLE_ENGRAM_)/ { pi_gentle++ }
 		group == "contracts" && /^(TOOL_SPECTRAL_|TOOL_REDOCLY_|TOOL_ASYNCAPI_)/ { contracts++ }
 		group == "playwright" && /^TOOL_PLAYWRIGHT_/ { playwright++ }
-		END { exit !(java == 1 && pi_gentle == 11 && contracts == 3 && playwright == 2) }
+		END { exit !(java == 1 && contracts == 3 && playwright == 2) }
 	' "${REPO_ROOT}/.devcontainer/tool-versions.conf"
 }
 

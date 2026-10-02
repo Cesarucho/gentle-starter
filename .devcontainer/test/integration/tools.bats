@@ -227,11 +227,6 @@ load install-selection.sh
     [ "$status" -eq 0 ]
 }
 
-@test "ai: skills directory exists" {
-    skip_if_install_disabled "3040-ai-pi-gentle.sh" "task install:enable -- 3040-ai-pi-gentle"
-    [ -d "${HOME}/.pi/agent/skills" ] || [ -d "${HOME}/.pi/agent/npm/node_modules/gentle-pi/skills" ]
-}
-
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------

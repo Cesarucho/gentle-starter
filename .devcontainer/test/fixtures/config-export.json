@@ -13,16 +13,8 @@
       "owner": "3030-ai-pi-coding.sh",
       "runtime": ".pi/agent",
       "seed": ".devcontainer/config/pi/agent",
-      "managed": ["settings.json", "mcp.json", "subagents.json"],
+      "managed": ["settings.json"],
       "excluded": ["state/**", "sessions/**", "intercom/**", "bin/**", "chains/**", "agents/**", "gentle-ai/**", "pi-pretty/**", "auth.json", "trust.json", "APPEND_SYSTEM.md", "models-store.json", "mcp-cache.json", "mcp-npx-cache.json", "mcp.json.devcontainer-backup.*"]
-    },
-    {
-      "name": "Pi Gentle",
-      "owner": "3040-ai-pi-gentle.sh",
-      "runtime": ".pi/gentle-ai",
-      "seed": ".devcontainer/config/pi/gentle-ai",
-      "managed": ["banner.json", "models.json", "models.openai.json", "models.opencode.json", "persona.json"],
-      "excluded": ["sessions/**", "state/**", "npm/**", "intercom/**", "run-history.jsonl", "logs/**", "pids/**", "cache/**", "caches/**"]
     }
   ]
 }

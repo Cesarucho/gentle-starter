@@ -43,10 +43,7 @@
       "runtime": ".pi/agent",
       "seed": ".devcontainer/config/pi/agent",
       "managed": [
-        "settings.json",
-        "mcp.json",
-        "mcp.presets.json",
-        "subagents.json"
+        "settings.json"
       ],
       "excluded": [
         "npm/**",
@@ -65,32 +62,6 @@
         "mcp-cache.json",
         "mcp-npx-cache.json",
         "mcp.json.devcontainer-backup.*",
-        "run-history.jsonl",
-        "logs/**",
-        "pids/**",
-        "cache/**",
-        "caches/**"
-      ]
-    },
-    {
-      "name": "Pi Gentle",
-      "owner": "3040-ai-pi-gentle.sh",
-      "runtime": ".pi/gentle-ai",
-      "seed": ".devcontainer/config/pi/gentle-ai",
-      "managed": [
-        "banner.json",
-        "models.json",
-        "models.openai.json",
-        "models.opencode.json",
-        "persona.json"
-      ],
-      "excluded": [
-        "auth.json",
-        "credentials.json",
-        "sessions/**",
-        "state/**",
-        "npm/**",
-        "intercom/**",
         "run-history.jsonl",
         "logs/**",
         "pids/**",

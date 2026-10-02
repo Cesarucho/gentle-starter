@@ -124,7 +124,7 @@ without remotes. In the **candidate only**, it selects `docker-compose.yml` plus
 `container-svc`, retains the current base build and managed writable binds, and
 replaces the attach configuration with the standard workspace mount, ubuntu user,
 and setup command. Optional Compose overrides, custom attach settings, and CLI
-features (including nested Docker and GitHub CLI) are omitted. Pi coding/Gentle and
+features (including nested Docker and GitHub CLI) are omitted. Pi Coding and
 SSH-server activation links are removed in the candidate; other selected installers
 and user hooks remain trusted build inputs. Original selections are untouched.
 The candidate clone uses umask `022` for ordinary `0644` files and `0755`

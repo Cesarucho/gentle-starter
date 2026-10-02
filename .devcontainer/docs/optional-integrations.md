@@ -17,7 +17,7 @@ are not supported creation paths.
 
 | Compose file | Purpose | Installer requirement |
 | --- | --- | --- |
-| `config/compose/docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
+| `config/compose/docker-compose.pi.yml` | Persist passive `.env.d/.pi`; never installs Pi | Enable Pi Coding separately |
 | `config/compose/docker-compose.codegraph.yml` | Persist the root project's SQLite index | Enable `3060-ai-codegraph`; initialize manually |
 | `config/compose/docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
 | `config/compose/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server`, rebuild, then up |
@@ -33,7 +33,7 @@ assuming any optional integration is active. Recreate through Task after this
 file-layout change even though existing mount sources and targets are unchanged.
 No data is migrated.
 Existing Pi data is never deleted when disabled. Pi configuration is seeded only
-with Pi Coding enabled; Gentle AI alone does not create `~/.pi/gentle-ai`.
+with Pi Coding enabled; no Pi extension configuration or packages are provisioned.
 
 ## Optional outbound SSH and manual host trust
 

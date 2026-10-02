@@ -50,7 +50,6 @@ prepare_setup_sandbox() {
 		"${SETUP_WORKSPACE}/.devcontainer/install/lib" \
 		"${SETUP_WORKSPACE}/.devcontainer/config/opencode/nested" \
 		"${SETUP_WORKSPACE}/.devcontainer/config/pi/agent" \
-		"${SETUP_WORKSPACE}/.devcontainer/config/pi/gentle-ai" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts" \
 		"${HOME_DIR}/.config/opencode" \
 		"${HOME_DIR}/.pi" \
@@ -67,7 +66,6 @@ prepare_setup_sandbox() {
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/opencode.json"
 	printf 'nested baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/nested/agent.md"
 	printf 'pi baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/pi/agent/settings.json"
-	printf 'gentle baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/pi/gentle-ai/persona.json"
 	printf 'user customisation\n' >"${HOME_DIR}/.config/opencode/opencode.json"
 	printf 'child payload\n' >"${OPENCODE_SENTINEL}"
 	printf '0:0\n' >"${PI_OWNER_FILE}"

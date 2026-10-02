@@ -52,7 +52,7 @@ class LifecycleTests(unittest.TestCase):
                      ".devcontainer/config/compose/docker-compose-core-tools.yml", ".taskfiles/scripts/compose-manifest.py"):
             shutil.copyfile(ROOT / name, self.root / name)
         links = self.root / ".devcontainer/install/03-enabled"
-        for name in ("3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh", "4010-tool-ssh-server.sh", "3020-ai-gentle-ai.sh"):
+        for name in ("3030-ai-pi-coding.sh", "4010-tool-ssh-server.sh", "3020-ai-gentle-ai.sh"):
             (links / name).symlink_to("../available/" + name)
         (self.root / ".devcontainer/install/02-core-tools/3020-ai-gentle-ai.sh").symlink_to("../available/3020-ai-gentle-ai.sh")
 

@@ -20,7 +20,7 @@ To opt into suggested agent skills, see [optional skills](docs/optional-skills.m
 | `install/` | Build-time install scripts. See [install tree](docs/install-tree.md). |
 | `lifecycle/` | Internal post-create helpers for mode restoration and installer-owned volume repair. |
 | `test/` | Shared environment tests; not application tests. |
-| `config/pi/` | Versioned baseline config for Pi and Gentle-AI. Seeded to `~/.pi/` on first run. |
+| `config/pi/` | Base Pi preferences, seeded to `~/.pi/agent/` when Pi Coding is enabled; no extension provisioning. |
 | `config/opencode/` | Versioned baseline config for OpenCode. Seeded to `~/.config/opencode/` on first run. |
 | `config/ssh/` | Versioned SSH server configuration and startup wrapper. |
 | `setup.sh` | postCreate entry point. Handles workspace permissions, config seeding, Pi workspace trust, gitconfig wiring. |
