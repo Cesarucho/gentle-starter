@@ -108,8 +108,14 @@ EOF
 		printf '{"format":"spdx"}\n' >"${root}/SBOM.spdx.json"
 		entries+=(NOTICE SBOM.spdx.json)
 		;;
-	symlink) rm "${root}/${name}"; ln -s target "${root}/${name}" ;;
-	traversal) tar -czf "${ARCHIVE}" --transform='s|^|../|' -C "${root}" "${name}"; return ;;
+	symlink)
+		rm "${root}/${name}"
+		ln -s target "${root}/${name}"
+		;;
+	traversal)
+		tar -czf "${ARCHIVE}" --transform='s|^|../|' -C "${root}" "${name}"
+		return
+		;;
 	execution-fail) printf '#!/usr/bin/env bash\nexit 42\n' >"${root}/${name}" ;;
 	signal) printf '#!/usr/bin/env bash\nkill -TERM "$PPID"\nsleep 1\n' >"${root}/${name}" ;;
 	esac
@@ -270,6 +276,18 @@ run_direct_installer() {
 	[ "${status}" -eq 0 ]
 	[ "$("${INSTALL_DIR}/engram" version)" = "engram version 1.2.3" ]
 	assert_installer_temp_is_empty
+}
+
+@test "Engram 3.0.0 policy installs nested provider archives only in scratch" {
+	for machine in x86_64 aarch64; do
+		rm -f "${INSTALL_DIR}/engram"
+		write_engram_v2_archive 3.0.0
+		run_direct_installer engram "${machine}" 3.0.0
+		[ "$status" -eq 0 ]
+		[ "$("${INSTALL_DIR}/engram" version)" = "engram version 3.0.0" ]
+		[ ! -e "${INSTALL_DIR}/tools" ]
+		assert_installer_temp_is_empty
+	done
 }
 
 @test "direct installers reject malformed layouts and preserve installed bytes and mode" {

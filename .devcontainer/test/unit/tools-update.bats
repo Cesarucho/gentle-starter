@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+load gentle-shell-fixture.bash
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
@@ -37,6 +38,7 @@ setup() {
 	ARCHIFY_FIXTURE_VERSION="9.8.7"
 	ARCHIFY_ARCHIVE_FILE="${TEST_ROOT}/archify.zip"
 	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" normal
+	write_shell_fixture
 	ARCHIFY_FIXTURE_SHA256="$(sha256sum "${ARCHIFY_ARCHIVE_FILE}" | awk '{print $1}')"
 	write_archify_archive 9.9.9 normal
 	cp "${ARCHIFY_ARCHIVE_FILE}" "${ARCHIFY_ARCHIVE_FILE}.wrong-version"
@@ -61,6 +63,38 @@ setup() {
 	grep -q '^TOOL_CODEGRAPH_VERSION="=1.6.0"$' "${POLICY_FILE}"
 	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --validate
 	[ "$status" -eq 0 ]
+}
+
+@test "Shell bootstrap resolves all seven coupled locks without refreshing unrelated inventory" {
+	sed -i '/^LOCK_GENTLE_SHELL_/d; s/^TOOL_GENTLE_SHELL_VERSION=.*/TOOL_GENTLE_SHELL_VERSION="=4.0.0"/' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
+	[ "$status" -eq 0 ]
+	[ "$(grep -c '^LOCK_GENTLE_SHELL_' "${POLICY_FILE}")" -eq 7 ]
+	grep -v '^LOCK_GENTLE_SHELL_' "${POLICY_FILE}" >"${TEST_ROOT}/unrelated"
+	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/unrelated"
+	grep -q "^LOCK_GENTLE_SHELL_BINARY_SHA256_ARM64=\"${SHELL_BINARY_SHA}\"$" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = "$(stat -c %a "${TEST_ROOT}/before")" ]
+	! grep -q '^pnpm\|api.github.com' "${CALLS_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'all Shell locks to be absent'* ]]
+}
+
+@test "Shell bootstrap keeps original bytes and mode on package or private integrity failure" {
+	sed -i '/^LOCK_GENTLE_SHELL_/d; s/^TOOL_GENTLE_SHELL_VERSION=.*/TOOL_GENTLE_SHELL_VERSION="=4.0.0"/' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	printf 'corrupt' >>"${SHELL_ARCHIVE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'archive integrity mismatch'* ]]
+	cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
+	[ "$(stat -c %a "${POLICY_FILE}")" = "$(stat -c %a "${TEST_ROOT}/before")" ]
+	printf 'corrupt' >>"${SHELL_PACKAGE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'package integrity/layout failed'* ]]
+	cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
 }
 
 @test "failed bootstrap keeps policy bytes and mode without a partial lock" {
@@ -146,6 +180,7 @@ printf 'pnpm %s\n' "\$*" >>"${CALLS_FILE}"
 if [ "${mode}" = prerelease ]; then
   printf '%s\n' '["9.9.9-beta.1"]'
 else
+  if [ "\$2" = gentle-pi ]; then printf '%s\n' '["4.0.0"]'; exit 0; fi
   printf '%s\n' '["1.6.0","5.0.0","9.9.9","10.0.0"]'
 fi
 EOF
@@ -195,6 +230,7 @@ import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 block = text.split("PACKAGE_SPECS=(", 1)[1].split("\n)", 1)[0]
 packages = re.findall(r'"LOCK_[A-Z0-9_]+\|([^"|]+)"', block)
+packages.append("gentle-pi")
 open(sys.argv[2], "w", encoding="utf-8").write("".join(f"pnpm view {p} versions --json\n" for p in packages))
 PY
 }
@@ -230,11 +266,12 @@ write_curl_stub() {
 	local pagination_page
 	configured_gentle_version="$(sed -n 's/^LOCK_GENTLE_AI_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
 	configured_gga_version="$(sed -n 's/^LOCK_GGA_VERSION="\([^"]*\)"$/\1/p' "${POLICY_FILE}")"
-	pagination_page="$(python3 - <<'PY'
+	pagination_page="$(
+		python3 - <<'PY'
 import json
 print(json.dumps([{"tag_name": f"v9.0.{number}", "draft": False, "prerelease": False} for number in range(1, 101)]))
 PY
-)"
+	)"
 	cat >"${BIN_DIR}/curl" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -310,6 +347,12 @@ if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-
 fi
 if [ "\${response_status}" -eq 200 ]; then
 case "\${url}" in
+	*registry.npmjs.org/gentle-pi/-/gentle-pi-4.0.0.tgz)
+		cp "${SHELL_PACKAGE}" "\${output}"; exit 0 ;;
+	*registry.npmjs.org/gentle-pi/4.0.0)
+		body='{"name":"gentle-pi","version":"4.0.0","bin":{"gentle-shell":"bin/gentle-shell.mjs"},"gitHead":"1f35ab1e4ff78f41ce6102cd961e7889a9f1cf69","dist":{"tarball":"https://registry.npmjs.org/gentle-pi/-/gentle-pi-4.0.0.tgz","integrity":"${SHELL_INTEGRITY}"}}' ;;
+	*github.com/Gentleman-Programming/gentle-ai/releases/download/v4.0.0/gentle-ai_4.0.0_linux_*.tar.gz)
+		cp "${SHELL_ARCHIVE}" "\${output}"; exit 0 ;;
 	*pypi.org/pypi/graphifyy/json) body='{"releases":{"9.9.9":{},"10.0.0":{}}}' ;;
 	*repo.packagist.org/p2/phpunit/phpunit.json) body='{"packages":{"phpunit/phpunit":[{"version":"10.99.0","version_normalized":"10.99.0.0"}]}}' ;;
 
@@ -638,6 +681,76 @@ EOF
 	grep -q '^LOCK_ENGRAM_SHA256_ARM64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"$' "${POLICY_FILE}"
 	grep -Fq 'api.github.com/repos/Gentleman-Programming/engram/releases/tags/v1.99.0' "${CALLS_FILE}"
 	! grep -Fq 'api.github.com/repos/Gentleman-Programming/engram/releases?per_page=' "${CALLS_FILE}"
+}
+
+@test "scoped Engram update preserves every unrelated byte and policy mode" {
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram 1.99.0
+	[ "$status" -eq 0 ]
+	grep -q '^TOOL_ENGRAM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_SHA256_AMD64="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_SHA256_ARM64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"$' "${POLICY_FILE}"
+	grep -Ev '^(TOOL_ENGRAM_VERSION|LOCK_ENGRAM_VERSION|LOCK_ENGRAM_SHA256_AMD64|LOCK_ENGRAM_SHA256_ARM64)=' "${TEST_ROOT}/before" >"${TEST_ROOT}/unrelated-before"
+	grep -Ev '^(TOOL_ENGRAM_VERSION|LOCK_ENGRAM_VERSION|LOCK_ENGRAM_SHA256_AMD64|LOCK_ENGRAM_SHA256_ARM64)=' "${POLICY_FILE}" >"${TEST_ROOT}/unrelated-after"
+	cmp "${TEST_ROOT}/unrelated-before" "${TEST_ROOT}/unrelated-after"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	! grep -Eq 'pnpm|registry.npmjs.org|anomalyco|releases\?per_page=' "${CALLS_FILE}"
+}
+
+@test "scoped Engram failures preserve original intent locks and mode" {
+	local mode
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	for mode in engram_prerelease engram_missing_asset engram_bad_digest; do
+		write_curl_stub "${mode}"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram 1.99.0
+		[ "$status" -ne 0 ]
+		cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+		[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	done
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram 3.0.0 extra
+	[ "$status" -ne 0 ]
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram unsafe
+	[ "$status" -ne 0 ]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "scoped Engram uses the existing selector and refuses symlink policy" {
+	sed -i 's/^TOOL_ENGRAM_VERSION=.*/TOOL_ENGRAM_VERSION="=1.99.0"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram
+	[ "$status" -eq 0 ]
+	grep -q '^TOOL_ENGRAM_VERSION="=1.99.0"$' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram
+	[ "$status" -eq 0 ]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	mv "${POLICY_FILE}" "${TEST_ROOT}/real-policy"
+	ln -s "${TEST_ROOT}/real-policy" "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-engram 1.99.0
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'regular policy file'* ]]
+	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/real-policy"
+}
+
+@test "Engram byte scope rejects a publisher changing unrelated intent or comments" {
+	# Load definitions only; do not run the updater main or its provider discovery.
+	python3 - "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${TEST_ROOT}/scope.sh" <<'PY'
+import pathlib,sys
+source = pathlib.Path(sys.argv[1]).read_text()
+assert source.endswith('main "$@"\n')
+pathlib.Path(sys.argv[2]).write_text(source[:-len('main "$@"\n')])
+PY
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/candidate"
+	sed -i 's/^TOOL_PI_CODING_AGENT_VERSION=.*/TOOL_PI_CODING_AGENT_VERSION="9.0.0"/' "${TEST_ROOT}/candidate"
+	run bash -c 'source "$1"; validate_scope "$2" "$3" engram-update' _ "${TEST_ROOT}/scope.sh" "${POLICY_FILE}" "${TEST_ROOT}/candidate"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'unrelated policy bytes'* ]]
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/candidate"
+	printf '# unexpected publisher comment\n' >>"${TEST_ROOT}/candidate"
+	run bash -c 'source "$1"; validate_scope "$2" "$3" engram-update' _ "${TEST_ROOT}/scope.sh" "${POLICY_FILE}" "${TEST_ROOT}/candidate"
+	[ "$status" -ne 0 ]
 }
 
 @test "exact GitHub asset pins reject unstable or incomplete releases atomically" {
@@ -988,13 +1101,16 @@ EOF
 		case "${mode}" in
 		unavailable)
 			export DEPS_UPDATE_GH="${BIN_DIR}/missing-gh"
-			expected_error='gh is unavailable' ;;
+			expected_error='gh is unavailable'
+			;;
 		fail)
 			write_gh_stub fail
-			expected_error='gh auth token failed' ;;
+			expected_error='gh auth token failed'
+			;;
 		empty)
 			write_gh_stub empty
-			expected_error='gh auth token returned no token' ;;
+			expected_error='gh auth token returned no token'
+			;;
 		esac
 		export TOOLS_UPDATE_USE_GH_AUTH=1
 		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"

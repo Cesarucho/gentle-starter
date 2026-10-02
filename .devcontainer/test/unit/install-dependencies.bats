@@ -2,6 +2,26 @@
 
 load install-fixture
 
+@test "Shell activation selects Pi reuses core Node and Engram and leaves Compose untouched" {
+	for name in 2000-runtime-node 3030-ai-pi-coding 3040-ai-gentle-shell 3010-ai-engram; do
+		printf '#!/usr/bin/env bash\nexit 99\n' >"${INSTALL}/available/${name}.sh"
+	done
+	grep -E '^30[134]0-ai-' "${REPO_ROOT}/.devcontainer/install/dependencies.conf" >>"${INSTALL}/dependencies.conf"
+	ln -s ../available/2000-runtime-node.sh "${INSTALL}/02-core-tools/2000-runtime-node.sh"
+	ln -s ../available/3010-ai-engram.sh "${INSTALL}/02-core-tools/3010-ai-engram.sh"
+	printf 'FROM foundation AS core-tools\nCOPY install/available/2000-runtime-node.sh install/available/3010-ai-engram.sh /install/available/\nCOPY install/02-core-tools/ /install/02-core-tools/\nFROM core-tools AS devcontainer\n' >"${FIXTURE}/.devcontainer/Dockerfile"
+	printf 'untouched selection\n' >"${FIXTURE}/.devcontainer/devcontainer.json"
+	activate enable 3040-ai-gentle-shell
+	[ "$status" -eq 0 ]
+	[ -L "${INSTALL}/03-enabled/3030-ai-pi-coding.sh" ]
+	[ -L "${INSTALL}/03-enabled/3040-ai-gentle-shell.sh" ]
+	[ ! -e "${INSTALL}/03-enabled/2000-runtime-node.sh" ]
+	[ ! -e "${INSTALL}/03-enabled/3010-ai-engram.sh" ]
+	[ "$(<"${FIXTURE}/.devcontainer/devcontainer.json")" = 'untouched selection' ]
+	activate disable 3030-ai-pi-coding
+	[ "$status" -ne 0 ]
+}
+
 @test "CodeGraph activation reuses core Node without selecting Compose or other AI tools" {
 	for name in 2000-runtime-node 3060-ai-codegraph; do
 		printf '#!/usr/bin/env bash\nexit 99\n' >"${INSTALL}/available/${name}.sh"

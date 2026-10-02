@@ -4,6 +4,7 @@
         "./docker-compose.yml"
         , "./config/compose/docker-compose-core-tools.yml"
         // , "./config/compose/docker-compose.pi.yml"
+        // , "./config/compose/docker-compose.gentle-shell.yml"
         // , "./config/compose/docker-compose.codegraph.yml"
         , "./config/compose/docker-compose.ssh-agent.yml"
         // , "./config/compose/docker-compose.ssh-server.yml"

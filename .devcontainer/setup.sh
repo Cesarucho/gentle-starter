@@ -139,6 +139,12 @@ repair_user_local_parents() {
 #   2. Add a seed_config_tree call below with the absolute target.
 # See .devcontainer/README.md for the full convention.
 setup_versioned_configs() {
+	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3040-ai-gentle-shell.sh"; then
+		node "${SCRIPT_DIR}/install/lib/gentle-shell-provision.mjs" pre-seed \
+			"${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell"
+		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell"
+		node "${SCRIPT_DIR}/install/lib/gentle-shell-provision.mjs" check "${HOME}/.gentle-shell"
+	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh"; then
 		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent"
 	fi

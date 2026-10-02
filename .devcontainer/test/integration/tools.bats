@@ -210,6 +210,15 @@ load install-selection.sh
     command -v pi >/dev/null
 }
 
+@test "ai: optional Gentle Shell reports its managed version without starting a session" {
+    skip_if_install_disabled "3040-ai-gentle-shell.sh" "task install:enable -- 3040-ai-gentle-shell"
+    run gentle-shell --version
+    [ "$status" -eq 0 ]
+    expected="$(bash "${BATS_TEST_DIRNAME}/../../install/available/3040-ai-gentle-shell.sh" --print-version-policy)"
+    version="$(printf '%s\n' "$expected" | sed -n 's/^GENTLE_SHELL_VERSION=//p')"
+    [[ "$output" == *"gentle-shell ${version}"* ]]
+}
+
 @test "ai: pi is executable" {
     skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
     [ -x "$(command -v pi)" ]

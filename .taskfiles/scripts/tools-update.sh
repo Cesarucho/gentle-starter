@@ -6,6 +6,7 @@ WORKSPACE="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 POLICY_FILE="${DEPS_UPDATE_POLICY_FILE:-${WORKSPACE}/.devcontainer/tool-versions.conf}"
 COMMON_SH="${DEPS_UPDATE_COMMON_SH:-${WORKSPACE}/.devcontainer/install/lib/common.sh}"
 ARCHIFY_ARCHIVE_SH="${DEPS_UPDATE_ARCHIFY_ARCHIVE_SH:-${WORKSPACE}/.devcontainer/install/lib/archify-archive.sh}"
+GENTLE_SHELL_LIB="${WORKSPACE}/.devcontainer/install/lib"
 PNPM_BIN="${DEPS_UPDATE_PNPM:-pnpm}"
 CURL_BIN="${DEPS_UPDATE_CURL:-curl}"
 JQ_BIN="${DEPS_UPDATE_JQ:-jq}"
@@ -28,7 +29,12 @@ PACKAGE_SPECS=(
 	"LOCK_CODEGRAPH_VERSION|@colbymchenry/codegraph"
 )
 
+GENTLE_SHELL_KEYS=(LOCK_GENTLE_SHELL_VERSION LOCK_GENTLE_SHELL_INTEGRITY LOCK_GENTLE_SHELL_GENTLE_AI_VERSION
+	LOCK_GENTLE_SHELL_SHA256_AMD64 LOCK_GENTLE_SHELL_SHA256_ARM64
+	LOCK_GENTLE_SHELL_BINARY_SHA256_AMD64 LOCK_GENTLE_SHELL_BINARY_SHA256_ARM64)
+
 MANAGED_KEYS=(
+	"${GENTLE_SHELL_KEYS[@]}"
 	LOCK_JAVA_INSTALL_VERSION LOCK_JAVA_REQUIRED_VERSION LOCK_NODE_MAJOR
 	LOCK_PI_CODING_AGENT_VERSION LOCK_SKILLS_VERSION LOCK_PNPM_VERSION LOCK_PLAYWRIGHT_CLI_VERSION LOCK_DEVCONTAINER_CLI_VERSION LOCK_VITEST_VERSION
 	LOCK_GO_VERSION LOCK_GO_SHA256_AMD64 LOCK_GO_SHA256_ARM64 LOCK_BATS_VERSION LOCK_BATS_SHA256
@@ -44,7 +50,7 @@ MANAGED_KEYS=(
 
 # Only newly introduced locks explicitly registered here may be bootstrapped.
 # Existing missing locks remain errors; this is not a selective update API.
-INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION)
+INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION "${GENTLE_SHELL_KEYS[@]}")
 
 declare -A CANDIDATES=()
 UPDATE_KEYS=()
@@ -89,6 +95,7 @@ stable_semver() {
 
 intent_key_for_lock() {
 	case "$1" in
+	LOCK_GENTLE_SHELL_*) printf TOOL_GENTLE_SHELL_VERSION ;;
 	LOCK_JAVA_*) printf TOOL_JAVA_VERSION ;;
 	LOCK_NODE_MAJOR) printf TOOL_NODE_VERSION ;;
 	LOCK_PHP_SERIES) printf TOOL_PHP_VERSION ;;
@@ -160,7 +167,7 @@ select_newest_stable_candidate() {
 
 strategy_for_key() {
 	case "$1" in
-	TOOL_CODEGRAPH_VERSION) printf npm ;;
+	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
 	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
@@ -175,6 +182,7 @@ apply_intent_contract() {
 	for key in "${MANAGED_KEYS[@]}"; do
 		[[ "${key}" == *_VERSION ]] || continue
 		[ "${key}" != LOCK_JAVA_REQUIRED_VERSION ] || continue
+		[ "${key}" != LOCK_GENTLE_SHELL_GENTLE_AI_VERSION ] || continue
 		intent_key="$(intent_key_for_lock "${key}")"
 		intent="$(policy_value "${intent_key}")"
 		[ -n "${intent}" ] || fail "missing editable intent ${intent_key}"
@@ -437,6 +445,7 @@ policy_value() {
 
 resolved_baseline() {
 	local key="$1" original="$2" intent_key intent strategy version
+	[ "${key}" != LOCK_GENTLE_SHELL_GENTLE_AI_VERSION ] || return 0
 	[[ "${key}" == LOCK_*_VERSION && "${key}" != LOCK_JAVA_REQUIRED_VERSION ]] || return 0
 	intent_key="$(intent_key_for_lock "${key}")"
 	strategy="$(strategy_for_key "${intent_key}")"
@@ -616,6 +625,40 @@ discover_github_binary_release() {
 	done
 }
 
+discover_gentle_shell() {
+	local intent version metadata integrity package pins private_version arch asset archive binary digest
+	intent="$(policy_value TOOL_GENTLE_SHELL_VERSION)"
+	if [[ "${intent}" == =* ]]; then version="${intent#=}"; else version="$(latest_package_version gentle-pi "${intent}")"; fi
+	require_stable_semver gentle-pi "${version}"
+	metadata="$(fetch_url "https://registry.npmjs.org/gentle-pi/${version}")"
+	# jq evaluates $version and $url, not the shell.
+	# shellcheck disable=SC2016
+	integrity="$(printf '%s' "${metadata}" | "${JQ_BIN}" -er --arg version "${version}" --arg url "https://registry.npmjs.org/gentle-pi/-/gentle-pi-${version}.tgz" '
+		if .name == "gentle-pi" and .version == $version and .dist.tarball == $url
+		and .bin["gentle-shell"] == "bin/gentle-shell.mjs" and (.gitHead | test("^[0-9a-f]{40}$"))
+		then .dist.integrity else error("invalid Shell registry identity") end')" || fail "Gentle Shell registry identity failed"
+	[[ "${integrity}" =~ ^sha512-[A-Za-z0-9+/]{86}==$ ]] || fail "Gentle Shell requires canonical SHA-512 SRI"
+	package="${TEMP_DIR}/gentle-shell-package.tgz"
+	fetch_url_to_file "https://registry.npmjs.org/gentle-pi/-/gentle-pi-${version}.tgz" "${package}"
+	python3 "${GENTLE_SHELL_LIB}/gentle-shell-archive.py" package "${package}" "${integrity}" "${TEMP_DIR}/gentle-shell-unpacked" || fail "Gentle Shell package integrity/layout failed"
+	pins="$(node "${GENTLE_SHELL_LIB}/gentle-shell-bundle.mjs" pins "${TEMP_DIR}/gentle-shell-unpacked/package" "${version}")" || fail "Gentle Shell package pin contract failed"
+	private_version="$(printf '%s' "${pins}" | "${JQ_BIN}" -er .version)"
+	CANDIDATES[LOCK_GENTLE_SHELL_VERSION]="${version}"
+	CANDIDATES[LOCK_GENTLE_SHELL_INTEGRITY]="${integrity}"
+	CANDIDATES[LOCK_GENTLE_SHELL_GENTLE_AI_VERSION]="${private_version}"
+	for arch in amd64 arm64; do
+		asset="gentle-ai_${private_version}_linux_${arch}.tar.gz"
+		archive="${TEMP_DIR}/shell-${arch}.tar.gz"
+		binary="${TEMP_DIR}/shell-${arch}-binary"
+		digest="$(printf '%s' "${pins}" | "${JQ_BIN}" -er ".${arch}.assetSha256")"
+		fetch_url_to_file "https://github.com/Gentleman-Programming/gentle-ai/releases/download/v${private_version}/${asset}" "${archive}"
+		CANDIDATES["LOCK_GENTLE_SHELL_SHA256_${arch^^}"]="${digest}"
+		digest="$(python3 "${GENTLE_SHELL_LIB}/gentle-shell-archive.py" binary "${archive}" "${digest}" "${binary}")" || fail "Gentle Shell ${arch} archive failed"
+		[ "${digest}" = "$(printf '%s' "${pins}" | "${JQ_BIN}" -er ".${arch}.binarySha256")" ] || fail "Gentle Shell ${arch} binary integrity mismatch"
+		CANDIDATES["LOCK_GENTLE_SHELL_BINARY_SHA256_${arch^^}"]="${digest}"
+	done
+}
+
 discover_candidates() {
 	local spec key package_name
 	local java_intent node_intent php_intent
@@ -693,6 +736,7 @@ discover_candidates() {
 	[ -s "${c4_archive}" ] || fail "C4-PlantUML archive is empty"
 	CANDIDATES[LOCK_C4_PLANTUML_SHA256]="$(sha256sum "${c4_archive}" | awk '{print $1}')"
 	[[ "${CANDIDATES[LOCK_C4_PLANTUML_SHA256]}" =~ ^[0-9a-f]{64}$ ]] || fail "invalid C4-PlantUML SHA-256"
+	discover_gentle_shell
 }
 
 replace_assignment() {
@@ -712,6 +756,34 @@ replace_assignment() {
 validate_scope() {
 	local original="$1"
 	local candidate="$2"
+	if [ "${3:-}" = engram-update ]; then
+		python3 - "${original}" "${candidate}" <<'PY'
+import sys
+from pathlib import Path
+
+prefixes = tuple(key.encode() + b"=" for key in (
+    "TOOL_ENGRAM_VERSION", "LOCK_ENGRAM_VERSION",
+    "LOCK_ENGRAM_SHA256_AMD64", "LOCK_ENGRAM_SHA256_ARM64"))
+def unrelated(path):
+    return b"".join(line for line in Path(path).read_bytes().splitlines(keepends=True)
+                    if not line.startswith(prefixes))
+if unrelated(sys.argv[1]) != unrelated(sys.argv[2]):
+    sys.exit("Engram update changed unrelated policy bytes")
+PY
+		return
+	fi
+	if [ "${3:-}" = shell-bootstrap ]; then
+		python3 - "${original}" "${candidate}" <<'PY'
+import sys
+from pathlib import Path
+original, candidate = map(Path, sys.argv[1:])
+surviving = b"".join(line for line in candidate.read_bytes().splitlines(keepends=True)
+                     if not line.startswith(b"LOCK_GENTLE_SHELL_"))
+if surviving != original.read_bytes():
+    sys.exit("Shell bootstrap changed unrelated policy bytes")
+PY
+		return
+	fi
 	if [ "${3:-}" = retirement ]; then
 		shift 3
 		python3 - "${original}" "${candidate}" "$@" <<'PY'
@@ -766,7 +838,7 @@ publish_policy() {
 		fi
 	done
 
-	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}"
+	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}" "${1:-}"
 	validate_policy "${CANDIDATE_FILE}"
 	POLICY_FILE="${CANDIDATE_FILE}" validate_inventory
 
@@ -872,6 +944,39 @@ main() {
 	validate_inventory bootstrap
 
 	TEMP_DIR="$(mktemp -d)"
+	if [ "${1:-}" = --update-engram ]; then
+		[ "$#" -le 2 ] || fail "expected --update-engram [exact-version]"
+		[ ! -L "${POLICY_FILE}" ] || fail "Engram update requires a regular policy file"
+		local engram_intent baseline
+		engram_intent="$(policy_value TOOL_ENGRAM_VERSION)"
+		if [ "$#" -eq 2 ]; then
+			require_stable_semver Engram "$2"
+			engram_intent="=$2"
+		fi
+		CANDIDATES[LOCK_ENGRAM_VERSION]="$(latest_github_release Gentleman-Programming/engram '^v[0-9]+\.[0-9]+\.[0-9]+$' no "${engram_intent}")"
+		intent_accepts_version "${engram_intent}" "${CANDIDATES[LOCK_ENGRAM_VERSION]}" github-v || fail "Engram candidate escapes intent"
+		discover_github_binary_release LOCK_ENGRAM Gentleman-Programming/engram "${CANDIDATES[LOCK_ENGRAM_VERSION]}" 'engram_{version}_linux_{arch}.tar.gz'
+		UPDATE_KEYS=(LOCK_ENGRAM_VERSION LOCK_ENGRAM_SHA256_AMD64 LOCK_ENGRAM_SHA256_ARM64)
+		if [ "$#" -eq 2 ]; then baseline="$2"; else baseline="$(resolved_baseline LOCK_ENGRAM_VERSION "${POLICY_FILE}")"; fi
+		if [ -n "${baseline}" ]; then
+			CANDIDATES[TOOL_ENGRAM_VERSION]="${baseline}"
+			UPDATE_KEYS+=(TOOL_ENGRAM_VERSION)
+		fi
+		publish_policy engram-update
+		return
+	fi
+	if [ "${1:-}" = --bootstrap-gentle-shell ]; then
+		local key
+		for key in "${GENTLE_SHELL_KEYS[@]}"; do
+			[ -z "$(policy_value "${key}")" ] || fail "Shell bootstrap requires all Shell locks to be absent"
+		done
+		discover_gentle_shell
+		intent_accepts_version "$(policy_value TOOL_GENTLE_SHELL_VERSION)" "${CANDIDATES[LOCK_GENTLE_SHELL_VERSION]}" npm || fail "Shell candidate escapes intent"
+		UPDATE_KEYS=("${GENTLE_SHELL_KEYS[@]}")
+		publish_policy shell-bootstrap
+		return
+	fi
+	[ "$#" -eq 0 ] || fail "unsupported updater arguments"
 	discover_candidates
 	apply_intent_contract
 	prepare_baseline_updates
