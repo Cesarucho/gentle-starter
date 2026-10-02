@@ -471,7 +471,7 @@ promotion or native review restart is authorized in this phase.
 | ID | Completion task | Status | Evidence / acceptance |
 | --- | --- | --- | --- |
 | GS4-16 | Record authorized isolated operational proof | Complete (bounded) | Run and limits below; memory 2551 |
-| GS4-17 | Verify and commit coordinated local work unit | In progress | Test branch created from afdeff4565; focused checks and commit identity pending |
+| GS4-17 | Verify and commit coordinated local work unit | Complete (local) | Feature bc6af59e85edde8cc9acc8c4e6f4129fde24d530; checks below |
 | GS4-18 | Prepare a new filtered local RC | Planned | Clean committed source, new custom target, protected refs unchanged; identity pending |
 
 ### Accepted isolated operational proof
@@ -524,9 +524,35 @@ changes since published source cfc8f0e, not only this feature. Keep existing
 Ordinary focused functional checks apply; TDD is still unknown/unconfigured.
 Required foreground checks are the seven focused Bats suites, Engram-only
 direct-installer fixtures, Node adapter checks, `task validate`, explicit
-task/guide/provenance Markdown lint and `git diff --check`. Results and the
-observed feature commit identity are pending and will be recorded after actual
-execution. Feature commit message:
+task/guide/provenance Markdown lint and `git diff --check`. All required checks
+ran in the foreground and exited 0 on 2026-10-02. Feature commit message:
 `feat(tools): add isolated Gentle Shell v4 with Engram 3`.
 Candidate generation is planned only after the source is clean and committed;
 RC identities belong in separate handoff memory after source freeze.
+
+```bash
+bats .devcontainer/test/unit/gentle-shell.bats .devcontainer/test/unit/gentle-shell-state.bats .devcontainer/test/unit/tools-update.bats .devcontainer/test/unit/tool-policy.bats .devcontainer/test/unit/install-dependencies.bats .devcontainer/test/unit/install-selection.bats .maintainer/test/unit/guide-links.bats
+bats --filter Engram .devcontainer/test/unit/direct-archive-installers.bats
+node --test .devcontainer/test/unit/gentle-shell-adapter-test.mjs
+task validate
+markdownlint-cli2 odd/tasks/add-gentle-shell-v4.md .devcontainer/docs/gentle-shell.md .devcontainer/config/gentle-shell/agent/extensions/engram/PROVENANCE.md
+git diff --check
+```
+
+Observed results: focused Bats **105/105**, synthetic Engram installer fixtures
+**6/6**, Node adapter checks **4/4** (expected experimental TypeScript warning),
+validation **zero errors/warnings** with strict quality passing, Markdown
+**zero issues**, and diff checks clean. Fixtures use scratch profiles and mocked
+providers; no real installation, network/auth, database or Docker occurs here.
+No normalization was necessary. No active Git hooks were present; hooks were
+not bypassed. Staged scope was exactly the 34-path allowlist, with reviewed
+modes and no unstaged/untracked files; local credential-marker scan passed.
+
+Observed feature commit: `bc6af59e85edde8cc9acc8c4e6f4129fde24d530`, parent
+`afdeff4565b0712b3244f9e4b0c3b4da6e422886`, on `test/gentle-shell-v4`.
+It contains 4,642 additions and 14 deletions (4,656 changed lines), including
+2,541 unchanged vendor/runtime-license lines and 2,115 authored lines after
+the authorization/evidence addition. This follow-up is bookkeeping only;
+it does not split the feature or claim native review approval. Its own future
+commit identity is deliberately not embedded. GS4-18 remains planned at this
+source snapshot; actual RC outcome/identity will be recorded in handoff memory.
