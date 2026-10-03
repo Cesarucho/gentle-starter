@@ -82,8 +82,24 @@ Keep native installation, bespoke integration removal, Pi 1 policy/scoped update
 owner-approved configuration, static test references and docs in one coherent
 behavioral work unit. Rollback of that commit restores the preceding implementation;
 no rollback is executed. The deletion-heavy scope is not artificially split.
-Feature commit identity is pending actual commit execution, never invented.
-A small evidence-only commit may then record that observed identity.
+Observed feature commit: `227a8121e3e0a9bb81d82a1a657b1dd2aa2c5b1c`,
+`refactor(tools): install Gentle Shell through native npm` (34 paths,
+426 additions and 4,412 deletions). This evidence-only follow-up records that
+actual identity, not its own future hash. No active Git hooks were present;
+normal hooks were not bypassed. Exact staging excluded credentials and state.
+
+Foreground direct checks all exited zero: both installers' `--print-version-policy`
+reported Pi 1.0.0 and Shell 4.0.0; `bash -n`, `shellcheck` and read-only `shfmt -d`
+checked setup, Shell installer and updater. Explicit task/four-guide Markdown lint
+reported zero issues (22 configured files); `git diff --check` and staged checks
+passed. Read-only install-tree inspection found 39 installers, 13 unchanged aliases,
+35 intents and 53 locks, with no invalid/broken/unsafe aliases. No Bats or suite ran.
+The prior registered operational PASS was retained, not rerun or relabeled review.
+
+Owner Pi settings SHA-256 remains
+`6f2fcc3ad6b64d0682157a46463df6fa76833eee9276849dd2936446c9d8bb7e`;
+both placeholders remain empty. Worktree modes remain 0644 for Pi settings and
+0664 for the placeholders; Git records their non-executable mode as 100644.
 
 Pre-commit boundary is `ab7eb3a83335afaa0585a41a756e50dc51d261d0`.
 Only the recognized RC `26b4f609c6b015de9acfcfa30de38ad08a018bb7` may advance
