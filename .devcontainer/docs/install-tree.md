@@ -9,8 +9,9 @@ For the comprehensive view (how install/, volumes, and configs
 interact, plus a worked example), see
 [`extending.md`](./extending.md).
 
-For the optional `3040-ai-gentle-shell.sh` package/private-binary contract,
-activation, isolated provisioning and persistence, see [Gentle Shell](gentle-shell.md).
+For the optional `3040-ai-gentle-shell.sh` native npm/SRI contract,
+standard Pi/core Node activation, native defaults and passive persistence, see
+[Gentle Shell](gentle-shell.md).
 
 ## Layout
 

@@ -1,400 +1,158 @@
 #!/usr/bin/env bats
-load gentle-shell-fixture.bash
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
 	TEST_ROOT="$(mktemp -d)"
-	write_shell_fixture
-	mkdir -p "${TEST_ROOT}/install/available" "${TEST_ROOT}/install/lib" "${TEST_ROOT}/bin" "${TEST_ROOT}/home"
+	mkdir -p "${TEST_ROOT}/tmp"
+	export TMPDIR="${TEST_ROOT}/tmp"
+	# Real synthetic bytes retain the installer's same-tarball and tampering checks.
+	SHELL_PACKAGE="${TEST_ROOT}/shell.tgz"
+	printf 'synthetic native npm package\n' >"${SHELL_PACKAGE}"
+	SHELL_INTEGRITY="$(node -e 'const fs=require("node:fs"),crypto=require("node:crypto"); console.log("sha512-"+crypto.createHash("sha512").update(fs.readFileSync(process.argv[1])).digest("base64"))' "${SHELL_PACKAGE}")"
+	mkdir -p "${TEST_ROOT}/install/available" "${TEST_ROOT}/install/lib" "${TEST_ROOT}/npm/lib/node_modules" "${TEST_ROOT}/home"
 	cp "${REPO_ROOT}/.devcontainer/install/available/3040-ai-gentle-shell.sh" "${TEST_ROOT}/install/available/"
-	cp "${REPO_ROOT}/.devcontainer/install/lib/"gentle-shell-* "${TEST_ROOT}/install/lib/"
-	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${TEST_ROOT}/install/lib/"
-	mkdir -p "${TEST_ROOT}/workspace/.devcontainer/install/lib" "${TEST_ROOT}/workspace/.devcontainer/config"
-	cp "${REPO_ROOT}/.devcontainer/install/lib/gentle-shell-provision.mjs" "${TEST_ROOT}/workspace/.devcontainer/install/lib/"
-	cp -a "${REPO_ROOT}/.devcontainer/config/gentle-shell" "${TEST_ROOT}/workspace/.devcontainer/config/"
-	SEED_SCRIPT="${TEST_ROOT}/seed-functions.sh"
-	# Extract only the existing copying function and activation-gated config route.
-	# Never source the complete postCreate script or its ownership/runtime actions.
-	python3 - "${REPO_ROOT}/.devcontainer/setup.sh" "${SEED_SCRIPT}" <<'PY'
-import pathlib,sys
-source=pathlib.Path(sys.argv[1]).read_text()
-seed='seed_config_tree() {'+source.split('seed_config_tree() {',1)[1].split('\nrepair_user_local_parents() {',1)[0]
-configs='setup_versioned_configs() {'+source.split('setup_versioned_configs() {',1)[1].split('\nsetup_pi_workspace_trust() {',1)[0]
-pathlib.Path(sys.argv[2]).write_text('#!/usr/bin/env bash\nset -euo pipefail\n'+seed+configs+'''
-WORKSPACE_DIR="${TEST_ROOT}/workspace"; SCRIPT_DIR="$WORKSPACE_DIR/.devcontainer"
-install_script_is_enabled() { [[ "${ENABLED:-1}" = 1 && "$1" == */3040-ai-gentle-shell.sh ]]; }
-setup_versioned_configs
-''')
-PY
-	# The only privileged operation is replaced, never allowed to reach sudo.
-	printf '\ndevcontainer_run_as_root() { "$@"; }\n' >>"${TEST_ROOT}/install/lib/common.sh"
-	POLICY="${TEST_ROOT}/policy"
-	cp "${REPO_ROOT}/.devcontainer/tool-versions.conf" "${POLICY}"
-	sed -i '/^LOCK_GENTLE_SHELL_/d' "${POLICY}"
-	cat >>"${POLICY}" <<EOF
-LOCK_GENTLE_SHELL_VERSION="4.0.0"
-LOCK_GENTLE_SHELL_INTEGRITY="${SHELL_INTEGRITY}"
-LOCK_GENTLE_SHELL_GENTLE_AI_VERSION="4.0.0"
-LOCK_GENTLE_SHELL_SHA256_AMD64="${SHELL_ARCHIVE_SHA}"
-LOCK_GENTLE_SHELL_SHA256_ARM64="${SHELL_ARCHIVE_SHA}"
-LOCK_GENTLE_SHELL_BINARY_SHA256_AMD64="${SHELL_BINARY_SHA}"
-LOCK_GENTLE_SHELL_BINARY_SHA256_ARM64="${SHELL_BINARY_SHA}"
-EOF
-	cat >"${TEST_ROOT}/bin/curl" <<'EOF'
-#!/usr/bin/env bash
-set -eu
-case "$4" in
-https://registry.npmjs.org/*) cp "$SHELL_PACKAGE" "$3" ;;
-https://github.com/*) cp "$SHELL_ARCHIVE" "$3" ;;
-*) exit 99 ;;
-esac
-EOF
-	cat >"${TEST_ROOT}/bin/npm" <<'EOF'
-#!/usr/bin/env bash
-set -eu
-if [[ "$*" == 'root --global' ]]; then printf '%s\n' "$TEST_ROOT/global/node_modules"; exit; fi
-printf '%s\n' "$*" >>"$TEST_ROOT/npm-calls"
-[[ "$*" == *--ignore-scripts* ]] || exit 99
-[[ "$1 $2 $3" == 'install --global --prefix' ]] || exit 99
-mkdir -p "$4/lib/node_modules/gentle-pi"
-cp -a "$SHELL_SOURCE/." "$4/lib/node_modules/gentle-pi/"
-[[ "$*" == *--legacy-peer-deps* && "$*" != *"@earendil-works/"* ]] || exit 99
-EOF
-	PI_ROOT="${TEST_ROOT}/global/node_modules/@earendil-works/pi-coding-agent"
-	mkdir -p "${PI_ROOT}/dist/bundle"
-	printf '%s\n' '{"name":"@earendil-works/pi-coding-agent","version":"0.99.2","bin":{"pi":"dist/bundle/cli.js"}}' >"${PI_ROOT}/package.json"
-	cat >"${PI_ROOT}/dist/bundle/cli.js" <<'JS'
-#!/usr/bin/env node
-if (process.argv[2]==='--version') console.log(require('../../package.json').version);
-else console.log('managed Pi fixture',JSON.stringify(process.argv.slice(2)),JSON.stringify(process.env));
-JS
-	chmod +x "${PI_ROOT}/dist/bundle/cli.js"
-	ln -s "${PI_ROOT}/dist/bundle/cli.js" "${TEST_ROOT}/bin/pi"
-	chmod +x "${TEST_ROOT}/bin/"*
-	export TEST_ROOT HOME="${TEST_ROOT}/home" PATH="${TEST_ROOT}/bin:${PATH}"
-	export DEVCONTAINER_TOOL_VERSIONS_FILE="${POLICY}"
-	export GENTLE_SHELL_INSTALL_ROOT="${TEST_ROOT}/image" GENTLE_SHELL_BIN="${TEST_ROOT}/bin/gentle-shell"
 	INSTALLER="${TEST_ROOT}/install/available/3040-ai-gentle-shell.sh"
+	POLICY="${TEST_ROOT}/policy"
+	printf 'LOCK_GENTLE_SHELL_VERSION="4.0.0"\nLOCK_GENTLE_SHELL_INTEGRITY="%s"\n' "${SHELL_INTEGRITY}" >"${POLICY}"
+	export TEST_ROOT POLICY SHELL_PACKAGE HOME="${TEST_ROOT}/home"
+	cat >"${TEST_ROOT}/install/lib/common.sh" <<'SH'
+devcontainer_load_tool_versions() { source "${POLICY}"; }
+devcontainer_is_runtime() { [ "${RUNTIME:-0}" = 1 ]; }
+devcontainer_arch() { [ "${BAD_ARCH:-0}" = 0 ]; }
+devcontainer_require_cmd() { command -v "$1" >/dev/null; }
+devcontainer_log_info() { printf '%s\n' "$*"; }
+devcontainer_fetch() { printf 'fetch %s\n' "$1" >>"${TEST_ROOT}/calls"; cp "${SHELL_PACKAGE}" "$2"; }
+devcontainer_run_as_root() {
+    printf 'root %s\n' "$*" >>"${TEST_ROOT}/calls"
+    if [ "$1" != npm ]; then "$@"; return; fi
+    shift
+    if [ "$1" = root ]; then printf '%s\n' "${TEST_ROOT}/npm/lib/node_modules"; return; fi
+    [ "$1" = install ] || return 98
+    [ "${FAIL_NPM:-0}" = 0 ] || return 97
+    [[ "${*: -1}" = "${TEST_ROOT}"/*/package.tgz ]] || return 96
+    cmp "${*: -1}" "${SHELL_PACKAGE}" || return 95
+    local package="${TEST_ROOT}/npm/lib/node_modules/gentle-pi"
+    mkdir -p "${package}/bin" "${package}/.gentle-ai/v4.0.0" "${TEST_ROOT}/npm/bin"
+    printf '{"name":"gentle-pi","version":"%s","bin":{"gentle-shell":"bin/gentle-shell.mjs"}}\n' "${WRONG_VERSION:-4.0.0}" >"${package}/package.json"
+    printf 'native bin fixture\n' >"${package}/bin/gentle-shell.mjs"
+    printf 'synthetic executable\n' >"${package}/.gentle-ai/v4.0.0/gentle-ai"
+    printf '{}\n' >"${package}/.gentle-ai/v4.0.0/integrity.json"
+    chmod 700 "${package}/.gentle-ai" "${package}/.gentle-ai/v4.0.0" "${package}/.gentle-ai/v4.0.0/gentle-ai"
+    chmod 600 "${package}/.gentle-ai/v4.0.0/integrity.json"
+    ln -s ../lib/node_modules/gentle-pi/bin/gentle-shell.mjs "${TEST_ROOT}/npm/bin/gentle-shell"
 }
-teardown() { rm -rf "${TEST_ROOT}"; }
+SH
+}
 
-@test "Shell stages verified package/private bytes with readable canonical manifest and no user setup" {
+teardown() { rm -rf -- "${TEST_ROOT}"; }
+
+@test "Shell verifies local SRI and uses native global npm scripts and bin" {
 	run bash "${INSTALLER}"
 	[ "$status" -eq 0 ]
-	[ "$(stat -c %a "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0/integrity.json")" = 644 ]
-	[ "$(stat -c %a "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0/gentle-ai")" = 755 ]
-	[ -z "$(ls -A "${HOME}")" ]
-	[ "$(wc -l <"${TEST_ROOT}/npm-calls")" -eq 1 ]
-	run bash "${INSTALLER}"
-	[ "$status" -eq 0 ]
-	[ "$(wc -l <"${TEST_ROOT}/npm-calls")" -eq 1 ]
-	[ ! -e "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/baseline" ]
-	bash "${SEED_SCRIPT}"
-	run "${GENTLE_SHELL_BIN}" -- --print "argument with spaces"
-	[ "$status" -eq 0 ]
-	[[ "$output" == *'managed Pi fixture'*'"argument with spaces"'* ]]
-	run "${GENTLE_SHELL_BIN}" -- --package-root=literal-prompt
-	[ "$status" -eq 0 ]
+	grep -q 'root npm install --global --ignore-scripts=false --no-audit --no-fund .*package.tgz' "${TEST_ROOT}/calls"
+	[ "$(readlink "${TEST_ROOT}/npm/bin/gentle-shell")" = ../lib/node_modules/gentle-pi/bin/gentle-shell.mjs ]
+	[ ! -e "${HOME}/.gentle-shell" ]
+	! grep -Eq 'pnpm|ignore-scripts( |$)|legacy-peer-deps|/opt/|launcher|provision' "${TEST_ROOT}/calls"
 }
 
-@test "Shell rejects damaged bundle, env and persistent dev overrides before native CLI" {
-	bash "${INSTALLER}"
-	for key in GENTLE_PI_GENTLE_AI_DEV_BINARY GENTLE_SHELL_GENTLE_AI_BIN GENTLE_SHELL_GENTLE_AI_PIN GENTLE_SHELL_GENTLE_AI_INSTALLER; do
-		run env "${key}=/untrusted" "${GENTLE_SHELL_BIN}" --help
+@test "Shell bad SRI fails before npm or native script execution" {
+	printf 'tampered' >>"${SHELL_PACKAGE}"
+	run bash "${INSTALLER}"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'SRI mismatch'* ]]
+	! grep -q 'root npm' "${TEST_ROOT}/calls"
+}
+
+@test "Shell missing or malformed SRI fails before download and npm" {
+	for value in '' sha512-invalid; do
+		printf 'LOCK_GENTLE_SHELL_VERSION="4.0.0"\nLOCK_GENTLE_SHELL_INTEGRITY="%s"\n' "${value}" >"${POLICY}"
+		run bash "${INSTALLER}"
 		[ "$status" -ne 0 ]
-		[[ "$output" == *"rejects ${key}"* ]]
+		[ ! -e "${TEST_ROOT}/calls" ]
 	done
-	run "${GENTLE_SHELL_BIN}" --package-root=/untrusted
-	[ "$status" -ne 0 ]
-	mkdir -p "${HOME}/.pi/gentle-ai"
-	printf '{}' >"${HOME}/.pi/gentle-ai/dev-binary.json"
-	run "${GENTLE_SHELL_BIN}" --help
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'development registration'* ]]
-	rm "${HOME}/.pi/gentle-ai/dev-binary.json"
-	printf 'tampered' >>"${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0/gentle-ai"
-	run "${GENTLE_SHELL_BIN}" --help
-	[ "$status" -ne 0 ]
+}
+
+@test "Shell root-created private bundle becomes ubuntu-readable without changing npm parents" {
+	chmod 755 "${TEST_ROOT}/npm/lib/node_modules"
 	run bash "${INSTALLER}"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'Invalid existing'* ]]
+	[ "$status" -eq 0 ]
+	local bundle="${TEST_ROOT}/npm/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0"
+	[ "$(stat -c %a "${bundle}")" = 755 ]
+	[ "$(stat -c %a "${bundle}/gentle-ai")" = 755 ]
+	[ "$(stat -c %a "${bundle}/integrity.json")" = 644 ]
+	[ "$(stat -c %a "${TEST_ROOT}/npm/lib/node_modules")" = 755 ]
+	! grep -q chown "${TEST_ROOT}/calls"
 }
 
-@test "Shell refuses missing policy and corrupted package before npm or activation" {
-	sed -i '/^LOCK_GENTLE_SHELL_BINARY_SHA256_ARM64=/d' "${POLICY}"
-	run bash "${INSTALLER}" --print-version-policy
-	[ "$status" -ne 0 ]
-	[ ! -e "${TEST_ROOT}/npm-calls" ]
+@test "Shell runtime passive mount does not trigger npm or state mutation" {
+	mkdir "${HOME}/.gentle-shell"
+	printf 'preserved\n' >"${HOME}/.gentle-shell/preferences"
+	run env RUNTIME=1 bash "${INSTALLER}"
+	[ "$status" -eq 0 ]
+	[ ! -e "${TEST_ROOT}/calls" ]
+	[ "$(<"${HOME}/.gentle-shell/preferences")" = preserved ]
 }
 
-@test "Shell package and direct archive integrity checks fail closed" {
-	run python3 "${TEST_ROOT}/install/lib/gentle-shell-archive.py" package "${SHELL_PACKAGE}" sha512-invalid "${TEST_ROOT}/extract"
+@test "Shell failed npm and wrong installed version fail without CLI probing" {
+	run env FAIL_NPM=1 bash "${INSTALLER}"
 	[ "$status" -ne 0 ]
-	run python3 "${TEST_ROOT}/install/lib/gentle-shell-archive.py" binary "${SHELL_ARCHIVE}" "$(printf '%064d' 0)" "${TEST_ROOT}/binary"
+	[ ! -e "${TEST_ROOT}/npm/bin/gentle-shell" ]
+	run env WRONG_VERSION=9.0.0 bash "${INSTALLER}"
 	[ "$status" -ne 0 ]
-	[ ! -e "${TEST_ROOT}/binary" ]
+	[[ "$output" == *'Unexpected native Shell package'* ]]
+	! grep -q -- '--version' "${TEST_ROOT}/calls"
 }
 
-@test "Shell rejects traversal symlink and duplicate archive entries even with matching digest" {
-	for mode in traversal symlink duplicate; do
-		python3 - "${TEST_ROOT}/unsafe.tar.gz" "${mode}" <<'PY'
-import io, sys, tarfile
-archive, mode = sys.argv[1:]
-with tarfile.open(archive, "w:gz") as out:
-    member = tarfile.TarInfo("../escape" if mode == "traversal" else "gentle-ai")
-    if mode == "symlink":
-        member.type, member.linkname = tarfile.SYMTYPE, "/untrusted"
-        out.addfile(member)
-    else:
-        member.size = 1
-        out.addfile(member, io.BytesIO(b"x"))
-        if mode == "duplicate":
-            out.addfile(member, io.BytesIO(b"x"))
+@test "Shell unsupported architecture fails before download" {
+	run env BAD_ARCH=1 bash "${INSTALLER}"
+	[ "$status" -ne 0 ]
+	[ ! -e "${TEST_ROOT}/calls" ]
+}
+
+@test "Shell absent baseline is a no-op and future seeding preserves preferences" {
+	python3 - "${REPO_ROOT}/.devcontainer/setup.sh" "${TEST_ROOT}/seed.sh" <<'PY'
+import re, sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+functions = [re.search(r'^' + name + r'\(\) \{.*?^\}', source, re.M | re.S).group()
+             for name in ('seed_config_tree', 'setup_versioned_configs')]
+Path(sys.argv[2]).write_text('\n'.join(functions))
 PY
-		sha="$(sha256sum "${TEST_ROOT}/unsafe.tar.gz" | cut -d' ' -f1)"
-		run python3 "${TEST_ROOT}/install/lib/gentle-shell-archive.py" binary "${TEST_ROOT}/unsafe.tar.gz" "${sha}" "${TEST_ROOT}/binary"
-		[ "$status" -ne 0 ]
-		[[ "$output" == *'unsafe archive'* ]]
-		[ ! -e "${TEST_ROOT}/binary" ]
-	done
-}
-
-@test "Shell supports restrictive umask and rejects old Pi before network or npm" {
-	run bash -c 'umask 077; bash "$1"' _ "${INSTALLER}"
+	export WORKSPACE_DIR="${REPO_ROOT}" SCRIPT_DIR="${REPO_ROOT}/.devcontainer"
+	run bash -c 'source "$1"; install_script_is_enabled() { return 1; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
 	[ "$status" -eq 0 ]
-	[ "$(stat -c %a "${GENTLE_SHELL_INSTALL_ROOT}")" = 755 ]
-	[ "$(stat -c %a "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi")" = 755 ]
-	sed -i 's/0.99.2/0.98.0/' "${PI_ROOT}/package.json"
-	run bash "${INSTALLER}"
-	[ "$status" -ne 0 ]
-	[ "$(wc -l <"${TEST_ROOT}/npm-calls")" -eq 1 ]
-}
-
-@test "Shell staging failure preserves the previous command and removes only its own stage" {
-	printf 'previous command\n' >"${GENTLE_SHELL_BIN}"
-	printf '#!/usr/bin/env bash\nexit 73\n' >"${TEST_ROOT}/bin/npm"
-	run bash "${INSTALLER}"
-	[ "$status" -eq 73 ]
-	[ "$(<"${GENTLE_SHELL_BIN}")" = 'previous command' ]
-	[ ! -e "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0" ]
-	[ -z "$(find "${GENTLE_SHELL_INSTALL_ROOT}" -name '.stage.*' -type d)" ]
-}
-
-@test "Shell fails on package SRI mismatch before npm and runtime mode never provisions" {
-	sed -i 's|^LOCK_GENTLE_SHELL_INTEGRITY=.*|LOCK_GENTLE_SHELL_INTEGRITY="sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="|' "${POLICY}"
-	run bash "${INSTALLER}"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'archive integrity mismatch'* ]]
-	[ ! -e "${TEST_ROOT}/npm-calls" ]
-	run env DEVCONTAINER_PHASE=runtime bash "${INSTALLER}"
-	[ "$status" -eq 0 ]
-	[ ! -e "${TEST_ROOT}/npm-calls" ]
-	[ -z "$(ls -A "${HOME}")" ]
-}
-
-@test "Shell policy-only Pi update reuses immutable Shell bytes and records exact new runtime" {
-	bash "${INSTALLER}"
-	before="$(sha256sum "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0/gentle-ai")"
-	sed -i 's/^LOCK_PI_CODING_AGENT_VERSION=.*/LOCK_PI_CODING_AGENT_VERSION="0.99.3"/' "${POLICY}"
-	sed -i 's/0.99.2/0.99.3/' "${PI_ROOT}/package.json"
-	run bash "${INSTALLER}"
-	[ "$status" -eq 0 ]
-	[ "$(wc -l <"${TEST_ROOT}/npm-calls")" -eq 1 ]
-	[ "$(sha256sum "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0/gentle-ai")" = "${before}" ]
-	run node -e 'const p=require(process.argv[1]); if(p.piVersion!=="0.99.3" || !p.piRoot.endsWith("@earendil-works/pi-coding-agent"))process.exit(1)' "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/bundle.json"
-	[ "$status" -eq 0 ]
-	[ ! -e "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/@earendil-works" ]
-}
-
-@test "Shell runtime never trusts ambient Pi overrides or linked homes" {
-	bash "${INSTALLER}"
-	for key in GENTLE_SHELL_PI GENTLE_SHELL_HOME GENTLE_SHELL_CONFIG GENTLE_PI_CONFIG_HOME; do
-		run env "${key}=/untrusted" "${GENTLE_SHELL_BIN}" --help
-		[ "$status" -ne 0 ]
-		[[ "$output" == *"rejects ${key}"* ]]
-	done
-	run "${GENTLE_SHELL_BIN}" --link
-	[ "$status" -ne 0 ]
 	[ ! -e "${HOME}/.gentle-shell" ]
-	sed -i 's/0.99.2/0.99.3/' "${PI_ROOT}/package.json"
-	run "${GENTLE_SHELL_BIN}" --help
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'managed Pi differs from policy'* ]]
-}
-
-@test "Shell postCreate provisions reviewed isolated bytes and launch keeps process HOME for Engram" {
-	bash "${INSTALLER}"
-	run "${GENTLE_SHELL_BIN}" -- --print fixture
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'automatic container postCreate setup must finish'* ]]
-	[ ! -e "${HOME}/.gentle-shell" ]
-	bash "${SEED_SCRIPT}"
-	run "${GENTLE_SHELL_BIN}" -- --print fixture
+	run bash -c 'source "$1"; install_script_is_enabled() { [[ "$1" == */3040-ai-gentle-shell.sh ]]; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
 	[ "$status" -eq 0 ]
-	[[ "$output" == *"\"HOME\":\"${HOME}\""* ]]
-	[[ "$output" == *"\"PI_CODING_AGENT_DIR\":\"${HOME}/.gentle-shell/agent\""* ]]
-	[[ "$output" == *'"ENGRAM_BIN":"/usr/local/bin/engram"'* ]]
-	[[ "$output" == *'"GENTLE_PI_HISTORY_CAPTURE":"0"'* ]]
-	[ -s "${HOME}/.gentle-shell/agent/extensions/engram/index.ts" ]
-	[ ! -e "${HOME}/.pi" ]
-	[ ! -e "${HOME}/.engram" ]
-	run node -e 'const s=require(process.argv[1]);if(s.theme!=="Gentleman-Cute"||s.tuiMode!=="fullscreen") process.exit(1)' "${HOME}/.gentle-shell/agent/settings.json"
-	[ "$status" -eq 0 ]
-}
-
-@test "Shell preserves preferences byte-for-byte across repeated provisioning and launch" {
-	bash "${INSTALLER}"
-	mkdir -p "${HOME}/.gentle-shell/agent"
-	printf '{ "home": "isolated", "custom": true }\n' >"${HOME}/.gentle-shell/config.json"
-	printf '{ "theme": "mine", "tuiMode": "inline", "custom": 42 }\n' >"${HOME}/.gentle-shell/agent/settings.json"
-	before="$(sha256sum "${HOME}/.gentle-shell/config.json" "${HOME}/.gentle-shell/agent/settings.json")"
-	for attempt in 1 2; do
-		bash "${SEED_SCRIPT}"
-		run "${GENTLE_SHELL_BIN}" -- --print fixture
-		[ "$status" -eq 0 ]
-		[ "$(sha256sum "${HOME}/.gentle-shell/config.json" "${HOME}/.gentle-shell/agent/settings.json")" = "${before}" ]
-	done
-}
-
-@test "Shell malformed settings and unsafe paths fail before provisioning unrelated bytes" {
-	for content in 'not-json' '[]' '{"extensions":false}'; do
-		mkdir -p "${HOME}/.gentle-shell/agent"
-		printf '%s' "${content}" >"${HOME}/.gentle-shell/agent/settings.json"
-		run bash "${SEED_SCRIPT}"
-		[ "$status" -ne 0 ]
-		[ ! -e "${HOME}/.gentle-shell/config.json" ]
-		[ "$(<"${HOME}/.gentle-shell/agent/settings.json")" = "${content}" ]
-	done
-	rm -rf "${HOME}/.gentle-shell"
-	mkdir -p "${TEST_ROOT}/protected"
-	ln -s "${TEST_ROOT}/protected" "${HOME}/.gentle-shell"
-	run bash "${SEED_SCRIPT}"
-	[ "$status" -ne 0 ]
-	[ -z "$(ls -A "${TEST_ROOT}/protected")" ]
-}
-
-@test "Shell refuses altered pinned adapter and leaves preferences unchanged" {
-	helper="${REPO_ROOT}/.devcontainer/install/lib/gentle-shell-provision.mjs"
-	bash "${SEED_SCRIPT}"
-	printf '\nmodified\n' >>"${HOME}/.gentle-shell/agent/extensions/engram/index.ts"
-	before="$(sha256sum "${HOME}/.gentle-shell/agent/settings.json")"
-	run node "${helper}" check "${HOME}/.gentle-shell"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'existing adapter differs from pinned source'* ]]
-	[ "$(sha256sum "${HOME}/.gentle-shell/agent/settings.json")" = "${before}" ]
-}
-
-@test "Shell explicit adapter-only recovery preserves custom bytes and preferences" {
-	bash "${SEED_SCRIPT}"
-	adapter="${HOME}/.gentle-shell/agent/extensions/engram"
-	printf '\nold or custom adapter fixture\n' >>"${adapter}/index.ts"
-	before="$(sha256sum "${HOME}/.gentle-shell/config.json" "${HOME}/.gentle-shell/agent/settings.json")"
-	custom="$(sha256sum "${adapter}/index.ts" | cut -d' ' -f1)"
-	run bash "${SEED_SCRIPT}"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'adapter-upgrade-recovery'* ]]
-	[ "$(sha256sum "${HOME}/.gentle-shell/config.json" "${HOME}/.gentle-shell/agent/settings.json")" = "${before}" ]
-	# Explicit operator move outside extension discovery, never automatic overwrite.
-	mkdir "${HOME}/.gentle-shell/adapter-backups"
-	backup="${HOME}/.gentle-shell/adapter-backups/engram-before-0.2.0"
-	[ ! -e "${backup}" ]
-	mv -T "${adapter}" "${backup}"
-	bash "${SEED_SCRIPT}"
-	run node "${REPO_ROOT}/.devcontainer/install/lib/gentle-shell-provision.mjs" check "${HOME}/.gentle-shell"
-	[ "$status" -eq 0 ]
-	[ "$(sha256sum "${backup}/index.ts" | cut -d' ' -f1)" = "${custom}" ]
-	[ "$(sha256sum "${HOME}/.gentle-shell/config.json" "${HOME}/.gentle-shell/agent/settings.json")" = "${before}" ]
-	[ ! -e "${HOME}/.engram" ]
-}
-
-@test "Shell 0.2.0 adapter dispatch and pin checks use no server or database" {
-	run node --test "${REPO_ROOT}/.devcontainer/test/unit/gentle-shell-adapter-test.mjs"
-	printf '%s\n' "${output}"
-	[ "$status" -eq 0 ]
-}
-
-@test "Shell setup seeding is activation-gated and never calls unrelated setup lifecycle" {
-	for enabled in 0 1; do
-		run env ENABLED="${enabled}" bash "${SEED_SCRIPT}"
-		[ "$status" -eq 0 ]
-		if [ "${enabled}" = 0 ]; then
-			[ ! -e "${HOME}/.gentle-shell" ]
-		else
-			[ -s "${HOME}/.gentle-shell/agent/extensions/engram/index.ts" ]
-		fi
-	done
-}
-
-@test "Shell never migrates credentials databases or shared configuration" {
-	mkdir -p "${HOME}/.pi/agent" "${HOME}/.engram"
-	printf 'private fixture credentials\n' >"${HOME}/.pi/agent/auth.json"
-	printf 'private fixture database\n' >"${HOME}/.engram/engram.db"
-	before="$(sha256sum "${HOME}/.pi/agent/auth.json" "${HOME}/.engram/engram.db")"
-	printf 'unreviewed source fixture\n' >"${TEST_ROOT}/workspace/.devcontainer/config/gentle-shell/auth.json"
-	run bash "${SEED_SCRIPT}"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'unreviewed Shell baseline path'* ]]
 	[ ! -e "${HOME}/.gentle-shell" ]
-	rm "${TEST_ROOT}/workspace/.devcontainer/config/gentle-shell/auth.json"
-	bash "${SEED_SCRIPT}"
-	[ "$(sha256sum "${HOME}/.pi/agent/auth.json" "${HOME}/.engram/engram.db")" = "${before}" ]
-	[ ! -e "${HOME}/.gentle-shell/agent/auth.json" ]
-	[ ! -e "${HOME}/.gentle-shell/engram.db" ]
+	mkdir -p "${HOME}/.gentle-shell/agent" "${TEST_ROOT}/future-seed/agent"
+	printf 'custom preferences\n' >"${HOME}/.gentle-shell/agent/settings.json"
+	run bash -c 'source "$1"; install_script_is_enabled() { [[ "$1" == */3040-ai-gentle-shell.sh ]]; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
+	[ "$status" -eq 0 ]
+	[ "$(<"${HOME}/.gentle-shell/agent/settings.json")" = 'custom preferences' ]
+	printf 'synthetic replacement\n' >"${TEST_ROOT}/future-seed/agent/settings.json"
+	printf 'synthetic future file\n' >"${TEST_ROOT}/future-seed/other"
+	run bash -c 'source "$1"; seed_config_tree "$2" "$HOME/.gentle-shell"' _ "${TEST_ROOT}/seed.sh" "${TEST_ROOT}/future-seed"
+	[ "$status" -eq 0 ]
+	[ "$(<"${HOME}/.gentle-shell/agent/settings.json")" = 'custom preferences' ]
+	cmp "${TEST_ROOT}/future-seed/other" "${HOME}/.gentle-shell/other"
+	[ ! -e "${HOME}/.gentle-shell/agent/extensions" ]
 }
 
-@test "Shell rejects isolated dev registrations duplicate Pi peers and stale CLI bytes" {
-	bash "${INSTALLER}"
-	mkdir -p "${HOME}/.gentle-shell/gentle-ai"
-	printf '{}' >"${HOME}/.gentle-shell/gentle-ai/dev-binary.json"
-	run "${GENTLE_SHELL_BIN}" --help
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'development registration'* ]]
-	rm "${HOME}/.gentle-shell/gentle-ai/dev-binary.json"
-	mkdir -p "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/node_modules/typebox"
-	run "${GENTLE_SHELL_BIN}" --help
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'duplicate managed Pi dependency'* ]]
-	rmdir "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/lib/node_modules/gentle-pi/node_modules/typebox"
-	printf '#!/usr/bin/env node\nconsole.log("0.98.0");\n' >"${PI_ROOT}/dist/bundle/cli.js"
-	run "${GENTLE_SHELL_BIN}" --help
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'managed Pi CLI version differs from policy'* ]]
-}
-
-@test "Shell malformed or linked launcher config and busy provisioning lock fail without overwrites" {
-	mkdir -p "${HOME}/.gentle-shell"
-	for content in 'not-json' '[]' '{"home":"link"}' '{"home":"/foreign"}'; do
-		printf '%s' "${content}" >"${HOME}/.gentle-shell/config.json"
-		run bash "${SEED_SCRIPT}"
-		[ "$status" -ne 0 ]
-		[ "$(<"${HOME}/.gentle-shell/config.json")" = "${content}" ]
-		[ ! -e "${HOME}/.gentle-shell/agent" ]
-	done
-	rm "${HOME}/.gentle-shell/config.json"
-	mkdir "${HOME}/.gentle-shell/.provisioning.lock"
-	run bash "${SEED_SCRIPT}"
-	[ "$status" -ne 0 ]
-	[ -d "${HOME}/.gentle-shell/.provisioning.lock" ]
-	[ ! -e "${HOME}/.gentle-shell/config.json" ]
-	[ ! -e "${HOME}/.gentle-shell/agent" ]
-}
-
-@test "Shell image installation has no config dependency and launcher never provisions a home" {
-	rm -rf "${TEST_ROOT}/workspace/.devcontainer/config/gentle-shell"
-	bash "${INSTALLER}"
-	[ ! -e "${GENTLE_SHELL_INSTALL_ROOT}/4.0.0/baseline" ]
-	for flag in --version --help; do
-		run "${GENTLE_SHELL_BIN}" "${flag}"
-		[ "$status" -eq 0 ]
-		[ ! -e "${HOME}/.gentle-shell" ]
-	done
-	run "${GENTLE_SHELL_BIN}" setup --dry-run
-	[ "$status" -ne 0 ]
-	[ ! -e "${HOME}/.gentle-shell" ]
-	run "${GENTLE_SHELL_BIN}" setup
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'automatic container postCreate setup'* ]]
-	[ ! -e "${HOME}/.gentle-shell" ]
-	[ ! -e "${HOME}/.engram" ]
-	[ ! -e "${HOME}/.pi" ]
+@test "Shell passive bind is exact independently selected and has no runtime owner" {
+	python3 - "${REPO_ROOT}" <<'PY'
+import importlib.util, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("manifest", root / ".taskfiles/scripts/compose-manifest.py")
+manifest = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(manifest)
+fragment = manifest.read_compose_fragment(root / ".devcontainer/config/compose/docker-compose.gentle-shell.yml")
+assert fragment == {"services": {"container-svc": {"volumes": [{"type": "bind",
+    "source": "../.env.d/.gentle-shell", "target": "/home/ubuntu/.gentle-shell",
+    "bind": {"create_host_path": False}}]}}}
+assert "docker-compose.gentle-shell.yml" not in [path.name for path in manifest.selection(root)[1]]
+assert '// , "./config/compose/docker-compose.gentle-shell.yml"' in (root / ".devcontainer/devcontainer.json").read_text()
+assert '.gentle-shell' not in (root / ".devcontainer/lifecycle/setup-volumes.sh").read_text()
+PY
 }

@@ -2,7 +2,7 @@
 
 load install-fixture
 
-@test "Shell activation selects Pi reuses core Node and Engram and leaves Compose untouched" {
+@test "Shell activation selects standard Pi and reuses core npm without selecting Engram or Compose" {
 	for name in 2000-runtime-node 3030-ai-pi-coding 3040-ai-gentle-shell 3010-ai-engram; do
 		printf '#!/usr/bin/env bash\nexit 99\n' >"${INSTALL}/available/${name}.sh"
 	done
@@ -18,8 +18,7 @@ load install-fixture
 	[ ! -e "${INSTALL}/03-enabled/2000-runtime-node.sh" ]
 	[ ! -e "${INSTALL}/03-enabled/3010-ai-engram.sh" ]
 	[ "$(<"${FIXTURE}/.devcontainer/devcontainer.json")" = 'untouched selection' ]
-	activate disable 3030-ai-pi-coding
-	[ "$status" -ne 0 ]
+	[ "$(find "${INSTALL}/03-enabled" -type l | wc -l)" -eq 2 ]
 }
 
 @test "CodeGraph activation reuses core Node without selecting Compose or other AI tools" {

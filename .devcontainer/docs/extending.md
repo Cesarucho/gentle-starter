@@ -25,10 +25,11 @@ The four extension surfaces are:
 
 Each surface has a deep-dive document or ADR.
 
-[Gentle Shell](gentle-shell.md) is a composite npm/private-release example:
-optional activation, updater-owned coupled integrity locks, image-owned
-installation, exact managed Pi reuse, missing-only isolated provisioning and
-an independently selected passive state bind.
+[Gentle Shell](gentle-shell.md) is a native npm example: optional activation,
+standard Pi plus core Node/npm prerequisites, updater-owned package SRI,
+upstream lifecycle scripts, missing-only placeholder seeding
+and an independently selected passive state bind. Its native companions are not
+independently pinned by the repository.
 
 This file is the entry point and the FAQ. If you only have time to read one
 doc, read this one.

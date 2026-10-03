@@ -1,5 +1,4 @@
 #!/usr/bin/env bats
-load gentle-shell-fixture.bash
 
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
@@ -14,6 +13,7 @@ setup() {
 	sed -i \
 		-e 's/^TOOL_KUBECTL_VERSION=.*/TOOL_KUBECTL_VERSION="1.36.4"/' \
 		-e 's/^TOOL_PLANTUML_VERSION=.*/TOOL_PLANTUML_VERSION="1.2026.8"/' \
+		-e 's/^TOOL_GENTLE_SHELL_VERSION=.*/TOOL_GENTLE_SHELL_VERSION="=4.0.0"/' \
 		"${POLICY_FILE}"
 	: >"${CALLS_FILE}"
 	export REPO_ROOT TEST_ROOT POLICY_FILE BIN_DIR CALLS_FILE GITHUB_API_CACHE_DIR
@@ -38,7 +38,7 @@ setup() {
 	ARCHIFY_FIXTURE_VERSION="9.8.7"
 	ARCHIFY_ARCHIVE_FILE="${TEST_ROOT}/archify.zip"
 	write_archify_archive "${ARCHIFY_FIXTURE_VERSION}" normal
-	write_shell_fixture
+	SHELL_INTEGRITY="sha512-$(printf 'A%.0s' {1..86})=="
 	ARCHIFY_FIXTURE_SHA256="$(sha256sum "${ARCHIFY_ARCHIVE_FILE}" | awk '{print $1}')"
 	write_archify_archive 9.9.9 normal
 	cp "${ARCHIFY_ARCHIVE_FILE}" "${ARCHIFY_ARCHIVE_FILE}.wrong-version"
@@ -65,36 +65,44 @@ setup() {
 	[ "$status" -eq 0 ]
 }
 
-@test "Shell bootstrap resolves all seven coupled locks without refreshing unrelated inventory" {
+@test "ordinary updater bootstraps exactly two Shell locks and preserves policy mode" {
 	sed -i '/^LOCK_GENTLE_SHELL_/d; s/^TOOL_GENTLE_SHELL_VERSION=.*/TOOL_GENTLE_SHELL_VERSION="=4.0.0"/' "${POLICY_FILE}"
 	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
-	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
+	chmod 640 "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "$status" -eq 0 ]
-	[ "$(grep -c '^LOCK_GENTLE_SHELL_' "${POLICY_FILE}")" -eq 7 ]
-	grep -v '^LOCK_GENTLE_SHELL_' "${POLICY_FILE}" >"${TEST_ROOT}/unrelated"
-	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/unrelated"
-	grep -q "^LOCK_GENTLE_SHELL_BINARY_SHA256_ARM64=\"${SHELL_BINARY_SHA}\"$" "${POLICY_FILE}"
-	[ "$(stat -c %a "${POLICY_FILE}")" = "$(stat -c %a "${TEST_ROOT}/before")" ]
-	! grep -q '^pnpm\|api.github.com' "${CALLS_FILE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'all Shell locks to be absent'* ]]
+	[ "$(grep -c '^LOCK_GENTLE_SHELL_' "${POLICY_FILE}")" -eq 2 ]
+	grep -q '^LOCK_GENTLE_SHELL_VERSION="4.0.0"$' "${POLICY_FILE}"
+	grep -q "^LOCK_GENTLE_SHELL_INTEGRITY=\"${SHELL_INTEGRITY}\"$" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'No changes'* ]]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
 }
 
-@test "Shell bootstrap keeps original bytes and mode on package or private integrity failure" {
-	sed -i '/^LOCK_GENTLE_SHELL_/d; s/^TOOL_GENTLE_SHELL_VERSION=.*/TOOL_GENTLE_SHELL_VERSION="=4.0.0"/' "${POLICY_FILE}"
+@test "ordinary Shell bootstrap rolls back invalid registry metadata" {
+	sed -i '/^LOCK_GENTLE_SHELL_/d' "${POLICY_FILE}"
+	chmod 640 "${POLICY_FILE}"
 	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
-	printf 'corrupt' >>"${SHELL_ARCHIVE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
+	write_curl_stub shell_bad_identity
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 	[ "$status" -ne 0 ]
-	[[ "$output" == *'archive integrity mismatch'* ]]
+	[[ "$output" == *'registry identity failed'* ]]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+}
+
+@test "ordinary Shell bootstrap rolls back invalid registry SRI" {
+	sed -i '/^LOCK_GENTLE_SHELL_/d' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	SHELL_INTEGRITY=sha512-invalid write_curl_stub success
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'canonical SHA-512 SRI'* ]]
 	cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
 	[ "$(stat -c %a "${POLICY_FILE}")" = "$(stat -c %a "${TEST_ROOT}/before")" ]
-	printf 'corrupt' >>"${SHELL_PACKAGE}"
-	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --bootstrap-gentle-shell
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'package integrity/layout failed'* ]]
-	cmp "${POLICY_FILE}" "${TEST_ROOT}/before"
 }
 
 @test "failed bootstrap keeps policy bytes and mode without a partial lock" {
@@ -180,7 +188,6 @@ printf 'pnpm %s\n' "\$*" >>"${CALLS_FILE}"
 if [ "${mode}" = prerelease ]; then
   printf '%s\n' '["9.9.9-beta.1"]'
 else
-  if [ "\$2" = gentle-pi ]; then printf '%s\n' '["4.0.0"]'; exit 0; fi
   printf '%s\n' '["1.6.0","5.0.0","9.9.9","10.0.0"]'
 fi
 EOF
@@ -230,7 +237,6 @@ import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 block = text.split("PACKAGE_SPECS=(", 1)[1].split("\n)", 1)[0]
 packages = re.findall(r'"LOCK_[A-Z0-9_]+\|([^"|]+)"', block)
-packages.append("gentle-pi")
 open(sys.argv[2], "w", encoding="utf-8").write("".join(f"pnpm view {p} versions --json\n" for p in packages))
 PY
 }
@@ -347,12 +353,11 @@ if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-
 fi
 if [ "\${response_status}" -eq 200 ]; then
 case "\${url}" in
-	*registry.npmjs.org/gentle-pi/-/gentle-pi-4.0.0.tgz)
-		cp "${SHELL_PACKAGE}" "\${output}"; exit 0 ;;
+	*registry.npmjs.org/gentle-pi)
+		body='{"versions":{"4.0.0":{},"4.1.0-beta.1":{}}}' ;;
 	*registry.npmjs.org/gentle-pi/4.0.0)
-		body='{"name":"gentle-pi","version":"4.0.0","bin":{"gentle-shell":"bin/gentle-shell.mjs"},"gitHead":"1f35ab1e4ff78f41ce6102cd961e7889a9f1cf69","dist":{"tarball":"https://registry.npmjs.org/gentle-pi/-/gentle-pi-4.0.0.tgz","integrity":"${SHELL_INTEGRITY}"}}' ;;
-	*github.com/Gentleman-Programming/gentle-ai/releases/download/v4.0.0/gentle-ai_4.0.0_linux_*.tar.gz)
-		cp "${SHELL_ARCHIVE}" "\${output}"; exit 0 ;;
+		body='{"name":"gentle-pi","version":"4.0.0","bin":{"gentle-shell":"bin/gentle-shell.mjs"},"gitHead":"1f35ab1e4ff78f41ce6102cd961e7889a9f1cf69","dist":{"tarball":"https://registry.npmjs.org/gentle-pi/-/gentle-pi-4.0.0.tgz","integrity":"${SHELL_INTEGRITY}"}}'
+		[ "${mode}" != shell_bad_identity ] || body='{"name":"unexpected"}' ;;
 	*pypi.org/pypi/graphifyy/json) body='{"releases":{"9.9.9":{},"10.0.0":{}}}' ;;
 	*repo.packagist.org/p2/phpunit/phpunit.json) body='{"packages":{"phpunit/phpunit":[{"version":"10.99.0","version_normalized":"10.99.0.0"}]}}' ;;
 
