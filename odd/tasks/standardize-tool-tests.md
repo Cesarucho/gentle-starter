@@ -417,3 +417,215 @@ Both complete work units remain below the 400-line budget; no source compression
 or rewriting was used. All eight source blob hashes match the pre-commit snapshot.
 Native review is pending, not approved; no native lifecycle was invoked here.
 No push, PR, branch/tracker creation, amendment, or third commit is authorized.
+
+## STT-03 — Prepare separate advisory HOME follow-up
+
+- [ ] **STT-03 — Verify Shell state assertions against the installer HOME.**
+  Preparation only; later scope is `gentle-shell.bats` plus this document/mirror.
+  Route: delegated preparation; explicit user test-first consent sets TDD ON,
+  runner Bats. No child delegation, source/helper edits, staging, new commits,
+  push, PR, branches, network, Docker, or builds in this preparation.
+  This is an independent later candidate, not native correction/reopen.
+
+### Current evidence and authority
+
+Verified clean starting HEAD `478618bf046eb5b9816febd73b7f7eaa4e0b67e6` on
+`test/gentle-shell-v4`. The exact two approved commits are
+`8e5b43e64927d12cf3aaf8b463da2aa53b4a0679` and
+`478618bf046eb5b9816febd73b7f7eaa4e0b67e6`; that approval is fulfilled.
+Parent-supplied npm-only native review `review-29298acad71abd58` is approved
+and acknowledged; its authority is burned, target
+`sha256:8c7251b88928932f83d2e00cacdb9ffedead4e27a519f916a1fb1d96aff02568`,
+consumed `sha256:da461b0ea95235c1771de8b192a993d346e2f269eed3bb2e52781012dc868124`.
+Do not reuse that transaction. STT-01 remains not native reviewed. These supplied
+review facts were not independently queried; earlier sections retain history.
+The committed 419-line document is authoritative: mirror #2611 omitted only
+its final Approved local commit evidence section; restore it without rewriting history.
+
+Warning `R3-passive-state-home` cites line 105, but current code does **not**
+reproduce a HOME mismatch: setup line 19 exports `${TEST_ROOT}/home`, fixture
+setup sets `NPM_FIXTURE_ROOT=${TEST_ROOT}`, and runner line 42 assigns that same
+home. Passive seed/assertion and successful-install absence already target it.
+Both focused cases passed (2/2, exit 0, outer timeout 120000ms). No host HOME
+writes: setup replaces HOME before either case writes; all fixture writes and
+teardown stay under `BATS_TEST_TMPDIR`. No RED has been observed or claimed.
+Installer print exits before runtime/install; runtime exits before npm. Selected
+install uses copied installer/common stubs, synthetic fetch/npm and local node/chmod.
+
+### Smallest test-first plan and acceptance
+
+Before later edits, rerun the focused baseline below. Add a pre-run assertion
+that `${NPM_FIXTURE_ROOT}/home/.gentle-shell/preferences` contains the seeded
+bytes, plus explicit parent/runner-home equality. It must fail on a genuine
+mismatched fixture, but current HEAD is expected GREEN: stop and report that
+non-reproduction rather than fabricate behavioral RED or break production/helper
+code. If explicit assertion hardening proceeds, use the fixture HOME directly
+for passive seed/assert and successful-install absence, retaining all checks.
+Acceptance: same HOME at both boundaries, preserved bytes, no npm/runtime state
+mutation, successful-install state absence, and no host HOME access.
+
+Negative control, separate from mismatch RED: in the existing passive case,
+temporarily delete only its fixture preferences after the runner and before the
+preservation assertion; the focused case must fail. Restore that one local hunk
+and rerun GREEN. No new meta-suite, external worktree, installer/helper edits,
+or committed mutation; record exact failure location and restored results.
+
+```bash
+bats --filter 'Shell verifies local SRI|Shell runtime passive mount' .devcontainer/test/unit/gentle-shell.bats
+bats --filter 'Shell runtime passive mount' .devcontainer/test/unit/gentle-shell.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Use outer timeout 120000ms per Bats call; second command serves the temporary
+negative control and restored rerun. Expected seconds, small temporary fixtures,
+zero downloads/builds. Runtime harness N/A: mocked contracts, not image proof.
+Forecast 70–95 authored additions plus deletions including preparation/evidence;
+report honest growth, never compress code to fit. Rollback only STT-03 hunks in
+the test/document and resync mirror; preserve both commits and historical evidence.
+Commit and implementation evidence remain pending; unresolved issue is warning
+non-reproduction, not fixture safety. Skill resolution: exact requested clean-code,
+add-tool, work-unit-commits, cognitive-doc-design loaded, plus markdown-documentation;
+test-only assertion preparation, no provisioning/state-policy change or SDD work.
+
+### STT-03 closure — Nonreproducing advisory, no source change
+
+- [x] **STT-03 investigation complete; source change N/A.** This closure overrides
+  the unchecked preparation item and all proposed hardening, acceptance work,
+  negative controls, reruns, and pending implementation above; they are not authorized.
+  User authorized a fix only for a real defect, not unnecessary assertion changes.
+- Parent independently read the full setup/helper and confirmed the same HOME:
+  `gentle-shell.bats:19`, fixture root at helper line 8, runner HOME at line 42.
+  The native advisory was a false positive: its immutable patch omitted the
+  unchanged setup export. This is a closed investigation, not an implemented bugfix.
+- Preserve the exact focused baseline above: exit 0, 2/2 PASS, outer timeout
+  120000ms. No tests rerun, negative control performed, or RED invented at closure.
+- No source/test/helper changes or later implicit work authorization. The approved
+  npm transaction remains burned; no re-review, native CLI, staging, commit,
+  network, or child agents. Only this document and its full mirror are updated.
+  Rollback is documentation-only; historical commit/review evidence stays intact.
+
+## STT-04 / STT-05 — Bounded implementation preparation
+
+Current authority: document/mirror only at HEAD `478618b`, branch
+`test/gentle-shell-v4`; preserve the pre-existing 89-line STT-03 diff verbatim.
+Later implementation consent covers proven redundancy and the two migrations,
+but this executor makes no source edits. Five task identities now exist; STT-03
+is closed, STT-04/05 pending. Mirror #2611 already contains all 508 current lines,
+including Approved local commit evidence; no omission repair is needed.
+Route: delegated preparation and later bounded multi-file implementation, with
+cross-suite contract preservation and privileged-fixture safety as triggers.
+No child agents, new feature/SDD identity, staging, commits, PRs, network, Docker,
+builds, or installs. Prior two-commit approval is fulfilled; npm receipt is burned.
+Future `feature-branch-chain` slices: STT-04, then STT-05; native review remains
+parent-owned and fail-closed when unassessable, not approved by this plan.
+
+- [ ] **STT-04 — Remove proven overlap and migrate Phase 3C-A policy probes.**
+  Scope: unit `common.sh.bats`, `tools-update.bats`, `gentle-shell.bats` only if
+  equivalence is established, integration `tools.bats`, and document/mirror.
+  Remove only updater lines 595–596: its retained loader success already rejects
+  duplicate TOOL/LOCK keys; retain syntax, generated-marker, and digest signals.
+  Pi presence/executability share the exact selection gate; keep the executable
+  file contract and presence diagnostic together in one case before deleting the
+  standalone presence case. Do not generalize other command probes.
+  Shell line 62 is NOT fully redundant: argv lines 64–67 do not independently
+  assert the root-adapter route. Retain it unless that distinct signal survives.
+  Migrate only Phase 3C-A's two loops to `run_version_policy`; keep all eight rows
+  per loop, explicit unset/override arguments, and exact Playwright multiline
+  ordering. Do not migrate Phase 3B or impose one format on every test.
+  Acceptance: unchanged policy behavior/assertions; no lost privilege-route,
+  selection, syntax, ownership, or digest signal. Pi health is currently failing,
+  so consolidation must not be reported as a green installed-tool refactor.
+
+- [ ] **STT-05 — Migrate pnpm to the shared closed npm fixture.**
+  Scope: `unit/pnpm.bats` and document/mirror; existing helpers unchanged unless
+  a demonstrated missing contract is separately authorized. Use a Bats-local
+  fixture root, shared runtime/argv capture and `run_npm_fixture`, explicit
+  PNPM_HOME/REUSE/UID_NAME, and a pnpm-specific rejecting dispatcher. Forward
+  npm through the adapter, not a silent return; no npm-root behavior is required.
+  Preserve all five scenarios: provision before reuse/install, repeated mode
+  repair with sentinel bytes/mode intact, print-only no provisioning/npm call,
+  and core Docker PNPM_HOME/SHELL/PATH precedence assertions. The shared recorder
+  directory exists after setup: assert no numbered calls, not directory absence.
+  Guard ownership operations to canonical fixture-local directories; no sudo,
+  root escalation, host HOME, or real npm. Skip/report if identity or scope fails.
+
+TDD remains **ON**, source explicit prior user choice; runner installed Bats.
+Re-run exact green characterization immediately before later consumer edits;
+never call it RED. Add migration regression assertions first (raw pnpm install
+argv, rejecting unknown dispatch, independent fixture roots/explicit environment),
+observe RED only for genuinely missing behavior, then GREEN/refactor. Already
+covered behavior may remain GREEN; do not break production to manufacture RED.
+
+### Exact safe evidence and future checks
+
+Each check below ran once in preparation, outer timeout `120000ms` per invocation:
+
+| Command (paths relative to `.devcontainer/test/`) | Result |
+| --- | --- |
+| `bats --filter 'Shell verifies local SRI' unit/gentle-shell.bats` | Exit 0; 1/1 PASS. |
+| `bats --filter 'Phase 3C-A' unit/common.sh.bats` | Exit 0; 2/2 PASS, eight rows each. |
+| `bats --filter '^policy keys are valid and unique' unit/tools-update.bats` | Exit 0; 1/1 PASS; updater main not invoked. |
+| `bats --filter '^tool versions loader rejects duplicate keys$' unit/common.sh.bats` | Exit 0; 1/1 PASS. |
+| `bats unit/npm-fixture-helper.bats unit/version-policy-helper.bats` | Exit 0; 10/10 PASS. |
+| `bats --filter 'pnpm: version policy inspection\|pnpm: image environment' unit/pnpm.bats` | Exit 0; 2/2 PASS. |
+| `env -u UID_NAME -u PNPM_VERSION -u BASH_ENV bats --filter 'pnpm: provision user globals\|pnpm: repeated provisioning' unit/pnpm.bats` | Exit 0; 3/3 PASS. |
+| `bats --filter '^ai: pi is (installed\|executable)$' integration/tools.bats` | Exit 1; 0/2 PASS: Pi absent from PATH, selection enabled. |
+
+Complete relevant suites/helpers and installer paths were inspected. Policy
+printing exits before install; Shell uses synthetic fetch/npm; pnpm copies its
+installer/common stub and real `install -d -o ubuntu -g ubuntu` touches only its
+temporary PNPM_HOME. Verified executor uid/gid 1000 ubuntu; no escalation/chown
+command was used. Inspector exit 0: 39 installers, 15 aliases, 88 policy keys,
+no naming/alias errors. No full network-capable common/updater/integration suite.
+Future checks: rerun these exact filters with repository-root path prefixes;
+after migration run all `unit/pnpm.bats` under the same sanitized environment,
+both helper suites, `bash -n` on touched Bash helpers if any, and `git diff --check`.
+Pi failure requires diagnosis/reporting, not unauthorized installation or retries.
+Runtime harness N/A: mocked/test-only contracts and read-only Pi lookup, no image proof.
+
+Forecast: STT-04 55–95 source changed lines, STT-05 90–150; documentation/evidence
+80–120 across both, plus 89 pre-existing STT-03 lines: 314–454 aggregate authored
+lines. Keep cohesive future slices below 400 or report honest overage; no code-golf.
+Checks cost seconds and small temporary files, zero downloads/builds; use explicit
+120000ms outer timeouts. Rollback preparation: only this appended section/mirror;
+later rollback STT-04/05 by their exact test hunks and evidence, preserving STT-03,
+both commits, helper contracts, installers/policy/activation, and native history.
+
+### STT-04 current implementation authority
+
+Current explicit user consent authorizes STT-04 source edits only to
+`.devcontainer/test/unit/common.sh.bats`,
+`.devcontainer/test/unit/tools-update.bats`, and
+`.devcontainer/test/integration/tools.bats`, plus this document/full mirror.
+This supersedes preparation-only authority for STT-04, not historical evidence.
+Shell privilege-route assertion stays untouched; STT-05, pnpm, helpers, installers,
+and policy remain out of scope. Pure refactor under green characterization;
+TDD ON for any genuinely new behavior, no artificial RED. Preserve both Pi
+signals and its environmental failure. No commits, native CLI, or child agents.
+
+### STT-04 implementation evidence
+
+- [x] **STT-04 functional consolidation complete; integration verification partial.**
+  Commit pending owner approval; native review pending and parent-owned. STT-05
+  remains pending. Preserved all earlier investigation/preparation bytes.
+- Before edits, exact Phase 3C-A filter passed 2/2 and static policy filter 1/1
+  (exit 0 each). Pure refactor: no new behavior, no RED claimed; TDD remains ON.
+- Final exact user-specified commands: Phase 3C-A 2/2, static policy 1/1,
+  duplicate-loader rejection 1/1, version-policy-helper suite 5/5; exit 0 each.
+  Each Bats invocation used outer timeout 120000ms; source formatting was
+  inspected before final checks, with no normalizer or later source edits.
+- Final Pi filter `^ai: pi is (installed|executable)$`: exit 1, 0/1 PASS;
+  `tools.bats:221` fails `command -v pi`, the same absent-PATH condition as the
+  preparation's 0/2. No skip, fake environment, installation, or retry.
+- Removed only redundant updater TOOL uniqueness plumbing; retained loader
+  syntax/duplicate rejection and marker/digest checks. Pi's standalone case
+  became a presence assertion in the executable case, with identical selection.
+  Both Phase 3C-A loops now call the existing helper: all eight rows each,
+  assertions, environment unsets/overrides, and exact Playwright output unchanged.
+- Source diff: 5 additions + 14 deletions = 19 changed lines across three suites.
+  Shell, pnpm, helpers, installers, policy, and Phase 3B untouched. Runtime proof
+  remains partial for Pi; no image/lifecycle proof. Rollback only these three
+  STT-04 source hunks and appended authority/evidence, preserving prior work.
