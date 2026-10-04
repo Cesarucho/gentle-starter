@@ -2,8 +2,8 @@
 
 The owner now authorizes local commits of all reviewed pending work, without RC
 generation, promotion or publication. The configuration/native-startup work unit
-will include its related evidence and documentation; its actual commit ID is
-pending until normal Git commit succeeds. No new native review PASS is claimed.
+includes its related evidence and documentation in source commit
+`e8503f3c9f8faf4f8a5cacde059ea3444fb342ee`. No new native review PASS is claimed.
 The latest native consent target
 `feccfa5aa2d73e01398b756079d85d190b8636c98e2c2dcd412604db24d76dc6`
 was explicitly declined; the current authorization is for local commits only.
@@ -126,7 +126,7 @@ dirty refusal, missing-runtime preservation and per-file/nontransactional behavi
 Owner review and explicit local commit authorization are now complete. Real export
 still refuses dirty participating seeds; do not bypass that guard or run an export
 against personal HOME during commit preparation.
-No additional Shell installer is needed for this request. Future RC/source commit
+No additional Shell installer is needed for this request. Future RC generation
 and publication, custom-root support and optional old-resource cleanup are separate
 human decisions, not feature gates. Parent retains review-switch authority.
 
@@ -159,3 +159,26 @@ other staged source must pass whitespace checking. Live runtime/TUI, installs,
 builds, Docker, Bats, network and publication checks are intentionally not rerun.
 This evidence is not native publication PASS. Memory mirror remains pending;
 no Engram retry or invented identity is used.
+
+## Local commit outcome
+
+- `e8503f3c9f8faf4f8a5cacde059ea3444fb342ee` —
+  `feat(ai): seed selected configurations and enable native Shell startup`.
+  Git reports 88 files (89 literal paths with the detected example rename),
+  1,205 additions and 7,805 deletions. The coordinated owner baseline and retired
+  upstream files stay in one behavior unit; no oversized-PR approval is inferred.
+- `f2f5ff643673ed1d1ea6f24db4c33ac7d6d613b4` —
+  `feat(distribution): version the four-entry Compose publication policy`.
+  Nine files, 545 additions and 71 deletions; publication implementation only.
+
+Both normal commits succeeded using existing Git identity; no active hooks were
+configured and none were bypassed. Source-unit one staged whitespace check exited
+0; unit two exited 2 solely on the preserved producer JSON line 49 warning, and
+its check excluding that path exited 0. Markdown lint selected 24 files with zero
+issues. The complete deletion audit verified all 56 deleted blobs against HEAD,
+including 7,159 removed lines. Its first scratch assertions mishandled Markdown
+`---` lines and no-final-newline blobs; correcting only the scratch parser passed.
+After both source commits, all 81 owner-data entries matched the snapshot above,
+all non-source refs matched, and the worktree/index were clean. This final
+evidence-only document update records actual source IDs, not its own future ID.
+No RC/publication, remote operation or new runtime proof was performed.

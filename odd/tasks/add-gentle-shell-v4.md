@@ -6,9 +6,9 @@
 The owner explicitly approves all reviewed pending work as local work-unit commits
 on `test/gentle-shell-v4`, with no RC generation, promotion or publication. Two
 coherent source units are selected: AI configuration/native startup, then versioned
-four-entry publication policy with its static fixture and related docs. Actual
-commit identities remain pending until Git succeeds; a minimal evidence-only
-follow-up may record those identities. No PR size waiver is inferred.
+four-entry publication policy with its static fixture and related docs. Both
+normal commits succeeded; actual identities are recorded below. This minimal
+evidence-only follow-up records those source IDs. No PR size waiver is inferred.
 
 The latest native consent target
 `feccfa5aa2d73e01398b756079d85d190b8636c98e2c2dcd412604db24d76dc6`
@@ -506,3 +506,28 @@ The single GS4-28–31 `mem_session_summary` attempt failed with
 `gentle-engram could not confirm Engram session registration for engram_mem_session_summary; verify that the Engram server is available and retry`.
 No retry or session registration occurred. The local full-document mirror remains
 pending; the scratch proof driver was removed after recording these outcomes.
+
+## Authorized local commit outcome
+
+| Work unit | Actual source identity | Git-reported change count |
+| --- | --- | --- |
+| Selected AI configuration and native startup | `e8503f3c9f8faf4f8a5cacde059ea3444fb342ee` | 88 files, 1,205 additions, 7,805 deletions; 89 literal paths including detected rename |
+| Four-entry publication identity and producer baseline | `f2f5ff643673ed1d1ea6f24db4c33ac7d6d613b4` | 9 files, 545 additions, 71 deletions |
+
+Messages are respectively `feat(ai): seed selected configurations and enable native Shell startup`
+and `feat(distribution): version the four-entry Compose publication policy`.
+Docs and static fixture stay with their behaviors. Complete line counts include
+owner/upstream configuration retirement; no artificial file-type or line-budget
+split and no PR size waiver was used. The final two-task-document change is
+evidence-only and deliberately does not invent its own future commit ID.
+
+Existing Git identity was retained. No active hooks were configured; normal commits
+succeeded without bypasses or owner-byte edits. Unit one staged `git diff --check`
+exited 0. Unit two staged check exited 2 solely on `.devcontainer/devcontainer.json:49`
+trailing whitespace; excluding that protected path exited 0. The complete committed
+range has the same sole warning. Markdown lint selected 24 files, zero issues.
+The 81-entry owner-data snapshot matched after both commits. All refs except the
+source branch remained identical, including custom RC
+`28a42cc55f7a3eefec7af4c7e4e9ce2ea32bc87c`; worktree/index were then clean.
+No candidate, promotion, publication, remote operation, Bats execution or native
+review PASS occurred. Full Engram mirror remains pending without retry.
