@@ -21,6 +21,7 @@ tasks:
           task container:opencode   Continue the direct OpenCode TUI
           task container:opencode:server  Attach; stop only the task-owned server on exit
           task container:pi         Open pi inside devcontainer
+          task container:gentle-shell  Continue the native Gentle Shell TUI
           task container:engram     Open Engram TUI inside devcontainer
           task container:rm         Force-remove devcontainer container
         EOF
@@ -115,7 +116,7 @@ tasks:
 
   # Guards: most container tasks must run on the host.
   # They check for /.dockerenv which only exists inside the container.
-  # connect/opencode/opencode:server/pi/engram connect through the Dev Container CLI.
+  # connect/opencode/opencode:server/pi/gentle-shell/engram use the Dev Container CLI.
 
   rm:
     desc: Force-remove the devcontainer service container
@@ -242,6 +243,18 @@ tasks:
       - task: run-devcontainer
         vars:
           ARGS: exec --workspace-folder {{.WORKSPACE}} pi --continue
+
+  gentle-shell:
+    desc: Continue the native Gentle Shell TUI inside devcontainer
+    interactive: true
+    # Skip the whole entrypoint: ensure-running alone does not stop later tasks.
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} gentle-shell --continue
 
   engram:
     desc: Connect to Engram TUI inside devcontainer

@@ -21,7 +21,7 @@
 
 It provides a preconfigured, cross-platform, extensible, and replicable
 "ready-to-prompt" environment for starting AI projects in an orderly
-way: understand the goal, clarify requirements, use SDD/OpenSpec/ODD artifacts,
+way: understand the goal, clarify requirements, use OpenSpec/ODD artifacts,
 apply skills, coordinate subagents, implement in phases — discover > research >
 design > plan > implement > verify — and iterate until the expected results are
 achieved.
@@ -47,15 +47,15 @@ for future upgrades. These are core files:
 
 ## 📦 What's included?
 
-The environment combines mandatory core tools with opt-in catalog tools and
+The environment combines mandatory core tools with configurable catalog tools and
 integrations—not everything below is installed by default.
 
 - **[OpenCode](https://opencode.ai/docs/)** as the default assisted-development
   interface.
-- **[Pi Coding Agent](https://github.com/earendil-works/pi#quick-start)** as an
-  opt-in alternative extensible harness (disabled by default).
+- **[Gentle Shell](https://github.com/Gentleman-Programming/gentle-shell)** as an
+  alternative native Pi-based interface, enabled by default as a catalog tool.
 - **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** for
-  managed AI workflows alongside OpenCode, included in the mandatory core.
+  managed AI workflows in the mandatory core alongside OpenCode and Engram.
 - **[Engram](https://github.com/Gentleman-Programming/engram#quick-start)** as local persistent memory inside the environment.
 - **[Dev Container](https://code.visualstudio.com/docs/devcontainers/containers#_installation)** based on [Ubuntu 24.04](https://releases.ubuntu.com/noble/).
 - **[Taskfile](https://taskfile.dev/installation/)** to centralize common commands.
@@ -131,9 +131,12 @@ Run `task install:list` for the current catalog and activation state.
 | Tool | Purpose |
 | --- | --- |
 | [Skills CLI](https://github.com/vercel-labs/skills) | Install and update reusable agent skills |
+| [Pi Coding Agent](https://github.com/earendil-works/pi#quick-start) | Standard standalone Pi runtime enabled by default as a dependency of Gentle Shell; no repository-managed Gentle plugins |
 | [Gentleman Guardian Angel (GGA)](https://github.com/Gentleman-Programming/gentleman-guardian-angel) | Provide image-installed review tooling; project setup and Git hooks are optional manual steps |
 
-Base Pi remains optional. Repository-managed Pi extension provisioning has been
+Pi and Gentle Shell remain disableable catalog tools, not mandatory core tools.
+Disable Shell before disabling its Pi prerequisite. Repository-managed Pi extension
+provisioning has been
 retired without uninstalling existing user packages or deleting persisted state.
 
 ### Audio
@@ -173,7 +176,7 @@ An IDE is optional and **does not replace** these host requirements.
     ```bash
     git clone --branch starter --origin upstream https://github.com/Cesarucho/gentle-starter.git <my-project>
     cd <my-project>
-    git branch -m main
+    git branch -m <my-branch>
     git branch --unset-upstream
     cp .env.example .env
     ```
@@ -197,6 +200,7 @@ an IDE may only attach after `task container:up`.
     # choose a "connect" method:
     task container:connect    # interactive terminal with bash
     task container:opencode   # directly to the ai-​agent application
+    task container:gentle-shell # native Pi-based interface; continue the last session
     ```
 
 2. If you chose `container:connect`, use any tool normally:
@@ -205,6 +209,7 @@ an IDE may only attach after `task container:up`.
     git status
     engram --version
     gentle-ai --version
+    gentle-shell --version
     opencode --version
 
     opencode auth login       # choose and authenticate a provider
@@ -219,13 +224,7 @@ an IDE may only attach after `task container:up`.
     ❯_ /connect
     ```
 
-    configure the models
-
-    ```bash
-    ❯_ /sdd-models
-    ```
-
-    > It is recommended to automate your own profiles, details [in Tool Configurations](#️-tool-configurations-opencode-pi)
+    > It is recommended to automate your own profiles, details [in Tool Configurations](#️-tool-configurations)
 
     and prompting, examples:
 
@@ -296,24 +295,27 @@ discovery responses are regenerated in the private local cache at
 `${XDG_CACHE_HOME:-$HOME/.cache}/gentle-starter/tools-update/github-api/` and
 use ETags to avoid unchanged requests.
 
-### ⚙️ Tool Configurations (OpenCode, Pi)
+### ⚙️ Tool Configurations
 
-- OpenCode profiles
+- Configurantion models and efforts
 
-    You can configure each **"sdd-*"** sub-agent with the model and effort to your liking
-    (command: `/sdd-model`); these preferences are saved in runtime files
-    `~/.config/opencode/opencode.json` and `~/.config/opencode/profiles/` which you
-    can then export to default preferences `task config:export`:
+    You can configure each sub-agent with the desired model and effort in each AI agent
+    (OpenCode, GentleShell, Pi); these preferences are saved in runtime files that
+    you can then export to the default preferences with `task config:export`.
 
     ```bash
-    .devcontainer/config/opencode
-    ├── opencode.json
-    └── profiles/
-        ├── openai-100usd-astral.json
-        └── openai-20usd-pareto.json
+    .devcontainer/config
+    └── opencode/
+    │   └── opencode.json
+    ├── gentle-shell/
+    │   └── agent/
+    │       └── subagents.json
+    └── pi/
+        └── gentle-ai/
+            └── models.json
     ```
 
-    > Currently, opencode has the `openai-20usd-pareto` profile configured.
+    > Currently, all these AI agents have the `openai-codex gpt-*` models pre-configured.
 
 - Keep your preferences as the default setting.
 
@@ -321,8 +323,9 @@ use ETags to avoid unchanged requests.
     are copied to runtime directories:
 
     ```bash
-    .devcontainer/config/opencode → /home/ubuntu/.config/opencode
-    .devcontainer/config/pi       → /home/ubuntu/.pi
+    .devcontainer/config/opencode     → /home/ubuntu/.config/opencode
+    .devcontainer/config/gentle-shell → /home/ubuntu/.gentle-shell
+    .devcontainer/config/pi           → /home/ubuntu/.pi
     ```
 
     But during normal use, we often change our preferences;
@@ -340,6 +343,7 @@ use ETags to avoid unchanged requests.
 
     ```text
     /home/ubuntu/.config/opencode → .devcontainer/config/opencode
+    /home/ubuntu/.gentle-shell    → .devcontainer/config/gentle-shell
     /home/ubuntu/.pi              → .devcontainer/config/pi
     ```
 
@@ -399,6 +403,7 @@ task container:rebuild      # remove then build only; run up separately to start
 task container:connect          # open a shell; run `opencode` inside
 task container:pi               # connect to Pi using `pi --continue`
 task container:engram           # connect to the Engram TUI
+task container:gentle-shell     # direct TUI using `gentle-shell --continue`
 task container:opencode         # direct TUI using `opencode --continue`
 task container:opencode:server  # attach to a reused or task-owned OpenCode server
 ```
@@ -472,8 +477,12 @@ be versioned. It is currently used to mount data such as:
 │   ├── backups/
 │   ├── cache/
 │   └── state.json
+├── .gentle-shell             Local Gentle Shell state
+│   ├── config.json
+│   └── agent/
 └── .pi                       Local Pi state and configuration
-    └── agent/
+    ├── agent/
+    └── gentle-ai/
 ```
 
 > Important: do not commit tokens, credentials, or local databases to Git. The

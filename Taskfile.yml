@@ -89,6 +89,7 @@ tasks:
           task container:opencode         Continue the direct OpenCode TUI
           task container:opencode:server  Attach; stop only the task-owned server on exit
           task container:pi               Connect to Pi inside devcontainer
+          task container:gentle-shell     Continue the native Gentle Shell TUI
           task container:engram           Connect to Engram TUI inside devcontainer
 
         Install:
