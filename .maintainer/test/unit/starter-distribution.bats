@@ -20,6 +20,8 @@ setup() {
   printf '%s\n' '{' '  "dockerComposeFile": [' \
     '    "./docker-compose.yml"' \
     '    , "./config/compose/docker-compose-core-tools.yml"' \
+    '    , "./config/compose/docker-compose.pi.yml"' \
+    '    , "./config/compose/docker-compose.gentle-shell.yml"' \
     '  ],' '  "service": "container-svc"' '}' > "${REPO}/.devcontainer/devcontainer.json"
   printf '{"version":1,"skills":{"external":{"source":"example/repo","skillPath":"skills/external/SKILL.md","computedHash":"dev-only"}}}\n' > "${REPO}/skills-lock.json"
   for path in README.md AGENTS.md AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
@@ -69,8 +71,9 @@ approval() {
   printf '%s\n' '{' '  "dockerComposeFile": [' \
     '    "./docker-compose.yml"' \
     '    , "./config/compose/docker-compose-core-tools.yml"' \
+    '    , "./config/compose/docker-compose.pi.yml"' \
+    '    , "./config/compose/docker-compose.gentle-shell.yml"' \
     '    , "./config/compose/docker-compose.audio.yml"' \
-    '    // , "./config/compose/docker-compose.pi.yml"' \
     '    , "./future/extra.yml"' \
     '  ],' '  // unrelated comment' '  "service": "container-svc"' '}' \
     > "${REPO}/.devcontainer/devcontainer.json"
@@ -83,9 +86,9 @@ approval() {
   [ "$(git -C "${REPO}" hash-object .devcontainer/devcontainer.json)" = "$original" ]
   [ "$(git -C "${REPO}" rev-parse dev:.devcontainer/devcontainer.json)" = "$original" ]
   git -C "${REPO}" show starter-rc:.devcontainer/devcontainer.json > "${TEMP}/published"
-  [ "$(grep -c '^    // , ' "${TEMP}/published")" -eq 3 ]
+  [ "$(grep -c '^    // , ' "${TEMP}/published")" -eq 2 ]
   grep -q '"./future/extra.yml"' "${TEMP}/published"
-  grep -q '^    // , "./config/compose/docker-compose.pi.yml"$' "${TEMP}/published"
+  grep -q '^    , "./config/compose/docker-compose.pi.yml"$' "${TEMP}/published"
   grep -q '// unrelated comment' "${TEMP}/published"
   python3 - "${TEMP}/published" <<'PY'
 import json
@@ -93,7 +96,7 @@ import pathlib
 import sys
 lines = pathlib.Path(sys.argv[1]).read_text().splitlines()
 data = json.loads('\n'.join(line for line in lines if not line.lstrip().startswith('//')))
-assert data['dockerComposeFile'] == ['./docker-compose.yml', './config/compose/docker-compose-core-tools.yml']
+assert data['dockerComposeFile'] == ['./docker-compose.yml', './config/compose/docker-compose-core-tools.yml', './config/compose/docker-compose.pi.yml', './config/compose/docker-compose.gentle-shell.yml']
 assert data['service'] == 'container-svc'
 PY
   repeated="$(git -C "${REPO}" rev-parse starter-rc)"
@@ -113,10 +116,10 @@ PY
   local input
   for input in \
     $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./future.yml"\n  ]\n}' \
-    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ]\n}' \
-    $'{\n  "dockerComposeFile": [\n    // "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ]\n}' \
-    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ],\n  "dockerComposeFile": []\n}' \
-    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n  ]\n} garbage'; do
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n    , "./config/compose/docker-compose.pi.yml"\n    , "./config/compose/docker-compose.gentle-shell.yml"\n  ]\n}' \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n    // , "./config/compose/docker-compose.pi.yml"\n    , "./config/compose/docker-compose.gentle-shell.yml"\n  ]\n}' \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n    , "./config/compose/docker-compose.pi.yml"\n    , "./config/compose/docker-compose.gentle-shell.yml"\n  ],\n  "dockerComposeFile": []\n}' \
+    $'{\n  "dockerComposeFile": [\n    "./docker-compose.yml"\n    , "./config/compose/docker-compose-core-tools.yml"\n    , "./config/compose/docker-compose.pi.yml"\n    , "./config/compose/docker-compose.gentle-shell.yml"\n  ]\n} garbage'; do
     printf '%s\n' "$input" > "${REPO}/.devcontainer/devcontainer.json"
     git -C "${REPO}" commit -qam 'Set invalid source JSONC'
     run candidate --base-absent
@@ -280,7 +283,8 @@ Starter-Candidate-Base: ${base}")"
   printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
   git -C "${REPO}" commit -qam update
   wrong_tree="$(git -C "${REPO}" rev-parse dev^{tree})"
-  forged="$(git -C "${REPO}" commit-tree "$wrong_tree" -m 'Publish consumer starter' -m "Starter-Release-Source: ${prior_source}")"
+  forged="$(git -C "${REPO}" commit-tree "$wrong_tree" -m 'Publish consumer starter' -m "Starter-Release-Source: ${prior_source}
+Starter-Compose-Policy: 2")"
   git -C "${REPO}" update-ref refs/heads/starter "$forged" "$legitimate"
   candidate
   approval

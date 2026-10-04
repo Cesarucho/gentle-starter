@@ -14,10 +14,34 @@ EXCLUDED = (
 )
 CATALOG = ".devcontainer/skills/recommended.json"
 DEVCONTAINER = ".devcontainer/devcontainer.json"
-REQUIRED_COMPOSE = (
+LEGACY_COMPOSE = (
     "./docker-compose.yml",
     "./config/compose/docker-compose-core-tools.yml",
 )
+CURRENT_COMPOSE_POLICY = "2"
+COMPOSE_POLICY_HEADER = "Starter-Compose-Policy: "
+REQUIRED_COMPOSE = LEGACY_COMPOSE + (
+    "./config/compose/docker-compose.pi.yml",
+    "./config/compose/docker-compose.gentle-shell.yml",
+)
+
+
+def compose_selection(policy):
+    require(policy in (None, CURRENT_COMPOSE_POLICY), "unknown Compose selection policy")
+    return LEGACY_COMPOSE if policy is None else REQUIRED_COMPOSE
+
+
+def identity_metadata(message, subject, headers):
+    fields = "".join(re.escape(header) + r"([0-9a-f]{40,64})\n" for header in headers)
+    marker = re.escape(COMPOSE_POLICY_HEADER) + r"([^\n]+)\n"
+    match = re.fullmatch(re.escape(subject) + r"\n\n" + fields + "(?:" + marker + ")?", message + "\n")
+    require(match is not None, "invalid starter identity metadata")
+    assert match is not None
+    *values, policy = match.groups()
+    compose_selection(policy)
+    return (*values, policy)
+
+
 JSONC_TOKEN = re.compile(
     r'\s+|//[^\r\n]*|/\*[\s\S]*?\*/|"(?:\\[\s\S]|[^"\\])*"|'
     r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|'
@@ -95,7 +119,8 @@ def jsonc_tokens(text):
     return tokens, "".join(cleaned)
 
 
-def compose_defaults(blob):
+def compose_defaults(blob, policy=CURRENT_COMPOSE_POLICY):
+    required = compose_selection(policy)
     try:
         text = blob.decode("utf-8")
         tokens, cleaned = jsonc_tokens(text)
@@ -144,32 +169,32 @@ def compose_defaults(blob):
             seen.append(value)
             if match["comment"] is None:
                 active.append(value)
-            if value in REQUIRED_COMPOSE:
+            if value in required:
                 require(match["comment"] is None, "mandatory compose path is commented")
             elif match["comment"] is None:
                 output[index] = (match["indent"] + "// " + line[len(match["indent"]):] +
                                  lines[index][len(line):])
-        require(tuple(seen[:2]) == REQUIRED_COMPOSE and
-                all(seen.count(path) == 1 for path in REQUIRED_COMPOSE),
+        require(tuple(seen[:len(required)]) == required and
+                all(seen.count(path) == 1 for path in required),
                 "mandatory compose paths must be first and unique")
         require(document["dockerComposeFile"] == active,
                 "ambiguous compose entries")
         result = "".join(output)
         _, cleaned_result = jsonc_tokens(result)
         published = json.loads(cleaned_result, object_pairs_hook=unique_object)
-        require(published["dockerComposeFile"] == list(REQUIRED_COMPOSE),
-                "published compose selection is not the required pair")
+        require(published["dockerComposeFile"] == list(required),
+                "published compose selection is not the required selection")
         return result.encode("utf-8")
     except (UnicodeError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid devcontainer JSONC: {error}") from error
 
 
-def filtered_tree(source):
+def filtered_tree(source, policy=CURRENT_COMPOSE_POLICY):
     catalog = recommendations(source)
     compose = compose_defaults(subprocess.run(
         ["git", "show", f"{source}:{DEVCONTAINER}"], stdout=subprocess.PIPE,
         check=True,
-    ).stdout)
+    ).stdout, policy)
     # A private index builds the tree entirely from committed source files. Never
     # walk or remove worktree paths: excluded directories may contain symlinks.
     with tempfile.TemporaryDirectory(prefix="starter-index-") as temp:

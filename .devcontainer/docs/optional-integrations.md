@@ -6,7 +6,12 @@ are not supported creation paths.
 
 ## Quick path
 
-1. Uncomment the required files in the ordered `dockerComposeFile` array in
+The new consumer persistence preset selects base Docker, core tools, Pi and Shell
+in that order. Other integrations are commented in generated consumer defaults,
+even when active in the producer. Consumers may customize their owned selection
+later. Pi and Shell remain optional catalog tools, not mandatory core installers.
+
+1. Uncomment any additional files in the ordered `dockerComposeFile` array in
    `.devcontainer/devcontainer.json`. Keep the base first and
    `config/compose/docker-compose-core-tools.yml` immediately afterward.
 2. Enable any required catalog installer separately with `task install:enable`.
@@ -17,7 +22,8 @@ are not supported creation paths.
 
 | Compose file | Purpose | Installer requirement |
 | --- | --- | --- |
-| `config/compose/docker-compose.pi.yml` | Persist passive `.env.d/.pi`; never installs Pi | Enable Pi Coding separately |
+| `config/compose/docker-compose.pi.yml` | Persist passive `.env.d/.pi`; never installs Pi | Pi Coding is default-enabled; re-enable separately if disabled |
+| `config/compose/docker-compose.gentle-shell.yml` | Persist passive `.env.d/.gentle-shell`; never installs Shell | Gentle Shell is default-enabled; re-enable separately if disabled |
 | `config/compose/docker-compose.codegraph.yml` | Persist the root project's SQLite index | Enable `3060-ai-codegraph`; initialize manually |
 | `config/compose/docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
 | `config/compose/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server`, rebuild, then up |

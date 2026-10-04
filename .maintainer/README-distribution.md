@@ -15,7 +15,7 @@ commit message for `Starter-Candidate-Source` and `Starter-Candidate-Base`, and
 inspect its tree before any separate promotion. The first candidate is a root;
 subsequent candidate commits have only the preceding candidate as parent. A
 source-only advance creates a new candidate even when its filtered tree is
-unchanged. Repeating the same source is a no-op. For an initial release with
+unchanged. Repeating the same source under the current policy is a no-op. For an initial release with
 no local `starter` ref, pass `--base-absent` explicitly to candidate creation
 and cancellation. Never use this flag when `starter` already exists.
 
@@ -36,7 +36,7 @@ task --taskfile .maintainer/Taskfile.yml distribution:promote -- \
 ```
 
 Promotion refuses a moved or canceled candidate, mismatched tree/source/base,
-unrecognized or legacy release history, symbolic refs, dirty checkout, or a
+unrecognized release history, symbolic refs, dirty checkout, or a
 release checked out in any worktree. It verifies the entire candidate chain,
 filtered trees for every previous release against its recorded source, and
 previous release source ancestry; it then creates one root
@@ -55,6 +55,34 @@ tree after first promotion. Any remote publication requires separate review and
 explicit authorization for destination, operation, and credential/session.
 Future consumer clones of the new root will not share ancestry with `dev` or
 with the old unpublished branch.
+
+## Compose selection identity
+
+New candidates and releases carry exactly `Starter-Compose-Policy: 2` after
+their existing source/base headers. Their committed source must have these four
+unique, active entries first, in order:
+
+1. `./docker-compose.yml`
+2. `./config/compose/docker-compose-core-tools.yml`
+3. `./config/compose/docker-compose.pi.yml`
+4. `./config/compose/docker-compose.gentle-shell.yml`
+
+The filter comments every other selection without changing bytes outside the
+array. It never activates commented source entries. Pi/Shell persistence is a
+default preset, not mandatory core classification; consumers can change their
+owned Compose selection. Root `README.md` remains excluded from distribution.
+
+Existing unmarked linear candidate/release identities use the historical two-entry
+normalizer, including exact tree recomputation for every ancestor. No other filter
+policy changes. Unknown, duplicate or malformed markers fail closed; there is no
+legacy creation switch. New promotion requires an explicitly current candidate.
+Historical RC `28a42cc55…` and release `ef2f71e5…` remain valid history, not an
+approval to publish the new preset. A legacy same-source RC can gain a current-policy
+child only if that committed source already contains all four active entries;
+source equality is allowed by the unchanged ancestry check. Otherwise commit a
+new source first. Source/base pins, approved IDs, exact trees, parent provenance
+and compare-and-swap remain required. No primary publication has been performed
+for this change. The reduced base lifecycle fixture below intentionally stays two.
 
 ## Explicit base lifecycle proof
 
