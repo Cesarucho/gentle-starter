@@ -629,3 +629,35 @@ signals and its environmental failure. No commits, native CLI, or child agents.
   Shell, pnpm, helpers, installers, policy, and Phase 3B untouched. Runtime proof
   remains partial for Pi; no image/lifecycle proof. Rollback only these three
   STT-04 source hunks and appended authority/evidence, preserving prior work.
+
+### STT-05 current implementation authority
+
+Current explicit consent authorizes only `unit/pnpm.bats` under
+`.devcontainer/test/` and this document/full mirror. Preserve STT-04 and all
+earlier preparation/investigation. Shared helpers and production remain unchanged.
+TDD ON, runner Bats: add raw npm capture and rejecting-dispatch assertions before
+migration; observe genuine assertion RED, then migrate to the existing fixture.
+Use explicit REUSE/PNPM_HOME/UID_NAME and canonical Bats-local ownership paths;
+no escalation, real npm, host HOME, network, Docker/build, native CLI, or commits.
+
+### STT-05 implementation evidence
+
+- [x] **STT-05 functional migration complete.** Native review and owner commit
+  approval pending; prior Pi integration remains partial, not rerun or repaired.
+- Sanitized full pnpm baseline: exit 0, original 5/5 PASS. Regression-first full
+  run: exit 1, 4/6 PASS; genuine assertions failed at missing raw npm record
+  (`pnpm.bats:45`) and expected rejection 98 (`:57`, old adapter returned 0).
+  No invented installer/helper failure. Minimal migration GREEN: exit 0, 6/6.
+- Final specified commands after formatting: sanitized full pnpm 6/6 (five
+  original scenarios plus one rejection case), both helpers 10/10, Phase 3C-A
+  2/2, all exit 0; outer timeout 120000ms each. Diff-check passed. No later
+  source edits, broad suites, or forbidden operations; only evidence updated.
+- Shared runtime captures exact NUL argv and rejects unknown dispatch with 98;
+  reuse/print/repair assert no numbered calls. Preserved ownership/modes, sentinel
+  bytes, print-only state absence, and Docker core environment/precedence checks.
+  Verified uid/gid 1000 ubuntu; adapter permits only exact fixture-local install
+  arguments and canonical PNPM_HOME/bin. No elevation or ambient npm fallback.
+- Third-consumer onboarding: shared setup/runtime/runner plus local policy,
+  dispatcher and guarded ownership adapter; no new recorder/helper. Source diff
+  +55/−6 (61 lines). Rollback only pnpm hunks and this STT-05 authority/evidence;
+  preserve STT-04, earlier document sections, helpers, and production files.
