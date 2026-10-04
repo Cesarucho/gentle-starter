@@ -661,3 +661,118 @@ no escalation, real npm, host HOME, network, Docker/build, native CLI, or commit
   dispatcher and guarded ownership adapter; no new recorder/helper. Source diff
   +55/−6 (61 lines). Rollback only pnpm hunks and this STT-05 authority/evidence;
   preserve STT-04, earlier document sections, helpers, and production files.
+
+## STT-06 — Prepare markdownlint and Dev Container CLI npm contracts
+
+- [ ] **STT-06 — Add the missing two-tool npm installer regression suite.**
+  Historical preparation: document/full mirror #2611 only; suite then absent.
+  Owner consent "Adelante con recomendación" selected the test-only unit.
+  Later implementation authority and completion are recorded below.
+  Route: delegated, no children; TDD ON from consent, runner Bats.
+
+### Boundary and minimum faithful matrix
+
+Preparation boundary: clean `eb2bc94c55d465f2372b12700f775af56a5d6d18`,
+`test/gentle-shell-v4`; STT-04/05 commits `1f4ac079ba6b489968be08266751c5d8b6fa3d33`
+and `eb2bc94` (now verified in local history). Prior native candidate: 324 authored
+lines, approved/acknowledged, no findings, authority burned. Supplied `3b9...`/
+`d999...` are incomplete lineage/target identifiers: never invent/reuse receipts.
+Pi intentionally absent/out of scope; no integration rerun/repair.
+
+Descriptors: installer, version variable, package, command only; no production
+versions, catalog, discovery, source parsing, or universal idempotence model.
+
+| Scenario | Shared assertions | Required tool-specific distinction |
+| --- | --- | --- |
+| Existing CLI | Exit 0, preserved fixture CLI, zero numbered npm calls | Presence skips installation, not exact-version matching; Dev Container CLI requires npm before reuse, markdownlint after its reuse branch. |
+| Install absent CLI | One exact NUL argv record: `install`, `-g`, package plus synthetic locked version; CLI executable in fixture bin afterward | markdownlint executes `--help`; Dev Container CLI checks command availability. |
+| npm failure | Exact attempted argv, nonzero status, no created CLI or success claim | Fake npm returns a deliberate failure; neither installer may silently fall through. |
+| Missing npm | Nonzero status, prerequisite diagnostic, zero npm calls | Both actual installers have guards: markdownlint lines 32–35, Dev Container CLI line 26. |
+| npm succeeds without CLI | Dev Container CLI exits nonzero with binary-not-on-PATH diagnostic | markdownlint has no equivalent explicit postinstall guard; do not impose the same failure contract. |
+
+### Fixture, oracle, and test-first acceptance
+
+- Unchanged installer copies in Bats-local trees; substitute only copied common.sh.
+  BASH_ENV loads shared npm runtime; `run_npm_fixture` uses `env -i`, fixture
+  HOME/TMPDIR/PATH and explicit controls. Both HOME boundaries equal
+  `${NPM_FIXTURE_ROOT}/home`.
+- Synthetic locks: `LOCK_MARKDOWNLINT_CLI2_VERSION=9.9.31` and
+  `LOCK_DEVCONTAINER_CLI_VERSION=9.9.32`; overrides unset, no production versions.
+  Phase 3A/3C-A already cover policy/overrides; repeat only for a distinct wiring gap.
+- Adapter accepts only `npm install -g PACKAGE@FIXTURE_VERSION`, strips `npm`,
+  forwards to shared fake npm. Dispatcher checks count/every argument, rejects
+  others, creates only the selected fixture CLI on success. No real global install,
+  npm root, sudo, host HOME writes, ambient CLI/npm lookup, or permissive callback.
+- Test-first RED means missing fixture/installer behavior, not suite absence;
+  characterization GREEN is valid. Stop/report real installer bugs; never alter
+  production or manufacture RED. Preparation executed no negative controls.
+- Fixture-only oracles: wrong argv must fail install-success; suppressed CLI must
+  fail availability and Dev Container CLI's guard. Restore/rerun GREEN; these are
+  oracle checks, not production bug RED. Actual results appear below.
+
+### Safe baseline and proposed checks
+
+Preparation commands below: exit 0, helpers **10/10**, policies **5/5**, once each,
+outer `120000ms`. Read-only inspector: exit 0, 39 installers, 15 aliases,
+88 policy keys, no naming/alias errors. Full installers inspected: print exits
+before prerequisites/install. Helpers use synthetic temporary files.
+No unfiltered common.sh.bats or broader starter/integration runs.
+
+Later exact checks, each Bats invocation with outer timeout `120000ms`:
+
+```bash
+bats .devcontainer/test/unit/npm-installers.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|Phase 3C-A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Runtime harness N/A: mocked contracts, not installed-tool/image proof.
+
+### Forecast, rollback, and skill resolution
+
+Forecast **280–380 authored lines** including evidence; report >400, never code-golf.
+Cost: seconds, Bats-local files, no downloads/builds. Risks: lookup/order fidelity,
+swallowed probes, argv boundaries, HOME mismatch. Rollback: new suite/STT-06 only.
+Historical skills: add-tool, clean-code, work-unit-commits, cognitive-doc-design,
+markdown-documentation. Classification: test-only; no SDD or metadata upgrades.
+
+### STT-06 current implementation authority
+
+Implementation consent superseded preparation-only scope: new
+`.devcontainer/test/unit/npm-installers.bats` and document/full mirror only.
+Helpers/tests, installers, policy, dependencies, activation and earlier history
+remain unchanged. Closeout permits only STT-06 prose/mirror edits, not source.
+Native review is parent-owned. No staging, commits, branches, push/PR, network,
+installs, Docker/builds, or children; no-commit consent overrides ODD defaults.
+Vitest/Skills implementation waits for native closeout.
+
+### STT-06 implementation evidence
+
+- [x] **STT-06 functionally complete; native review and commit approval pending.**
+- Test-first RED: first run exit 1, 4/6 PASS; install success and npm failure
+  failed without dispatcher. Pre-adapter rejecting-argv assertion: exit 1, 4/7.
+  Missing fixture behavior, not production bugs or suite-gathering failures.
+  Closed callback GREEN: 7/7; final lookup characterization added case eight.
+- Oracle controls: wrong argv failed positive status assertion (exit 1, 0/1);
+  npm success without CLI failed executable assertion (exit 1, 0/1). Both repeated
+  after direct-probe isolation hardening, then restored. No production RED claimed.
+- Final exact commands above: new suite **8/8**, helpers **10/10**, selected policy
+  **5/5**, exit 0, outer 120000ms each, no warnings. Formatting inspected before
+  final checks; no later source edits. Diff-check passed.
+- Acceptance above verified, including filesystem-backed CLI state and ambient
+  lookup/direct-probe rejection; no real npm or helper/production changes.
+- Closeout deduplicates preparation/acceptance prose; prior 663 lines preserved.
+  Original STT-06 is historical attachment #2666, not another task plan.
+
+### STT-06 independent verification
+
+Independent verifier: 8/8 new, 10/10 helpers, 5/5 policies, diff-check exit 0;
+outer 120000ms each. Parent spot-check 8/8. Eight cases mostly cover both tools;
+copies/modes/CLI isolation faithful, no blocker. Markdownlint help runs through
+actual source but its exact invocation is not independently recorded/asserted.
+Functional complete; native preflight pending `intended_untracked_selection_required`
+for npm-installers.bats only. JSON shape undocumented: no guessed payload, staging
+workaround, freeze, START, or receipt. Native and commit approval remain pending.
