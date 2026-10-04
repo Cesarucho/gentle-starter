@@ -813,3 +813,140 @@ Preserve local plan/proof and all history; mirror capacity does not block safe w
   index empty. No real npm, network, installation, privilege escalation or native CLI.
   Runtime harness N/A: mocked contracts only. Full mirror remains capacity-pending;
   historical prefix is preserved. Commit/review permission is not inferred.
+
+## STT-08 — Characterize Pi's npm installer
+
+Preparation only; no test/helper/production writes yet. Continue this feature,
+TDD ON, Bats. Last reviewed boundary is `3209c5240bd56b06b9b9fb683a77d4112437c432`:
+parent reports combined STT-06/07 native approval/acknowledgement, no findings.
+Current branch/HEAD verified locally; initial index/worktree clean. Earlier Pi
+absence was expected, not installation evidence. Native RDD remains parent-owned;
+no CLI worker, children, staging, commit, branch, remote or installation authority.
+
+| Contract read from unchanged source | Current coverage | Needed proof |
+| --- | --- | --- |
+| Pi: npm required before presence reuse; no Node guard | Four other npm tools only | Add Pi row; missing npm with present/absent Pi; absent Node does not skip |
+| Pi: root-adapted `npm install -g --ignore-scripts @earendil-works/pi-coding-agent@LOCK` | Policy resolution/override; no install argv | Exact NUL argv, root trace, synthetic lock, failure propagation |
+| Pi: `pi --version` on reuse and after install; no exact-version comparison | Integration checks executable only | Unrelated-version reuse without npm; fixture CLI and exact probes |
+| Pi: probe occurs inside logging command substitution | Not characterized | Probe failure/missing CLI can still yield successful logging/status; do not invent fail-closed behavior |
+| Mermaid: npm then passwd lookup; reuse requires nonempty SVG smoke | Policy resolution/override only; no Mermaid tools.bats case | Missing npm/user, render-ready reuse, broken/empty render triggers install |
+| Mermaid: private `/opt/mermaid-cli`, user npm, browser dependency root requests | No installer matrix coverage | Exact sudo/user/npm flags, package lock, apt/install/chown requests; never assume global npm prefix |
+| Mermaid: `/usr/local/bin/mmdc` wrapper and `/etc/mermaid-cli/puppeteer.json` | No wrapper/config proof | Modes, no-sandbox JSON, default injection and explicit config passthrough |
+| Mermaid: executable private CLI and final nonempty SVG required | No failure/state proof | Missing private executable, npm failure, failed/empty final render; no false success |
+
+Pi config seeding/trust belongs to `setup.sh`, not this installer; existing
+config/lifecycle suites remain untouched. Shared common.sh owns policy loading
+and real root escalation; these unit tests mock those boundaries, not ownership.
+
+- [ ] Extend only `.devcontainer/test/unit/npm-installers.bats` plus this record.
+  Reuse `npm-fixture.bash` unchanged; descriptor rows map tests to synthetic locks,
+  not a copied version/config catalog. Preserve all four current tools.
+- [ ] Smallest RED: add Pi install/argv assertion and descriptor before Pi fixture
+  lock/lookup/dispatcher support; run focused test and record genuine fixture
+  failure. Add only closed Pi branches, GREEN, then reuse/prerequisite/probe cases.
+  Oracle control: reject missing `--ignore-scripts`; restore before final checks.
+- [ ] Closed named Pi lookup/direct probes; no ambient Pi/npm/Node, host HOME,
+  credentials, sockets or root execution. Characterize swallowed probes honestly.
+
+## STT-09 — Characterize Mermaid's private-prefix/render contract
+
+- [ ] Prefer focused Mermaid cases in the same npm suite, reusing the existing
+  env-i/NUL-argv fixture, unchanged installer copy and common stub. If exact
+  path/render/wrapper boundaries make that file unreadable, propose
+  `.devcontainer/test/unit/mermaid-installer.bats` before parent approval/writes;
+  no new fixture framework or shared-helper change.
+- [ ] Map safety before executing source: intercept `getent`, `sudo`, root adapter
+  and fixed-path executable checks with exact request whitelists; all mapped
+  state lives under BATS_TEST_TMPDIR. Reject unknown users/commands/paths/argv.
+  Real mktemp/trap cleanup stays inside fixture TMPDIR. Do not call real apt,
+  npm, sudo, chown, Node, browser, or touch `/opt`, `/etc`, `/usr/local/bin`.
+- [ ] First characterize missing-npm rejection with a safe stub (may pass already).
+  Smallest RED: exact private-prefix install assertion before its fixture dispatcher
+  exists. No source mutation or fabricated production RED. Add render-state transitions
+  and installation failures only after proving rejection boundaries.
+- [ ] Assert root ownership/mode requests, not actual ownership. Capture generated
+  wrapper/config bytes locally. For Bash wrapper execution, explicitly remap only
+  its two fixed exec/config paths in a test copy to fixture paths, record that
+  limitation, and use fake mmdc with local NUL probes; never execute original
+  absolute exec paths. Cover `-p`, `--puppeteerConfigFile`, equals form and argument
+  boundaries/default injection. No Chromium; renderer integration remains outside
+  unit proof. Unsupported safe mapping means stop before installer execution.
+
+### STT-08/09 checkpoints, forecast and verification
+
+Baseline executed once after safety inspection: `bats
+.devcontainer/test/unit/npm-installers.bats`, outer timeout 120000ms, exit 0,
+11/11 PASS. Install-tree inspection passed (no invalid/broken/unsafe aliases).
+No new RED/GREEN or actual-tool/runtime proof has been performed.
+
+Forecast: Pi 80–140 authored lines; Mermaid 180–300; combined tests/docs 320–520.
+Each unit check should take seconds, local temporary files only, no downloads or
+builds; allow 120000ms per Bats invocation, about five minutes combined including
+readback. Count actual additions/deletions before delivery; if >400, parent plans
+Pi then Mermaid review/branch-chain slices, never code-golf or stop on size alone.
+Rollback is each task's test/doc hunks only; preserve prior history and helpers.
+
+Exact future checks (focused RED/GREEN first; 120000ms per Bats invocation):
+
+```bash
+bats --filter 'Pi|npm installers' .devcontainer/test/unit/npm-installers.bats
+bats --filter 'Mermaid' .devcontainer/test/unit/npm-installers.bats
+bats .devcontainer/test/unit/npm-installers.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|Phase 3C-A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+If the approved Mermaid fallback is used, replace its focused command with
+`bats .devcontainer/test/unit/mermaid-installer.bats` and include that file in the
+combined suite command. No broad integration/build/lifecycle run is authorized.
+Full mirror #2611 remains capacity-pending (>50000 bytes); do not overwrite,
+truncate or compact it/history. Save this exact append as a separate feature-scoped
+progress checkpoint, not a new feature or SDD plan; preserve the original 815 lines.
+
+### STT-08 current implementation authority
+
+Pi-only implementation is now authorized: existing `npm-installers.bats` and this
+document only. TDD ON, Bats; preserve four previous rows and eleven cases. No
+production/shared-helper changes, Mermaid writes, installation, integration,
+network, Docker, native CLI, children, staging or commits. Parent owns native
+review; commit approval remains pending. Full mirror remains capacity-pending.
+
+### STT-08 implementation evidence
+
+- [x] Pi test coverage implemented; native review and commit approval pending.
+  Only the existing npm suite and this document changed. Four prior rows and
+  eleven original cases retained; Pi joins six compatible common cases and adds
+  five focused cases (16 total). Actual installer copied unchanged and compared.
+- TDD: Pi descriptor/install assertion first, before lock/lookup/dispatcher support.
+  Focused RED exit 1, 5/6 PASS: missing Pi fixture lock blocked the new installer.
+  Closed Pi support gave focused GREEN 6/6, then characterization/guard cases 10/10.
+  Fixture RED is not a production defect. Temporary missing-flag acceptance oracle
+  failed its status-0 assertion (exit 1, 0/1), then was restored before final checks.
+- Exact synthetic lock/env/package, NUL argc/each argv and root trace verified;
+  Pi alone permits five root/four npm args including `--ignore-scripts`. Existing
+  four-root/three-npm guards remain exact. Missing flag rejects at npm (98) and
+  root (95), creates no CLI; no permissive wildcard. No Node guard, npm-before-reuse,
+  absent/present prerequisites and closed Pi lookup/direct probes characterized.
+- Known behavior gap, not installation-health PASS: unchanged Pi source logs and
+  exits 0 after failed reuse/postinstall `--version` probes, and after mocked npm
+  success with no CLI. Fake CLI direct controls independently return 42 with no
+  output. Success-path fixture CLI checks are separate. Production fix/follow-up
+  is deferred; these units neither install Pi nor prove its runtime health.
+- Final authorized checks above (Mermaid command not run), each outer 120000ms: focused 10/10,
+  whole matrix 16/16, helpers 10/10, selected policies 5/5; exit 0, no warnings.
+  Test formatting/control restoration preceded these runs; no later test edits.
+  Diff-check passed; index empty. No integration, network, builds, Docker, real
+  npm/Pi/Node, privilege escalation, host-state writes or native CLI execution.
+- Test diff is 140 additions/15 deletions (155 authored lines). STT-08 authority
+  and evidence append is 45 lines; with the prior 92-line preparation append,
+  current combined diff is 292 authored lines. Rollback only STT-08 suite/doc
+  hunks; preserve earlier 815 lines and preparation. Runtime harness N/A: mocked
+  installer contracts only. Full mirror #2611 remains untouched/capacity-pending;
+  save this authority/evidence append separately as feature progress, not a plan.
+- Mermaid STT-09 remains preparation-only. Its fixed-path executable check and
+  generated wrapper's absolute exec require exact fixture mapping; a separate
+  Mermaid suite remains a proposed readability fallback requiring parent scope
+  approval, not an implemented file or new framework.
