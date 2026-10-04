@@ -981,3 +981,42 @@ git status --short
 
 Full mirror #2611 remains untouched/capacity-pending. Preserve this exact authority
 append separately as feature progress; later append exact proof, not a new plan.
+
+### STT-09 implementation evidence
+
+- [x] Focused Mermaid suite implemented: 13 cases; unchanged installer copy/cmp,
+  unchanged shared npm fixture. Pi suite, helpers and production untouched by
+  STT-09. Prior history/preparation/Pi evidence preserved; index empty, uncommitted.
+- TDD: first two tests used rejecting sudo/root/version stubs before dispatcher
+  implementation. RED exit 1, 1/2 PASS: safe missing-npm characterization passed,
+  private-prefix installation failed at missing fixture behavior. Closed dispatch
+  gave GREEN 2/2; expanded contract suite 13/13. No production bug RED claimed.
+  Temporary final-render status-0 oracle failed (exit 1, 0/1); restored/normalized
+  before final runs. No later test edits.
+- Verified missing npm/user before state/install; render-ready reuse; failed/empty
+  initial render reinstalls; npm failure, missing executable private CLI and
+  failed/empty final render reject without success claims. Exact NUL user/npm/root
+  argv, dependency list, chown/ownership and install mode requests are asserted.
+- Safety: exact getent/user/sudo/root/fixed-path-test whitelists; malformed user,
+  command, npm/root argv, fixed path, mktemp and cleanup requests exit 90. Real
+  mktemp/rm operate only in checked fixture TMPDIR, and smoke trap cleanup is
+  asserted on reuse/install/failures. No actual sudo/apt/install/chown/browser,
+  host path/state, network or privileged operation. Ownership is mocked request
+  proof only. The source's negated `[ ! -x ]` private path is explicitly mapped.
+- Generated original wrapper/config captured locally; JSON compared byte-for-byte,
+  fixture modes checked. Only two fixed paths remapped in a separate wrapper copy;
+  reverse mapping/cmp preserves original bytes. Bash execution with fake private
+  mmdc verifies default injection, `-p`, separate/equals long options and NUL argv
+  boundaries (spaces, newline, empty). Original absolute wrapper never executed.
+  Rendering is synthetic; Chromium, real ownership and browser integration unproven.
+- Exact authorized final commands above, outer 120000ms each: Mermaid 13/13,
+  combined Pi/npm + Mermaid 29/29, helpers 10/10, selected policies 5/5; exit 0,
+  no warnings. Diff-check passed. Suite SHA-256:
+  `a4a1eed94f647ee234c8c90394917e60dfcb9599ed8ebf223c1fb9f09a1ad72b`.
+- New suite is 407 authored lines; do not compress/drop safety cases to fit 400.
+  Future parent-owned slices: Pi, then Mermaid installer/safety/failure contracts,
+  then remapped-wrapper characterization within STT-09 (roughly 86 suite lines).
+  No branches/PRs/commits created; native review and commit approval remain pending.
+  Rollback STT-09 new suite/authority/proof only. Full mirror #2611 remains untouched,
+  capacity-pending; save exact proof separately as feature progress. Pi's known
+  swallowed-probe gap remains characterized, not fixed; no new production fix.

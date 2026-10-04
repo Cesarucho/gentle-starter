@@ -336,6 +336,54 @@ assert_final_render_failure() {
     assert_final_render_failure
 }
 
+prepare_remapped_wrapper() {
+    run_installer
+    [ "$status" -eq 0 ]
+    assert_install_requests
+    local original="${NPM_FIXTURE_ROOT}/usr/local/bin/mmdc" text remapped restored
+    [ "$(stat -c %a "$original")" = 755 ]
+    [ "$(stat -c %a "${NPM_FIXTURE_ROOT}/etc/mermaid-cli/puppeteer.json")" = 644 ]
+    printf '%s\n' '{"args":["--no-sandbox"]}' >"${NPM_FIXTURE_ROOT}/expected.json"
+    cmp "${NPM_FIXTURE_ROOT}/expected.json" "${NPM_FIXTURE_ROOT}/etc/mermaid-cli/puppeteer.json"
+    text="$(<"$original")"
+    [[ "$text" == *'exec "/opt/mermaid-cli/bin/mmdc" "$@"'* ]]
+    [[ "$text" == *'exec "/opt/mermaid-cli/bin/mmdc" --puppeteerConfigFile "/etc/mermaid-cli/puppeteer.json" "$@"'* ]]
+    remapped="${text//\/opt\/mermaid-cli\/bin\/mmdc/${NPM_FIXTURE_ROOT}/opt/mermaid-cli/bin/mmdc}"
+    remapped="${remapped//\/etc\/mermaid-cli\/puppeteer.json/${NPM_FIXTURE_ROOT}/etc/mermaid-cli/puppeteer.json}"
+    REMAPPED_WRAPPER="${NPM_FIXTURE_ROOT}/remapped-wrapper"
+    printf '%s\n' "$remapped" >"$REMAPPED_WRAPPER"
+    restored="${remapped//${NPM_FIXTURE_ROOT}\/opt\/mermaid-cli\/bin\/mmdc/\/opt\/mermaid-cli\/bin\/mmdc}"
+    restored="${restored//${NPM_FIXTURE_ROOT}\/etc\/mermaid-cli\/puppeteer.json/\/etc\/mermaid-cli\/puppeteer.json}"
+    printf '%s\n' "$restored" >"${NPM_FIXTURE_ROOT}/restored-wrapper"
+    cmp "$original" "${NPM_FIXTURE_ROOT}/restored-wrapper"
+    assert_smoke_cleaned
+}
+
+run_wrapper() {
+    run env -i HOME="${NPM_FIXTURE_ROOT}/home" PATH="${NPM_FIXTURE_ROOT}/bin:/usr/bin:/bin" \
+        NPM_FIXTURE_ROOT="$NPM_FIXTURE_ROOT" bash "$REMAPPED_WRAPPER" "$@"
+}
+
+@test "Mermaid generated wrapper injects safe config and preserves raw argument boundaries" {
+    prepare_remapped_wrapper
+    run_wrapper -i 'input with spaces' -o $'output\nname' ''
+    [ "$status" -eq 0 ]
+    assert_request "${NPM_FIXTURE_ROOT}/wrapper-argv" --puppeteerConfigFile \
+        "${NPM_FIXTURE_ROOT}/etc/mermaid-cli/puppeteer.json" -i 'input with spaces' -o $'output\nname' ''
+}
+
+@test "Mermaid generated wrapper passes all explicit config forms without default injection" {
+    prepare_remapped_wrapper
+    local flag
+    for flag in -p --puppeteerConfigFile; do
+        run_wrapper -i 'input with spaces' "$flag" 'custom config.json' ''
+        [ "$status" -eq 0 ]
+        assert_request "${NPM_FIXTURE_ROOT}/wrapper-argv" -i 'input with spaces' "$flag" 'custom config.json' ''
+    done
+    run_wrapper '--puppeteerConfigFile=custom config.json' ''
+    [ "$status" -eq 0 ]
+    assert_request "${NPM_FIXTURE_ROOT}/wrapper-argv" '--puppeteerConfigFile=custom config.json' ''
+}
 
 @test "Mermaid fixture rejects unknown users commands argv and absolute test paths" {
     run_installer
