@@ -235,3 +235,185 @@ Before committing, both helper suites passed 5/5 independently with outer timeou
 no full suites, network, Docker, build, or native review lifecycle was run.
 STT-01's initial document snapshot ends here; STT-02 appends its own cohesive
 section in the second commit without changing any reviewed source bytes.
+
+## STT-02 — Prepare a closed npm family fixture
+
+Implementation authorization: current user explicitly permits source edits only
+to `.devcontainer/test/helpers/npm-fixture.bash`,
+`.devcontainer/test/unit/npm-fixture-helper.bats`,
+`.devcontainer/test/unit/gentle-shell.bats`, and
+`.devcontainer/test/unit/node-contracts.bats`, plus this document/mirror.
+Chosen review deliveries: STT-01 policy probes, then STT-02 npm family fixture.
+`chain_strategy: feature-branch-chain`; future tracker/child chain only after
+separate approval. No branches, staging, commits, or PRs now. RDD remains on;
+independent npm work is authorized with STT-01 native review still pending.
+
+- [x] **STT-02 — Share npm command capture and sandbox with two installer suites.**
+  Functional implementation and independent verification complete; native review
+  remains pending. TDD is ON from current explicit user choice; runner is Bats.
+  Source changes follow the explicit four-path authorization above.
+  Route: delegated bounded implementation when authorized; triggers are a new
+  cross-suite fixture, subprocess isolation, and two distinct tool contracts.
+  No child delegation, second feature identity, or SDD artifacts.
+
+### Selected consumers and proposed API
+
+Select `.devcontainer/test/unit/gentle-shell.bats` and
+`.devcontainer/test/unit/node-contracts.bats`: both simulate global npm install
+and npm root, with local package state. Gentle AI uses direct release archives,
+not npm. Defer pnpm: its fixture executes ownership provisioning; it has no
+npm-root behavior and is a less cohesive first pair.
+
+Proposed new files: `.devcontainer/test/helpers/npm-fixture.bash` and
+`.devcontainer/test/unit/npm-fixture-helper.bats`. Proposed call-site syntax:
+
+```bash
+load ../helpers/npm-fixture.bash
+setup_npm_fixture "${BATS_TEST_TMPDIR}/npm sandbox"
+# Consumer writes its own common.sh/BASH_ENV and npm_fixture_dispatch callback.
+run_npm_fixture "${INSTALLER}" "${consumer_env}" FAIL_NPM=1
+[ "$status" -ne 0 ]
+```
+
+`setup_npm_fixture ROOT` creates fixture-local home, tmp, bin, and npm call log;
+sets `NPM_FIXTURE_ROOT`, `NPM_FIXTURE_CALLS`, and `NPM_FIXTURE_RUNTIME` for the runner.
+That runtime defines fake `npm`, captures each invocation in a separate numbered
+NUL-delimited argv file, and calls consumer-defined `npm_fixture_dispatch "$@"`.
+Missing dispatcher/unexpected commands fail closed; never fall through to real npm.
+`run_npm_fixture INSTALLER ENV_FILE [NAME=value ...]` uses Bats `run env -i`, an
+explicit local utility PATH, fixture HOME/TMPDIR, and the caller's BASH_ENV.
+Caller stubs explicitly source the fixture runtime; helper plumbing alone is not
+acceptance. Reject overrides of sandbox-owned environment keys. Preserve Bats
+status/output/lines and parent environment. Do not source installers or use eval.
+
+### Stable acceptance and TDD checks
+
+- Both existing suites use the shared fake npm, argv capture, and sandbox.
+  Remove both local npm implementations; retain privileged-command adapters and
+  tool-specific dispatch callbacks. Record removed duplicated plumbing and show
+  that a third npm consumer needs only its local policy/dispatch/assertions, not
+  another command recorder or sandbox. A run wrapper alone does not satisfy this.
+- Keep Shell's tarball byte comparison, SRI, native script flags, package/bin
+  metadata, version failure, readable bundle, passive state, and no CLI probing.
+  Keep contracts' exact packages/versions, logger mode, reuse/preservation,
+  root failure, and symlink refusal. No universal versions, flag normalization,
+  source parsing, discovery, or duplicate catalog.
+- Preserve contracts' current adapter semantics: `npm "$@"` forwards a leading
+  `npm` on install, while root passes `root -g`. Capture raw argv; do not silently
+  normalize that test convention or change production behavior.
+- First add synthetic Bats contract cases, observe genuine RED, then minimal
+  GREEN: success/multiline and exit 42 propagation; raw argv with spaces; missing
+  or rejecting dispatcher; sandbox HOME/TMPDIR and reserved-key rejection;
+  parent/ambient environment isolation; independent roots and repeated capture.
+  Synthetic callbacks write only inside Bats temporary directories.
+- Re-run the exact passing baseline immediately before consumer edits. Translate
+  call-log assertions to exact argv checks without losing any existing assertion.
+
+### Safe baseline and exact next checks
+
+Read both full suites and both installer paths before execution. Shell copies its
+installer and substitutes common.sh; fetch copies synthetic bytes, npm is fake,
+and remaining node/chmod operations target temporary files. Contracts uses a
+closed BASH_ENV, premarks common.sh loaded, and permits only fixture npm and the
+fixture logger mkdir. No real npm, privilege escalation, network, Docker, or build.
+
+Executed once with outer timeout `120000ms`, exit 0, **11/11 PASS**:
+
+```bash
+bats --filter 'Shell verifies local SRI|Shell bad SRI|Shell missing or malformed SRI|Shell root-created private bundle|Shell runtime passive mount|Shell failed npm|Shell unsupported architecture|contracts ' .devcontainer/test/unit/gentle-shell.bats .devcontainer/test/unit/node-contracts.bats
+```
+
+The read-only add-tool inspector also exited 0: 39 installers, 15 aliases,
+88 policy keys, no naming/alias errors. Final syntax (executed; results below):
+
+```bash
+bash -n .devcontainer/test/helpers/npm-fixture.bash
+bats .devcontainer/test/unit/npm-fixture-helper.bats
+bats --filter 'Shell verifies local SRI|Shell bad SRI|Shell missing or malformed SRI|Shell root-created private bundle|Shell runtime passive mount|Shell failed npm|Shell unsupported architecture|contracts ' .devcontainer/test/unit/gentle-shell.bats .devcontainer/test/unit/node-contracts.bats
+bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Each Bats invocation requires an explicit outer `120000ms` timeout. Expected cost:
+seconds, short-lived local processes and temporary files; zero downloads/builds.
+Inspect new execution paths before running. Runtime harness N/A: mocked installer
+contracts are not installed-tool, image, or lifecycle proof.
+
+### Forecast, rollback, and pending authority
+
+Existing STT-01 delivery was **311 authored changed lines** (302 additions + 9
+deletions), including this untracked document. STT-02 preparation adds about
+110–130 lines; implementation forecasts 180–260 additions and 35–65 deletions
+across helper, contract suite, two consumers, and evidence: **215–325 more**.
+Combined forecast **636–766 lines**, above 400: report meaningful slice boundary
+STT-01 policy probes versus STT-02 npm fixture plus both consumers and tests.
+`ask-on-risk` remains active; slicing is a review proposal, not permission to
+commit/create PRs. Owner approval remains pending; never code-golf to fit.
+
+Rollback STT-02 alone: remove its two proposed files, revert only its hunks in
+gentle-shell.bats/node-contracts.bats and this section/authority update; preserve
+all STT-01 files, evidence, and native blocker. Pending checks: documented native
+selection/review and owner commit approval. Implementation authorization,
+RED/GREEN, consumer verification, and measured diff are recorded below.
+Risks: environment sanitization hiding intended overrides, callback not loaded in
+subprocess, argument boundary loss, and accidental ambient npm. Closed dispatch,
+raw capture, reserved keys, and synthetic negative cases are mandatory controls.
+Skill resolution: all five requested exact paths read before work; test-only
+family preparation, no provider/state/updater changes. No upgrades or staging.
+
+### STT-02 implementation evidence
+
+Observed RED: `bats .devcontainer/test/unit/npm-fixture-helper.bats` exited 1
+at gathering because npm-fixture.bash did not exist; no behavioral cases ran.
+Minimal implementation GREEN: same command exited 0, 5/5 PASS. The exact
+11-case baseline above passed immediately before consumer edits, not RED.
+Final commands above ran once each after source formatting inspection:
+syntax exit 0; npm helper 5/5; selected consumers 11/11; STT-01 helper 5/5;
+STT-01 policy probes 3/3. Every Bats call used outer timeout 120000ms.
+No unexpected failures. New sources use four spaces; touched consumer lines
+retain surrounding indentation. No source edits followed final verification.
+
+Both consumers now use shared fake npm, raw argv files, and isolated env -i
+execution. Local npm bodies became trusted tool dispatch callbacks; Shell's
+privileged command log remains for existing assertions. New exact argv checks
+supplement rather than replace assertions. Contracts' leading npm is retained.
+Third-tool onboarding: load npm-fixture.bash, setup a Bats-local root, source
+NPM_FIXTURE_RUNTIME from local stubs, define npm_fixture_dispatch, and pass only
+explicit tool variables to run_npm_fixture. No new recorder/sandbox is needed.
+The helper reserves isolation keys and provides a failing executable npm fallback.
+Capture is serial per fixture; concurrent npm calls are outside this contract.
+
+Measured before this evidence addition: 620 authored changed lines including
+untracked files: STT-01 311; STT-02 309 (130 document additions and 179 source
+changes). This evidence/status update adds further authored documentation;
+final exact count is reported in the executor result. Two chosen review deliveries
+remain policy probes then npm fixture, feature-branch-chain, approval pending.
+Independent functional verifier confirmed syntax exit 0, npm helper 5/5,
+selected consumers 11/11, STT-01 helper 5/5, focused probes 3/3, and diff-check
+pass; each Bats call used outer timeout 120000ms. Parent npm-helper spotcheck
+also passed 5/5. Full consumer diffs preserve tests/assertions and add raw argv
+checks. These are trusted callbacks with serial capture, not a hostile sandbox.
+STT-02 is functionally complete; native review remains blocked on undocumented
+intended-untracked selection schema. RDD stays ON; no approval or receipt exists.
+Explicit consent to continue npm with prior review pending and both chosen
+feature-branch-chain deliveries remains recorded; owner commit approval pending.
+No source edits followed final checks; this update changes only document/mirror.
+No installed-tool, image, or runtime proof. STT-02 rollback preserves STT-01.
+
+### Approved local commit evidence
+
+STT-01: `8e5b43e64927d12cf3aaf8b463da2aa53b4a0679`, parent
+`a16d34d513154708dc792776549988936dc980d8`, message
+`refactor(tests): share installer version-policy probes`; 317 additions + 9
+deletions = 326 authored changed lines, including 237 document lines.
+STT-02 is the immediately following local commit containing its helper, contract
+suite, both npm consumers, and this appended section. Its final hash is recorded
+separately in Engram to avoid circular self-hash edits or an extra evidence commit.
+Future review boundaries are `a16d34d..8e5b43e`, then `8e5b43e..STT-02`.
+Both complete work units remain below the 400-line budget; no source compression
+or rewriting was used. All eight source blob hashes match the pre-commit snapshot.
+Native review is pending, not approved; no native lifecycle was invoked here.
+No push, PR, branch/tracker creation, amendment, or third commit is authorized.
