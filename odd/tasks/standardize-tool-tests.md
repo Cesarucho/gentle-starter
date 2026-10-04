@@ -950,3 +950,34 @@ review; commit approval remains pending. Full mirror remains capacity-pending.
   generated wrapper's absolute exec require exact fixture mapping; a separate
   Mermaid suite remains a proposed readability fallback requiring parent scope
   approval, not an implemented file or new framework.
+
+### STT-09 current implementation authority
+
+The parent now authorizes the focused fallback: new
+`.devcontainer/test/unit/mermaid-installer.bats` and this document only. This is
+the existing Mermaid test scope, not a new feature. Reuse npm-fixture unchanged;
+preserve Pi suite, production, shared helpers and all history. TDD ON, Bats.
+Before copied installer execution, close fixed-path tests/getent/sudo/root requests;
+generated original wrapper is captured but never executed. Remap only its private
+CLI/config paths in a test copy. No real browser, ownership or installed-tool proof.
+No integration, network, Docker/build, privilege escalation, host-state writes,
+native CLI, children, staging, commits, branches or PRs. Parent owns review.
+
+Forecast 300–450 suite lines plus concise evidence; seconds per unit command,
+120000ms outer timeout each, roughly five minutes combined, no downloads/builds.
+If actual authored scope exceeds 400, retain readable coverage and report the
+Pi/Mermaid future review slices; no chain operations are authorized here.
+Exact final commands:
+
+```bash
+bats .devcontainer/test/unit/mermaid-installer.bats
+bats .devcontainer/test/unit/npm-installers.bats .devcontainer/test/unit/mermaid-installer.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|Phase 3C-A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Full mirror #2611 remains untouched/capacity-pending. Preserve this exact authority
+append separately as feature progress; later append exact proof, not a new plan.
