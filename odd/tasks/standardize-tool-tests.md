@@ -776,3 +776,40 @@ actual source but its exact invocation is not independently recorded/asserted.
 Functional complete; native preflight pending `intended_untracked_selection_required`
 for npm-installers.bats only. JSON shape undocumented: no guessed payload, staging
 workaround, freeze, START, or receipt. Native and commit approval remain pending.
+
+## STT-07 — Extend npm installer coverage
+
+- [ ] Extend `npm-installers.bats` only, plus this record/mirror; preserve history,
+  helpers and production. Route: delegated; >=4 contract reads prepare the write.
+  No children, commits or push/PR. TDD ON (prior consent), Bats: genuine new fixture
+  behavior RED before adapter branches, then GREEN; never a fabricated production bug.
+- Accept four-tool reuse/install/failure/npm/isolation coverage; retain STT-06.
+  Vitest requires npm before Node skip/reuse, uses direct npm and `--version`;
+  Skills requires npm before reuse, uses root adapter, no Node guard/version probe.
+  Add only needed descriptors, explicit controls and closed named lookup/probes;
+  preserve env-i and exact argv, no universal postinstall/version enforcement.
+- Reuse exact STT-06 checks (120000ms); baseline 8/8. Forecast <400; rollback only
+  STT-07 hunks. Runtime N/A. STT-06 committed `9fa4f81`; supplied native medium,
+  review_due=false/under_budget is not approval. Boundary `eb2bc94`; cumulative
+  slice 344 plus new work may require review. Future chain/native work is parent-owned.
+
+Full mirror pending: this append exceeds #2611's 50000-byte limit with its locator.
+Preserve local plan/proof and all history; mirror capacity does not block safe work.
+
+### STT-07 implementation evidence
+
+- [x] Four-tool matrix implemented in the existing suite; production and shared
+  helpers unchanged. Original eight cases retained; three differentiated cases added.
+- TDD ON, Bats: descriptors and assertions first, before new locks/lookup/probes.
+  RED exited 1, 2/11 PASS: missing fixture locks prevented new installer paths;
+  new Node isolation assertion also failed against ambient lookup. Existing two
+  standalone cases passed. This is fixture RED, not a production defect.
+- Closed named lookup/direct probes, synthetic locks 9.9.33/9.9.34 and explicit
+  Node control gave GREEN 11/11. Final strengthened assertions verify observed root
+  calls versus direct npm, CLI probe arguments, no probe for Skills, and Vitest
+  Node skips both absent/present CLI before reuse, after the npm prerequisite.
+- Exact STT-06 final commands: suite 11/11, helpers 10/10, selected policies 5/5,
+  exit 0 each, outer 120000ms. Diff-check passed; only authorized two paths changed,
+  index empty. No real npm, network, installation, privilege escalation or native CLI.
+  Runtime harness N/A: mocked contracts only. Full mirror remains capacity-pending;
+  historical prefix is preserved. Commit/review permission is not inferred.
