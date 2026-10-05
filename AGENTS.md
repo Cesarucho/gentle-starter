@@ -17,6 +17,48 @@ For code and documentation edits, leave changes unstaged and uncommitted after
 verification so the owner can review them in VS Code. Commit only after the
 owner explicitly approves the reviewed diff; preserve unrelated local edits.
 
+## Task-response closing
+
+After each completed task, including implementation, investigation, explanation,
+and small changes, give a concise outcome or confirmation with relevant
+verification and limitations. Recommend one concrete next step; if no work is
+pending, say so rather than inventing tasks. Include an alternative only for a
+meaningful decision or tradeoff, and briefly distinguish it from the recommendation.
+Keep the response short and proportionate, without mandatory menus or list boilerplate.
+
+Recommendations do not authorize executing the next step, expanding scope,
+committing, pushing, opening a PR, or taking remote actions. When blocked, do not
+imply completion; honestly state the blocking action. Preserve clarification and
+blocking prompts intact and losslessly, then stop and wait. Do not append extra
+choices or forced recommendations to provider-owned prompt envelopes.
+
+## ODD record closure
+
+Only the orchestrator/parent closes authorized ODD work; workers report evidence
+and remaining work. This is procedural instruction, not runtime automation.
+
+Before closure, reconcile the authorized scope and observed, reported results of
+applicable checks, including explicitly accepted skipped or unavailable proofs.
+Do not close with real pending implementation, product decisions, or unresolved
+closure uncertainty; checked boxes alone are insufficient. Optional future work
+is not a current blocker. Require commit, push, or PR only when the explicitly
+authorized scope requires that delivery. Respect applicable pending native proof
+and review authority; never claim review approval from task completion.
+
+After reconciliation and before reporting closure, the parent MUST move completed
+or explicitly superseded authorized feature records to `odd/archive/{same name}.md`.
+Preserve all historical content and evidence; do not delete history, overwrite
+another record, or proceed through a destination collision. Update current
+navigation links and the full project-scoped Engram mirror under the same stable
+topic, including the new repository-relative locator. Read back both the local
+record and full mirror. If archival is unsafe or the mirror is unavailable,
+preserve existing state and honestly report archive or mirror pending rather than
+claiming closure.
+
+This rule applies only to ODD records. It authorizes no source mutations beyond
+the approved scope and no retroactive bulk classification or archival of existing
+records without explicit authorization.
+
 ## Project initialization and updates
 
 - Once a linear `starter` release is published, consumers should clone that
