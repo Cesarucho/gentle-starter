@@ -195,12 +195,12 @@ an IDE may only attach after `task container:up`.
 1. In your **PC host terminal**, from the project directory, run:
 
     ```bash
-    task container:up         # it will build the image if needed
+    task container:up            # it will build the image if needed
 
     # choose a "connect" method:
-    task container:connect    # interactive terminal with bash
-    task container:opencode   # directly to the ai-​agent application
-    task container:gentle-shell # native Pi-based interface; continue the last session
+    task container:connect       # interactive terminal with bash
+    task container:opencode      # directly to the ai-​agent application
+    task container:gentle-shell  # native Pi-based interface; continue the last session
     ```
 
 2. If you chose `container:connect`, use any tool normally:
