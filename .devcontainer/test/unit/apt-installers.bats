@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 
 load ../helpers/apt-fixture.bash
+load ../helpers/argv-assertions.bash
 
 prepare_installer() {
     local tool="$1" source_installer
@@ -90,29 +91,18 @@ run_installer() {
         OMIT_CLI="${OMIT_CLI:-0}" PROBE_FAILURE="${PROBE_FAILURE:-0}" "${overrides[@]}"
 }
 
-assert_request() {
-    local file="$1" index
-    shift
-    local -a actual expected=("$@")
-    mapfile -d '' -t actual <"$file"
-    [ "${#actual[@]}" -eq "${#expected[@]}" ]
-    for ((index=0; index<${#expected[@]}; index++)); do
-        [ "${actual[index]}" = "${expected[index]}" ]
-    done
-}
-
 assert_install_requests() {
-    assert_request "${APT_FIXTURE_CALLS}/1" update
-    assert_request "${APT_FIXTURE_CALLS}/2" install -y --no-install-recommends "$PACKAGE"
+    assert_recorded_argv "${APT_FIXTURE_CALLS}/1" update
+    assert_recorded_argv "${APT_FIXTURE_CALLS}/2" install -y --no-install-recommends "$PACKAGE"
     [ ! -e "${APT_FIXTURE_CALLS}/3" ]
 }
 
 assert_probe_and_log() {
     if [ "$CLI" = dot ]; then
-        assert_request "${APT_FIXTURE_ROOT}/cli-probe" -V
+        assert_recorded_argv "${APT_FIXTURE_ROOT}/cli-probe" -V
         [[ "$output" == *'Graphviz '*'installed: fixture Graphviz version'* ]]
     else
-        assert_request "${APT_FIXTURE_ROOT}/cli-probe" --version
+        assert_recorded_argv "${APT_FIXTURE_ROOT}/cli-probe" --version
         [[ "$output" == *'ansible '*'installed: fixture Ansible version'* ]]
         [[ "$output" != *'second version detail'* ]]
     fi
@@ -162,7 +152,7 @@ assert_probe_and_log() {
         prepare_installer "$tool"
         UPDATE_FAILURE=41 run_installer
         [ "$status" -eq 41 ]
-        assert_request "${APT_FIXTURE_CALLS}/1" update
+        assert_recorded_argv "${APT_FIXTURE_CALLS}/1" update
         [ ! -e "${APT_FIXTURE_CALLS}/2" ]
         [ ! -e "${APT_FIXTURE_ROOT}/bin/${CLI}" ]
         [ ! -e "${APT_FIXTURE_ROOT}/cli-probe" ]

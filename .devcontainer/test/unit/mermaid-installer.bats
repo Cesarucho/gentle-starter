@@ -101,10 +101,12 @@ devcontainer_run_as_root() {
         apt-get)
             if [ "${2:-}" = update ]; then
                 expect_request 2 "$@" apt-get update
+                return "${APT_UPDATE_FAILURE:-0}"
             else
                 expect_request 13 "$@" apt-get install -y --no-install-recommends \
                     libasound2t64 libatk-bridge2.0-0t64 libgbm1 libnss3 \
                     libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 libxrandr2
+                return "${APT_INSTALL_FAILURE:-0}"
             fi
             ;;
         install)
@@ -183,7 +185,47 @@ run_installer() {
         NPM_AVAILABLE="${NPM_AVAILABLE:-1}" USER_AVAILABLE="${USER_AVAILABLE:-1}" \
         EXISTING_CLI="${EXISTING_CLI:-0}" NPM_FAILURE="${NPM_FAILURE:-0}" \
         OMIT_PRIVATE_CLI="${OMIT_PRIVATE_CLI:-0}" \
+        APT_UPDATE_FAILURE="${APT_UPDATE_FAILURE:-0}" APT_INSTALL_FAILURE="${APT_INSTALL_FAILURE:-0}" \
         INITIAL_RENDER="${INITIAL_RENDER:-success}" FINAL_RENDER="${FINAL_RENDER:-success}"
+}
+
+assert_apt_stopped_before_cli() {
+    [[ "$output" != *'Installing @mermaid-js/mermaid-cli'* ]]
+    [[ "$output" != *'installed and render-checked'* ]]
+    [ ! -e "${NPM_FIXTURE_CALLS}/1" ]
+    [ ! -e "${NPM_FIXTURE_ROOT}/user-calls" ]
+    [ ! -e "${NPM_FIXTURE_ROOT}/render-calls" ]
+    [ ! -e "${NPM_FIXTURE_ROOT}/version-calls" ]
+    [ ! -e "${NPM_FIXTURE_ROOT}/opt/mermaid-cli/bin/mmdc" ]
+    [ ! -e "${NPM_FIXTURE_ROOT}/etc/mermaid-cli/puppeteer.json" ]
+    [ ! -e "${NPM_FIXTURE_ROOT}/usr/local/bin/mmdc" ]
+    [ ! -L "${NPM_FIXTURE_ROOT}/usr/local/bin/mmdc" ]
+    assert_smoke_cleaned
+}
+
+@test "Mermaid propagates APT update failure before install or CLI mutations" {
+    APT_UPDATE_FAILURE=41 run_installer
+    [ "$status" -eq 41 ]
+    local directory
+    directory="$(<"${NPM_FIXTURE_ROOT}/smoke-path")"
+    assert_request "${NPM_FIXTURE_ROOT}/root-calls/1" chown -R ubuntu:ubuntu "$directory"
+    assert_request "${NPM_FIXTURE_ROOT}/root-calls/2" apt-get update
+    [ ! -e "${NPM_FIXTURE_ROOT}/root-calls/3" ]
+    assert_apt_stopped_before_cli
+}
+
+@test "Mermaid propagates APT install failure after exact ordered prerequisites" {
+    APT_INSTALL_FAILURE=42 run_installer
+    [ "$status" -eq 42 ]
+    local directory
+    directory="$(<"${NPM_FIXTURE_ROOT}/smoke-path")"
+    assert_request "${NPM_FIXTURE_ROOT}/root-calls/1" chown -R ubuntu:ubuntu "$directory"
+    assert_request "${NPM_FIXTURE_ROOT}/root-calls/2" apt-get update
+    assert_request "${NPM_FIXTURE_ROOT}/root-calls/3" apt-get install -y --no-install-recommends \
+        libasound2t64 libatk-bridge2.0-0t64 libgbm1 libnss3 \
+        libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 libxrandr2
+    [ ! -e "${NPM_FIXTURE_ROOT}/root-calls/4" ]
+    assert_apt_stopped_before_cli
 }
 
 @test "Mermaid rejects missing npm before user lookup or root requests" {
@@ -225,7 +267,7 @@ assert_request() {
     local -a actual expected=("$@")
     mapfile -d '' -t actual <"$file"
     [ "${#actual[@]}" -eq "${#expected[@]}" ]
-    for ((index=0; index<${#expected[@]}; index++)); do
+    for ((index = 0; index < ${#expected[@]}; index++)); do
         [ "${actual[index]}" = "${expected[index]}" ]
     done
 }
