@@ -6,8 +6,6 @@
 #   bats .devcontainer/test/unit/common.sh.bats
 #
 
-load ../helpers/version-policy.bash
-
 SCRIPT_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../.." && pwd)"
 COMMON_SH="${SCRIPT_DIR}/install/lib/common.sh"
 
@@ -457,8 +455,9 @@ EOF
 
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name expected_version <<<"${case_entry}"
-        run_version_policy "${SCRIPT_DIR}/install/available/${script_name}" "${policy_file}" \
-            -u "${environment_name}" -u PLAYWRIGHT_CLI_VERSION
+        run env -u "${environment_name}" -u PLAYWRIGHT_CLI_VERSION \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
@@ -483,8 +482,10 @@ EOF
 
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name <<<"${case_entry}"
-        run_version_policy "${SCRIPT_DIR}/install/available/${script_name}" "${policy_file}" \
-            -u PLAYWRIGHT_CLI_VERSION "${environment_name}=9.9.9"
+        run env -u PLAYWRIGHT_CLI_VERSION \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            "${environment_name}=9.9.9" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
@@ -600,8 +601,9 @@ EOF
 
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name expected_value <<<"${case_entry}"
-        run_version_policy "${SCRIPT_DIR}/install/available/${script_name}" "${policy_file}" \
-            -u "${environment_name}" -u PLAYWRIGHT_VERSION
+        run env -u "${environment_name}" -u PLAYWRIGHT_VERSION \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
@@ -629,8 +631,10 @@ EOF
 
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name override_value <<<"${case_entry}"
-        run_version_policy "${SCRIPT_DIR}/install/available/${script_name}" "${policy_file}" \
-            -u PLAYWRIGHT_VERSION "${environment_name}=${override_value}"
+        run env -u PLAYWRIGHT_VERSION \
+            DEVCONTAINER_TOOL_VERSIONS_FILE="${policy_file}" \
+            "${environment_name}=${override_value}" \
+            bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
         if [ "${script_name}" = "2080-browser-playwright.sh" ]; then

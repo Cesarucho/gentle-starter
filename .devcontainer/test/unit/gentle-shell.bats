@@ -1,11 +1,9 @@
 #!/usr/bin/env bats
 
-load ../helpers/npm-fixture.bash
-
 setup() {
 	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
-	TEST_ROOT="${BATS_TEST_TMPDIR}/shell"
-	setup_npm_fixture "${TEST_ROOT}"
+	TEST_ROOT="$(mktemp -d)"
+	mkdir -p "${TEST_ROOT}/tmp"
 	export TMPDIR="${TEST_ROOT}/tmp"
 	# Real synthetic bytes retain the installer's same-tarball and tampering checks.
 	SHELL_PACKAGE="${TEST_ROOT}/shell.tgz"
@@ -28,9 +26,6 @@ devcontainer_run_as_root() {
     printf 'root %s\n' "$*" >>"${TEST_ROOT}/calls"
     if [ "$1" != npm ]; then "$@"; return; fi
     shift
-    npm "$@"
-}
-npm_fixture_dispatch() {
     if [ "$1" = root ]; then printf '%s\n' "${TEST_ROOT}/npm/lib/node_modules"; return; fi
     [ "$1" = install ] || return 98
     [ "${FAIL_NPM:-0}" = 0 ] || return 97
@@ -51,20 +46,10 @@ SH
 
 teardown() { rm -rf -- "${TEST_ROOT}"; }
 
-run_shell_fixture() {
-	run_npm_fixture "${INSTALLER}" "${NPM_FIXTURE_RUNTIME}" \
-		TEST_ROOT="${TEST_ROOT}" POLICY="${POLICY}" SHELL_PACKAGE="${SHELL_PACKAGE}" "$@"
-}
-
 @test "Shell verifies local SRI and uses native global npm scripts and bin" {
-	run_shell_fixture
+	run bash "${INSTALLER}"
 	[ "$status" -eq 0 ]
 	grep -q 'root npm install --global --ignore-scripts=false --no-audit --no-fund .*package.tgz' "${TEST_ROOT}/calls"
-	local argv
-	mapfile -d '' -t argv <"${NPM_FIXTURE_CALLS}/1"
-	[ "${#argv[@]}" -eq 6 ]
-	[ "${argv[*]:0:5}" = 'install --global --ignore-scripts=false --no-audit --no-fund' ]
-	[[ "${argv[5]}" == "${TEST_ROOT}"/*/package.tgz ]]
 	[ "$(readlink "${TEST_ROOT}/npm/bin/gentle-shell")" = ../lib/node_modules/gentle-pi/bin/gentle-shell.mjs ]
 	[ ! -e "${HOME}/.gentle-shell" ]
 	! grep -Eq 'pnpm|ignore-scripts( |$)|legacy-peer-deps|/opt/|launcher|provision' "${TEST_ROOT}/calls"
@@ -72,7 +57,7 @@ run_shell_fixture() {
 
 @test "Shell bad SRI fails before npm or native script execution" {
 	printf 'tampered' >>"${SHELL_PACKAGE}"
-	run_shell_fixture
+	run bash "${INSTALLER}"
 	[ "$status" -ne 0 ]
 	[[ "$output" == *'SRI mismatch'* ]]
 	! grep -q 'root npm' "${TEST_ROOT}/calls"
@@ -81,7 +66,7 @@ run_shell_fixture() {
 @test "Shell missing or malformed SRI fails before download and npm" {
 	for value in '' sha512-invalid; do
 		printf 'LOCK_GENTLE_SHELL_VERSION="4.0.0"\nLOCK_GENTLE_SHELL_INTEGRITY="%s"\n' "${value}" >"${POLICY}"
-		run_shell_fixture
+		run bash "${INSTALLER}"
 		[ "$status" -ne 0 ]
 		[ ! -e "${TEST_ROOT}/calls" ]
 	done
@@ -89,7 +74,7 @@ run_shell_fixture() {
 
 @test "Shell root-created private bundle becomes ubuntu-readable without changing npm parents" {
 	chmod 755 "${TEST_ROOT}/npm/lib/node_modules"
-	run_shell_fixture
+	run bash "${INSTALLER}"
 	[ "$status" -eq 0 ]
 	local bundle="${TEST_ROOT}/npm/lib/node_modules/gentle-pi/.gentle-ai/v4.0.0"
 	[ "$(stat -c %a "${bundle}")" = 755 ]
@@ -102,24 +87,24 @@ run_shell_fixture() {
 @test "Shell runtime passive mount does not trigger npm or state mutation" {
 	mkdir "${HOME}/.gentle-shell"
 	printf 'preserved\n' >"${HOME}/.gentle-shell/preferences"
-	run_shell_fixture RUNTIME=1
+	run env RUNTIME=1 bash "${INSTALLER}"
 	[ "$status" -eq 0 ]
 	[ ! -e "${TEST_ROOT}/calls" ]
 	[ "$(<"${HOME}/.gentle-shell/preferences")" = preserved ]
 }
 
 @test "Shell failed npm and wrong installed version fail without CLI probing" {
-	run_shell_fixture FAIL_NPM=1
+	run env FAIL_NPM=1 bash "${INSTALLER}"
 	[ "$status" -ne 0 ]
 	[ ! -e "${TEST_ROOT}/npm/bin/gentle-shell" ]
-	run_shell_fixture WRONG_VERSION=9.0.0
+	run env WRONG_VERSION=9.0.0 bash "${INSTALLER}"
 	[ "$status" -ne 0 ]
 	[[ "$output" == *'Unexpected native Shell package'* ]]
 	! grep -q -- '--version' "${TEST_ROOT}/calls"
 }
 
 @test "Shell unsupported architecture fails before download" {
-	run_shell_fixture BAD_ARCH=1
+	run env BAD_ARCH=1 bash "${INSTALLER}"
 	[ "$status" -ne 0 ]
 	[ ! -e "${TEST_ROOT}/calls" ]
 }

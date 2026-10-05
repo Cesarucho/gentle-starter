@@ -592,6 +592,8 @@ EOF
 		"${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${policy}"
 	[ "${status}" -eq 0 ]
 
+	keys="$(sed -nE 's/^(TOOL_[A-Z0-9_]+)=.*/\1/p' "${policy}")"
+	[ -z "$(printf '%s\n' "${keys}" | sort | uniq -d)" ]
 	grep -q '^# GENERATED LOCK' "${policy}"
 	grep -q '^LOCK_OPENCODE_SHA256_AMD64=' "${policy}"
 }

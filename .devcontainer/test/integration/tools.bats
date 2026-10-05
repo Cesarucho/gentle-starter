@@ -205,6 +205,11 @@ load install-selection.sh
     [ "$status" -eq 0 ]
 }
 
+@test "ai: pi is installed" {
+    skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
+    command -v pi >/dev/null
+}
+
 @test "ai: optional Gentle Shell has native npm metadata and an executable bin" {
     skip_if_install_disabled "3040-ai-gentle-shell.sh" "task install:enable -- 3040-ai-gentle-shell"
     command -v gentle-shell >/dev/null
@@ -218,7 +223,6 @@ load install-selection.sh
 
 @test "ai: pi is executable" {
     skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
-    command -v pi >/dev/null
     [ -x "$(command -v pi)" ]
 }
 
