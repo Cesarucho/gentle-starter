@@ -575,7 +575,7 @@ PY
     .devcontainer/docs/optional-skills.md; do
     [ "$(git -C "${REPO}" rev-parse "starter:${path}")" = "$(git -C "${ROOT}" hash-object "${path}")" ]
   done
-  ! git -C "${REPO}" cat-file -e starter:odd/tasks/skills-manual-workaround.md
+  ! git -C "${REPO}" cat-file -e starter:odd
 }
 
 @test "candidate rejects malformed skill lock and leaves release and candidate unchanged" {
