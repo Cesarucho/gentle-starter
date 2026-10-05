@@ -1,0 +1,1022 @@
+# Standardize tool-test contracts incrementally
+
+Standardize test-only policy probes and npm family fixtures in bounded work units.
+Installer behavior, activation, policy ownership, and runtime state remain unchanged.
+
+## Authority and current state
+
+- Current owner approval supersedes the historical no-commit restrictions below:
+  create exactly two local work-unit commits, policy probes then npm fixture.
+  Native review remains pending; prior preflight is not binding or a delivery gate.
+  No push, PR, branch creation, or tracker is authorized. Historical proof remains
+  intact; the chosen feature-branch-chain is future review planning only.
+- Repository: `/home/ubuntu/gentle-starter`.
+- Verified starting boundary: `a16d34d`, branch `test/gentle-shell-v4`, clean worktree.
+- STT-01's five-path diff must be preserved. Current consent continues npm
+  implementation while STT-01 native review is pending; authorized paths are
+  recorded under STT-02, including this document and its complete Engram mirror
+  `odd/standardize-tool-tests/tasks` in project `gentle-starter`.
+- No staging, commits, branch switches, Docker, network, builds, installer/config/
+  policy/activation changes, new SDD artifacts, or child delegation are authorized.
+- Delivery strategy: `ask-on-risk`. Commit: **PENDING explicit owner approval**.
+  The accepted unstaged/uncommitted delivery overrides automatic work-unit commits.
+- RDD is globally on (`/home/ubuntu/.gentle-ai/state.json`, `rdd_mode: on`).
+  No review lifecycle has started; this plan is not a review receipt or delivery gate.
+
+## Selected work unit
+
+Choose the Phase 3A policy-resolution loops in `common.sh.bats`, plus the missing-lock
+probe in `tool-policy.bats`. They already exercise the same public
+`--print-version-policy` boundary. A shared invocation helper has immediate consumers
+in two existing suites without reorganizing the catalog or migrating every family.
+
+The direct-archive family already has provider-shaped archives, checksum failures,
+byte/mode preservation, signal cleanup, and BATS multi-destination rollback. Its
+fixtures should not be generalized into a universal provider abstraction now.
+Repeated integration probes are real candidates but depend on installed tools and
+selection semantics; defer them rather than widening this offline first unit.
+
+Existing `unit/install-fixture.bash` owns activation setup. Do not overload that
+helper with policy probes or replace `integration/install-selection.sh`.
+
+## TDD evidence and execution mode
+
+- Effective ODD TDD mode: **ON**, source: current explicit user consent,
+  "Sí, usar TDD". This supersedes the preparation's unresolved mode, not configuration.
+- Observe RED on new helper contract tests before adding the missing helper;
+  implement minimally for GREEN, then refactor the two existing consumers.
+  Do not create `openspec/config.yaml` or invoke `sdd-init`.
+- Runner: installed Bats; focused commands below run existing test cases directly.
+  `.maintainer/tasks/test.yml` defines broader starter Bats suites, not TDD policy.
+  Root `task test` deliberately exits 2 until application tests are configured.
+- Existing-test refactoring requires a passing exact focused baseline immediately
+  before consumer edits. Never label that characterization baseline RED.
+
+## Checklist
+
+- [x] **STT-01 — Share policy probes with two existing consumers.**
+  Functional implementation complete; native review pending; commit PENDING approval.
+  Route: **delegated** to this bounded implementation executor by the parent;
+  no child delegation is launched.
+  Evidence: two nontrivial existing suites (680 and 82 lines), new helper and
+  helper-contract tests, environment-isolation design, and exception preservation.
+  This is not a one-file mechanical edit.
+  - Scope: add `.devcontainer/test/helpers/version-policy.bash` and
+    `.devcontainer/test/unit/version-policy-helper.bats`; migrate only the two
+    Phase 3A loops in `.devcontainer/test/unit/common.sh.bats` and the missing-lock
+    test in `.devcontainer/test/unit/tool-policy.bats`. Update this document with
+    the helper's minimal onboarding example, actual verification, and diff count.
+  - Helper contract: accept an explicit installer path, explicit policy path,
+    and explicit environment arguments; invoke only `--print-version-policy`
+    under Bats `run`, preserving `status`, `output`, and `lines`. Callers retain
+    assertion ownership and specify their own unset/override variables.
+  - Fixtures: use `BATS_TEST_TMPDIR` for new policy/installer fixtures; no global
+    shell state, installer sourcing, eval, duplicated catalog, installer-source
+    parsing, or automatic discovery. Keep case lists local to existing tests.
+  - Acceptance: both existing suites actually call the helper; all current
+    assertions and case coverage survive, including Playwright's two output
+    lines, CLI unset behavior, environment precedence, and missing-lock message.
+    Existing per-tool exceptions outside this slice remain untouched.
+  - Add offline helper tests using synthetic print-policy executables for
+    success, nonzero status, multiline output, unset/override propagation, and
+    paths containing spaces. Do not install tools or alter production behavior.
+  - Checks: rerun the exact baseline immediately before refactoring, then run
+    the exact final focused commands below; record actual results, not promises.
+  - Commit evidence remains PENDING; do not stage or commit without owner approval.
+
+## Verification boundary
+
+Read-only inspector verified by reading its complete Bash/Python implementation:
+
+```bash
+bash .agents/skills/add-tool/scripts/inspect-install-tree.sh /home/ubuntu/gentle-starter
+```
+
+Result: exit 0; 39 installers, 15 aliases, 88 policy keys; no invalid names,
+duplicate prefixes/slots, broken aliases, or unsafe aliases.
+
+Exact baseline, executed once during preparation with a 120-second outer timeout:
+
+```bash
+bats --filter 'Phase 3A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+```
+
+Result: exit 0, **3/3 PASS**. The loops cover six installers per scenario.
+Inspected each selected installer's pre-print path: shared policy loading and
+assignments precede printing/exiting; installation paths are not reached.
+Fixture writes are restricted to Bats temporary directories.
+
+Final checks executed after all source edits:
+
+```bash
+bash -n .devcontainer/test/helpers/version-policy.bash
+bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Use a 120-second outer timeout for each Bats invocation. No downloads or build
+cost expected; only short-lived local subprocesses and temporary fixture files.
+Do not run all of `common.sh.bats`: its fetch tests contact external URLs.
+Do not substitute `test:starter`, `task validate`, integration tools, or lifecycle
+tasks for this bounded proof. Runtime harness: **N/A**, test-only policy invocation;
+this does not prove image build or installed-tool health.
+
+## Forecast, risks, and rollback
+
+- STT-01 forecast: 140–220 authored additions plus 45–75 deletions, including
+  helper, contract tests, two consumers, and onboarding/evidence updates:
+  **185–295 changed lines**. Preparation document is additional authored work;
+  count it in the eventual delivery total rather than hiding it as generated.
+- 400 changed lines per task is advisory, not permission to compress code.
+  Ask on scope/risk growth or an honest over-budget forecast; do not migrate
+  more families merely to justify the helper.
+- Risks: ambient environment leakage, Bats `run` scope, weakened multiline
+  assertions, and accidental installer execution. Explicit argument forwarding,
+  synthetic fixtures, retained assertions, and print-only calls address them.
+- Clean-code assessment of this slice: approximately 7/10; repeated invocation
+  and source-policy extraction obscure intent. Aim for explicit readable helpers
+  and retained behavioral assertions, not a generic test framework.
+- Rollback boundary: remove the two new helper files and revert only STT-01 hunks
+  in the two consumer suites and this document. No installer, policy, catalog,
+  task-runner, activation, or runtime-state changes belong to this unit.
+- Skill resolution: required exact-path `add-tool`, `clean-code`, and
+  `work-unit-commits` loaded first; `cognitive-doc-design` and
+  `markdown-documentation` loaded for this artifact. Classification: test-only
+  refactoring preparation, not provider/provisioning change. No SDD skill invoked.
+
+## Implementation evidence and onboarding
+
+TDD source is current user consent, runner Bats. Observed sequence:
+
+| Stage | Command | Observed result |
+| --- | --- | --- |
+| RED | `bats .devcontainer/test/unit/version-policy-helper.bats` | Exit 1; gathering fails because the helper does not exist. No helper implementation existed. |
+| GREEN | Same helper-suite command after adding the helper | Exit 0; 5/5 PASS. |
+| Baseline before consumer edits | Exact focused baseline above | Exit 0; 3/3 PASS, not RED. |
+| Refactor/final | `bash -n .devcontainer/test/helpers/version-policy.bash` | Exit 0. |
+| Refactor/final | Helper-suite command | Exit 0; 5/5 PASS. |
+| Refactor/final | Exact focused baseline above | Exit 0; 3/3 PASS. |
+| Final inspection | `git diff --check`, `git diff --stat`, `git status --short` | Exit 0 each; only authorized paths changed, nothing staged. |
+
+The RED was a genuine missing-helper load failure, not five individually executed
+assertion failures. Five behavior tests subsequently ran in GREEN and final checks.
+No source normalization was needed: new files follow four-space test formatting,
+consumer edits retain surrounding formatting. No source edits followed final checks;
+only this evidence document and its mirror were updated.
+
+Load the helper from a Bats suite and keep assertions at the call site:
+
+```bash
+load ../helpers/version-policy.bash
+
+run_version_policy "${installer}" "${policy_file}" \
+    -u PLAYWRIGHT_CLI_VERSION PLAYWRIGHT_VERSION=9.9.9
+[ "$status" -eq 0 ]
+[ "${lines[0]}" = PLAYWRIGHT_VERSION=9.9.9 ]
+```
+
+The helper's first two arguments are explicit paths; remaining arguments use
+`env` syntax (unset options before assignments). The explicit policy path is
+authoritative even if a forwarded assignment attempts to replace it. Bats results
+remain in the caller; the helper never sources an installer or owns assertions.
+
+Both existing suites now consume the helper. All existing assertions are unchanged:
+six Phase 3A cases per loop, Playwright's exact multiline output and CLI unset,
+environment override precedence, and missing-lock status/message. No duplicate
+catalog or new source parsing was introduced. Contract tests also cover paths and
+values containing spaces, nonzero exit 42, multiline `lines`, and caller isolation.
+
+Candidate remains an unstaged worktree on `test/gentle-shell-v4` at `a16d34d`:
+two modified consumer suites, two new helper/test files, and this new document.
+Native review is pending; there is no frozen native candidate or review receipt.
+Actual diff including untracked files: 302 additions + 9 deletions = 311 authored lines.
+Rollback remains the bounded five-path STT-01 change described above.
+
+## Independent verification and native-checking blocker
+
+The parent supplied independent verifier evidence; this documentation-only update
+records that evidence without rerunning tests or starting a review lifecycle.
+Each verifier command had a 120000ms outer timeout:
+
+| Exact independent command | Observed result |
+| --- | --- |
+| `bash -n .devcontainer/test/helpers/version-policy.bash` | Exit 0. |
+| `bats .devcontainer/test/unit/version-policy-helper.bats` | Exit 0; 5/5 PASS. |
+| `bats --filter 'Phase 3A\|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats` | Exit 0; 3/3 PASS. |
+| `git diff --check` | Exit 0. |
+
+The independent verifier confirmed every existing assertion and case list was
+preserved. The parent's separate helper spot check also passed 5/5.
+Independent functional verification is complete; overall native checking is partial.
+
+Native review is **NOT started, frozen, or approved**. Global mode remains **on**.
+The initial native assessment was high/unassessable because intended untracked
+files had not been declared. Selectorless STATUS returned `collect` with
+`intended_untracked_selection_required` and schema
+`gentle-ai.review-intended-untracked-selection/v1`. Installed help/assets did not
+document the selection JSON fields, so no guessed selection was submitted.
+The exact three eligible intended untracked paths are:
+
+- `.devcontainer/test/helpers/version-policy.bash`
+- `.devcontainer/test/unit/version-policy-helper.bats`
+- `odd/tasks/standardize-tool-tests.md`
+
+Native review remains **pending / blocked** on a documented selection shape;
+do not disable review or fabricate PASS. No review lifecycle, staging, or commits
+are authorized by this evidence update. Commit remains PENDING owner approval.
+
+## Local commit verification
+
+Before committing, both helper suites passed 5/5 independently with outer timeout
+120000ms each. Existing independent 24/24 functional evidence remains accepted;
+no full suites, network, Docker, build, or native review lifecycle was run.
+STT-01's initial document snapshot ends here; STT-02 appends its own cohesive
+section in the second commit without changing any reviewed source bytes.
+
+## STT-02 — Prepare a closed npm family fixture
+
+Implementation authorization: current user explicitly permits source edits only
+to `.devcontainer/test/helpers/npm-fixture.bash`,
+`.devcontainer/test/unit/npm-fixture-helper.bats`,
+`.devcontainer/test/unit/gentle-shell.bats`, and
+`.devcontainer/test/unit/node-contracts.bats`, plus this document/mirror.
+Chosen review deliveries: STT-01 policy probes, then STT-02 npm family fixture.
+`chain_strategy: feature-branch-chain`; future tracker/child chain only after
+separate approval. No branches, staging, commits, or PRs now. RDD remains on;
+independent npm work is authorized with STT-01 native review still pending.
+
+- [x] **STT-02 — Share npm command capture and sandbox with two installer suites.**
+  Functional implementation and independent verification complete; native review
+  remains pending. TDD is ON from current explicit user choice; runner is Bats.
+  Source changes follow the explicit four-path authorization above.
+  Route: delegated bounded implementation when authorized; triggers are a new
+  cross-suite fixture, subprocess isolation, and two distinct tool contracts.
+  No child delegation, second feature identity, or SDD artifacts.
+
+### Selected consumers and proposed API
+
+Select `.devcontainer/test/unit/gentle-shell.bats` and
+`.devcontainer/test/unit/node-contracts.bats`: both simulate global npm install
+and npm root, with local package state. Gentle AI uses direct release archives,
+not npm. Defer pnpm: its fixture executes ownership provisioning; it has no
+npm-root behavior and is a less cohesive first pair.
+
+Proposed new files: `.devcontainer/test/helpers/npm-fixture.bash` and
+`.devcontainer/test/unit/npm-fixture-helper.bats`. Proposed call-site syntax:
+
+```bash
+load ../helpers/npm-fixture.bash
+setup_npm_fixture "${BATS_TEST_TMPDIR}/npm sandbox"
+# Consumer writes its own common.sh/BASH_ENV and npm_fixture_dispatch callback.
+run_npm_fixture "${INSTALLER}" "${consumer_env}" FAIL_NPM=1
+[ "$status" -ne 0 ]
+```
+
+`setup_npm_fixture ROOT` creates fixture-local home, tmp, bin, and npm call log;
+sets `NPM_FIXTURE_ROOT`, `NPM_FIXTURE_CALLS`, and `NPM_FIXTURE_RUNTIME` for the runner.
+That runtime defines fake `npm`, captures each invocation in a separate numbered
+NUL-delimited argv file, and calls consumer-defined `npm_fixture_dispatch "$@"`.
+Missing dispatcher/unexpected commands fail closed; never fall through to real npm.
+`run_npm_fixture INSTALLER ENV_FILE [NAME=value ...]` uses Bats `run env -i`, an
+explicit local utility PATH, fixture HOME/TMPDIR, and the caller's BASH_ENV.
+Caller stubs explicitly source the fixture runtime; helper plumbing alone is not
+acceptance. Reject overrides of sandbox-owned environment keys. Preserve Bats
+status/output/lines and parent environment. Do not source installers or use eval.
+
+### Stable acceptance and TDD checks
+
+- Both existing suites use the shared fake npm, argv capture, and sandbox.
+  Remove both local npm implementations; retain privileged-command adapters and
+  tool-specific dispatch callbacks. Record removed duplicated plumbing and show
+  that a third npm consumer needs only its local policy/dispatch/assertions, not
+  another command recorder or sandbox. A run wrapper alone does not satisfy this.
+- Keep Shell's tarball byte comparison, SRI, native script flags, package/bin
+  metadata, version failure, readable bundle, passive state, and no CLI probing.
+  Keep contracts' exact packages/versions, logger mode, reuse/preservation,
+  root failure, and symlink refusal. No universal versions, flag normalization,
+  source parsing, discovery, or duplicate catalog.
+- Preserve contracts' current adapter semantics: `npm "$@"` forwards a leading
+  `npm` on install, while root passes `root -g`. Capture raw argv; do not silently
+  normalize that test convention or change production behavior.
+- First add synthetic Bats contract cases, observe genuine RED, then minimal
+  GREEN: success/multiline and exit 42 propagation; raw argv with spaces; missing
+  or rejecting dispatcher; sandbox HOME/TMPDIR and reserved-key rejection;
+  parent/ambient environment isolation; independent roots and repeated capture.
+  Synthetic callbacks write only inside Bats temporary directories.
+- Re-run the exact passing baseline immediately before consumer edits. Translate
+  call-log assertions to exact argv checks without losing any existing assertion.
+
+### Safe baseline and exact next checks
+
+Read both full suites and both installer paths before execution. Shell copies its
+installer and substitutes common.sh; fetch copies synthetic bytes, npm is fake,
+and remaining node/chmod operations target temporary files. Contracts uses a
+closed BASH_ENV, premarks common.sh loaded, and permits only fixture npm and the
+fixture logger mkdir. No real npm, privilege escalation, network, Docker, or build.
+
+Executed once with outer timeout `120000ms`, exit 0, **11/11 PASS**:
+
+```bash
+bats --filter 'Shell verifies local SRI|Shell bad SRI|Shell missing or malformed SRI|Shell root-created private bundle|Shell runtime passive mount|Shell failed npm|Shell unsupported architecture|contracts ' .devcontainer/test/unit/gentle-shell.bats .devcontainer/test/unit/node-contracts.bats
+```
+
+The read-only add-tool inspector also exited 0: 39 installers, 15 aliases,
+88 policy keys, no naming/alias errors. Final syntax (executed; results below):
+
+```bash
+bash -n .devcontainer/test/helpers/npm-fixture.bash
+bats .devcontainer/test/unit/npm-fixture-helper.bats
+bats --filter 'Shell verifies local SRI|Shell bad SRI|Shell missing or malformed SRI|Shell root-created private bundle|Shell runtime passive mount|Shell failed npm|Shell unsupported architecture|contracts ' .devcontainer/test/unit/gentle-shell.bats .devcontainer/test/unit/node-contracts.bats
+bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Each Bats invocation requires an explicit outer `120000ms` timeout. Expected cost:
+seconds, short-lived local processes and temporary files; zero downloads/builds.
+Inspect new execution paths before running. Runtime harness N/A: mocked installer
+contracts are not installed-tool, image, or lifecycle proof.
+
+### Forecast, rollback, and pending authority
+
+Existing STT-01 delivery was **311 authored changed lines** (302 additions + 9
+deletions), including this untracked document. STT-02 preparation adds about
+110–130 lines; implementation forecasts 180–260 additions and 35–65 deletions
+across helper, contract suite, two consumers, and evidence: **215–325 more**.
+Combined forecast **636–766 lines**, above 400: report meaningful slice boundary
+STT-01 policy probes versus STT-02 npm fixture plus both consumers and tests.
+`ask-on-risk` remains active; slicing is a review proposal, not permission to
+commit/create PRs. Owner approval remains pending; never code-golf to fit.
+
+Rollback STT-02 alone: remove its two proposed files, revert only its hunks in
+gentle-shell.bats/node-contracts.bats and this section/authority update; preserve
+all STT-01 files, evidence, and native blocker. Pending checks: documented native
+selection/review and owner commit approval. Implementation authorization,
+RED/GREEN, consumer verification, and measured diff are recorded below.
+Risks: environment sanitization hiding intended overrides, callback not loaded in
+subprocess, argument boundary loss, and accidental ambient npm. Closed dispatch,
+raw capture, reserved keys, and synthetic negative cases are mandatory controls.
+Skill resolution: all five requested exact paths read before work; test-only
+family preparation, no provider/state/updater changes. No upgrades or staging.
+
+### STT-02 implementation evidence
+
+Observed RED: `bats .devcontainer/test/unit/npm-fixture-helper.bats` exited 1
+at gathering because npm-fixture.bash did not exist; no behavioral cases ran.
+Minimal implementation GREEN: same command exited 0, 5/5 PASS. The exact
+11-case baseline above passed immediately before consumer edits, not RED.
+Final commands above ran once each after source formatting inspection:
+syntax exit 0; npm helper 5/5; selected consumers 11/11; STT-01 helper 5/5;
+STT-01 policy probes 3/3. Every Bats call used outer timeout 120000ms.
+No unexpected failures. New sources use four spaces; touched consumer lines
+retain surrounding indentation. No source edits followed final verification.
+
+Both consumers now use shared fake npm, raw argv files, and isolated env -i
+execution. Local npm bodies became trusted tool dispatch callbacks; Shell's
+privileged command log remains for existing assertions. New exact argv checks
+supplement rather than replace assertions. Contracts' leading npm is retained.
+Third-tool onboarding: load npm-fixture.bash, setup a Bats-local root, source
+NPM_FIXTURE_RUNTIME from local stubs, define npm_fixture_dispatch, and pass only
+explicit tool variables to run_npm_fixture. No new recorder/sandbox is needed.
+The helper reserves isolation keys and provides a failing executable npm fallback.
+Capture is serial per fixture; concurrent npm calls are outside this contract.
+
+Measured before this evidence addition: 620 authored changed lines including
+untracked files: STT-01 311; STT-02 309 (130 document additions and 179 source
+changes). This evidence/status update adds further authored documentation;
+final exact count is reported in the executor result. Two chosen review deliveries
+remain policy probes then npm fixture, feature-branch-chain, approval pending.
+Independent functional verifier confirmed syntax exit 0, npm helper 5/5,
+selected consumers 11/11, STT-01 helper 5/5, focused probes 3/3, and diff-check
+pass; each Bats call used outer timeout 120000ms. Parent npm-helper spotcheck
+also passed 5/5. Full consumer diffs preserve tests/assertions and add raw argv
+checks. These are trusted callbacks with serial capture, not a hostile sandbox.
+STT-02 is functionally complete; native review remains blocked on undocumented
+intended-untracked selection schema. RDD stays ON; no approval or receipt exists.
+Explicit consent to continue npm with prior review pending and both chosen
+feature-branch-chain deliveries remains recorded; owner commit approval pending.
+No source edits followed final checks; this update changes only document/mirror.
+No installed-tool, image, or runtime proof. STT-02 rollback preserves STT-01.
+
+### Approved local commit evidence
+
+STT-01: `8e5b43e64927d12cf3aaf8b463da2aa53b4a0679`, parent
+`a16d34d513154708dc792776549988936dc980d8`, message
+`refactor(tests): share installer version-policy probes`; 317 additions + 9
+deletions = 326 authored changed lines, including 237 document lines.
+STT-02 is the immediately following local commit containing its helper, contract
+suite, both npm consumers, and this appended section. Its final hash is recorded
+separately in Engram to avoid circular self-hash edits or an extra evidence commit.
+Future review boundaries are `a16d34d..8e5b43e`, then `8e5b43e..STT-02`.
+Both complete work units remain below the 400-line budget; no source compression
+or rewriting was used. All eight source blob hashes match the pre-commit snapshot.
+Native review is pending, not approved; no native lifecycle was invoked here.
+No push, PR, branch/tracker creation, amendment, or third commit is authorized.
+
+## STT-03 — Prepare separate advisory HOME follow-up
+
+- [ ] **STT-03 — Verify Shell state assertions against the installer HOME.**
+  Preparation only; later scope is `gentle-shell.bats` plus this document/mirror.
+  Route: delegated preparation; explicit user test-first consent sets TDD ON,
+  runner Bats. No child delegation, source/helper edits, staging, new commits,
+  push, PR, branches, network, Docker, or builds in this preparation.
+  This is an independent later candidate, not native correction/reopen.
+
+### Current evidence and authority
+
+Verified clean starting HEAD `478618bf046eb5b9816febd73b7f7eaa4e0b67e6` on
+`test/gentle-shell-v4`. The exact two approved commits are
+`8e5b43e64927d12cf3aaf8b463da2aa53b4a0679` and
+`478618bf046eb5b9816febd73b7f7eaa4e0b67e6`; that approval is fulfilled.
+Parent-supplied npm-only native review `review-29298acad71abd58` is approved
+and acknowledged; its authority is burned, target
+`sha256:8c7251b88928932f83d2e00cacdb9ffedead4e27a519f916a1fb1d96aff02568`,
+consumed `sha256:da461b0ea95235c1771de8b192a993d346e2f269eed3bb2e52781012dc868124`.
+Do not reuse that transaction. STT-01 remains not native reviewed. These supplied
+review facts were not independently queried; earlier sections retain history.
+The committed 419-line document is authoritative: mirror #2611 omitted only
+its final Approved local commit evidence section; restore it without rewriting history.
+
+Warning `R3-passive-state-home` cites line 105, but current code does **not**
+reproduce a HOME mismatch: setup line 19 exports `${TEST_ROOT}/home`, fixture
+setup sets `NPM_FIXTURE_ROOT=${TEST_ROOT}`, and runner line 42 assigns that same
+home. Passive seed/assertion and successful-install absence already target it.
+Both focused cases passed (2/2, exit 0, outer timeout 120000ms). No host HOME
+writes: setup replaces HOME before either case writes; all fixture writes and
+teardown stay under `BATS_TEST_TMPDIR`. No RED has been observed or claimed.
+Installer print exits before runtime/install; runtime exits before npm. Selected
+install uses copied installer/common stubs, synthetic fetch/npm and local node/chmod.
+
+### Smallest test-first plan and acceptance
+
+Before later edits, rerun the focused baseline below. Add a pre-run assertion
+that `${NPM_FIXTURE_ROOT}/home/.gentle-shell/preferences` contains the seeded
+bytes, plus explicit parent/runner-home equality. It must fail on a genuine
+mismatched fixture, but current HEAD is expected GREEN: stop and report that
+non-reproduction rather than fabricate behavioral RED or break production/helper
+code. If explicit assertion hardening proceeds, use the fixture HOME directly
+for passive seed/assert and successful-install absence, retaining all checks.
+Acceptance: same HOME at both boundaries, preserved bytes, no npm/runtime state
+mutation, successful-install state absence, and no host HOME access.
+
+Negative control, separate from mismatch RED: in the existing passive case,
+temporarily delete only its fixture preferences after the runner and before the
+preservation assertion; the focused case must fail. Restore that one local hunk
+and rerun GREEN. No new meta-suite, external worktree, installer/helper edits,
+or committed mutation; record exact failure location and restored results.
+
+```bash
+bats --filter 'Shell verifies local SRI|Shell runtime passive mount' .devcontainer/test/unit/gentle-shell.bats
+bats --filter 'Shell runtime passive mount' .devcontainer/test/unit/gentle-shell.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Use outer timeout 120000ms per Bats call; second command serves the temporary
+negative control and restored rerun. Expected seconds, small temporary fixtures,
+zero downloads/builds. Runtime harness N/A: mocked contracts, not image proof.
+Forecast 70–95 authored additions plus deletions including preparation/evidence;
+report honest growth, never compress code to fit. Rollback only STT-03 hunks in
+the test/document and resync mirror; preserve both commits and historical evidence.
+Commit and implementation evidence remain pending; unresolved issue is warning
+non-reproduction, not fixture safety. Skill resolution: exact requested clean-code,
+add-tool, work-unit-commits, cognitive-doc-design loaded, plus markdown-documentation;
+test-only assertion preparation, no provisioning/state-policy change or SDD work.
+
+### STT-03 closure — Nonreproducing advisory, no source change
+
+- [x] **STT-03 investigation complete; source change N/A.** This closure overrides
+  the unchecked preparation item and all proposed hardening, acceptance work,
+  negative controls, reruns, and pending implementation above; they are not authorized.
+  User authorized a fix only for a real defect, not unnecessary assertion changes.
+- Parent independently read the full setup/helper and confirmed the same HOME:
+  `gentle-shell.bats:19`, fixture root at helper line 8, runner HOME at line 42.
+  The native advisory was a false positive: its immutable patch omitted the
+  unchanged setup export. This is a closed investigation, not an implemented bugfix.
+- Preserve the exact focused baseline above: exit 0, 2/2 PASS, outer timeout
+  120000ms. No tests rerun, negative control performed, or RED invented at closure.
+- No source/test/helper changes or later implicit work authorization. The approved
+  npm transaction remains burned; no re-review, native CLI, staging, commit,
+  network, or child agents. Only this document and its full mirror are updated.
+  Rollback is documentation-only; historical commit/review evidence stays intact.
+
+## STT-04 / STT-05 — Bounded implementation preparation
+
+Current authority: document/mirror only at HEAD `478618b`, branch
+`test/gentle-shell-v4`; preserve the pre-existing 89-line STT-03 diff verbatim.
+Later implementation consent covers proven redundancy and the two migrations,
+but this executor makes no source edits. Five task identities now exist; STT-03
+is closed, STT-04/05 pending. Mirror #2611 already contains all 508 current lines,
+including Approved local commit evidence; no omission repair is needed.
+Route: delegated preparation and later bounded multi-file implementation, with
+cross-suite contract preservation and privileged-fixture safety as triggers.
+No child agents, new feature/SDD identity, staging, commits, PRs, network, Docker,
+builds, or installs. Prior two-commit approval is fulfilled; npm receipt is burned.
+Future `feature-branch-chain` slices: STT-04, then STT-05; native review remains
+parent-owned and fail-closed when unassessable, not approved by this plan.
+
+- [ ] **STT-04 — Remove proven overlap and migrate Phase 3C-A policy probes.**
+  Scope: unit `common.sh.bats`, `tools-update.bats`, `gentle-shell.bats` only if
+  equivalence is established, integration `tools.bats`, and document/mirror.
+  Remove only updater lines 595–596: its retained loader success already rejects
+  duplicate TOOL/LOCK keys; retain syntax, generated-marker, and digest signals.
+  Pi presence/executability share the exact selection gate; keep the executable
+  file contract and presence diagnostic together in one case before deleting the
+  standalone presence case. Do not generalize other command probes.
+  Shell line 62 is NOT fully redundant: argv lines 64–67 do not independently
+  assert the root-adapter route. Retain it unless that distinct signal survives.
+  Migrate only Phase 3C-A's two loops to `run_version_policy`; keep all eight rows
+  per loop, explicit unset/override arguments, and exact Playwright multiline
+  ordering. Do not migrate Phase 3B or impose one format on every test.
+  Acceptance: unchanged policy behavior/assertions; no lost privilege-route,
+  selection, syntax, ownership, or digest signal. Pi health is currently failing,
+  so consolidation must not be reported as a green installed-tool refactor.
+
+- [ ] **STT-05 — Migrate pnpm to the shared closed npm fixture.**
+  Scope: `unit/pnpm.bats` and document/mirror; existing helpers unchanged unless
+  a demonstrated missing contract is separately authorized. Use a Bats-local
+  fixture root, shared runtime/argv capture and `run_npm_fixture`, explicit
+  PNPM_HOME/REUSE/UID_NAME, and a pnpm-specific rejecting dispatcher. Forward
+  npm through the adapter, not a silent return; no npm-root behavior is required.
+  Preserve all five scenarios: provision before reuse/install, repeated mode
+  repair with sentinel bytes/mode intact, print-only no provisioning/npm call,
+  and core Docker PNPM_HOME/SHELL/PATH precedence assertions. The shared recorder
+  directory exists after setup: assert no numbered calls, not directory absence.
+  Guard ownership operations to canonical fixture-local directories; no sudo,
+  root escalation, host HOME, or real npm. Skip/report if identity or scope fails.
+
+TDD remains **ON**, source explicit prior user choice; runner installed Bats.
+Re-run exact green characterization immediately before later consumer edits;
+never call it RED. Add migration regression assertions first (raw pnpm install
+argv, rejecting unknown dispatch, independent fixture roots/explicit environment),
+observe RED only for genuinely missing behavior, then GREEN/refactor. Already
+covered behavior may remain GREEN; do not break production to manufacture RED.
+
+### Exact safe evidence and future checks
+
+Each check below ran once in preparation, outer timeout `120000ms` per invocation:
+
+| Command (paths relative to `.devcontainer/test/`) | Result |
+| --- | --- |
+| `bats --filter 'Shell verifies local SRI' unit/gentle-shell.bats` | Exit 0; 1/1 PASS. |
+| `bats --filter 'Phase 3C-A' unit/common.sh.bats` | Exit 0; 2/2 PASS, eight rows each. |
+| `bats --filter '^policy keys are valid and unique' unit/tools-update.bats` | Exit 0; 1/1 PASS; updater main not invoked. |
+| `bats --filter '^tool versions loader rejects duplicate keys$' unit/common.sh.bats` | Exit 0; 1/1 PASS. |
+| `bats unit/npm-fixture-helper.bats unit/version-policy-helper.bats` | Exit 0; 10/10 PASS. |
+| `bats --filter 'pnpm: version policy inspection\|pnpm: image environment' unit/pnpm.bats` | Exit 0; 2/2 PASS. |
+| `env -u UID_NAME -u PNPM_VERSION -u BASH_ENV bats --filter 'pnpm: provision user globals\|pnpm: repeated provisioning' unit/pnpm.bats` | Exit 0; 3/3 PASS. |
+| `bats --filter '^ai: pi is (installed\|executable)$' integration/tools.bats` | Exit 1; 0/2 PASS: Pi absent from PATH, selection enabled. |
+
+Complete relevant suites/helpers and installer paths were inspected. Policy
+printing exits before install; Shell uses synthetic fetch/npm; pnpm copies its
+installer/common stub and real `install -d -o ubuntu -g ubuntu` touches only its
+temporary PNPM_HOME. Verified executor uid/gid 1000 ubuntu; no escalation/chown
+command was used. Inspector exit 0: 39 installers, 15 aliases, 88 policy keys,
+no naming/alias errors. No full network-capable common/updater/integration suite.
+Future checks: rerun these exact filters with repository-root path prefixes;
+after migration run all `unit/pnpm.bats` under the same sanitized environment,
+both helper suites, `bash -n` on touched Bash helpers if any, and `git diff --check`.
+Pi failure requires diagnosis/reporting, not unauthorized installation or retries.
+Runtime harness N/A: mocked/test-only contracts and read-only Pi lookup, no image proof.
+
+Forecast: STT-04 55–95 source changed lines, STT-05 90–150; documentation/evidence
+80–120 across both, plus 89 pre-existing STT-03 lines: 314–454 aggregate authored
+lines. Keep cohesive future slices below 400 or report honest overage; no code-golf.
+Checks cost seconds and small temporary files, zero downloads/builds; use explicit
+120000ms outer timeouts. Rollback preparation: only this appended section/mirror;
+later rollback STT-04/05 by their exact test hunks and evidence, preserving STT-03,
+both commits, helper contracts, installers/policy/activation, and native history.
+
+### STT-04 current implementation authority
+
+Current explicit user consent authorizes STT-04 source edits only to
+`.devcontainer/test/unit/common.sh.bats`,
+`.devcontainer/test/unit/tools-update.bats`, and
+`.devcontainer/test/integration/tools.bats`, plus this document/full mirror.
+This supersedes preparation-only authority for STT-04, not historical evidence.
+Shell privilege-route assertion stays untouched; STT-05, pnpm, helpers, installers,
+and policy remain out of scope. Pure refactor under green characterization;
+TDD ON for any genuinely new behavior, no artificial RED. Preserve both Pi
+signals and its environmental failure. No commits, native CLI, or child agents.
+
+### STT-04 implementation evidence
+
+- [x] **STT-04 functional consolidation complete; integration verification partial.**
+  Commit pending owner approval; native review pending and parent-owned. STT-05
+  remains pending. Preserved all earlier investigation/preparation bytes.
+- Before edits, exact Phase 3C-A filter passed 2/2 and static policy filter 1/1
+  (exit 0 each). Pure refactor: no new behavior, no RED claimed; TDD remains ON.
+- Final exact user-specified commands: Phase 3C-A 2/2, static policy 1/1,
+  duplicate-loader rejection 1/1, version-policy-helper suite 5/5; exit 0 each.
+  Each Bats invocation used outer timeout 120000ms; source formatting was
+  inspected before final checks, with no normalizer or later source edits.
+- Final Pi filter `^ai: pi is (installed|executable)$`: exit 1, 0/1 PASS;
+  `tools.bats:221` fails `command -v pi`, the same absent-PATH condition as the
+  preparation's 0/2. No skip, fake environment, installation, or retry.
+- Removed only redundant updater TOOL uniqueness plumbing; retained loader
+  syntax/duplicate rejection and marker/digest checks. Pi's standalone case
+  became a presence assertion in the executable case, with identical selection.
+  Both Phase 3C-A loops now call the existing helper: all eight rows each,
+  assertions, environment unsets/overrides, and exact Playwright output unchanged.
+- Source diff: 5 additions + 14 deletions = 19 changed lines across three suites.
+  Shell, pnpm, helpers, installers, policy, and Phase 3B untouched. Runtime proof
+  remains partial for Pi; no image/lifecycle proof. Rollback only these three
+  STT-04 source hunks and appended authority/evidence, preserving prior work.
+
+### STT-05 current implementation authority
+
+Current explicit consent authorizes only `unit/pnpm.bats` under
+`.devcontainer/test/` and this document/full mirror. Preserve STT-04 and all
+earlier preparation/investigation. Shared helpers and production remain unchanged.
+TDD ON, runner Bats: add raw npm capture and rejecting-dispatch assertions before
+migration; observe genuine assertion RED, then migrate to the existing fixture.
+Use explicit REUSE/PNPM_HOME/UID_NAME and canonical Bats-local ownership paths;
+no escalation, real npm, host HOME, network, Docker/build, native CLI, or commits.
+
+### STT-05 implementation evidence
+
+- [x] **STT-05 functional migration complete.** Native review and owner commit
+  approval pending; prior Pi integration remains partial, not rerun or repaired.
+- Sanitized full pnpm baseline: exit 0, original 5/5 PASS. Regression-first full
+  run: exit 1, 4/6 PASS; genuine assertions failed at missing raw npm record
+  (`pnpm.bats:45`) and expected rejection 98 (`:57`, old adapter returned 0).
+  No invented installer/helper failure. Minimal migration GREEN: exit 0, 6/6.
+- Final specified commands after formatting: sanitized full pnpm 6/6 (five
+  original scenarios plus one rejection case), both helpers 10/10, Phase 3C-A
+  2/2, all exit 0; outer timeout 120000ms each. Diff-check passed. No later
+  source edits, broad suites, or forbidden operations; only evidence updated.
+- Shared runtime captures exact NUL argv and rejects unknown dispatch with 98;
+  reuse/print/repair assert no numbered calls. Preserved ownership/modes, sentinel
+  bytes, print-only state absence, and Docker core environment/precedence checks.
+  Verified uid/gid 1000 ubuntu; adapter permits only exact fixture-local install
+  arguments and canonical PNPM_HOME/bin. No elevation or ambient npm fallback.
+- Third-consumer onboarding: shared setup/runtime/runner plus local policy,
+  dispatcher and guarded ownership adapter; no new recorder/helper. Source diff
+  +55/−6 (61 lines). Rollback only pnpm hunks and this STT-05 authority/evidence;
+  preserve STT-04, earlier document sections, helpers, and production files.
+
+## STT-06 — Prepare markdownlint and Dev Container CLI npm contracts
+
+- [ ] **STT-06 — Add the missing two-tool npm installer regression suite.**
+  Historical preparation: document/full mirror #2611 only; suite then absent.
+  Owner consent "Adelante con recomendación" selected the test-only unit.
+  Later implementation authority and completion are recorded below.
+  Route: delegated, no children; TDD ON from consent, runner Bats.
+
+### Boundary and minimum faithful matrix
+
+Preparation boundary: clean `eb2bc94c55d465f2372b12700f775af56a5d6d18`,
+`test/gentle-shell-v4`; STT-04/05 commits `1f4ac079ba6b489968be08266751c5d8b6fa3d33`
+and `eb2bc94` (now verified in local history). Prior native candidate: 324 authored
+lines, approved/acknowledged, no findings, authority burned. Supplied `3b9...`/
+`d999...` are incomplete lineage/target identifiers: never invent/reuse receipts.
+Pi intentionally absent/out of scope; no integration rerun/repair.
+
+Descriptors: installer, version variable, package, command only; no production
+versions, catalog, discovery, source parsing, or universal idempotence model.
+
+| Scenario | Shared assertions | Required tool-specific distinction |
+| --- | --- | --- |
+| Existing CLI | Exit 0, preserved fixture CLI, zero numbered npm calls | Presence skips installation, not exact-version matching; Dev Container CLI requires npm before reuse, markdownlint after its reuse branch. |
+| Install absent CLI | One exact NUL argv record: `install`, `-g`, package plus synthetic locked version; CLI executable in fixture bin afterward | markdownlint executes `--help`; Dev Container CLI checks command availability. |
+| npm failure | Exact attempted argv, nonzero status, no created CLI or success claim | Fake npm returns a deliberate failure; neither installer may silently fall through. |
+| Missing npm | Nonzero status, prerequisite diagnostic, zero npm calls | Both actual installers have guards: markdownlint lines 32–35, Dev Container CLI line 26. |
+| npm succeeds without CLI | Dev Container CLI exits nonzero with binary-not-on-PATH diagnostic | markdownlint has no equivalent explicit postinstall guard; do not impose the same failure contract. |
+
+### Fixture, oracle, and test-first acceptance
+
+- Unchanged installer copies in Bats-local trees; substitute only copied common.sh.
+  BASH_ENV loads shared npm runtime; `run_npm_fixture` uses `env -i`, fixture
+  HOME/TMPDIR/PATH and explicit controls. Both HOME boundaries equal
+  `${NPM_FIXTURE_ROOT}/home`.
+- Synthetic locks: `LOCK_MARKDOWNLINT_CLI2_VERSION=9.9.31` and
+  `LOCK_DEVCONTAINER_CLI_VERSION=9.9.32`; overrides unset, no production versions.
+  Phase 3A/3C-A already cover policy/overrides; repeat only for a distinct wiring gap.
+- Adapter accepts only `npm install -g PACKAGE@FIXTURE_VERSION`, strips `npm`,
+  forwards to shared fake npm. Dispatcher checks count/every argument, rejects
+  others, creates only the selected fixture CLI on success. No real global install,
+  npm root, sudo, host HOME writes, ambient CLI/npm lookup, or permissive callback.
+- Test-first RED means missing fixture/installer behavior, not suite absence;
+  characterization GREEN is valid. Stop/report real installer bugs; never alter
+  production or manufacture RED. Preparation executed no negative controls.
+- Fixture-only oracles: wrong argv must fail install-success; suppressed CLI must
+  fail availability and Dev Container CLI's guard. Restore/rerun GREEN; these are
+  oracle checks, not production bug RED. Actual results appear below.
+
+### Safe baseline and proposed checks
+
+Preparation commands below: exit 0, helpers **10/10**, policies **5/5**, once each,
+outer `120000ms`. Read-only inspector: exit 0, 39 installers, 15 aliases,
+88 policy keys, no naming/alias errors. Full installers inspected: print exits
+before prerequisites/install. Helpers use synthetic temporary files.
+No unfiltered common.sh.bats or broader starter/integration runs.
+
+Later exact checks, each Bats invocation with outer timeout `120000ms`:
+
+```bash
+bats .devcontainer/test/unit/npm-installers.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|Phase 3C-A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Runtime harness N/A: mocked contracts, not installed-tool/image proof.
+
+### Forecast, rollback, and skill resolution
+
+Forecast **280–380 authored lines** including evidence; report >400, never code-golf.
+Cost: seconds, Bats-local files, no downloads/builds. Risks: lookup/order fidelity,
+swallowed probes, argv boundaries, HOME mismatch. Rollback: new suite/STT-06 only.
+Historical skills: add-tool, clean-code, work-unit-commits, cognitive-doc-design,
+markdown-documentation. Classification: test-only; no SDD or metadata upgrades.
+
+### STT-06 current implementation authority
+
+Implementation consent superseded preparation-only scope: new
+`.devcontainer/test/unit/npm-installers.bats` and document/full mirror only.
+Helpers/tests, installers, policy, dependencies, activation and earlier history
+remain unchanged. Closeout permits only STT-06 prose/mirror edits, not source.
+Native review is parent-owned. No staging, commits, branches, push/PR, network,
+installs, Docker/builds, or children; no-commit consent overrides ODD defaults.
+Vitest/Skills implementation waits for native closeout.
+
+### STT-06 implementation evidence
+
+- [x] **STT-06 functionally complete; native review and commit approval pending.**
+- Test-first RED: first run exit 1, 4/6 PASS; install success and npm failure
+  failed without dispatcher. Pre-adapter rejecting-argv assertion: exit 1, 4/7.
+  Missing fixture behavior, not production bugs or suite-gathering failures.
+  Closed callback GREEN: 7/7; final lookup characterization added case eight.
+- Oracle controls: wrong argv failed positive status assertion (exit 1, 0/1);
+  npm success without CLI failed executable assertion (exit 1, 0/1). Both repeated
+  after direct-probe isolation hardening, then restored. No production RED claimed.
+- Final exact commands above: new suite **8/8**, helpers **10/10**, selected policy
+  **5/5**, exit 0, outer 120000ms each, no warnings. Formatting inspected before
+  final checks; no later source edits. Diff-check passed.
+- Acceptance above verified, including filesystem-backed CLI state and ambient
+  lookup/direct-probe rejection; no real npm or helper/production changes.
+- Closeout deduplicates preparation/acceptance prose; prior 663 lines preserved.
+  Original STT-06 is historical attachment #2666, not another task plan.
+
+### STT-06 independent verification
+
+Independent verifier: 8/8 new, 10/10 helpers, 5/5 policies, diff-check exit 0;
+outer 120000ms each. Parent spot-check 8/8. Eight cases mostly cover both tools;
+copies/modes/CLI isolation faithful, no blocker. Markdownlint help runs through
+actual source but its exact invocation is not independently recorded/asserted.
+Functional complete; native preflight pending `intended_untracked_selection_required`
+for npm-installers.bats only. JSON shape undocumented: no guessed payload, staging
+workaround, freeze, START, or receipt. Native and commit approval remain pending.
+
+## STT-07 — Extend npm installer coverage
+
+- [ ] Extend `npm-installers.bats` only, plus this record/mirror; preserve history,
+  helpers and production. Route: delegated; >=4 contract reads prepare the write.
+  No children, commits or push/PR. TDD ON (prior consent), Bats: genuine new fixture
+  behavior RED before adapter branches, then GREEN; never a fabricated production bug.
+- Accept four-tool reuse/install/failure/npm/isolation coverage; retain STT-06.
+  Vitest requires npm before Node skip/reuse, uses direct npm and `--version`;
+  Skills requires npm before reuse, uses root adapter, no Node guard/version probe.
+  Add only needed descriptors, explicit controls and closed named lookup/probes;
+  preserve env-i and exact argv, no universal postinstall/version enforcement.
+- Reuse exact STT-06 checks (120000ms); baseline 8/8. Forecast <400; rollback only
+  STT-07 hunks. Runtime N/A. STT-06 committed `9fa4f81`; supplied native medium,
+  review_due=false/under_budget is not approval. Boundary `eb2bc94`; cumulative
+  slice 344 plus new work may require review. Future chain/native work is parent-owned.
+
+Full mirror pending: this append exceeds #2611's 50000-byte limit with its locator.
+Preserve local plan/proof and all history; mirror capacity does not block safe work.
+
+### STT-07 implementation evidence
+
+- [x] Four-tool matrix implemented in the existing suite; production and shared
+  helpers unchanged. Original eight cases retained; three differentiated cases added.
+- TDD ON, Bats: descriptors and assertions first, before new locks/lookup/probes.
+  RED exited 1, 2/11 PASS: missing fixture locks prevented new installer paths;
+  new Node isolation assertion also failed against ambient lookup. Existing two
+  standalone cases passed. This is fixture RED, not a production defect.
+- Closed named lookup/direct probes, synthetic locks 9.9.33/9.9.34 and explicit
+  Node control gave GREEN 11/11. Final strengthened assertions verify observed root
+  calls versus direct npm, CLI probe arguments, no probe for Skills, and Vitest
+  Node skips both absent/present CLI before reuse, after the npm prerequisite.
+- Exact STT-06 final commands: suite 11/11, helpers 10/10, selected policies 5/5,
+  exit 0 each, outer 120000ms. Diff-check passed; only authorized two paths changed,
+  index empty. No real npm, network, installation, privilege escalation or native CLI.
+  Runtime harness N/A: mocked contracts only. Full mirror remains capacity-pending;
+  historical prefix is preserved. Commit/review permission is not inferred.
+
+## STT-08 — Characterize Pi's npm installer
+
+Preparation only; no test/helper/production writes yet. Continue this feature,
+TDD ON, Bats. Last reviewed boundary is `3209c5240bd56b06b9b9fb683a77d4112437c432`:
+parent reports combined STT-06/07 native approval/acknowledgement, no findings.
+Current branch/HEAD verified locally; initial index/worktree clean. Earlier Pi
+absence was expected, not installation evidence. Native RDD remains parent-owned;
+no CLI worker, children, staging, commit, branch, remote or installation authority.
+
+| Contract read from unchanged source | Current coverage | Needed proof |
+| --- | --- | --- |
+| Pi: npm required before presence reuse; no Node guard | Four other npm tools only | Add Pi row; missing npm with present/absent Pi; absent Node does not skip |
+| Pi: root-adapted `npm install -g --ignore-scripts @earendil-works/pi-coding-agent@LOCK` | Policy resolution/override; no install argv | Exact NUL argv, root trace, synthetic lock, failure propagation |
+| Pi: `pi --version` on reuse and after install; no exact-version comparison | Integration checks executable only | Unrelated-version reuse without npm; fixture CLI and exact probes |
+| Pi: probe occurs inside logging command substitution | Not characterized | Probe failure/missing CLI can still yield successful logging/status; do not invent fail-closed behavior |
+| Mermaid: npm then passwd lookup; reuse requires nonempty SVG smoke | Policy resolution/override only; no Mermaid tools.bats case | Missing npm/user, render-ready reuse, broken/empty render triggers install |
+| Mermaid: private `/opt/mermaid-cli`, user npm, browser dependency root requests | No installer matrix coverage | Exact sudo/user/npm flags, package lock, apt/install/chown requests; never assume global npm prefix |
+| Mermaid: `/usr/local/bin/mmdc` wrapper and `/etc/mermaid-cli/puppeteer.json` | No wrapper/config proof | Modes, no-sandbox JSON, default injection and explicit config passthrough |
+| Mermaid: executable private CLI and final nonempty SVG required | No failure/state proof | Missing private executable, npm failure, failed/empty final render; no false success |
+
+Pi config seeding/trust belongs to `setup.sh`, not this installer; existing
+config/lifecycle suites remain untouched. Shared common.sh owns policy loading
+and real root escalation; these unit tests mock those boundaries, not ownership.
+
+- [ ] Extend only `.devcontainer/test/unit/npm-installers.bats` plus this record.
+  Reuse `npm-fixture.bash` unchanged; descriptor rows map tests to synthetic locks,
+  not a copied version/config catalog. Preserve all four current tools.
+- [ ] Smallest RED: add Pi install/argv assertion and descriptor before Pi fixture
+  lock/lookup/dispatcher support; run focused test and record genuine fixture
+  failure. Add only closed Pi branches, GREEN, then reuse/prerequisite/probe cases.
+  Oracle control: reject missing `--ignore-scripts`; restore before final checks.
+- [ ] Closed named Pi lookup/direct probes; no ambient Pi/npm/Node, host HOME,
+  credentials, sockets or root execution. Characterize swallowed probes honestly.
+
+## STT-09 — Characterize Mermaid's private-prefix/render contract
+
+- [ ] Prefer focused Mermaid cases in the same npm suite, reusing the existing
+  env-i/NUL-argv fixture, unchanged installer copy and common stub. If exact
+  path/render/wrapper boundaries make that file unreadable, propose
+  `.devcontainer/test/unit/mermaid-installer.bats` before parent approval/writes;
+  no new fixture framework or shared-helper change.
+- [ ] Map safety before executing source: intercept `getent`, `sudo`, root adapter
+  and fixed-path executable checks with exact request whitelists; all mapped
+  state lives under BATS_TEST_TMPDIR. Reject unknown users/commands/paths/argv.
+  Real mktemp/trap cleanup stays inside fixture TMPDIR. Do not call real apt,
+  npm, sudo, chown, Node, browser, or touch `/opt`, `/etc`, `/usr/local/bin`.
+- [ ] First characterize missing-npm rejection with a safe stub (may pass already).
+  Smallest RED: exact private-prefix install assertion before its fixture dispatcher
+  exists. No source mutation or fabricated production RED. Add render-state transitions
+  and installation failures only after proving rejection boundaries.
+- [ ] Assert root ownership/mode requests, not actual ownership. Capture generated
+  wrapper/config bytes locally. For Bash wrapper execution, explicitly remap only
+  its two fixed exec/config paths in a test copy to fixture paths, record that
+  limitation, and use fake mmdc with local NUL probes; never execute original
+  absolute exec paths. Cover `-p`, `--puppeteerConfigFile`, equals form and argument
+  boundaries/default injection. No Chromium; renderer integration remains outside
+  unit proof. Unsupported safe mapping means stop before installer execution.
+
+### STT-08/09 checkpoints, forecast and verification
+
+Baseline executed once after safety inspection: `bats
+.devcontainer/test/unit/npm-installers.bats`, outer timeout 120000ms, exit 0,
+11/11 PASS. Install-tree inspection passed (no invalid/broken/unsafe aliases).
+No new RED/GREEN or actual-tool/runtime proof has been performed.
+
+Forecast: Pi 80–140 authored lines; Mermaid 180–300; combined tests/docs 320–520.
+Each unit check should take seconds, local temporary files only, no downloads or
+builds; allow 120000ms per Bats invocation, about five minutes combined including
+readback. Count actual additions/deletions before delivery; if >400, parent plans
+Pi then Mermaid review/branch-chain slices, never code-golf or stop on size alone.
+Rollback is each task's test/doc hunks only; preserve prior history and helpers.
+
+Exact future checks (focused RED/GREEN first; 120000ms per Bats invocation):
+
+```bash
+bats --filter 'Pi|npm installers' .devcontainer/test/unit/npm-installers.bats
+bats --filter 'Mermaid' .devcontainer/test/unit/npm-installers.bats
+bats .devcontainer/test/unit/npm-installers.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|Phase 3C-A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+If the approved Mermaid fallback is used, replace its focused command with
+`bats .devcontainer/test/unit/mermaid-installer.bats` and include that file in the
+combined suite command. No broad integration/build/lifecycle run is authorized.
+Full mirror #2611 remains capacity-pending (>50000 bytes); do not overwrite,
+truncate or compact it/history. Save this exact append as a separate feature-scoped
+progress checkpoint, not a new feature or SDD plan; preserve the original 815 lines.
+
+### STT-08 current implementation authority
+
+Pi-only implementation is now authorized: existing `npm-installers.bats` and this
+document only. TDD ON, Bats; preserve four previous rows and eleven cases. No
+production/shared-helper changes, Mermaid writes, installation, integration,
+network, Docker, native CLI, children, staging or commits. Parent owns native
+review; commit approval remains pending. Full mirror remains capacity-pending.
+
+### STT-08 implementation evidence
+
+- [x] Pi test coverage implemented; native review and commit approval pending.
+  Only the existing npm suite and this document changed. Four prior rows and
+  eleven original cases retained; Pi joins six compatible common cases and adds
+  five focused cases (16 total). Actual installer copied unchanged and compared.
+- TDD: Pi descriptor/install assertion first, before lock/lookup/dispatcher support.
+  Focused RED exit 1, 5/6 PASS: missing Pi fixture lock blocked the new installer.
+  Closed Pi support gave focused GREEN 6/6, then characterization/guard cases 10/10.
+  Fixture RED is not a production defect. Temporary missing-flag acceptance oracle
+  failed its status-0 assertion (exit 1, 0/1), then was restored before final checks.
+- Exact synthetic lock/env/package, NUL argc/each argv and root trace verified;
+  Pi alone permits five root/four npm args including `--ignore-scripts`. Existing
+  four-root/three-npm guards remain exact. Missing flag rejects at npm (98) and
+  root (95), creates no CLI; no permissive wildcard. No Node guard, npm-before-reuse,
+  absent/present prerequisites and closed Pi lookup/direct probes characterized.
+- Known behavior gap, not installation-health PASS: unchanged Pi source logs and
+  exits 0 after failed reuse/postinstall `--version` probes, and after mocked npm
+  success with no CLI. Fake CLI direct controls independently return 42 with no
+  output. Success-path fixture CLI checks are separate. Production fix/follow-up
+  is deferred; these units neither install Pi nor prove its runtime health.
+- Final authorized checks above (Mermaid command not run), each outer 120000ms: focused 10/10,
+  whole matrix 16/16, helpers 10/10, selected policies 5/5; exit 0, no warnings.
+  Test formatting/control restoration preceded these runs; no later test edits.
+  Diff-check passed; index empty. No integration, network, builds, Docker, real
+  npm/Pi/Node, privilege escalation, host-state writes or native CLI execution.
+- Test diff is 140 additions/15 deletions (155 authored lines). STT-08 authority
+  and evidence append is 45 lines; with the prior 92-line preparation append,
+  current combined diff is 292 authored lines. Rollback only STT-08 suite/doc
+  hunks; preserve earlier 815 lines and preparation. Runtime harness N/A: mocked
+  installer contracts only. Full mirror #2611 remains untouched/capacity-pending;
+  save this authority/evidence append separately as feature progress, not a plan.
+- Mermaid STT-09 remains preparation-only. Its fixed-path executable check and
+  generated wrapper's absolute exec require exact fixture mapping; a separate
+  Mermaid suite remains a proposed readability fallback requiring parent scope
+  approval, not an implemented file or new framework.
+
+### STT-09 current implementation authority
+
+The parent now authorizes the focused fallback: new
+`.devcontainer/test/unit/mermaid-installer.bats` and this document only. This is
+the existing Mermaid test scope, not a new feature. Reuse npm-fixture unchanged;
+preserve Pi suite, production, shared helpers and all history. TDD ON, Bats.
+Before copied installer execution, close fixed-path tests/getent/sudo/root requests;
+generated original wrapper is captured but never executed. Remap only its private
+CLI/config paths in a test copy. No real browser, ownership or installed-tool proof.
+No integration, network, Docker/build, privilege escalation, host-state writes,
+native CLI, children, staging, commits, branches or PRs. Parent owns review.
+
+Forecast 300–450 suite lines plus concise evidence; seconds per unit command,
+120000ms outer timeout each, roughly five minutes combined, no downloads/builds.
+If actual authored scope exceeds 400, retain readable coverage and report the
+Pi/Mermaid future review slices; no chain operations are authorized here.
+Exact final commands:
+
+```bash
+bats .devcontainer/test/unit/mermaid-installer.bats
+bats .devcontainer/test/unit/npm-installers.bats .devcontainer/test/unit/mermaid-installer.bats
+bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/version-policy-helper.bats
+bats --filter 'Phase 3A|Phase 3C-A|installer fails closed when required lock data is missing' .devcontainer/test/unit/common.sh.bats .devcontainer/test/unit/tool-policy.bats
+git diff --check
+git diff --stat
+git status --short
+```
+
+Full mirror #2611 remains untouched/capacity-pending. Preserve this exact authority
+append separately as feature progress; later append exact proof, not a new plan.
+
+### STT-09 implementation evidence
+
+- [x] Focused Mermaid suite implemented: 13 cases; unchanged installer copy/cmp,
+  unchanged shared npm fixture. Pi suite, helpers and production untouched by
+  STT-09. Prior history/preparation/Pi evidence preserved; index empty, uncommitted.
+- TDD: first two tests used rejecting sudo/root/version stubs before dispatcher
+  implementation. RED exit 1, 1/2 PASS: safe missing-npm characterization passed,
+  private-prefix installation failed at missing fixture behavior. Closed dispatch
+  gave GREEN 2/2; expanded contract suite 13/13. No production bug RED claimed.
+  Temporary final-render status-0 oracle failed (exit 1, 0/1); restored/normalized
+  before final runs. No later test edits.
+- Verified missing npm/user before state/install; render-ready reuse; failed/empty
+  initial render reinstalls; npm failure, missing executable private CLI and
+  failed/empty final render reject without success claims. Exact NUL user/npm/root
+  argv, dependency list, chown/ownership and install mode requests are asserted.
+- Safety: exact getent/user/sudo/root/fixed-path-test whitelists; malformed user,
+  command, npm/root argv, fixed path, mktemp and cleanup requests exit 90. Real
+  mktemp/rm operate only in checked fixture TMPDIR, and smoke trap cleanup is
+  asserted on reuse/install/failures. No actual sudo/apt/install/chown/browser,
+  host path/state, network or privileged operation. Ownership is mocked request
+  proof only. The source's negated `[ ! -x ]` private path is explicitly mapped.
+- Generated original wrapper/config captured locally; JSON compared byte-for-byte,
+  fixture modes checked. Only two fixed paths remapped in a separate wrapper copy;
+  reverse mapping/cmp preserves original bytes. Bash execution with fake private
+  mmdc verifies default injection, `-p`, separate/equals long options and NUL argv
+  boundaries (spaces, newline, empty). Original absolute wrapper never executed.
+  Rendering is synthetic; Chromium, real ownership and browser integration unproven.
+- Exact authorized final commands above, outer 120000ms each: Mermaid 13/13,
+  combined Pi/npm + Mermaid 29/29, helpers 10/10, selected policies 5/5; exit 0,
+  no warnings. Diff-check passed. Suite SHA-256:
+  `a4a1eed94f647ee234c8c90394917e60dfcb9599ed8ebf223c1fb9f09a1ad72b`.
+- New suite is 407 authored lines; do not compress/drop safety cases to fit 400.
+  Future parent-owned slices: Pi, then Mermaid installer/safety/failure contracts,
+  then remapped-wrapper characterization within STT-09 (roughly 86 suite lines).
+  No branches/PRs/commits created; native review and commit approval remain pending.
+  Rollback STT-09 new suite/authority/proof only. Full mirror #2611 remains untouched,
+  capacity-pending; save exact proof separately as feature progress. Pi's known
+  swallowed-probe gap remains characterized, not fixed; no new production fix.
