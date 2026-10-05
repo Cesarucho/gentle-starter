@@ -135,3 +135,169 @@ task's test/helper hunks and dependency relationships, never production state.
 Future `feature-branch-chain` slicing is planning only, not authorization to create
 branches or PRs. Preserve readable safety coverage rather than compressing it to
 fit the advisory 400-line budget; detailed historical proposals remain archived.
+
+## Authorized preparation: STT-10 and STT-11
+
+This appended plan supersedes the earlier "no new implementation requirements"
+statement only for the two tasks below; completed work and history stay unchanged.
+Preparation HEAD: `c3a1534be498c4818ac64ab1f2498ca248593b82`, branch
+`test/gentle-shell-v4`; the worktree was clean before this append.
+
+**Explicit user authorization:** test-only implementation, TDD ON, with Bats as
+the explicitly selected runner. No installer or production common-helper changes.
+No real apt, sudo, network, Docker, staging, or commits. This step updates only
+this document and its existing full Engram mirror; no source changes yet.
+
+Routing: delegated preparation/writer for multiple nontrivial files, followed by
+bounded implementation and independent verification. This preparation agent must
+not launch child agents. Routing is a future handoff, not evidence of execution.
+
+### STT-10 — Closed shared APT fixture and self-tests
+
+- [ ] Implement `.devcontainer/test/helpers/apt-fixture.bash` and
+  `.devcontainer/test/unit/apt-fixture-helper.bats` as one cohesive test work unit.
+- [ ] Own isolated HOME/TMPDIR, explicit installer invocation, clean environment,
+  reserved-key rejection, serial raw NUL-delimited argv capture, and rejecting
+  dispatch. Consumers own tool descriptors, mocks, adapters, and assertions.
+- [ ] Close command dispatch: reject unknown commands/arguments, never fall through
+  to host apt/sudo or inherited PATH; all mutation remains fixture-local. Trusted
+  callbacks are not a security sandbox. Do not source an installer in the test shell.
+- [ ] Write genuine failing helper tests first, then prove GREEN, including unsafe
+  overrides, unexpected requests, isolation, capture fidelity, and failure propagation.
+
+Rollback boundary: only the new helper and its self-test file, before consumers
+depend on it. Runtime harness: N/A for real installation; fixture execution is
+the unit boundary, not proof of installed binaries or container health.
+
+### STT-11 — Graphviz and Ansible shared installer contracts
+
+- [ ] Add `.devcontainer/test/unit/apt-installers.bats`, consuming STT-10 without
+  a second recorder or sandbox. Execute unchanged installer scripts via the fixture.
+- [ ] Characterize reuse, default and overridden package, ordered update/install,
+  exact `install -y --no-install-recommends` argv, update/install failures, and
+  missing post-install CLI. Reuse must issue no APT request.
+- [ ] Preserve distinctions: Graphviz uses `dot -V` with stderr merged; Ansible
+  uses `ansible --version` and logs its first line. Cover both reuse and installed
+  probe paths, including observed failure behavior without assuming stricter exits.
+- [ ] Keep characterization GREEN separate from genuine helper RED; report existing
+  production gaps rather than fixing installers or `.devcontainer/install/lib/common.sh`.
+
+Inspected sources: `.devcontainer/install/available/5020-cli-graphviz.sh` and
+`.devcontainer/install/available/6000-cli-ansible.sh`. Both use the production root
+adapter for APT requests; fixture adapters must intercept those requests locally.
+Rollback boundary: only the new consumer suite; STT-10 remains independently useful.
+Runtime harness: N/A for real APT execution, explicitly outside authorization.
+
+### Verification and review forecast
+
+Exact planned source checks, not run during this documentation-only preparation:
+
+```bash
+bats .devcontainer/test/unit/apt-fixture-helper.bats .devcontainer/test/unit/apt-installers.bats
+bash -n .devcontainer/test/helpers/apt-fixture.bash
+shellcheck .devcontainer/test/helpers/apt-fixture.bash
+shfmt -d .devcontainer/test/helpers/apt-fixture.bash
+```
+
+Focused editorial checks (also required after implementation):
+
+```bash
+markdownlint-cli2 --no-globs odd/tasks/standardize-tool-tests.md
+git diff --check
+```
+
+Forecast: three new nontrivial test files plus this document; approximately
+350–650 authored changed lines across two dependent work units, with low confidence
+until implementation. Expect local unit/static checks in seconds to a few minutes;
+use an explicit 120000ms outer timeout per focused invocation and report timeout
+as incomplete proof. No downloads, builds, or installation costs are authorized.
+The 400-line threshold is review advice, not an acceptance cap: retain readable
+safety cases and report actual size rather than compressing coverage to fit.
+
+No commit is planned pending owner review and explicit approval of the reviewed
+diff. Work-unit skill commit advice does not override this boundary. Native review,
+branches, PRs, and remote operations are not authorized by this preparation.
+Task count: **11 total, 9 completed, 2 pending**; no new test result is claimed.
+Preparation rollback: remove only this appended section and reconcile the mirror;
+do not restore the historical archive or remove it for this change.
+
+### Observed implementation: STT-10
+
+STT-10 implemented locally, uncommitted. Helper tests were written before the
+helper: `bats .devcontainer/test/unit/apt-fixture-helper.bats` exited 1 with
+`not ok 1 bats-gather-tests` (missing helper). This is genuine missing-implementation
+RED, not six executed assertion failures. After implementation the same command
+exited 0, **6/6 PASS**; expected missing-command probes emitted Bats BW01 warnings.
+Closed PATH exposes only fixture stubs and read-only `dirname`; direct child Bash
+preserves installer errexit. Full final checks and STT-11 remain pending.
+
+### Observed implementation: STT-11 and final verification
+
+STT-11 implemented locally in `.devcontainer/test/unit/apt-installers.bats`.
+Its first characterization run was GREEN: **9/9 PASS**, exit 0, against byte-equal
+installer copies (`cmp` in each setup). No artificial production RED was introduced.
+Both tools swallow failed version probes in logging on reuse and installation;
+direct fixture probes exit 43 while installers exit 0. This is characterized,
+not repaired. Graphviz stderr and Ansible first-line logging remain distinct.
+
+Observed commands, each foreground with explicit `120000ms` outer timeout:
+
+| Command | Exact result |
+| --- | --- |
+| `bats .devcontainer/test/unit/apt-fixture-helper.bats` | RED exit 1 (missing helper), then GREEN exit 0, 6/6 |
+| `bats .devcontainer/test/unit/apt-installers.bats` | Exit 0, 9/9 |
+| `bats .devcontainer/test/unit/apt-fixture-helper.bats .devcontainer/test/unit/apt-installers.bats` | Exit 0, 15/15 after helper format normalization |
+| `bats .devcontainer/test/unit/npm-fixture-helper.bats .devcontainer/test/unit/npm-installers.bats .devcontainer/test/unit/mermaid-installer.bats` | Exit 0, 34/34 |
+| `bash -n .devcontainer/test/helpers/apt-fixture.bash` | Exit 0 |
+| `shellcheck .devcontainer/test/helpers/apt-fixture.bash` | Exit 0, no findings |
+| `shfmt -d .devcontainer/test/helpers/apt-fixture.bash` | Exit 0, no diff after `shfmt -w` |
+| `markdownlint-cli2 --no-globs odd/tasks/standardize-tool-tests.md` | Exit 0, 0 issues |
+| `git diff --check` | Exit 0 |
+
+APT suites emit BW01 warnings for deliberately asserted exit-127 absent commands;
+these are reported, not suppressed. No real APT, sudo, network, Docker, install,
+or broad suite ran. Trusted callbacks and explicit fixture-local chmod are not
+a hostile-code sandbox. Unit execution is not installed-tool/runtime health proof.
+
+The preparation checkboxes and pending count above are historical forecasts,
+superseded by these outcomes: **11 total, 11 implemented**, awaiting owner review.
+STT-10 rollback removes its helper/self-tests only after removing the dependent
+STT-11 suite; STT-11 rollback removes only its consumer suite. Production installers,
+common helper, and policy have no differences. No staging, commits, branches, push,
+PR, or native approval is claimed. Parent owns subsequent native RDD handling.
+
+### STT-12 — Distinguish zero arguments from one empty argument
+
+Next authorized task: test-only recorder advisory fix, TDD ON with explicit Bats.
+Record bare `apt-get` as an existing empty file with zero decoded entries, and
+`apt-get ""` as exactly one NUL with one empty entry. Verify dispatch argc 0/1
+and serial calls. Write the assertion test first and observe RED before changing
+the helper; then create captures unconditionally and print only when argc > 0.
+No root canonicalization, callback split, production edits, child agents, network,
+real apt/sudo, Docker, staging, commits, or native review are authorized.
+Prior `review-c14c4a76232cd0e1` authority is burned for its previous exact target;
+the parent handles new-candidate native risk without reusing that lineage.
+
+Status: **12 total, 12 implemented, awaiting owner review**. Required foreground checks
+each use `120000ms`: focused APT suites, npm/Mermaid regression, helper syntax,
+ShellCheck, shfmt (normalize before final checks), ledger markdownlint, diff check.
+Rollback: only STT-12 helper/test hunks and this appended tracking section;
+preserve STT-10/11 files and history. Runtime harness: N/A, real installation is
+outside authorization; local fixture execution is the unit boundary.
+
+Observed STT-12 evidence (each invocation foreground, outer `120000ms`):
+
+| Check | Exact result |
+| --- | --- |
+| `bats --filter 'distinguishes zero arguments from one empty argument' .devcontainer/test/unit/apt-fixture-helper.bats` | RED exit 1, 0/1: line 42 `[ ! -s "${APT_FIXTURE_CALLS}/1" ]` failed; after minimal fix GREEN exit 0, 1/1 |
+| Focused APT command listed above | Exit 0, 16/16 (7 helper + 9 installer); expected BW01 absent-command warnings |
+| npm/Mermaid regression command listed above | Exit 0, 34/34 |
+| Helper `bash -n`, `shellcheck`, `shfmt -d` | Each exit 0; no findings/diff after `shfmt -w` |
+
+The new test proves zero bytes/zero entries versus exactly one NUL/one empty
+entry, dispatch argc 0/1, and serial files 1/2 with no third call. No refactor
+was needed. Only the recorder guard, one self-test, and this tracking section
+changed; the consumer suite and all pre-existing authorized work are preserved.
+Final ledger `markdownlint-cli2 --no-globs odd/tasks/standardize-tool-tests.md`
+exited 0 with 0 issues; `git diff --check` exited 0. Mirror #2611 preserves the
+full ledger at `odd/standardize-tool-tests/tasks`; readback verifies this section.
