@@ -121,6 +121,9 @@ Start with `.devcontainer/docs/extending.md`; use the linked deep dives for each
 ## Project skill lifecycle
 
 - External skills restored by the Skills CLI remain in `skills-lock.json`.
+- Installed external content under `.agents/skills/` is Git-ignored; keep the
+  lock tracked, not the installed copies. Local-only skills may be absent from
+  the lock and are not restored by it.
 - Repository-authored `add-tool` lives in `.agents/skills/add-tool/` and is
   tracked by Git, not by external lock metadata.
 - Use the installed `skills` CLI: `skills add <source> --skill <name> --agent universal --copy -y`,

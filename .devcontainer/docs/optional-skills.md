@@ -34,6 +34,11 @@ skills add owner/repo --skill skill-name --agent universal --copy -y
 
 The universal target installs the skill in `.agents/skills/`.
 
+Installed external skills are Git-ignored; only the repository-authored `add-tool`
+is tracked under `.agents/skills/`. Keep `skills-lock.json` versioned to restore
+external packages. Local-only skills absent from the lock stay ignored and must
+be preserved separately; lock restoration does not recreate them.
+
 The task validates the whole selection before calling Skills CLI. Each selected
 skill is added separately; if one fails, the remaining selected skills are still
 attempted and the failed names are reported. Check `skills-lock.json` and the
