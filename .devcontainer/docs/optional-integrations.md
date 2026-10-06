@@ -63,6 +63,17 @@ does not prove valid trust; revoked or differing records and lookup errors requi
 manual inspection. IDE terminals, nested ordinary shells, and other entrypoints
 do not run this welcome.
 
+Set `WELCOME_LOG_LEVEL` in the root `.env` to control only this welcome:
+`info` (the unset default) shows all informational messages and warnings;
+`warn` shows warnings and their supporting commands and URLs; `off` skips
+welcome output and checks. Values must be exact lowercase. Invalid values,
+including an explicit empty value, emit one `[warn]` and fall back to `info`
+without blocking the shell. Validation and diagnostics run only after the
+interactive TTY gate; `.bashrc` and nested-shell output are preserved.
+The existing Compose `env_file: ../.env` delivers this runtime variable.
+To apply root `.env` changes, run `task container:recreate` on the **HOST**
+from its repository checkout; no image rebuild is needed for this variable.
+
 When trust is missing, manually run:
 
 ```bash

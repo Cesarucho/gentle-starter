@@ -123,13 +123,18 @@ with tempfile.TemporaryDirectory() as temporary:
         shim.write_text(f'#!/bin/bash\nprintf forbidden >>"{calls}"\nexit 99\n')
         shim.chmod(0o755)
     shim = bin_dir / "python3"
-    shim.write_text('#!/bin/bash\nexit "${MANIFEST_STATUS:-0}"\n')
+    welcome_checks = root / "welcome-checks"
+    shim.write_text(f'#!/bin/bash\nprintf manifest >>"{welcome_checks}"\n'
+                    'exit "${MANIFEST_STATUS:-0}"\n')
     shim.chmod(0o755)
+    for name in ("bash", "dirname"):
+        (bin_dir / name).symlink_to(Path("/usr/bin") / name)
     environment = {**os.environ, "HOME": str(home), "PATH": f"{bin_dir}:{os.environ['PATH']}",
                    "SSH_AUTH_SOCK": str(endpoint)}
+    environment.pop("WELCOME_LOG_LEVEL", None)
 
     def execute(tty=True, **extra):
-        command = ["bash", "--rcfile", str(rcfile), "-i", "-c",
+        command = ["/usr/bin/bash", "--rcfile", str(rcfile), "-i", "-c",
                    'printf "bashrc:%s\\n" "$BASHRC_PRESERVED"; bash -c "printf nested-ok"']
         if not tty:
             return subprocess.run(command, env={**environment, **extra}, capture_output=True).stdout.decode()
@@ -139,9 +144,77 @@ with tempfile.TemporaryDirectory() as temporary:
     missing = execute()
     assert "StrictHostKeyChecking=ask" in missing and "bashrc:yes" in missing
     assert missing.count("Welcome") == 1 and "nested-ok" in missing
+    assert execute(WELCOME_LOG_LEVEL="info") == missing
+    warnings = execute(WELCOME_LOG_LEVEL="warn")
+    assert "[info]" not in warnings and "[warn] GitHub host trust is missing." in warnings
+    assert "StrictHostKeyChecking=ask" in warnings and "https://docs.github.com/" in warnings
+    for invalid in ("", "invalid", "INFO", " warn "):
+        output = execute(WELCOME_LOG_LEVEL=invalid)
+        assert output.count("[warn] Invalid WELCOME_LOG_LEVEL") == 1
+        assert "[info] Welcome" in output and "StrictHostKeyChecking=ask" in output
+        assert "bashrc:yes" in output and "nested-ok" in output
+    welcome_checks.unlink()
+    output = execute(WELCOME_LOG_LEVEL="off")
+    assert "[info]" not in output and "[warn]" not in output
+    assert "StrictHostKeyChecking" not in output and "https://" not in output
+    assert "bashrc:yes" in output and "nested-ok" in output
+    assert not welcome_checks.exists()
+    for invalid in ("", "invalid"):
+        output = execute(False, WELCOME_LOG_LEVEL=invalid)
+        assert "[warn]" not in output and "[info]" not in output
+        assert "bashrc:yes" in output and "nested-ok" in output
+        assert not welcome_checks.exists()
     assert "unavailable" in execute(MANIFEST_STATUS="1")
     assert "expected local agent" in execute(SSH_AUTH_SOCK="wrong")
     known = home / ".ssh/known_hosts"
+    known.write_text("github.com ssh-ed25519 AAAA\n")
+    before = known.read_bytes()
+    output = execute(PATH=str(bin_dir))
+    assert "[warn] GitHub known_hosts lookup unavailable: ssh-keygen command not found." in output
+    assert "bashrc:yes" in output and "nested-ok" in output
+    assert known.read_bytes() == before and not calls.exists()
+    assert "[info] Welcome to Gentle Starter." in missing
+    assert "[info] Agent socket exists;" in missing
+    assert "[warn] GitHub host trust is missing." in missing
+    assert "[warn] SSH onboarding unavailable:" in execute(MANIFEST_STATUS="1")
+    assert "[warn] SSH onboarding unavailable:" in execute(SSH_AUTH_SOCK="wrong")
+    known.unlink()
+    known.mkdir()
+    assert "[warn] GitHub known_hosts lookup unavailable;" in execute(PATH=str(bin_dir))
+    known.rmdir()
+    shim = bin_dir / "ssh-keygen"
+    shim.write_text('#!/bin/bash\nprintf "%s\\n" "$LOOKUP_OUTPUT"\nexit "${LOOKUP_STATUS:-0}"\n')
+    shim.chmod(0o755)
+    known.write_text("fixture trust file\n")
+    before = known.read_bytes()
+    scenarios = [
+        ("github.com ssh-ed25519 AAAA\ngithub.com ssh-rsa BBBB", False, False),
+        ("github.com ssh-ed25519 AAAA\ngithub.com ssh-ed25519 AAAA comment", False, False),
+        ("github.com ssh-ed25519 AAAA\ngithub.com ssh-rsa BBBB\ngithub.com ssh-ed25519 CCCC", True, False),
+        ("@revoked github.com ssh-ed25519 AAAA\ngithub.com ssh-rsa BBBB", False, True),
+    ]
+    for records, conflict, revoked in scenarios:
+        output = execute(PATH=str(bin_dir), LOOKUP_OUTPUT=records)
+        assert "[info] GitHub known_hosts entry present;" in output
+        assert ("[warn] multiple differing GitHub records;" in output) == conflict
+        assert ("[warn] revoked GitHub entry;" in output) == revoked
+        assert "WARNING:" not in output
+        assert known.read_bytes() == before and not calls.exists()
+        warnings = execute(PATH=str(bin_dir), LOOKUP_OUTPUT=records, WELCOME_LOG_LEVEL="warn")
+        assert "[info]" not in warnings
+        assert ("[warn] multiple differing GitHub records;" in warnings) == conflict
+        assert ("[warn] revoked GitHub entry;" in warnings) == revoked
+    welcome_checks.unlink()
+    assert "[warn]" not in execute(PATH=str(bin_dir), WELCOME_LOG_LEVEL="off")
+    assert not welcome_checks.exists() and known.read_bytes() == before
+    assert "[warn] GitHub known_hosts lookup failed;" in execute(
+        PATH=str(bin_dir), LOOKUP_STATUS="2")
+    print("PASS: hermetic severity, missing-command, file validity and fake lookup branches")
+    shim.unlink()
+    if not Path("/usr/bin/ssh-keygen").is_file():
+        sock.close()
+        print("SKIP: real ssh-keygen plain/hashed parser proof; /usr/bin/ssh-keygen unavailable")
+        sys.exit(0)
     # A generated local public key gives the real ssh-keygen parser valid input.
     subprocess.run(["/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(root / "key")], check=True)
     public = (root / "key.pub").read_text().split()
