@@ -168,7 +168,7 @@ hooks, Dockerfile, and base Compose before explicitly executing privileged build
 External binds, named Compose volumes, custom services/resources, and escaping
 symlinks are rejected rather than guessed into a safe mapping.
 
-Noninteractive `docker exec` as ubuntu proves connection without an SSH server.
+Noninteractive `docker exec` as ubuntu proves direct execution, not Task attachment.
 The harness compares applied manifest identity and actual managed mounts, checks
 bind-root ownership/modes, writes unique markers, then verifies a new container ID
 and marker persistence after recreation. Public tracked/untracked bytes, full modes,
@@ -176,6 +176,46 @@ symlink targets, branch, HEAD, index, and primary status are checked; excluded s
 environment contents are never hashed. Source preservation is checked on failure
 as well as success. Mock regressions cover failure/interrupt cleanup; a successful
 live cycle does not itself inject every possible operational failure.
+
+### Focused Task attachment scenario
+
+After separate operational authorization, from the CONTAINER repository root:
+
+```bash
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --attachment
+```
+
+This runs the reduced base lifecycle once, then exercises `container:connect` in
+the isolated candidate as a **simulated HOST inside CONTAINER**. It is not proof
+on the user's actual host or of consumer/nested Docker. The same optional scratch
+parent, exact-byte cached-image probe, registration, inventory, fail-closed
+ownership checks, cleanup and retention rules apply. No new cleanup authority exists.
+
+Only the candidate's interactive connect `ARGS` is replaced by a deterministic
+noninteractive Bash payload. The actual Task entrypoint, `ensure-running`,
+`run-devcontainer`, and `devcontainer exec` remain in use. The payload checks ubuntu,
+workspace path, a unique workspace marker, and a container-specific private marker;
+the harness independently verifies the exact selected ID. Interactive welcome,
+onboarding, other TUI entrypoints, SSH, and optional integrations are not covered.
+
+Running desired-bind drift and a scoped, label-registered tokenless container must
+warn and attach without changing the ID, actual mounts, synthetic root/generated
+env bytes, applied manifest, or managed file bytes/ownership/modes. This separate
+synthetic-state snapshot does not change primary credential exclusions. Intentional
+fixture edits are restored between cases. Stopped and absent targets exercise strict
+startup through Task; duplicate locale input rejects startup without recreate or
+payload. The tokenless case uses the already-built image and scoped safe creation,
+not provisioning or an old-token compatibility fallback. Similarly named unrelated
+containers, engine-error injection and arbitrary custom mounts are not live-covered.
+
+Cost: one explicit base build/recreate cycle plus two additional strict startup
+attempts that succeed and two deliberately rejected attempts. Startup may still
+build/download under CLI cache rules; the tokenless fixture uses the existing image.
+Expect substantial image/build disk use and minutes of setup time, not measured
+here. Allow a 30-minute soft operational budget initially, with a longer outer hard
+deadline for cleanup; reforecast from inspected hooks/cache before launch. Running
+attachments are bounded at 120 seconds, startup attachments at 600 seconds. Shared
+build cache and compact private diagnostics remain retained. Recipes are not permission.
 
 Successful tests automatically clean up through the ownership engine. Failed
 tests and handled SIGINT/SIGTERM retain private scratch, `task.log`, inventory,

@@ -48,7 +48,9 @@ class LifecycleTests(unittest.TestCase):
             (self.root / name).mkdir(parents=True)
         for name in (".devcontainer/devcontainer.json", ".devcontainer/docker-compose.yml",
                      ".devcontainer/config/compose/docker-compose.ssh-agent.yml", ".devcontainer/config/compose/docker-compose.ssh-server.yml",
-                     ".devcontainer/config/compose/docker-compose.audio.yml",
+                      ".devcontainer/config/compose/docker-compose.audio.yml",
+                      ".devcontainer/config/compose/docker-compose.pi.yml",
+                      ".devcontainer/config/compose/docker-compose.gentle-shell.yml",
                      ".devcontainer/config/compose/docker-compose-core-tools.yml", ".taskfiles/scripts/compose-manifest.py"):
             shutil.copyfile(ROOT / name, self.root / name)
         links = self.root / ".devcontainer/install/03-enabled"
@@ -343,6 +345,154 @@ class LifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "synthetic ../.env"):
                 lifecycle.validate_base()
         lifecycle.resolve.assert_not_called()
+
+    def attachment_fixture(self):
+        lifecycle = self.lifecycle()
+        for name in (".devcontainer", ".env.d", ".maintainer", ".taskfiles"):
+            (lifecycle.candidate / name).mkdir(parents=True, exist_ok=True)
+        for name in (".env", ".devcontainer/.env", ".devcontainer/.volume-manifest.json", ".env.d/managed"):
+            (lifecycle.candidate / name).write_text("synthetic")
+        return lifecycle
+
+    def test_attachment_state_includes_excluded_env_manifest_bytes_and_metadata(self):
+        lifecycle = self.attachment_fixture()
+        before = lifecycle.fixture_state()
+        self.assertEqual(len(before), 5)
+        for name in (".env", ".devcontainer/.env", ".devcontainer/.volume-manifest.json", ".env.d/managed"):
+            path = lifecycle.candidate / name
+            path.write_text("changed")
+            self.assertNotEqual(before, lifecycle.fixture_state())
+            path.write_text("synthetic")
+        (lifecycle.candidate / ".env.d/managed").chmod(0o600)
+        self.assertNotEqual(before, lifecycle.fixture_state())
+
+    def test_attachment_state_records_links_without_reading_destination(self):
+        lifecycle = self.attachment_fixture()
+        (lifecycle.candidate / ".env.d/link").symlink_to("/private/not-readable")
+        self.assertEqual(lifecycle.fixture_state()[".env.d/link"][-2:], ("link", "/private/not-readable"))
+
+    def test_real_task_payload_is_bounded_and_requires_warning_and_exact_receipt(self):
+        lifecycle = self.attachment_fixture()
+        marker = lifecycle.ownership.data["run"] + ":target"
+        lifecycle.container = Mock(return_value="target")
+        lifecycle.docker = Mock(side_effect=["", marker])
+        def produce(argv, cwd, env, stage):
+            self.assertEqual(argv, ["timeout", "--kill-after=10", "120", "task", "container:connect"])
+            self.assertEqual(cwd, lifecycle.candidate)
+            self.assertEqual(env["FORCE_HOST_CONTEXT"], "1")
+            self.assertEqual(stage, "verify")
+            script = (cwd / ".maintainer/attachment-payload.sh").read_text()
+            self.assertIn('test "$(id -un)" = ubuntu', script)
+            self.assertIn('test "$PWD" = /home/ubuntu/', script)
+            self.assertIn(marker, script)
+            (lifecycle.scratch / "task.log").write_text("warn drift\nATTACHMENT_OK:" + marker + "\n")
+        lifecycle.ownership.produce.side_effect = produce
+        self.assertEqual(lifecycle.connect_payload("target", "warn drift"), "target")
+        self.assertFalse((lifecycle.candidate / ".maintainer/attachment-payload.sh").exists())
+
+    def test_missing_warning_or_wrong_target_fails_even_with_successful_task(self):
+        lifecycle = self.attachment_fixture()
+        lifecycle.docker = Mock(return_value="")
+        lifecycle.container = Mock(return_value="wrong")
+        marker = lifecycle.ownership.data["run"] + ":target"
+        (lifecycle.scratch / "task.log").write_text("ATTACHMENT_OK:" + marker + "\n")
+        with self.assertRaisesRegex(H.Unsafe, "warning missing"):
+            lifecycle.connect_payload("target", "missing warning")
+        with self.assertRaisesRegex(H.Unsafe, "different target"):
+            lifecycle.connect_payload("target")
+
+    def test_expected_startup_error_does_not_accept_timeout_or_engine_failure(self):
+        lifecycle = self.attachment_fixture()
+        lifecycle.docker = Mock()
+        lifecycle.ownership.produce.side_effect = H.Unsafe("failed")
+        (lifecycle.scratch / "task.log").write_text("duplicate LOCALE\n")
+        for status in (None, 0, 124, 137):
+            lifecycle.ownership.data["exit"] = status
+            with self.assertRaises(H.Unsafe):
+                lifecycle.connect_payload(None, expect_failure=True)
+        lifecycle.ownership.data["exit"] = 1
+        lifecycle.connect_payload(None, expect_failure=True)
+        lifecycle.docker.assert_not_called()
+
+    def test_preserving_attachment_rejects_changed_bytes_or_mounts(self):
+        lifecycle = self.attachment_fixture()
+        lifecycle.attachment_identity = Mock(side_effect=["original", "changed"])
+        lifecycle.connect_payload = Mock()
+        with self.assertRaisesRegex(H.Unsafe, "mutated"):
+            lifecycle.preserving_attachment("target", "warning")
+
+    def test_attachment_fixture_operations_refuse_unregistered_targets(self):
+        lifecycle = self.lifecycle()
+        lifecycle.ownership.data["resources"] = {"container": {}}
+        with self.assertRaisesRegex(H.Unsafe, "not registered"):
+            lifecycle.owned_operation("target", "stop")
+        lifecycle.ownership.produce.assert_not_called()
+
+    def test_attachment_selector_cannot_expand_to_consumer_dind(self):
+        with patch.object(sys, "argv", ["lifecycle", "--consumer", "--attachment"]), patch.object(H, "Run") as run:
+            with self.assertRaisesRegex(SystemExit, "not both"):
+                H.main()
+        run.create.assert_not_called()
+
+    def test_scenario_restores_fixture_and_routes_both_startup_states_through_connect(self):
+        lifecycle = self.attachment_fixture()
+        taskfile = lifecycle.candidate / ".taskfiles/devcontainer.yml"
+        taskfile.write_bytes((ROOT / ".taskfiles/devcontainer.yml").read_bytes())
+        core = lifecycle.candidate / ".devcontainer/config/compose/docker-compose-core-tools.yml"
+        core.parent.mkdir(parents=True)
+        core.write_text('{"services":{"container-svc":{"volumes":[]}}}')
+        before = taskfile.read_bytes(), core.read_bytes(), (lifecycle.candidate / ".env").read_bytes()
+        module = Mock()
+        module.read_compose_fragment.return_value = {"services": {"container-svc": {"volumes": []}}}
+        lifecycle.preserving_attachment = Mock()
+        lifecycle.owned_operation = Mock()
+        lifecycle.docker = Mock(side_effect=["original false", ""])
+        lifecycle.connect_payload = Mock(side_effect=[None, "original", None, "replacement"])
+        lifecycle.missing_token_attachment = Mock()
+        with patch.object(H, "resolver", return_value=module), patch("builtins.print"):
+            lifecycle.assert_attachment("original")
+        self.assertEqual(lifecycle.connect_payload.call_args_list, [
+            call(None, expect_failure=True), call("original", prepare_marker=False),
+            call(None, expect_failure=True), call(None)])
+        self.assertEqual(lifecycle.owned_operation.call_args_list,
+                         [call("original", "stop"), call("original", "stop"), call("original", "rm")])
+        lifecycle.missing_token_attachment.assert_called_once_with("replacement")
+        self.assertEqual(before, (taskfile.read_bytes(), core.read_bytes(), (lifecycle.candidate / ".env").read_bytes()))
+        self.assertFalse((lifecycle.candidate / ".maintainer/attachment-workspace").exists())
+
+    def test_missing_token_creation_reuses_image_labels_and_mounts_without_startup(self):
+        lifecycle = self.attachment_fixture()
+        labels = {H.LABEL: lifecycle.ownership.data["run"], "com.docker.compose.project": lifecycle.project,
+                  "com.docker.compose.service": "container-svc", "devcontainer.local_folder": str(lifecycle.candidate),
+                  "devcontainer.config_file": str(lifecycle.candidate / ".devcontainer/devcontainer.json")}
+        mounts = [{"Type": "bind", "Source": str(lifecycle.candidate),
+                   "Destination": "/home/ubuntu/" + lifecycle.candidate.name, "RW": True}]
+        lifecycle.docker = Mock(side_effect=[json.dumps(mounts), json.dumps(labels), "sha256:image", "fixture", ""])
+        lifecycle.owned_operation = Mock()
+        lifecycle.preserving_attachment = Mock()
+        lifecycle.missing_token_attachment("original")
+        argv = lifecycle.ownership.produce.call_args.args[0]
+        self.assertEqual(argv[:2], ["docker", "create"])
+        self.assertEqual(argv[-3:], ["sha256:image", "sleep", "infinity"])
+        self.assertIn("--mount", argv)
+        self.assertIn("none", argv)
+        self.assertNotIn("DEVCONTAINER_BIND_MANIFEST_ID", " ".join(argv))
+        self.assertEqual(lifecycle.owned_operation.call_args_list,
+                         [call("original", "stop"), call("original", "rm"), call("fixture", "start")])
+        lifecycle.preserving_attachment.assert_called_once_with("fixture", "Creation bind identity is missing")
+
+    def test_missing_token_external_mount_is_rejected_before_removing_original(self):
+        lifecycle = self.attachment_fixture()
+        labels = {H.LABEL: lifecycle.ownership.data["run"], "com.docker.compose.project": lifecycle.project,
+                  "com.docker.compose.service": "container-svc", "devcontainer.local_folder": "workspace",
+                  "devcontainer.config_file": "config"}
+        mounts = [{"Type": "bind", "Source": "/private", "Destination": "/workspace", "RW": True}]
+        lifecycle.docker = Mock(side_effect=[json.dumps(mounts), json.dumps(labels), "image"])
+        lifecycle.owned_operation = Mock()
+        with self.assertRaisesRegex(H.Unsafe, "Unsupported"):
+            lifecycle.missing_token_attachment("original")
+        lifecycle.owned_operation.assert_not_called()
+        lifecycle.ownership.produce.assert_not_called()
 
 
 if __name__ == "__main__":

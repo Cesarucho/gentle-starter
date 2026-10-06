@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import signal
 import stat
@@ -166,6 +167,7 @@ class Lifecycle:
         self.project = self.candidate.name + "_devcontainer"
         self.env["COMPOSE_PROJECT_NAME"] = self.project
         self.bind_metadata = {}
+        self.attachment_scenario = False
         self.before = snapshot(root)
         self.source_status = run("git", "status", "--porcelain=v1", "--untracked-files=all", cwd=root)
 
@@ -237,7 +239,7 @@ class Lifecycle:
 
     def container(self):
         _, service, _ = self.resolve()
-        ids = self.docker("ps", "-q", "--filter", f"label=com.docker.compose.project={self.project}",
+        ids = self.docker("ps", "-q", "--no-trunc", "--filter", f"label=com.docker.compose.project={self.project}",
                           "--filter", f"label=com.docker.compose.service={service}").split()
         if len(ids) != 1:
             raise RuntimeError("Expected exactly one running sandbox service container")
@@ -327,6 +329,188 @@ class Lifecycle:
             self.snapshot_diagnostic = snapshot_difference(configured, current)
             raise RuntimeError("Candidate public source bytes, links, or modes changed")
         self.verify_check = None
+        if getattr(self, "attachment_scenario", False):
+            self.assert_attachment(second)
+            if snapshot(self.candidate) != configured:
+                raise Unsafe("Attachment fixture did not restore candidate public state")
+
+    def fixture_state(self):
+        """Hash only synthetic candidate state; never print contents or hashes."""
+        names = [self.candidate / name for name in
+                 (".env", ".devcontainer/.env", ".devcontainer/.volume-manifest.json", ".env.d")]
+        state = {}
+        for base in names:
+            paths = [base, *base.rglob("*")] if base.is_dir() and not base.is_symlink() else [base]
+            for path in paths:
+                metadata = path.lstat()
+                if path.is_symlink():
+                    if path == base:
+                        raise Unsafe("Synthetic state root contains a symlink")
+                    state[str(path.relative_to(self.candidate))] = (
+                        metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode), "link", os.readlink(path))
+                    continue
+                if path.resolve() != path.absolute():
+                    raise Unsafe("Attachment state has a symlinked parent")
+                if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
+                    raise Unsafe("Attachment state contains an unsupported file")
+                state[str(path.relative_to(self.candidate))] = (
+                    metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode),
+                    "directory" if path.is_dir() else hashlib.sha256(path.read_bytes()).hexdigest())
+        return state
+
+    def attachment_identity(self, container):
+        if self.container() != container:
+            raise Unsafe("Attachment selected a different container")
+        return self.docker("inspect", "--format", "{{.Id}} {{json .Mounts}}", container)
+
+    def connect_payload(self, container, warning=None, expect_failure=False, prepare_marker=True):
+        """Real connect -> ensure-running -> run-devcontainer -> CLI exec, no TTY."""
+        marker = self.ownership.data["run"] + ":" + (container or "startup")
+        workspace = "/home/ubuntu/" + self.candidate.name
+        # A fixture-only marker inside this exact ID distinguishes even containers
+        # sharing the same workspace bind. Docker exec sets up the proof, not attach.
+        if container and prepare_marker:
+            self.docker("exec", "--user", "ubuntu", container, "bash", "-c",
+                        'umask 077; printf "%s" "$1" > /tmp/starter-attachment-id', "marker", marker)
+        payload = self.candidate / ".maintainer/attachment-payload.sh"
+        identity_check = (f'test "$(cat /tmp/starter-attachment-id)" = {shlex.quote(marker)}\n'
+                          if container else
+                          f'umask 077; printf "%s" {shlex.quote(marker)} > /tmp/starter-attachment-id\n')
+        payload.write_text("#!/bin/bash\nset -eu\n"
+                           'test "$(id -un)" = ubuntu\n'
+                           f'test "$PWD" = {shlex.quote(workspace)}\n'
+                           + identity_check +
+                           f'test "$(cat .maintainer/attachment-workspace)" = {shlex.quote(self.ownership.data["run"])}\n'
+                           f"printf '%s\\n' {shlex.quote('ATTACHMENT_OK:' + marker)}\n")
+        try:
+            budget = "120" if container and prepare_marker else "600"
+            self.ownership.stage("verify")  # Clear stale exit evidence before a possible producer failure.
+            self.ownership.produce(["timeout", "--kill-after=10", budget, "task", "container:connect"], self.candidate,
+                                   {**self.env, "FORCE_HOST_CONTEXT": "1"}, "verify")
+        except Unsafe:
+            if not expect_failure or self.ownership.data.get("exit") in (None, 0, 124, 137):
+                raise
+        else:
+            if expect_failure:
+                raise Unsafe("Strict attachment startup unexpectedly succeeded")
+        finally:
+            payload.unlink()
+        output = (self.scratch / "task.log").read_text()
+        receipt = "ATTACHMENT_OK:" + marker
+        if expect_failure:
+            if "ATTACHMENT_OK:" in output or "duplicate LOCALE" not in output:
+                raise Unsafe("Strict startup did not reject the intentional input before connection")
+        elif output.splitlines().count(receipt) != 1 or (warning and warning not in output):
+            raise Unsafe("Task connection receipt or expected warning missing")
+        if not expect_failure:
+            connected = self.container()
+            if container and connected != container:
+                raise Unsafe("Task connection replaced or selected a different target")
+            if self.docker("exec", "--user", "ubuntu", connected, "cat", "/tmp/starter-attachment-id") != marker:
+                raise Unsafe("Task payload did not run in the exact selected target")
+            return connected
+
+    def preserving_attachment(self, container, warning):
+        before = self.fixture_state(), self.attachment_identity(container)
+        self.connect_payload(container, warning)
+        if before != (self.fixture_state(), self.attachment_identity(container)):
+            raise Unsafe("Attachment mutated synthetic applied state, mounts or identity")
+
+    def owned_operation(self, container, operation):
+        self.ownership.capture()
+        if container not in self.ownership.data["resources"]["container"]:
+            raise Unsafe("Attachment fixture target is not registered")
+        if self.ownership.inspect_owned("container", container) is None:
+            raise Unsafe("Attachment fixture target disappeared")
+        self.ownership.produce(["docker", operation, container], self.candidate, self.env, "verify")
+
+    def assert_attachment(self, container):
+        taskfile = self.candidate / ".taskfiles/devcontainer.yml"
+        original = taskfile.read_bytes()
+        old = b"ARGS: exec --workspace-folder {{.WORKSPACE}} bash --rcfile .taskfiles/scripts/container-connect.bash -i"
+        if original.count(old) != 1:
+            raise Unsafe("Unsupported connect payload; fixture adaptation requires exact task shape")
+        taskfile.write_bytes(original.replace(old, b"ARGS: exec --workspace-folder {{.WORKSPACE}} bash .maintainer/attachment-payload.sh"))
+        workspace_marker = self.candidate / ".maintainer/attachment-workspace"
+        workspace_marker.write_text(self.ownership.data["run"])
+        core = self.candidate / ".devcontainer/config/compose/docker-compose-core-tools.yml"
+        core_original = core.read_bytes()
+        root_env = self.candidate / ".env"
+        env_original = root_env.read_bytes()
+        try:
+            module = resolver(self.candidate)
+            fragment = module.read_compose_fragment(core)
+            fragment["services"]["container-svc"]["volumes"].append({
+                "type": "bind", "source": "../.env.d/attachment-new", "target": "/home/ubuntu/attachment-new",
+                "bind": {"create_host_path": False}})
+            core.write_text(json.dumps(fragment) + "\n")
+            self.preserving_attachment(container, "Desired bind contract differs")
+            core.write_bytes(core_original)
+
+            # Invalid startup inputs must fail for stopped AND absent targets,
+            # without an implicit recreate or payload. Restore fixture bytes.
+            self.owned_operation(container, "stop")
+            root_env.write_bytes(env_original + b"\nLOCALE=invalid-locale\n")
+            self.connect_payload(None, expect_failure=True)
+            if self.docker("inspect", "--format", "{{.Id}} {{.State.Running}}", container) != container + " false":
+                raise Unsafe("Failed strict startup changed the stopped target")
+            root_env.write_bytes(env_original)
+            self.connect_payload(container, prepare_marker=False)
+            self.owned_operation(container, "stop")
+            self.owned_operation(container, "rm")
+            root_env.write_bytes(env_original + b"\nLOCALE=invalid-locale\n")
+            self.connect_payload(None, expect_failure=True)
+            if self.docker("ps", "-aq", "--filter", f"name=^/{self.candidate.name}-run$"):
+                raise Unsafe("Failed absent startup created a target")
+            root_env.write_bytes(env_original)
+            replacement = self.connect_payload(None)
+            if replacement == container:
+                raise Unsafe("Absent startup did not create a new target")
+            self.missing_token_attachment(replacement)
+            print("[starter-lifecycle:attachment] Task/CLI payload, running drift/missing-token preservation, "
+                  "stopped/absent strict startup and input-error routing verified; simulated HOST in CONTAINER.")
+        finally:
+            core.write_bytes(core_original)
+            root_env.write_bytes(env_original)
+            taskfile.write_bytes(original)
+            workspace_marker.unlink()
+
+    def missing_token_attachment(self, container):
+        """Create one scoped running fixture without provisioning or token fallback."""
+        mounts = json.loads(self.docker("inspect", "--format", "{{json .Mounts}}", container))
+        labels = json.loads(self.docker("inspect", "--format", "{{json .Config.Labels}}", container))
+        image = self.docker("inspect", "--format", "{{.Image}}", container)
+        argv = ["docker", "create", "--name", self.candidate.name + "-run", "--network", "none",
+                "--user", "ubuntu", "--workdir", "/home/ubuntu/" + self.candidate.name]
+        for key in (LABEL, "com.docker.compose.project", "com.docker.compose.service",
+                    "devcontainer.local_folder", "devcontainer.config_file"):
+            if not isinstance(labels.get(key), str) or not labels[key]:
+                raise Unsafe("Missing fixture ownership or CLI selection label")
+            argv.extend(["--label", key + "=" + labels[key]])
+        if labels[LABEL] != self.ownership.data["run"] or labels["com.docker.compose.project"] != self.project:
+            raise Unsafe("Missing-token fixture ownership mismatch")
+        for mount in mounts:
+            source = Path(mount["Source"])
+            if (mount["Type"] != "bind" or not mount["RW"] or source.resolve() != source
+                    or not source.is_relative_to(self.candidate) or "," in str(source)
+                    or "," in mount["Destination"]):
+                raise Unsafe("Unsupported missing-token fixture mount")
+            argv.extend(["--mount", f'type=bind,source={source},target={mount["Destination"]}'])
+        argv.extend([image, "sleep", "infinity"])
+        self.owned_operation(container, "stop")
+        self.owned_operation(container, "rm")
+        self.ownership.produce(argv, self.candidate, self.env, "verify")
+        self.capture_resources()
+        ids = self.docker("ps", "-aq", "--no-trunc", "--filter", f"name=^/{self.candidate.name}-run$").split()
+        if len(ids) != 1:
+            raise Unsafe("Missing-token fixture target is ambiguous")
+        fixture = ids[0]
+        self.owned_operation(fixture, "start")
+        token = self.docker("inspect", "--format",
+                            '{{range .Config.Env}}{{if eq (index (split . "=") 0) "DEVCONTAINER_BIND_MANIFEST_ID"}}present{{end}}{{end}}', fixture)
+        if token:
+            raise Unsafe("Missing-token fixture inherited a creation token")
+        self.preserving_attachment(fixture, "Creation bind identity is missing")
 
 
     def cleanup(self):
@@ -433,21 +617,29 @@ class ConsumerLifecycle(Lifecycle):
 
 def main():
     consumer = "--consumer" in sys.argv[1:]
-    args = [arg for arg in sys.argv[1:] if arg != "--consumer"]
+    attachment = "--attachment" in sys.argv[1:]
+    if consumer and attachment:
+        raise SystemExit("Select consumer or attachment, not both")
+    selectors = {"--consumer", "--attachment"}
+    if any(sys.argv[1:].count(flag) > 1 for flag in selectors):
+        raise SystemExit("Duplicate lifecycle selector")
+    args = [arg for arg in sys.argv[1:] if arg not in selectors]
     if not args:
         parent = Path("/home/ubuntu")
     elif len(args) == 2 and args[0] == "--daemon-visible-scratch":
         parent = Path(args[1])
     else:
-        raise SystemExit("Usage: task test:starter:lifecycle [-- --consumer] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
+        raise SystemExit("Usage: task test:starter:lifecycle [-- --consumer | --attachment] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
                          "Explicit expensive build/start/recreate; the local Docker daemon must pass an exact-byte bind probe first.")
     root = Path(run("git", "rev-parse", "--show-toplevel")).resolve()
     if Path.cwd() != root or not parent.is_absolute() or not parent.is_dir() or parent.resolve() != parent or parent == root or parent.is_relative_to(root):
         raise SystemExit("Run from repository root with an existing plain scratch parent outside the repository")
-    for command in ("docker", "devcontainer", "task", "git", "rsync", "yq"):
+    commands = ("docker", "devcontainer", "task", "git", "rsync", "yq") + (("timeout",) if attachment else ())
+    for command in commands:
         if not shutil.which(command):
             raise SystemExit(f"Required command unavailable: {command}")
-    print("[starter-lifecycle] Explicit " + ("consumer release/DinD" if consumer else "base lifecycle") + " scenario. "
+    print("[starter-lifecycle] Explicit " + ("consumer release/DinD" if consumer else
+          "base lifecycle + Task attachment" if attachment else "base lifecycle") + " scenario. "
           "Expect downloads, minutes of CPU/build time and substantial disk use; startup may build. "
            "Shared build cache is retained; owned images are removed only when exclusive ownership is verified. "
            "Local daemon only; no initialization or optional socket proof.", flush=True)
@@ -456,6 +648,8 @@ def main():
     print(f"[starter-lifecycle] Recovery run: {ownership.data['run']}; inventory: {ownership.path}", flush=True)
     try:
         lifecycle = (ConsumerLifecycle if consumer else Lifecycle)(root, scratch, ownership)
+        if attachment:
+            lifecycle.attachment_scenario = True
     except BaseException:
         try:
             try:
@@ -520,7 +714,7 @@ def main():
         return 1
     print(("Fixture release clone/build/start and nested Docker verified. Exactly two verified feature state volumes retained; "
            "this is not complete resource cleanup. " if consumer else
-           "Base build/start/connect/recreate, managed persistence verified. ") + "Primary preservation verified. "
+            "Base build/start/direct-exec/recreate, managed persistence verified. ") + "Primary preservation verified. "
           "Registered owned resources removed; shared build cache and compact run diagnostics retained.")
     return 0
 
