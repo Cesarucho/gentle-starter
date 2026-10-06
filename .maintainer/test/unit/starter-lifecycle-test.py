@@ -526,6 +526,131 @@ class LifecycleTests(unittest.TestCase):
         lifecycle.owned_operation.assert_not_called()
         lifecycle.ownership.produce.assert_not_called()
 
+    def opt_in(self, lifecycle):
+        lifecycle.allow_generated_dockerfile_read = True
+        lifecycle._generated_read_adapter = Mock()
+        return lifecycle._generated_read_adapter
+
+    def test_opted_in_task_requires_prepared_adapter_before_producer(self):
+        lifecycle = self.lifecycle()
+        lifecycle.allow_generated_dockerfile_read = True
+        for action in ("build", "up", "recreate", "connect"):
+            with self.subTest(action=action), self.assertRaisesRegex(H.Unsafe, "not been prepared"):
+                lifecycle.task(action)
+        lifecycle.ownership.produce.assert_not_called()
+
+    def test_private_selection_failures_block_all_task_and_connect_routes(self):
+        lifecycle = self.attachment_fixture()
+        adapter = self.opt_in(lifecycle)
+        lifecycle.docker = Mock()
+        for failure in ("missing config", "tampered config", "missing launcher", "tampered launcher",
+                        "missing native", "tampered native", "tampered dependency"):
+            adapter.validate_selection.side_effect = H.Unsafe(failure)
+            for action in ("build", "up", "recreate", "connect"):
+                with self.subTest(failure=failure, action=action), self.assertRaises(H.Unsafe):
+                    lifecycle.task(action)
+            for container, prepare_marker in (("running", True), ("stopped", False), (None, True)):
+                with self.subTest(failure=failure, container=container), self.assertRaises(H.Unsafe):
+                    lifecycle.connect_payload(container, prepare_marker=prepare_marker, expect_failure=True)
+        lifecycle.ownership.produce.assert_not_called()
+        lifecycle.docker.assert_not_called()
+        lifecycle.ownership.stage.assert_not_called()
+        self.assertFalse((lifecycle.candidate / ".maintainer/attachment-payload.sh").exists())
+
+    def test_valid_task_checks_selection_before_launch_and_preserves_arguments(self):
+        lifecycle = self.lifecycle()
+        adapter = self.opt_in(lifecycle)
+        events = Mock()
+        events.attach_mock(adapter.validate_selection, "validate")
+        events.attach_mock(lifecycle.ownership.produce, "produce")
+        lifecycle.task("build")
+        self.assertEqual(events.mock_calls, [call.validate(lifecycle.env), call.produce(
+            ["task", "container:build"], lifecycle.candidate,
+            {**lifecycle.env, "FORCE_HOST_CONTEXT": "1"}, "build")])
+
+    def test_default_and_consumer_do_not_load_or_validate_private_adapter(self):
+        lifecycle = self.lifecycle()
+        adapter = Mock()
+        lifecycle._generated_read_adapter = adapter
+        lifecycle.task("up")
+        (self.root / "consumer").mkdir()
+        with patch.object(H, "snapshot", return_value={}), patch.object(H, "run", return_value=""):
+            consumer = H.ConsumerLifecycle(self.root, self.root / "consumer", Mock(data={"run": "consumer"}))
+        consumer._generated_read_adapter = adapter
+        consumer.task("build")
+        adapter.validate_selection.assert_not_called()
+        lifecycle.ownership.produce.assert_called_once()
+        consumer.ownership.produce.assert_called_once()
+
+    def test_valid_connect_routes_recheck_selection_without_current_core_validation(self):
+        lifecycle = self.attachment_fixture()
+        adapter = self.opt_in(lifecycle)
+        core = lifecycle.candidate / ".devcontainer/config/compose/docker-compose-core-tools.yml"
+        core.parent.mkdir(parents=True)
+        core.write_text("temporary desired drift")
+        for container, prepare_marker in (("running", True), ("stopped", False), (None, True)):
+            adapter.validate_selection.reset_mock()
+            target = container or "replacement"
+            marker = lifecycle.ownership.data["run"] + ":" + (container or "startup")
+            lifecycle.container = Mock(return_value=target)
+            lifecycle.docker = Mock(side_effect=["", marker] if container and prepare_marker else [marker])
+            def produce(argv, cwd, environment, stage):
+                self.assertEqual(argv[0:2], ["timeout", "--kill-after=10"])
+                self.assertEqual(argv[2], "120" if container and prepare_marker else "600")
+                self.assertEqual(argv[3:], ["task", "container:connect"])
+                self.assertEqual(environment, {**lifecycle.env, "FORCE_HOST_CONTEXT": "1"})
+                self.assertEqual(stage, "verify")
+                (lifecycle.scratch / "task.log").write_text("Desired bind contract differs\nATTACHMENT_OK:" + marker + "\n")
+            lifecycle.ownership.produce.side_effect = produce
+            with self.subTest(container=container):
+                self.assertEqual(lifecycle.connect_payload(container, "Desired bind contract differs",
+                                                          prepare_marker=prepare_marker), target)
+                self.assertEqual(adapter.validate_selection.call_args_list, [call(lifecycle.env), call(lifecycle.env)])
+                self.assertEqual(core.read_text(), "temporary desired drift")
+
+    def test_connect_selection_race_cannot_be_accepted_as_expected_startup_error(self):
+        lifecycle = self.attachment_fixture()
+        adapter = self.opt_in(lifecycle)
+        adapter.validate_selection.side_effect = [None, H.Unsafe("selection replaced")]
+        lifecycle.ownership.data["exit"] = 1
+        with self.assertRaisesRegex(H.Unsafe, "selection replaced"):
+            lifecycle.connect_payload(None, expect_failure=True)
+        lifecycle.ownership.produce.assert_not_called()
+        self.assertFalse((lifecycle.candidate / ".maintainer/attachment-payload.sh").exists())
+
+    def test_attachment_docker_producers_are_guarded_before_inspection(self):
+        lifecycle = self.attachment_fixture()
+        adapter = self.opt_in(lifecycle)
+        adapter.validate_selection.side_effect = H.Unsafe("selection unavailable")
+        lifecycle.docker = Mock()
+        for operation in (lambda: lifecycle.owned_operation("target", "stop"),
+                          lambda: lifecycle.missing_token_attachment("target")):
+            with self.assertRaises(H.Unsafe):
+                operation()
+        lifecycle.docker.assert_not_called()
+        lifecycle.ownership.capture.assert_not_called()
+        lifecycle.ownership.produce.assert_not_called()
+
+    def test_execute_reuses_adapter_only_after_successful_preparation(self):
+        lifecycle = self.lifecycle()
+        lifecycle.allow_generated_dockerfile_read = True
+        lifecycle.validate_base = Mock()
+        lifecycle.label_candidate = Mock()
+        lifecycle.container = Mock(side_effect=["first", "second"])
+        lifecycle.assert_state = Mock()
+        lifecycle.assert_locale = Mock()
+        snapshot = {"head": "commit", "branch": "main", "index": "", "files": {}}
+        adapter = Mock()
+        adapter.prepare.side_effect = lambda instance: self.assertFalse(hasattr(instance, "_generated_read_adapter"))
+        with patch.object(H, "configure"), patch.object(H, "snapshot", return_value=snapshot), \
+                patch.object(H, "run", return_value="12000"), \
+                patch.object(H.importlib.util, "spec_from_file_location", return_value=Mock()), \
+                patch.object(H.importlib.util, "module_from_spec", return_value=adapter):
+            lifecycle.execute()
+        self.assertIs(lifecycle._generated_read_adapter, adapter)
+        adapter.prepare.assert_called_once_with(lifecycle)
+        self.assertEqual(adapter.validate_selection.call_args_list, [call(lifecycle.env)] * 3)
+
 
 if __name__ == "__main__":
     unittest.main()

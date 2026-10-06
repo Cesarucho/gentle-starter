@@ -238,13 +238,70 @@ selector to the CONTAINER attachment recipe above. The candidate remains a
 simulated HOST inside CONTAINER; never use the primary worktree as a host fixture.
 No live proof of this adapter is recorded here.
 
-The opt-in run creates only a private run-home Docker configuration with
-`cliPluginsExtraDirs`, explicit `DOCKER_CONFIG`, and native executable byte/identity
-pins. It does not change global Docker config, install plugins, select a remote
-daemon, or grant access to a generated directory. The existing ownership engine
-pins Linux PID/start-ticks/session/boot identity before releasing its stopped
-producer. Legacy inventories remain readable/recoverable under existing policy;
-missing anchors cannot authorize this adapter and are never fabricated.
+```bash
+# CONTAINER: future live run only after explicit authorization and cost forecast.
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --attachment --allow-generated-dockerfile-read
+```
+
+**Private selection.** Preparation derives `HOME` from the registered scratch
+inventory and verifies its marker, inode and held lease without calling Docker.
+Only a future authorized live run copies installed native binaries. Its layout
+under that run's `HOME/.docker` is:
+
+| Path | Purpose | Mode |
+| --- | --- | --- |
+| `config.json` | Exact `cliPluginsExtraDirs` selection | `0600` |
+| `generated-read.json` | Owned binding and nine exact path pins | `0600` |
+| `plugins/docker-compose` | Private native Compose snapshot | `0500` |
+| `plugins/docker-buildx` | Generated deterministic bootstrap | `0500` |
+| `native/docker-buildx` | Private native Buildx, outside plugin discovery | `0500` |
+
+The run home, `.docker`, `plugins` and `native` directories are owned by the run
+user with mode `0700`. `DOCKER_CONFIG` selects this `.docker`; configuration
+contains only `{"cliPluginsExtraDirs": ["<run-home>/.docker/plugins"]}`.
+Buildx delegates to `native/docker-buildx`, not its discoverable wrapper, avoiding
+wrapper recursion. Compose's actual parent executable must be its private copy.
+
+The nine pinned paths comprise the two natives, config, launcher, exact repository
+adapter/helper dependencies and three candidate inputs. The bootstrap validates
+dependency owner/mode/identity/hash through bounded no-follow descriptor reads,
+then compiles the verified bytes without a module-path reread or custom import
+fallback. It embeds the binding path for internal Docker metadata calls that omit
+`HGDR_BINDING`; a foreign provided binding is refused. The legacy repository entry
+`test/lifecycle/narrow-plugins/docker-buildx` remains in the tree but is no longer
+selected by prepared runs; it is not the generated private entry.
+
+**Accepted local trust.** Only `docker-compose` and `docker-buildx` from
+`/usr/libexec/docker/cli-plugins` or `/usr/lib/docker/cli-plugins` are accepted.
+Sources must be root/current-user-owned executable regular files, at most 128 MiB,
+with no symlink components or world-write permissions. Existing group-write is
+accepted only in this origin reader under the owner's explicit trust in current
+local bytes. Stable descriptor/ancestry checks and independent destination hashes
+prove snapshot integrity, not vendor authentication or benign content. Root
+ownership does not make a source immutable. Strict destination/dependency
+`Inputs` checks remain unchanged; no installed source or global permissions are
+modified, and no plugin installation or global Docker configuration is changed.
+
+**Before launch.** Opt-in Task and direct attachment producers validate private
+selection before launch, including running, stopped and absent connection routes.
+Missing or changed private inputs refuse launch, not force a system-plugin
+fallback or automatic retry. Environment selection is published only after
+successful preparation/validation. Private checks do not compare temporary
+current desired-core drift: warning-only running attachment remains allowed;
+actual Bake still validates candidate startup bytes and producer authority.
+
+All private copies belong to the existing scratch scope. Successful cleanup and
+failure retention use the existing inventory/lease engine, not new authority.
+On failure, retain and inspect the private run record before authorizing recovery;
+do not loosen selection or permissions to continue. The engine pins Linux
+PID/start-ticks/session/boot identity before releasing its stopped producer.
+Legacy inventories remain readable/recoverable under existing policy; missing
+anchors cannot authorize this adapter and are never fabricated.
+
+**Evidence boundary.** Focused synthetic fixtures cover 43 lifecycle, 54 adapter
+and 52 ownership tests (149 total), with native execution, subprocess and daemon
+effects mocked. This is not actual Docker plugin discovery, native relocation,
+protocol compatibility or live lifecycle proof; those need separate authorization.
 
 Bake accepts only bounded duplicate-key-free JSON, one exact `container-svc`
 target/default group, the candidate context/image/run label and fixed base build
@@ -283,8 +340,9 @@ frozen in an unlinked descriptor; native receives one additional exact-file
 `fs.read` grant. Metadata and non-Bake commands delegate unchanged to native,
 including stdin/environment/exit behavior; the adapter does not emulate metadata.
 
-**Race limit:** native Buildx still reads the generated file by pathname. A
-malicious same-user replacement after the final check cannot be excluded. This
+**Race limit:** Docker selection/native execution and Buildx's generated-file
+read still use pathnames. Same-user replacement after final checks cannot be
+excluded, including replacement of private copies or their launcher. This
 cooperative harness adapter is not a sandbox; hashes, timestamps and labels do
 not provide stronger isolation. Features and changed generation layouts require
 explicit source review, not broader grants or automatic retries.

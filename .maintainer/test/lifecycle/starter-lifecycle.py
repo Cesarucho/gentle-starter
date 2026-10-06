@@ -188,7 +188,17 @@ class Lifecycle:
         fragment["networks"] = {"default": {"labels": labels}}
         path.write_text(json.dumps(fragment, indent=2) + "\n")
 
+    def validate_private_selection(self):
+        """Opt-in guard only; never require an active producer or current desired core."""
+        if not getattr(self, "allow_generated_dockerfile_read", False):
+            return
+        adapter = getattr(self, "_generated_read_adapter", None)
+        if adapter is None:
+            raise Unsafe("Private plugin selection has not been prepared")
+        adapter.validate_selection(self.env)
+
     def task(self, action):
+        self.validate_private_selection()
         self.ownership.produce(["task", f"container:{action}"], self.candidate,
                                {**self.env, "FORCE_HOST_CONTEXT": "1"}, action)
 
@@ -314,6 +324,7 @@ class Lifecycle:
             adapter = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(adapter)
             adapter.prepare(self)
+            self._generated_read_adapter = adapter
         self.task("build")
         self.task("up")
         first = self.container()
@@ -372,6 +383,7 @@ class Lifecycle:
 
     def connect_payload(self, container, warning=None, expect_failure=False, prepare_marker=True):
         """Real connect -> ensure-running -> run-devcontainer -> CLI exec, no TTY."""
+        self.validate_private_selection()
         marker = self.ownership.data["run"] + ":" + (container or "startup")
         workspace = "/home/ubuntu/" + self.candidate.name
         # A fixture-only marker inside this exact ID distinguishes even containers
@@ -389,13 +401,16 @@ class Lifecycle:
                            + identity_check +
                            f'test "$(cat .maintainer/attachment-workspace)" = {shlex.quote(self.ownership.data["run"])}\n'
                            f"printf '%s\\n' {shlex.quote('ATTACHMENT_OK:' + marker)}\n")
+        selection_validated = False
         try:
             budget = "120" if container and prepare_marker else "600"
             self.ownership.stage("verify")  # Clear stale exit evidence before a possible producer failure.
+            self.validate_private_selection()
+            selection_validated = True
             self.ownership.produce(["timeout", "--kill-after=10", budget, "task", "container:connect"], self.candidate,
                                    {**self.env, "FORCE_HOST_CONTEXT": "1"}, "verify")
         except Unsafe:
-            if not expect_failure or self.ownership.data.get("exit") in (None, 0, 124, 137):
+            if not selection_validated or not expect_failure or self.ownership.data.get("exit") in (None, 0, 124, 137):
                 raise
         else:
             if expect_failure:
@@ -424,11 +439,13 @@ class Lifecycle:
             raise Unsafe("Attachment mutated synthetic applied state, mounts or identity")
 
     def owned_operation(self, container, operation):
+        self.validate_private_selection()
         self.ownership.capture()
         if container not in self.ownership.data["resources"]["container"]:
             raise Unsafe("Attachment fixture target is not registered")
         if self.ownership.inspect_owned("container", container) is None:
             raise Unsafe("Attachment fixture target disappeared")
+        self.validate_private_selection()
         self.ownership.produce(["docker", operation, container], self.candidate, self.env, "verify")
 
     def assert_attachment(self, container):
@@ -484,6 +501,7 @@ class Lifecycle:
 
     def missing_token_attachment(self, container):
         """Create one scoped running fixture without provisioning or token fallback."""
+        self.validate_private_selection()
         mounts = json.loads(self.docker("inspect", "--format", "{{json .Mounts}}", container))
         labels = json.loads(self.docker("inspect", "--format", "{{json .Config.Labels}}", container))
         image = self.docker("inspect", "--format", "{{.Image}}", container)
@@ -506,6 +524,7 @@ class Lifecycle:
         argv.extend([image, "sleep", "infinity"])
         self.owned_operation(container, "stop")
         self.owned_operation(container, "rm")
+        self.validate_private_selection()
         self.ownership.produce(argv, self.candidate, self.env, "verify")
         self.capture_resources()
         ids = self.docker("ps", "-aq", "--no-trunc", "--filter", f"name=^/{self.candidate.name}-run$").split()

@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -21,6 +22,198 @@ SPEC = importlib.util.spec_from_file_location("generated_read", HERE / "generate
 assert SPEC and SPEC.loader
 G = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(G)
+
+
+class SnapshotTests(unittest.TestCase):
+    """Only synthetic bytes and temporary directories; every execution is barred."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(dir="/tmp/opencode")
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.origin = self.base / "origin"
+        self.origin.mkdir(mode=0o775)
+        self.origin.chmod(0o2775)
+        self.source = self.origin / "docker-buildx"
+        self.source.write_bytes(b"synthetic plugin bytes")
+        self.source.chmod(0o775)
+        self.destination = self.base / "private"
+        self.destination.mkdir(mode=0o700)
+        replacements = [(G, "NATIVE_DIRECTORIES", (str(self.origin),))]
+        for target, name in ((R.subprocess, "Popen"), (R.subprocess, "run"),
+                             (R.subprocess, "check_output"), (R, "command"),
+                             (G.os, "execvpe"), (G.os, "execv"), (G.os, "execve"),
+                             (G.os, "system"), (G.os, "killpg")):
+            replacements.append((target, name, Mock(side_effect=AssertionError("execution forbidden"))))
+        for target, name, value in replacements:
+            replacement = patch.object(target, name, value)
+            replacement.start()
+            self.addCleanup(replacement.stop)
+
+    def publish(self):
+        return G.publish_native_snapshot(self.source, self.destination, "docker-buildx")
+
+    def refused(self):
+        with self.assertRaises((R.Unsafe, OSError)):
+            self.publish()
+        self.assertFalse((self.destination / "docker-buildx").exists())
+        self.assertEqual(list(self.destination.glob(".snapshot-*")), [])
+
+    def test_group_writable_origin_copies_exact_bytes_without_changing_source(self):
+        before = self.source.read_bytes(), G.identity(self.source.stat())
+        path = self.publish()
+        self.assertEqual(path.read_bytes(), before[0])
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o500)
+        self.assertEqual(path.stat().st_uid, os.getuid())
+        self.assertEqual((self.source.read_bytes(), G.identity(self.source.stat())), before)
+        self.assertEqual(stat.S_IMODE(self.origin.stat().st_mode), 0o2775)
+        with self.assertRaises(R.Unsafe):
+            G.Inputs().read(self.source, native=True)
+
+    def test_unknown_origin_and_name_refuse(self):
+        with self.assertRaises(R.Unsafe):
+            G.NativeSnapshot(self.destination / "docker-buildx")
+        with self.assertRaises(R.Unsafe):
+            G.NativeSnapshot(self.origin / "unknown")
+        with self.assertRaises(R.Unsafe):
+            G.publish_native_snapshot(self.source, self.destination, "unknown")
+
+    def test_source_symlink_refuses(self):
+        self.source.unlink()
+        self.source.symlink_to(self.base / "absent")
+        self.refused()
+
+    def test_source_parent_symlink_refuses(self):
+        moved = self.base / "moved"
+        self.origin.rename(moved)
+        self.origin.symlink_to(moved, target_is_directory=True)
+        self.refused()
+
+    def test_directory_fifo_and_nonexecutable_sources_refuse_without_blocking(self):
+        self.source.chmod(0o664)
+        self.refused()
+        self.source.unlink()
+        self.source.mkdir()
+        self.refused()
+        self.source.rmdir()
+        os.mkfifo(self.source, 0o700)
+        self.refused()
+
+    def test_world_writable_source_and_origin_refuse(self):
+        self.source.chmod(0o777)
+        self.refused()
+        self.source.chmod(0o775)
+        self.origin.chmod(0o777)
+        self.refused()
+
+    def test_wrong_source_and_directory_owners_refuse(self):
+        original = G.os.fstat
+        for path in (self.source, self.origin):
+            inode = path.stat().st_ino
+            def foreign(descriptor):
+                metadata = original(descriptor)
+                if metadata.st_ino == inode:
+                    return SimpleNamespace(**{name: getattr(metadata, name) for name in (
+                        "st_dev", "st_ino", "st_gid", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")},
+                        st_uid=os.getuid() + 10000)
+                return metadata
+            with patch.object(G.os, "fstat", side_effect=foreign):
+                self.refused()
+
+    def test_oversized_source_refuses_before_read(self):
+        with patch.object(G, "NATIVE_LIMIT", 4), patch.object(G.os, "read") as read:
+            self.refused()
+            read.assert_not_called()
+
+    def test_bounded_descriptor_read_rejects_growth(self):
+        with patch.object(G, "NATIVE_LIMIT", 4), patch.object(G.os, "read", return_value=b"12345"):
+            with self.assertRaises(R.Unsafe):
+                G.bounded_native_read(123)
+
+    def test_source_mutation_and_membership_replacement_during_read_refuse(self):
+        original_read = G.os.read
+        for replace in (False, True):
+            with self.subTest(replace=replace):
+                changed = False
+                def read(descriptor, size):
+                    nonlocal changed
+                    payload = original_read(descriptor, size)
+                    if not changed:
+                        changed = True
+                        if replace:
+                            self.source.rename(self.origin / "old")
+                        self.source.write_bytes(b"changed synthetic bytes")
+                        self.source.chmod(0o775)
+                    return payload
+                with patch.object(G.os, "read", side_effect=read):
+                    self.refused()
+
+    def test_held_source_rechecks_before_publication(self):
+        original = G.verify_snapshot_destination
+        def verify(*args):
+            metadata = original(*args)
+            self.source.write_bytes(b"changed after copy")
+            return metadata
+        with patch.object(G, "verify_snapshot_destination", side_effect=verify):
+            self.refused()
+
+    def test_ancestor_replacement_refuses_but_sibling_creation_is_allowed(self):
+        with G.NativeSnapshot(self.source) as snapshot:
+            (self.origin / "sibling").write_bytes(b"unrelated")
+            snapshot.recheck()
+            self.origin.rename(self.base / "moved")
+            self.origin.mkdir(mode=0o775)
+            with self.assertRaises(R.Unsafe):
+                snapshot.recheck()
+
+    def test_collision_and_dangling_destination_symlink_are_never_overwritten(self):
+        target = self.destination / "docker-buildx"
+        target.write_bytes(b"preserve collision")
+        with self.assertRaises(FileExistsError):
+            self.publish()
+        self.assertEqual(target.read_bytes(), b"preserve collision")
+        target.unlink()
+        target.symlink_to(self.base / "absent")
+        with self.assertRaises((FileExistsError, R.Unsafe)):
+            self.publish()
+        self.assertTrue(target.is_symlink())
+        self.assertEqual(list(self.destination.glob(".snapshot-*")), [])
+
+    def test_independent_destination_hash_mismatch_refuses_publication(self):
+        original = G.os.write
+        environment = dict(os.environ)
+        with patch.object(G.os, "write", side_effect=lambda fd, data: original(fd, b"x" * len(data))):
+            self.refused()
+        self.assertEqual(dict(os.environ), environment)
+
+    def test_destination_directory_replacement_prevents_publication(self):
+        original = G.verify_snapshot_destination
+        moved = self.base / "moved"
+        def verify(*args):
+            metadata = original(*args)
+            self.destination.rename(moved)
+            self.destination.mkdir(mode=0o700)
+            return metadata
+        with patch.object(G, "verify_snapshot_destination", side_effect=verify):
+            self.refused()
+        self.assertEqual(list(moved.iterdir()), [])
+
+    def test_staged_mode_tampering_is_rejected_by_independent_read(self):
+        original = G.verify_snapshot_destination
+        def verify(parent, name, payload):
+            os.chmod(name, 0o775, dir_fd=parent, follow_symlinks=False)
+            return original(parent, name, payload)
+        with patch.object(G, "verify_snapshot_destination", side_effect=verify):
+            self.refused()
+
+    def test_private_destination_mode_and_parent_symlink_refuse(self):
+        self.destination.chmod(0o750)
+        self.refused()
+        self.destination.chmod(0o700)
+        moved = self.base / "moved"
+        self.destination.rename(moved)
+        self.destination.symlink_to(moved, target_is_directory=True)
+        self.refused()
 
 
 class AdapterTests(unittest.TestCase):
@@ -68,6 +261,9 @@ class AdapterTests(unittest.TestCase):
         self.lifecycle = SimpleNamespace(home=self.home, candidate=self.candidate,
                                          root=self.root, ownership=self.owner, env={})
         G.prepare(self.lifecycle)
+        self.origin_directory = self.native_directory
+        self.native_directory = self.home / ".docker/native"
+        self.compose_native = self.home / ".docker/plugins/docker-compose"
         self.environment = {**self.lifecycle.env, "HOME": str(self.home), "DOCKER_HOST": R.ENDPOINT}
         self.generated_root = self.base / "devcontainercli-fixture"
         self.generated = self.generated_root / "container-features/0.89.0-123/Dockerfile-with-features"
@@ -95,11 +291,11 @@ class AdapterTests(unittest.TestCase):
                 return self.anchor, 1, 123
             raise AssertionError("unknown synthetic process")
         self.mock(G, "process_status", side_effect=status)
-        self.parent_argv = [str(self.native_directory / "docker-compose"), "compose", "--project-name", self.owner.data["project"],
+        self.parent_argv = [str(self.compose_native), "compose", "--project-name", self.owner.data["project"],
                             "-f", str(self.context / "docker-compose.yml"), "-f", str(self.core),
                             "-f", str(self.override), "build", "container-svc"]
         self.parent = self.mock(G, "compose_process", side_effect=lambda: (
-            self.native_directory / "docker-compose", b"\0".join(x.encode() for x in self.parent_argv) + b"\0"))
+            self.compose_native, b"\0".join(x.encode() for x in self.parent_argv) + b"\0"))
         self.exec = self.mock(G.os, "execvpe")
         for name in ("execv", "execve", "system"):
             self.mock(G.os, name, side_effect=AssertionError("unmocked exec forbidden"))
@@ -215,7 +411,7 @@ class AdapterTests(unittest.TestCase):
     def test_private_config_contains_only_isolated_plugin_selection(self):
         directory = self.home / ".docker"
         self.assertEqual(json.loads((directory / "config.json").read_text()), {
-            "cliPluginsExtraDirs": [str(HERE / "narrow-plugins")]})
+            "cliPluginsExtraDirs": [str(directory / "plugins")]})
         self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
         for name in ("config.json", "generated-read.json"):
             self.assertEqual((directory / name).stat().st_mode & 0o777, 0o600)
@@ -360,7 +556,10 @@ class AdapterTests(unittest.TestCase):
         self.environment["DOCKER_CONFIG"] = str(self.root)
         self.refused()
         self.environment["DOCKER_CONFIG"] = str(self.home / ".docker")
-        (self.native_directory / "docker-buildx").write_bytes(b"replaced")
+        native = self.native_directory / "docker-buildx"
+        native.chmod(0o700)
+        native.write_bytes(b"replaced")
+        native.chmod(0o500)
         self.refused()
         with self.assertRaises(R.Unsafe):
             G.delegate(["docker-cli-plugin-metadata"], self.environment, Mock())
@@ -372,11 +571,19 @@ class AdapterTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 original = path.read_bytes()
                 def changed(inputs):
+                    if path.parent == self.native_directory:
+                        path.chmod(0o700)
                     path.write_bytes(original + b"changed")
+                    if path.parent == self.native_directory:
+                        path.chmod(0o500)
                     original_recheck(inputs)
                 with patch.object(G.Inputs, "recheck", changed):
                     self.refused()
+                if path.parent == self.native_directory:
+                    path.chmod(0o700)
                 path.write_bytes(original)
+                if path.parent == self.native_directory:
+                    path.chmod(0o500)
                 # Restore the startup pin after deliberate synthetic replacement.
                 value = json.loads((self.home / ".docker/generated-read.json").read_text())
                 inputs = G.Inputs()
@@ -393,10 +600,10 @@ class AdapterTests(unittest.TestCase):
             return self.anchor if calls == 1 else {**self.anchor, "start": 999}
         with patch.object(G, "producer_identity", side_effect=producer):
             self.refused()
-        self.parent.side_effect = [(self.native_directory / "docker-compose", b"\0".join(x.encode() for x in self.parent_argv) + b"\0"),
-                                   (self.native_directory / "docker-compose", b"foreign\0")]
+        self.parent.side_effect = [(self.compose_native, b"\0".join(x.encode() for x in self.parent_argv) + b"\0"),
+                                   (self.compose_native, b"foreign\0")]
         self.refused()
-        self.parent.side_effect = lambda: (self.native_directory / "docker-compose", b"\0".join(x.encode() for x in self.parent_argv) + b"\0")
+        self.parent.side_effect = lambda: (self.compose_native, b"\0".join(x.encode() for x in self.parent_argv) + b"\0")
         calls = 0
         def changed_record(pid):
             nonlocal calls
@@ -407,6 +614,176 @@ class AdapterTests(unittest.TestCase):
             return self.anchor
         with patch.object(G, "producer_identity", side_effect=changed_record):
             self.refused()
+
+    def test_private_layout_exact_pins_and_nonrecursive_native_selection(self):
+        value = G.validate_selection(self.environment)
+        paths = G.selection_paths(self.owner.data, self.home / ".docker")
+        self.assertEqual(set(value["pins"]), {str(path) for path in paths.values()})
+        self.assertEqual(len(value["pins"]), 9)
+        self.assertEqual(value["native"]["compose"], str(self.compose_native))
+        self.assertNotEqual(value["native"]["buildx"], str(paths["launcher"]))
+        for name in ("compose", "buildx", "launcher"):
+            self.assertEqual(paths[name].stat().st_mode & 0o777, 0o500)
+        for directory in (self.home, self.home / ".docker", self.home / ".docker/plugins", self.native_directory):
+            self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+
+    def test_private_selection_allows_desired_core_drift_without_daemon(self):
+        self.core.write_bytes(b"temporary desired drift")
+        G.validate_selection(self.environment)
+        self.docker.daemon.assert_not_called()
+        self.refused()  # Bake still requires original candidate bytes.
+
+    def test_selection_config_and_missing_launcher_prevent_delegation(self):
+        config = self.home / ".docker/config.json"
+        config.write_text(json.dumps({"cliPluginsExtraDirs": [str(self.origin_directory)]}))
+        self.refused(args=["docker-cli-plugin-metadata"])
+        config.write_text(json.dumps({"cliPluginsExtraDirs": [str(self.home / ".docker/plugins")]}))
+        (self.home / ".docker/plugins/docker-buildx").unlink()
+        with self.assertRaises((R.Unsafe, OSError)):
+            G.validate_selection(self.environment)
+
+    def test_dependency_tamper_detected_without_mutating_repository(self):
+        original = G.Inputs.read
+        for path in (HERE / "generated-dockerfile-read.py", HERE / "test_resources.py"):
+            def altered(inputs, selected, native=False):
+                payload = original(inputs, selected, native=native)
+                if Path(selected) == path:
+                    inputs.files[Path(selected)][1] = "0" * 64
+                return payload
+            with patch.object(G.Inputs, "read", altered):
+                self.refused(args=["docker-cli-plugin-metadata"])
+
+    def test_private_pin_set_and_native_path_cannot_be_expanded(self):
+        record = self.home / ".docker/generated-read.json"
+        original = json.loads(record.read_text())
+        for change in ("extra", "missing", "native"):
+            value = copy.deepcopy(original)
+            if change == "extra":
+                value["pins"][str(self.root)] = next(iter(value["pins"].values()))
+            elif change == "missing":
+                value["pins"].pop(str(self.core))
+            else:
+                value["native"]["buildx"] = str(self.home / ".docker/plugins/docker-buildx")
+            record.write_text(json.dumps(value))
+            self.refused(args=["docker-cli-plugin-metadata"])
+
+    def test_prepare_collision_and_copy_failure_leave_environment_unpublished(self):
+        environment = {"sentinel": "unchanged", "DOCKER_CONFIG": "existing", "HGDR_BINDING": "existing"}
+        self.lifecycle.env = dict(environment)
+        with self.assertRaises(FileExistsError):
+            G.prepare(self.lifecycle)
+        self.assertEqual(self.lifecycle.env, environment)
+        # Move only this synthetic fixture's config; no retained resources.
+        (self.home / ".docker").rename(self.home / "previous-config")
+        with patch.object(G, "publish_native_snapshot", side_effect=R.Unsafe("synthetic copy failure")):
+            with self.assertRaises(R.Unsafe):
+                G.prepare(self.lifecycle)
+        self.assertEqual(self.lifecycle.env, environment)
+
+    def test_prepare_rejects_foreign_root_without_daemon_or_environment_change(self):
+        self.lifecycle.home = self.root
+        before = dict(self.lifecycle.env)
+        with self.assertRaises(R.Unsafe):
+            G.prepare(self.lifecycle)
+        self.assertEqual(self.lifecycle.env, before)
+        self.docker.daemon.assert_not_called()
+
+    def bootstrap_namespace(self):
+        path = self.home / ".docker/plugins/docker-buildx"
+        namespace: dict = {"__name__": "synthetic_bootstrap"}
+        exec(compile(path.read_bytes(), str(path), "exec"), namespace)
+        return namespace
+
+    def test_bootstrap_metadata_uses_verified_bytes_and_injects_only_expected_binding(self):
+        namespace = self.bootstrap_namespace()
+        environment = dict(self.environment)
+        environment.pop("HGDR_BINDING")
+        original_compile = compile
+        compiled = []
+        def capture(payload, filename, mode, *args, **kwargs):
+            if filename in {str(HERE / "generated-dockerfile-read.py"), str(HERE / "test_resources.py")}:
+                self.assertIsInstance(payload, bytes)
+                compiled.append(filename)
+            return original_compile(payload, filename, mode, *args, **kwargs)
+        with patch.dict(os.environ, environment, clear=True), \
+                patch.object(sys, "argv", ["private-buildx", "docker-cli-plugin-metadata"]), \
+                patch.object(sys, "stdin", SimpleNamespace(buffer=Mock())), \
+                patch("builtins.compile", side_effect=capture):
+            namespace["bootstrap"]()
+        self.assertEqual(compiled, [str(HERE / "test_resources.py"), str(HERE / "generated-dockerfile-read.py")])
+        native, argv, forwarded = self.exec.call_args.args
+        self.assertEqual(native, str(self.native_directory / "docker-buildx"))
+        self.assertEqual(argv, [native, "docker-cli-plugin-metadata"])
+        self.assertEqual(forwarded["HGDR_BINDING"], self.environment["HGDR_BINDING"])
+        self.docker.daemon.assert_not_called()
+
+    def test_bootstrap_foreign_binding_and_dependency_tamper_refuse_before_import(self):
+        namespace = self.bootstrap_namespace()
+        with patch.dict(os.environ, {**self.environment, "HGDR_BINDING": str(self.root)}, clear=True):
+            with self.assertRaises(RuntimeError):
+                namespace["bootstrap"]()
+        item = namespace["STARTUP"]["modules"]["test_resources"]
+        item[1][1] = "0" * 64
+        with patch.dict(os.environ, self.environment, clear=True):
+            with self.assertRaises(RuntimeError):
+                namespace["bootstrap"]()
+        self.exec.assert_not_called()
+
+    def test_bootstrap_compiles_frozen_payloads_after_both_paths_disappear(self):
+        namespace = self.bootstrap_namespace()
+        helper, adapter = self.base / "helper.py", self.base / "adapter.py"
+        helper.write_bytes(b'VALUE = "synthetic frozen helper"\n')
+        adapter.write_bytes(b'import os\nfrom test_resources import VALUE\n'
+                            b'def delegate(argv, environment, stream):\n'
+                            b'    os.execvpe(VALUE, argv, environment)\n')
+        inputs = G.Inputs()
+        for name, path in (("test_resources", helper), ("generated_read", adapter)):
+            inputs.read(path)
+            namespace["STARTUP"]["modules"][name] = [str(path), inputs.files[path]]
+        verified = namespace["verified"]
+        def freeze(path, pin):
+            payload = verified(path, pin)
+            Path(path).unlink()  # Synthetic modules only; import must use frozen bytes.
+            return payload
+        namespace["verified"] = freeze
+        with patch.dict(os.environ, self.environment, clear=True), \
+                patch.object(sys, "argv", ["private-buildx", "docker-cli-plugin-metadata"]), \
+                patch.object(sys, "stdin", SimpleNamespace(buffer=Mock())):
+            namespace["bootstrap"]()
+        self.assertEqual(self.exec.call_args.args[0], "synthetic frozen helper")
+
+    def test_prepare_checks_marker_inode_and_held_lease_before_copy(self):
+        marker = self.home.parent / R.MARKER
+        marker.write_text("foreign")
+        with self.assertRaises(R.Unsafe):
+            G.prepare(self.lifecycle)
+        marker.write_text(self.owner.data["run"])
+        original_inode = list(self.owner.data["inode"])
+        self.owner.data["inode"] = [0, 0]
+        self.owner.save()
+        with self.assertRaises(R.Unsafe):
+            G.prepare(self.lifecycle)
+        self.owner.data["inode"] = original_inode
+        self.owner.save()
+        G.fcntl.flock(self.owner.lease, G.fcntl.LOCK_UN)
+        with self.assertRaisesRegex(R.Unsafe, "lease is not held"):
+            G.prepare(self.lifecycle)
+        G.fcntl.flock(self.owner.lease, G.fcntl.LOCK_EX | G.fcntl.LOCK_NB)
+        self.docker.daemon.assert_not_called()
+
+    def test_prepare_accepts_group_writable_origins_but_creates_strict_private_copies(self):
+        (self.home / ".docker").rename(self.home / "previous-config")
+        self.origin_directory.chmod(0o2775)
+        for path in self.origin_directory.iterdir():
+            path.chmod(0o775)
+        before = {str(path): (path.read_bytes(), G.identity(path.stat()))
+                  for path in self.origin_directory.iterdir()}
+        G.prepare(self.lifecycle)
+        G.validate_selection(self.environment)
+        self.assertEqual(before, {str(path): (path.read_bytes(), G.identity(path.stat()))
+                                  for path in self.origin_directory.iterdir()})
+        self.assertEqual(self.compose_native.stat().st_mode & 0o777, 0o500)
+        self.docker.daemon.assert_not_called()
 
 
 if __name__ == "__main__":
