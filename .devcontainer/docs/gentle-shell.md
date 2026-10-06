@@ -45,7 +45,7 @@ runtime-to-repository export contract. Standard Pi preferences remain owner-cont
 No adapter, configuration symlink or personal profile/database migration is provided.
 
 Optional Shell-owned runtime inputs are documented as commented examples in
-[`.env.example`](../../.env.example), separately from inherited Pi inputs. Native
+the repository-root `.env.example`, separately from inherited Pi inputs. Native
 setup is automatic by default; `GENTLE_SHELL_NO_AUTO_SETUP=1` is an intentional
 opt-out, not an offline mode. Runtime environment changes require host recreation,
 not rebuilding the image. Custom preference roots are not automatically followed
