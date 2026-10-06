@@ -46,7 +46,7 @@ EOF
 	chmod +x "${root}/bin/ssh-keygen" "${root}/bin/sudo"
 	run env HOME="${root}/home" PATH="${root}/bin:/usr/bin:/bin" \
 		WORKSPACE_DIR="${root}" DEVCONTAINER_PHASE=runtime FIXTURE_ROOT="${root}" \
-		PYTHONDONTWRITEBYTECODE=1 GENTLE_VOLUME_MANIFEST_ID="${identity}" \
+		PYTHONDONTWRITEBYTECODE=1 DEVCONTAINER_BIND_MANIFEST_ID="${identity}" \
 		SSH_CONFIG_DIR="${root}/keys" SSH_START_WRAPPER_TARGET="${root}/target/start-sshd" \
 		SSHD_CONFIG_TARGET="${root}/target/sshd_config.gentle-starter" \
 		bash -c 'seed_config_tree() { :; }; export -f seed_config_tree; exec bash "$1"' _ \

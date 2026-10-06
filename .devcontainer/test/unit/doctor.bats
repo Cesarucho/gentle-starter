@@ -210,7 +210,7 @@ run_host_doctor() {
 }
 
 @test "host snapshot report does not infer runtime from inherited applied identity" {
-    export GENTLE_VOLUME_MANIFEST_ID=inherited-container-id
+    export DEVCONTAINER_BIND_MANIFEST_ID=inherited-container-id
     run_host_doctor
     [ "${status}" -eq 0 ]
     [[ "${output}" == *"last host-prepared"* ]]

@@ -239,7 +239,7 @@ def validate_manifest(manifest):
 def load_manifest(workspace, runtime=False):
     manifest = json.loads((workspace / MANIFEST).read_text())
     validate_manifest(manifest)
-    if runtime and os.environ.get("GENTLE_VOLUME_MANIFEST_ID") != manifest["id"]:
+    if runtime and os.environ.get("DEVCONTAINER_BIND_MANIFEST_ID") != manifest["id"]:
         fail("Stored volume snapshot is not applied to this container")
     return manifest
 
@@ -268,8 +268,74 @@ def check_existing_container(name, identity):
     if result.returncode:
         fail("Cannot inspect existing container mount identity")
     environment = json.loads(result.stdout)[0].get("Config", {}).get("Env", [])
-    if f"GENTLE_VOLUME_MANIFEST_ID={identity}" not in environment:
+    if f"DEVCONTAINER_BIND_MANIFEST_ID={identity}" not in environment:
         fail("Existing container uses different or unverified mounts; recreate it")
+
+
+def attachment(workspace):
+    """Read-only policy: resolve the exact target before allowing warning-only drift."""
+    service, paths, inputs, selected, project = compose_model(workspace)
+    name = selected.get("container_name")
+    if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", name):
+        fail("Selected service requires a valid container_name")
+    result = subprocess.run(["docker", "container", "ls", "-a", "--format", "{{.Names}}"],
+                            capture_output=True, check=False, text=True)
+    if result.returncode:
+        fail("Cannot look up attachment target")
+    names = result.stdout.splitlines()
+    if any(not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]*", item) for item in names) or len(names) != len(set(names)):
+        fail("Malformed attachment lookup")
+    if name not in names:
+        check_preparation_inputs(workspace, inputs)
+        return "absent"
+    result = subprocess.run(["docker", "container", "inspect", name], capture_output=True, check=False)
+    if result.returncode:
+        fail("Cannot inspect attachment target")
+    data = json.loads(result.stdout)
+    if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict):
+        fail("Malformed attachment inspection")
+    container = data[0]
+    state = container.get("State")
+    config = container.get("Config")
+    if (container.get("Name") != "/" + name or not isinstance(state, dict)
+            or not isinstance(config, dict) or not isinstance(config.get("Env"), list)
+            or not all(isinstance(item, str) and "=" in item for item in config["Env"])
+            or type(state.get("Running")) is not bool or type(state.get("Paused")) is not bool
+            or type(state.get("Restarting")) is not bool):
+        fail("Malformed attachment target or state")
+    status = state.get("Status")
+    if state["Paused"] or state["Restarting"]:
+        fail("Attachment target is in an unsupported state")
+    if status in {"created", "exited"} and not state["Running"]:
+        check_preparation_inputs(workspace, inputs)
+        return "stopped"
+    if status != "running" or not state["Running"]:
+        fail("Attachment target is in an unsupported state")
+    warnings = []
+    tokens = [item.split("=", 1)[1] for item in config["Env"]
+              if item.startswith("DEVCONTAINER_BIND_MANIFEST_ID=")]
+    if len(tokens) > 1:
+        fail("Malformed attachment creation identity")
+    token = tokens[0] if tokens else ""
+    if not fingerprint(token):
+        warnings.append("Creation bind identity is missing or unverified")
+    try:
+        stored = load_manifest(workspace)
+        if stored["id"] != token:
+            warnings.append("Stored bind snapshot is not applied to the running container")
+    except (ValueError, OSError, KeyError, TypeError):
+        warnings.append("Stored bind snapshot is missing or invalid")
+    try:
+        desired = project_manifest(workspace, service, paths, selected, project)
+        if desired["id"] != token:
+            warnings.append("Desired bind contract differs from the running container")
+    except (ValueError, OSError, KeyError, TypeError):
+        warnings.append("Desired bind contract cannot be verified")
+    check_preparation_inputs(workspace, inputs)
+    for warning in warnings:
+        print(f"[attachment:warning] {warning}; attaching without preparation. "
+              "Intentional HOST task container:recreate is required to apply bind changes.", file=sys.stderr)
+    return "running"
 
 
 def prepare(workspace):
@@ -314,10 +380,12 @@ def check_preparation_inputs(workspace, inputs):
 def main():
     command, root = sys.argv[1:3]
     workspace = Path(root).resolve()
-    if command in {"prepare", "name", "project-name"}:
+    if command in {"prepare", "name", "project-name", "attachment"}:
         if Path("/.dockerenv").exists() and os.environ.get("FORCE_HOST_CONTEXT") != "1":
             fail("Compose host resolution must run on the host")
-        if command == "prepare":
+        if command == "attachment":
+            print(attachment(workspace))
+        elif command == "prepare":
             prepare(workspace)
         elif command == "project-name":
             print(project_name(workspace, selection(workspace)[1]))
@@ -355,7 +423,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, KeyError, TypeError) as error:
+    except (ValueError, OSError, KeyError, TypeError, AttributeError) as error:
         # Do not echo parser exceptions containing model/environment data.
         message = str(error) if isinstance(error, ValueError) and RECOVERY in str(error) else RECOVERY
         print(f"[volume-manifest:error] {message}", file=sys.stderr)

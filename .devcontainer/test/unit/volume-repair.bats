@@ -40,9 +40,9 @@ setup() {
 }
 
 publish_manifest() {
-	GENTLE_VOLUME_MANIFEST_ID="$(yq '.services."container-svc".volumes' "${WORKSPACE}/.devcontainer/docker-compose.yml" |
+	DEVCONTAINER_BIND_MANIFEST_ID="$(yq '.services."container-svc".volumes' "${WORKSPACE}/.devcontainer/docker-compose.yml" |
 		PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/.devcontainer/test/unit/manifest-fixture.py" "${WORKSPACE}")"
-	export GENTLE_VOLUME_MANIFEST_ID PYTHONDONTWRITEBYTECODE=1
+	export DEVCONTAINER_BIND_MANIFEST_ID PYTHONDONTWRITEBYTECODE=1
 }
 
 teardown() {
@@ -286,7 +286,7 @@ YAML
 	printf '%s\n' 'services: {}' >"${WORKSPACE}/.devcontainer/optional.yml"
 	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.engram, target: /home/ubuntu/.engram, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
 	publish_manifest
-	run env -u GENTLE_VOLUME_MANIFEST_ID task --dir "${WORKSPACE}" install:volumes
+	run env -u DEVCONTAINER_BIND_MANIFEST_ID task --dir "${WORKSPACE}" install:volumes
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"not proof of applied mounts"* ]]
 	[[ "$output" == *"last host-prepared"* ]]

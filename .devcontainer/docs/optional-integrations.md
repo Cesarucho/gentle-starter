@@ -289,8 +289,22 @@ invalid snapshots fail before runtime repair; there is no live Compose fallback.
 Host preparation resolves desired configuration and rejects an existing-container
 identity mismatch before preparing directories or publishing a snapshot.
 
-Task passes `id` at creation as `GENTLE_VOLUME_MANIFEST_ID`. Runtime validates strict
-snapshot shape, both digests, and that applied identity, then repairs from those
+Task passes `id` at creation as `DEVCONTAINER_BIND_MANIFEST_ID`. Runtime validates strict
+shape and identity before any managed-state or SSH mutation. There is no legacy
+token fallback. HOST attachment entrypoints use existing generated configuration
+read-only: the exact running target may attach with sanitized warnings for bind
+drift, missing identity, or invalid/unapplied snapshots, without preparation or
+automatic recreation. Stopped or absent targets use strict `container:up`; lookup,
+inspection, unsupported state, and concurrent configuration changes block.
+All six attachment entrypoints skip completely inside the CONTAINER.
+
+The identity covers bind semantics, not full `.env` bytes. Runtime environment
+changes can still require intentional HOST `task container:recreate`, even when
+the bind identity agrees. Missing generated configuration requires HOST
+`task container:up`; attachment does not regenerate it.
+
+Runtime validates strict snapshot shape, both digests, and that applied identity,
+then repairs from those
 same checked records. It does not read live env, selected files, host paths, or
 Compose. This is bind-contract integrity, not signing or full container configuration
 attestation; named volumes and application environment are outside this identity.

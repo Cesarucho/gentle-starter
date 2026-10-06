@@ -249,7 +249,7 @@ class Lifecycle:
         manifest = module.load_manifest(self.candidate)
         # Inspect only needed fields, never persist a resolved environment or full inspect.
         mounts = json.loads(self.docker("inspect", "--format", "{{json .Mounts}}", container))
-        identity = self.docker("exec", "--user", "ubuntu", container, "printenv", "GENTLE_VOLUME_MANIFEST_ID")
+        identity = self.docker("exec", "--user", "ubuntu", container, "printenv", "DEVCONTAINER_BIND_MANIFEST_ID")
         if identity != manifest["id"]:
             raise RuntimeError("Created container does not have the applied manifest identity")
         if self.docker("exec", "--user", "ubuntu", container, "id", "-un") != "ubuntu":
