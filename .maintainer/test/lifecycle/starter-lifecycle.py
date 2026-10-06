@@ -168,6 +168,7 @@ class Lifecycle:
         self.env["COMPOSE_PROJECT_NAME"] = self.project
         self.bind_metadata = {}
         self.attachment_scenario = False
+        self.allow_generated_dockerfile_read = False
         self.before = snapshot(root)
         self.source_status = run("git", "status", "--porcelain=v1", "--untracked-files=all", cwd=root)
 
@@ -307,6 +308,12 @@ class Lifecycle:
         self.validate_base()
         self.label_candidate()
         configured = expected_after_setup(self.candidate, snapshot(self.candidate))
+        if getattr(self, "allow_generated_dockerfile_read", False):
+            spec = importlib.util.spec_from_file_location("generated_read", HERE / "generated-dockerfile-read.py")
+            assert spec and spec.loader
+            adapter = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(adapter)
+            adapter.prepare(self)
         self.task("build")
         self.task("up")
         first = self.container()
@@ -618,9 +625,12 @@ class ConsumerLifecycle(Lifecycle):
 def main():
     consumer = "--consumer" in sys.argv[1:]
     attachment = "--attachment" in sys.argv[1:]
+    generated_read = "--allow-generated-dockerfile-read" in sys.argv[1:]
     if consumer and attachment:
         raise SystemExit("Select consumer or attachment, not both")
-    selectors = {"--consumer", "--attachment"}
+    if generated_read and (consumer or not attachment):
+        raise SystemExit("Generated Dockerfile read requires --attachment and forbids --consumer")
+    selectors = {"--consumer", "--attachment", "--allow-generated-dockerfile-read"}
     if any(sys.argv[1:].count(flag) > 1 for flag in selectors):
         raise SystemExit("Duplicate lifecycle selector")
     args = [arg for arg in sys.argv[1:] if arg not in selectors]
@@ -650,6 +660,7 @@ def main():
         lifecycle = (ConsumerLifecycle if consumer else Lifecycle)(root, scratch, ownership)
         if attachment:
             lifecycle.attachment_scenario = True
+        lifecycle.allow_generated_dockerfile_read = generated_read
     except BaseException:
         try:
             try:

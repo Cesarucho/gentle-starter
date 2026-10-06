@@ -226,6 +226,69 @@ cannot run a finalizer: resources may still be running and the inventory may
 be incomplete. Set a realistic timeout beyond the forecast build/cleanup budget,
 then inspect the record and preview before authorizing recovery.
 
+### Optional exact generated-Dockerfile read adapter
+
+The maintainer harness accepts `--attachment --allow-generated-dockerfile-read`.
+The second flag alone, with `--consumer`, or repeated is rejected before run
+registration. Defaults and consumer behavior are unchanged. This selector is not
+a native Compose/Buildx flag and does not authorize running the lifecycle recipe.
+
+After separate live authorization and a fresh cost/timeout forecast, add the
+selector to the CONTAINER attachment recipe above. The candidate remains a
+simulated HOST inside CONTAINER; never use the primary worktree as a host fixture.
+No live proof of this adapter is recorded here.
+
+The opt-in run creates only a private run-home Docker configuration with
+`cliPluginsExtraDirs`, explicit `DOCKER_CONFIG`, and native executable byte/identity
+pins. It does not change global Docker config, install plugins, select a remote
+daemon, or grant access to a generated directory. The existing ownership engine
+pins Linux PID/start-ticks/session/boot identity before releasing its stopped
+producer. Legacy inventories remain readable/recoverable under existing policy;
+missing anchors cannot authorize this adapter and are never fabricated.
+
+Bake accepts only bounded duplicate-key-free JSON, one exact `container-svc`
+target/default group, the candidate context/image/run label and fixed base build
+arguments. Compose 5.5.1's source-backed argv requires stdin, `rawjson` progress,
+one fresh `/tmp/compose-build-metadataFile-UUID.json` native result path, and the
+exact ordinary context read grant, not additional input files, overrides, arbitrary
+targets, secrets, SSH, network/devices, inline Dockerfiles, extra contexts or broad
+filesystem/write grants. Unsupported native shapes fail closed rather than being
+adapted implicitly. Native Bake JSON/argv forwarding remains unproved without a
+separately authorized live run.
+
+The native result path is constrained to Compose's UUIDv4 naming contract, absent
+including dangling symlinks, with canonical parent identity rechecked before exec.
+It adds no `fs.write` entitlement or directory grant. JSON requires the exact
+Compose project/service/version labels and `output: ["type=docker"]`; an explicit
+`target` may only select `dev_containers_target_stage`. Cache, platform,
+attestation and other non-base build fields remain unsupported, even if empty;
+`annotations` is not a Compose 5.5.1 `bakeTarget` field. Unknown shapes fail closed.
+The pinned Compose parent accepts the canonical leading `compose` plugin token,
+or the direct executable form, but no arbitrary Docker global flag prefix.
+
+Documentary sources, not live traces:
+[Compose 5.5.1 Bake](https://raw.githubusercontent.com/docker/compose/v5.5.1/pkg/compose/build_bake.go),
+[image build labels](https://raw.githubusercontent.com/docker/compose/v5.5.1/pkg/compose/build.go),
+[standalone shell-out](https://raw.githubusercontent.com/docker/compose/v5.5.1/pkg/compose/shellout.go),
+[Docker CLI 29.8.1 plugin argv](https://raw.githubusercontent.com/docker/cli/v29.8.1/cli-plugins/manager/manager.go),
+and [Buildx 0.37.2 entry point](https://raw.githubusercontent.com/docker/buildx/v0.37.2/cmd/buildx/main.go).
+
+The accepted generated layout is Dev Containers 0.89.0's observed metadata-only
+prefix/base/suffix and exact build override. Candidate pins, active inventory and
+lease, local daemon identity, original producer ancestry/session, immediate pinned
+Compose parent, structural override and post-producer file timestamps are checked.
+Files are descriptor-read without following symlinks; identity/mode/hash, paths,
+parents and process bindings are rechecked before native exec. Validated stdin is
+frozen in an unlinked descriptor; native receives one additional exact-file
+`fs.read` grant. Metadata and non-Bake commands delegate unchanged to native,
+including stdin/environment/exit behavior; the adapter does not emulate metadata.
+
+**Race limit:** native Buildx still reads the generated file by pathname. A
+malicious same-user replacement after the final check cannot be excluded. This
+cooperative harness adapter is not a sandbox; hashes, timestamps and labels do
+not provide stronger isolation. Features and changed generation layouts require
+explicit source review, not broader grants or automatic retries.
+
 ## Recovering test-owned resources
 
 Start with a read-only preview from the **original source worktree**:

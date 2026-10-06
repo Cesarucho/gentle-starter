@@ -434,6 +434,38 @@ class LifecycleTests(unittest.TestCase):
                 H.main()
         run.create.assert_not_called()
 
+    def test_generated_read_requires_attachment_and_rejects_duplicate_selectors(self):
+        for flags in (["--allow-generated-dockerfile-read"], ["--consumer", "--allow-generated-dockerfile-read"],
+                      ["--attachment", "--allow-generated-dockerfile-read", "--allow-generated-dockerfile-read"]):
+            with self.subTest(flags=flags), patch.object(sys, "argv", ["lifecycle", *flags]), patch.object(H, "Run") as run:
+                with self.assertRaises(SystemExit):
+                    H.main()
+                run.create.assert_not_called()
+
+    def test_generated_read_defaults_off(self):
+        lifecycle = self.lifecycle()
+        self.assertFalse(lifecycle.allow_generated_dockerfile_read)
+        self.assertNotIn("HGDR_BINDING", lifecycle.env)
+        self.assertNotIn("DOCKER_CONFIG", lifecycle.env)
+
+    def test_generated_read_opt_in_reaches_only_attachment_lifecycle(self):
+        owner = Mock()
+        owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
+        owner.path = self.root / "inventory.json"
+        with patch.object(sys, "argv", ["lifecycle", "--attachment", "--allow-generated-dockerfile-read"]), \
+                patch.object(H, "run", return_value=str(self.root)), patch.object(H, "Run") as run, \
+                patch.object(H, "Lifecycle") as lifecycle_class, patch.object(H, "ConsumerLifecycle") as consumer, \
+                patch.object(H.shutil, "which", return_value="available"), \
+                patch.object(H.Path, "cwd", return_value=self.root), patch.object(H.signal, "signal"), patch("builtins.print"):
+            run.create.return_value = owner
+            lifecycle = lifecycle_class.return_value
+            lifecycle.env = dict(os.environ)
+            lifecycle.cleanup.return_value = []
+            self.assertEqual(H.main(), 0)
+            self.assertTrue(lifecycle.attachment_scenario)
+            self.assertTrue(lifecycle.allow_generated_dockerfile_read)
+            consumer.assert_not_called()
+
     def test_scenario_restores_fixture_and_routes_both_startup_states_through_connect(self):
         lifecycle = self.attachment_fixture()
         taskfile = lifecycle.candidate / ".taskfiles/devcontainer.yml"
