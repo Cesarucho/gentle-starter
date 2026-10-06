@@ -98,9 +98,20 @@ class ResourceTests(unittest.TestCase):
             process = patch.object(R.subprocess, method, side_effect=AssertionError("real process forbidden"))
             process.start()
             self.addCleanup(process.stop)
+        for target, method, effect in ((R.os, "killpg", AssertionError("real signal forbidden")),
+                                       (R, "process_status", AssertionError("unmocked proc read"))):
+            guard = patch.object(target, method, side_effect=effect)
+            guard.start()
+            self.addCleanup(guard.stop)
+        anchor = patch.object(R, "producer_identity", side_effect=lambda pid: self.anchor(pid))
+        anchor.start()
+        self.addCleanup(anchor.stop)
         self.owner = R.Run.create(self.root, self.base, self.store, self.docker)
         self.addCleanup(self.owner.close)
         self.scratch = Path(self.owner.data["scratch"])
+
+    def anchor(self, pid=123):
+        return {"pid": pid, "start": 100, "session": pid, "boot": "00000000-0000-4000-8000-000000000001"}
 
     def arm(self):
         self.owner.arm()
@@ -500,16 +511,19 @@ class ResourceTests(unittest.TestCase):
         def release(token):
             self.assertEqual(token, b"x")
             self.assertEqual(json.loads(self.owner.path.read_text())["worker"], 123)
+            self.assertEqual(json.loads(self.owner.path.read_text())["producer"], self.anchor())
         process.stdin.write.side_effect = release
         with patch.object(R.subprocess, "Popen", return_value=process):
             with self.assertRaisesRegex(R.Unsafe, r"build failed \(17\)"):
                 self.owner.produce(["synthetic", "private-argument"], self.scratch, {}, "build")
         self.assertEqual(self.owner.data["exit"], 17)
+        self.assertIsNone(self.owner.data["producer"])
         self.assertNotIn("private-argument", self.owner.path.read_text())
 
     def test_interrupt_stops_group_before_shared_cleanup(self):
         self.arm()
         process = Mock(pid=123)
+        process.poll.return_value = None
         process.wait.side_effect = [KeyboardInterrupt(), 0]
         with patch.object(R.subprocess, "Popen", return_value=process), patch.object(R.os, "killpg") as kill:
             with self.assertRaises(KeyboardInterrupt):
@@ -517,6 +531,62 @@ class ResourceTests(unittest.TestCase):
         kill.assert_called_once_with(123, R.signal.SIGTERM)
         self.assertEqual(self.owner.data["worker"], 123)
         self.assertTrue(self.owner.path.exists())
+
+    def test_failed_anchor_or_save_never_releases_stopped_worker(self):
+        self.arm()
+        for failure in ("anchor", "save"):
+            with self.subTest(failure=failure):
+                process = Mock(pid=123)
+                process.poll.return_value = 0
+                self.owner.data.update(worker=0, producer=None)
+                with patch.object(R.subprocess, "Popen", return_value=process), \
+                        patch.object(R.os, "killpg") as signal:
+                    if failure == "anchor":
+                        with patch.object(R, "producer_identity", side_effect=R.Unsafe("anchor failed")):
+                            with self.assertRaises(R.Unsafe):
+                                self.owner.produce(["synthetic"], self.scratch, {}, "build")
+                    else:
+                        original = self.owner.save
+                        def save():
+                            if self.owner.data["producer"] is not None:
+                                raise R.Unsafe("save failed")
+                            original()
+                        with patch.object(self.owner, "save", side_effect=save):
+                            with self.assertRaises(R.Unsafe):
+                                self.owner.produce(["synthetic"], self.scratch, {}, "build")
+                process.stdin.write.assert_not_called()
+                signal.assert_not_called()
+                process.stdin.close.assert_called()
+                self.assertIsNone(self.owner.data["producer"])
+
+    def test_pid_reuse_never_releases_or_signals_replacement(self):
+        self.arm()
+        process = Mock(pid=123)
+        process.poll.return_value = None
+        changed = {**self.anchor(), "start": 101}
+        with patch.object(R.subprocess, "Popen", return_value=process), \
+                patch.object(R, "producer_identity", side_effect=[self.anchor(), changed, changed]), \
+                patch.object(R.os, "killpg") as signal:
+            with self.assertRaisesRegex(R.Unsafe, "refusing group signal"):
+                self.owner.produce(["synthetic"], self.scratch, {}, "build")
+        process.stdin.write.assert_not_called()
+        signal.assert_not_called()
+
+    def test_anchor_validation_and_legacy_preview_preserve_evidence(self):
+        self.owner.data.update(worker=123, producer=self.anchor())
+        for field, value in (("start", True), ("session", 124), ("boot", "invalid"), ("pid", 0)):
+            with self.subTest(field=field):
+                self.owner.data["producer"] = {**self.anchor(), field: value}
+                with self.assertRaises(R.Unsafe):
+                    self.owner.save()
+        self.owner.data.update(worker=0, producer=None)
+        self.owner.data.pop("producer")
+        self.owner.save()
+        before = self.owner.path.read_bytes()
+        recovered = R.Run.open(self.owner.path, self.root, docker=self.docker)
+        self.assertFalse(recovered.cleanup()["failed"])
+        self.assertEqual(self.owner.path.read_bytes(), before)
+        self.assertNotIn("producer", recovered.data)
 
     def test_missing_marker_or_replaced_directory_refuses_all_deletion(self):
         self.arm()
@@ -714,6 +784,30 @@ class ResourceTests(unittest.TestCase):
         (self.scratch / "foreign-link").symlink_to(self.root, target_is_directory=True)
         self.assertFalse(self.owner.cleanup(apply=True)["failed"])
         self.assertEqual(primary.read_text(), "preserve")
+
+
+class ProcessIdentityTests(unittest.TestCase):
+    def test_linux_stat_parser_pins_start_boot_and_session(self):
+        fields = ["S", "1", "123", "123", *(["0"] * 15), "100"]
+        raw = ("123 (fixture name with spaces) " + " ".join(fields)).encode()
+        with patch.object(R.Path, "stat", return_value=Mock(st_uid=R.os.getuid())), \
+                patch.object(R.Path, "open", return_value=io.BytesIO(raw)), \
+                patch.object(R.Path, "read_text", return_value="00000000-0000-4000-8000-000000000001\n"):
+            self.assertEqual(R.producer_identity(123), {
+                "pid": 123, "session": 123, "start": 100, "boot": "00000000-0000-4000-8000-000000000001"})
+
+    def test_dead_malformed_foreign_or_nonleader_process_is_rejected(self):
+        for raw in (b"malformed", b"123 (dead) Z 1 123 123", b"x" * 4097):
+            with patch.object(R.Path, "stat", return_value=Mock(st_uid=R.os.getuid())), \
+                    patch.object(R.Path, "open", return_value=io.BytesIO(raw)):
+                with self.assertRaises(R.Unsafe):
+                    R.process_status(123)
+        with patch.object(R.Path, "stat", return_value=Mock(st_uid=R.os.getuid() + 1)):
+            with self.assertRaises(R.Unsafe):
+                R.process_status(123)
+        with patch.object(R, "process_status", return_value=({"session": 124}, 1, 123)):
+            with self.assertRaises(R.Unsafe):
+                R.producer_identity(123)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,52 @@ class Unsafe(RuntimeError):
     """A bounded public reason, never a subprocess error or private output."""
 
 
+def process_status(pid):
+    """Linux identity for a live, current-user process; importing remains inert."""
+    if type(pid) is not int or pid <= 0:
+        raise Unsafe("invalid producer PID")
+    directory = Path(f"/proc/{pid}")
+    try:
+        if directory.stat().st_uid != os.getuid():
+            raise Unsafe("producer owner differs")
+        with (directory / "stat").open("rb") as stream:
+            raw = stream.read(4097)
+        fields = raw.rsplit(b") ", 1)[1].split()
+        if len(raw) > 4096 or int(raw.split(b" ", 1)[0]) != pid or fields[0] in {b"Z", b"X"}:
+            raise ValueError
+        boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+        if str(uuid.UUID(boot)) != boot:
+            raise ValueError
+        anchor = {"pid": pid, "start": int(fields[19]), "session": int(fields[3]), "boot": boot}
+        if anchor["start"] <= 0 or anchor["session"] <= 0:
+            raise ValueError
+        return anchor, int(fields[1]), int(fields[2])
+    except (OSError, ValueError, IndexError):
+        raise Unsafe("producer process identity unavailable") from None
+
+
+def producer_identity(pid):
+    anchor, _, group = process_status(pid)
+    if group != pid or anchor["session"] != pid:
+        raise Unsafe("producer is not the registered session leader")
+    return anchor
+
+
+def validate_producer(anchor, worker):
+    if anchor is None:
+        return
+    if (not isinstance(anchor, dict) or set(anchor) != {"pid", "start", "session", "boot"}
+            or any(type(anchor[k]) is not int or anchor[k] <= 0 for k in ("pid", "start", "session"))
+            or anchor["pid"] != worker or anchor["session"] != worker
+            or not isinstance(anchor["boot"], str)):
+        raise Unsafe("malformed producer identity")
+    try:
+        if str(uuid.UUID(anchor["boot"])) != anchor["boot"]:
+            raise ValueError
+    except ValueError:
+        raise Unsafe("malformed producer boot identity") from None
+
+
 def command(*args, cwd=None, env=None):
     try:
         return subprocess.check_output(args, cwd=cwd, env=env, text=True,
@@ -88,7 +134,8 @@ def validate_record(data, path, root):
         expected = {"version", "run", "source", "registry", "endpoint", "daemon", "scratch", "inode",
                     "project", "tag", "armed", "resources", "running", "stage", "exit", "test", "outcome", "worker"}
         variant = data.get("variant", "base")
-        if (set(data) not in (expected, expected - {"running"}, expected | {"variant"},
+        fields = set(data) - {"producer"}
+        if (fields not in (expected, expected - {"running"}, expected | {"variant"},
                               expected | {"variant", "feature_volumes"})
                 or variant not in {"base", "consumer"} or ("variant" not in data and variant != "base")
                 or data["version"] != 1 or data["source"] != str(root)):
@@ -108,6 +155,9 @@ def validate_record(data, path, root):
         if not isinstance(data["daemon"], str) or not data["daemon"] or len(data["daemon"]) > 128:
             raise ValueError
         if type(data["armed"]) is not bool or type(data["worker"]) is not int or data["worker"] < 0:
+            raise ValueError
+        validate_producer(data.get("producer"), data["worker"])
+        if data.get("producer") is not None and data["exit"] is not None:
             raise ValueError
         if data["stage"] not in {"registered", "prepare", "build", "up", "restart", "recreate", "verify", "cleanup"}:
             raise ValueError
@@ -252,7 +302,7 @@ class Run:
                 "project": "starter-lifecycle-" + token + "_devcontainer",
                 "tag": "starter-lifecycle-" + token + "-img:0.1", "armed": False,
                 "resources": {kind: {} for kind in KINDS}, "running": [], "stage": "registered", "exit": None,
-                 "outcome": "pending", "test": "pending", "worker": 0}
+                  "outcome": "pending", "test": "pending", "worker": 0, "producer": None}
         data["variant"] = variant
         if variant == "consumer":
             data["feature_volumes"] = {}
@@ -323,26 +373,44 @@ class Run:
                                        pass_fds=(self.lease,), start_new_session=True)
             try:
                 self.data["worker"] = process.pid
+                self.data["producer"] = producer_identity(process.pid)
                 self.save()
+                if producer_identity(process.pid) != self.data["producer"]:
+                    raise Unsafe("producer identity changed before release")
                 assert process.stdin is not None
                 process.stdin.write(b"x")
                 process.stdin.close()
                 status = process.wait()
             except BaseException:
-                try:
-                    os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
+                self.stop_producer(process)
                 raise
+        self.data["producer"] = None
         self.stage(stage, status)
         if status:
             raise Unsafe(f"{stage} failed ({status}); private output withheld")
         self.capture()
+
+    def stop_producer(self, process):
+        """Never signal a group without the original unreaped child identity."""
+        if process.stdin is not None:
+            process.stdin.close()  # An unreleased handshake exits on EOF.
+        anchor = self.data.get("producer")
+        if process.poll() is None and anchor is not None:
+            if producer_identity(process.pid) != anchor:
+                raise Unsafe("producer changed; refusing group signal")
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            if anchor is None or producer_identity(process.pid) != anchor:
+                raise Unsafe("producer unverifiable; refusing group signal") from None
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        self.data["producer"] = None
+        self.save()
 
     def expected(self, kind):
         labels = {LABEL: self.data["run"]}
