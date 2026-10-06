@@ -17,6 +17,21 @@ For code and documentation edits, leave changes unstaged and uncommitted after
 verification so the owner can review them in VS Code. Commit only after the
 owner explicitly approves the reviewed diff; preserve unrelated local edits.
 
+## Execution topology
+
+- **Current environment:** The agent runs INSIDE the devcontainer. The host owns
+  the repo bind-mounted at the current path: the same checkout, not an independent clone.
+- **Continuity:** Retain this topology across handoffs and compaction;
+  reconcile a changed environment before relying on it.
+- **Host commands:** Run `task container:*` on the HOST, not in this container; respect skip guards.
+  Never bypass them with `FORCE_HOST_CONTEXT=1` in the primary worktree; host simulation requires an explicitly authorized isolated fixture.
+- **Operational instructions:** Label execution as HOST or CONTAINER and distinguish their paths
+  in every lifecycle, build, connect, or release-candidate (RC) recipe. Recipes are not execution authorization.
+- **RC test:** On this same host, use a separate host folder for a local clone of the host repo;
+  it has independent checkout/state and needs no publishing or transfer. The mounted repo is not that clone.
+- **Unknown details:** Do not invent host path, location, OS, daemon topology, or SSH authority, or assume the host is the user's physical PC.
+  Ask only for a genuinely missing destination/path, not settled topology; never probe ambient credentials or sessions or infer remote permission.
+
 ## Task-response closing
 
 After each completed task, including implementation, investigation, explanation,
