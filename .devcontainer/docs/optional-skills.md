@@ -39,19 +39,3 @@ skill is added separately; if one fails, the remaining selected skills are still
 attempted and the failed names are reported. Check `skills-lock.json` and the
 installed skills after a partial failure. Your lock and custom skills remain
 your responsibility; this command does not remove or overwrite them directly.
-
-## Temporary manual workaround
-
-After confirmed selected installation attempts, `task skills:suggest` shows this
-temporary, user-requested workaround, including after a partial failure. It only
-displays the commands; it never runs them or clears an installation failure.
-The user monitors the patch. Run these manually only if you choose:
-
-```bash
-skills add wondelai/skills/clean-code -a opencode -y
-skills add wondelai/skills/domain-driven-design -a opencode -y
-skills add https://github.com/upstash/context7/tree/master/plugins/agent-plugins/context7/skills/context7-mcp -a opencode -y
-```
-
-These exact commands explicitly target OpenCode by user choice. Normal suggested
-installs still use the universal target; skipping or cancelling shows no workaround.

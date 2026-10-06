@@ -558,14 +558,14 @@ PY
   [ "$status" -eq 0 ]
 }
 
-@test "published starter preserves manual workaround selector and guide bytes" {
+@test "published starter preserves skills selector and guide bytes" {
   mkdir -p "${REPO}/.taskfiles/scripts"
   for name in skills-suggest.sh skills-catalog.py; do
     cp "${ROOT}/.taskfiles/scripts/${name}" "${REPO}/.taskfiles/scripts/${name}"
   done
   cp "${ROOT}/.devcontainer/docs/optional-skills.md" "${REPO}/.devcontainer/docs/optional-skills.md"
   git -C "${REPO}" add -A
-  git -C "${REPO}" commit -qm 'Include manual skills guidance'
+  git -C "${REPO}" commit -qm 'Include skills selector and guidance'
   candidate --base-absent
   approval
   base=absent
