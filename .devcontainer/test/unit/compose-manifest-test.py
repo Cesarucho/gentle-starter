@@ -421,7 +421,7 @@ printf '%s' "$DEVCONTAINER_BIND_MANIFEST_ID" >creation-identity
             command.chmod(0o755)
         environment = {**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin", "CALLS": str(calls),
                        "DEVCONTAINER_PHASE": "build"}
-        for script, package in (("4000-tool-ssh.sh", "openssh-client"),
+        for script, package in (("4000-tool-ssh-client.sh", "openssh-client"),
                                 ("4010-tool-ssh-server.sh", "openssh-server"),
                                 ("4100-tool-pulseaudio-utils.sh", "pulseaudio-utils")):
             calls.write_text("")

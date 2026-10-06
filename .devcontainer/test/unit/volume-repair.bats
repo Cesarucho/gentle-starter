@@ -104,8 +104,8 @@ run_pi_volume_repair() {
 }
 
 @test "SSH client trust state remains passive without runtime installer calls" {
-	write_installer "4000-tool-ssh"
-	enable_installer_as "4000-tool-ssh" "4000-tool-ssh.sh"
+	write_installer "4000-tool-ssh-client"
+	enable_installer_as "4000-tool-ssh-client" "4000-tool-ssh-client.sh"
 	printf '%s\n' 'services: {container-svc: {volumes: [{type: bind, source: ../.env.d/.ssh, target: /home/ubuntu/.ssh, bind: {create_host_path: false}}]}}' >"${WORKSPACE}/.devcontainer/docker-compose.yml"
 	publish_manifest
 	run_pi_volume_repair
