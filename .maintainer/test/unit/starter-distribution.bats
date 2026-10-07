@@ -1,4 +1,7 @@
 #!/usr/bin/env bats
+# Git revision braces are literal; Bats isolates tests and dispatches helpers
+# through run, whose optional arguments are not visible to ShellCheck.
+# shellcheck disable=SC1083,SC2030,SC2031,SC2119,SC2120
 
 setup() {
   ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
@@ -28,6 +31,20 @@ setup() {
     .github/workflow odd/task openspec/spec docs/guide .maintainer/tool; do
     printf 'maintainer\n' > "${REPO}/${path}"
   done
+  mkdir -p "${REPO}/.devcontainer/install/available" "${REPO}/.devcontainer/install/03-enabled" \
+    "${REPO}/.devcontainer/install/01-foundation"
+  cp -a "${ROOT}/.devcontainer/install/02-core-tools" "${REPO}/.devcontainer/install/"
+  cp -a "${ROOT}/.devcontainer/install/03-enabled/." "${REPO}/.devcontainer/install/03-enabled/"
+  cp "${ROOT}/.devcontainer/install/dependencies.conf" "${REPO}/.devcontainer/install/dependencies.conf"
+  cp "${ROOT}/.devcontainer/Dockerfile" "${REPO}/.devcontainer/Dockerfile"
+  local installer
+  for installer in "${ROOT}"/.devcontainer/install/available/*.sh; do
+    printf '#!/bin/sh\nexit 99\n' > "${REPO}/.devcontainer/install/available/${installer##*/}"
+    chmod 755 "${REPO}/.devcontainer/install/available/${installer##*/}"
+  done
+  printf '#!/bin/sh\nexit 99\n' > "${REPO}/.devcontainer/install/01-foundation/10-system.sh"
+  printf '%s\n' '["2080-browser-playwright.sh", "3030-ai-pi-coding.sh", "3040-ai-gentle-shell.sh", "3070-ai-gga.sh", "4000-tool-ssh-client.sh"]' \
+    > "${REPO}/.maintainer/starter-tools.json"
   git -C "${REPO}" add -A
   git -C "${REPO}" commit -qm initial
 }
@@ -67,6 +84,307 @@ approval() {
   source="$(git -C "${REPO}" rev-parse dev)"
 }
 
+set_tools() {
+  printf '%s\n' "$1" > "${REPO}/.maintainer/starter-tools.json"
+  git -C "${REPO}" commit -qam 'Edit starter tool suggestions'
+}
+
+absent() {
+  run "$@"
+  [ "$status" -ne 0 ]
+}
+
+@test "tool catalog generates exactly five canonical symlinks without changing producer extras" {
+  before="$(git -C "${REPO}" rev-parse dev:.devcontainer/install)"
+  index="$(git -C "${REPO}" hash-object .git/index)"
+  candidate --base-absent
+  [ "$(git -C "${REPO}" ls-tree starter-rc:.devcontainer/install/03-enabled | wc -l)" -eq 5 ]
+  for name in 2080-browser-playwright.sh 3030-ai-pi-coding.sh 3040-ai-gentle-shell.sh \
+    3070-ai-gga.sh 4000-tool-ssh-client.sh; do
+    [ "$(git -C "${REPO}" ls-tree starter-rc:.devcontainer/install/03-enabled "$name" | cut -d' ' -f1)" = 120000 ]
+    [ "$(git -C "${REPO}" cat-file -s "starter-rc:.devcontainer/install/03-enabled/${name}")" -eq "$((${#name} + 13))" ]
+    [ "$(git -C "${REPO}" show "starter-rc:.devcontainer/install/03-enabled/${name}")" = "../available/${name}" ]
+  done
+  [ "$(git -C "${REPO}" rev-parse dev:.devcontainer/install)" = "$before" ]
+  [ "$(git -C "${REPO}" hash-object .git/index)" = "$index" ]
+  [ -z "$(git -C "${REPO}" status --porcelain)" ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc:.devcontainer/install/02-core-tools)" = \
+    "$(git -C "${REPO}" rev-parse dev:.devcontainer/install/02-core-tools)" ]
+  [[ "$(git -C "${REPO}" show -s --format=%B starter-rc)" == *"Starter-Tools-Normalization: 1"* ]]
+}
+
+@test "tool catalog allows addition removal replacement and empty selection" {
+  for list in '["5000-cli-glow.sh"]' '["5000-cli-glow.sh","4000-tool-ssh-client.sh"]' \
+    '["2080-browser-playwright.sh","3030-ai-pi-coding.sh","3040-ai-gentle-shell.sh","3070-ai-gga.sh"]' \
+    '["4100-tool-pulseaudio-utils.sh"]' '[]'; do
+    set_tools "$list"
+    candidate --base-absent
+    run python3 - "${REPO}" "$list" << 'PY'
+import json
+import subprocess
+import sys
+paths = subprocess.check_output(['git', '-C', sys.argv[1], 'ls-tree', '-r', '--name-only',
+                                 'starter-rc', '--', '.devcontainer/install/03-enabled']).decode().splitlines()
+assert paths == ['.devcontainer/install/03-enabled/' + name for name in sorted(json.loads(sys.argv[2]))]
+PY
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "tool catalog rejects schema unsafe names missing nonexecutable symlink and core targets atomically" {
+  candidate --base-absent
+  prior="$(git -C "${REPO}" rev-parse starter-rc)"
+  for list in '{}' '[1]' '["4000-tool-ssh-client.sh","4000-tool-ssh-client.sh"]' \
+    '["../4000-tool-ssh-client.sh"]' '["9999-tool-missing.sh"]' '["2000-runtime-node.sh"]'; do
+    set_tools "$list"
+    run candidate --base-absent
+    [ "$status" -ne 0 ]
+    [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+    [ -z "$(git -C "${REPO}" status --porcelain)" ]
+  done
+  set_tools '["5000-cli-glow.sh"]'
+  chmod 644 "${REPO}/.devcontainer/install/available/5000-cli-glow.sh"
+  git -C "${REPO}" commit -qam 'Make selected target nonexecutable'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  ln -s ../available/5000-cli-glow.sh "${REPO}/.devcontainer/install/available/9999-tool-link.sh"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Add symlink installer'
+  set_tools '["9999-tool-link.sh"]'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+  chmod 755 "${REPO}/.maintainer/starter-tools.json"
+  git -C "${REPO}" commit -qam 'Make tool list executable'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"committed regular 100644"* ]]
+  mv "${REPO}/.maintainer/starter-tools.json" "${TEMP}/executable-list"
+  ln -s ../skills-lock.json "${REPO}/.maintainer/starter-tools.json"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Replace tool list with symlink'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"committed regular 100644"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+}
+
+@test "tool catalog validates dependencies cycle order and core authority without completing selection" {
+  set_tools '["3040-ai-gentle-shell.sh"]'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"requires enabled installer"* ]]
+  set_tools '["3030-ai-pi-coding.sh","3040-ai-gentle-shell.sh"]'
+  candidate --base-absent
+  prior="$(git -C "${REPO}" rev-parse starter-rc)"
+  printf '3030-ai-pi-coding.sh|enabled|3040-ai-gentle-shell.sh|shell\n' >> "${REPO}/.devcontainer/install/dependencies.conf"
+  git -C "${REPO}" commit -qam 'Introduce dependency cycle'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"dependency cycle"* ]]
+  printf '3030-ai-pi-coding.sh|enabled|4000-tool-ssh-client.sh|ssh\n' > "${REPO}/.devcontainer/install/dependencies.conf"
+  set_tools '["3030-ai-pi-coding.sh","4000-tool-ssh-client.sh"]'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must run before"* ]]
+  printf 'FROM base AS core-tools\n' > "${REPO}/.devcontainer/Dockerfile"
+  git -C "${REPO}" commit -qam 'Break core COPY authority'
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"core aliases"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+}
+
+@test "tool catalog source pinning preserves approved selection after current list replacement" {
+  candidate --base-absent
+  approval
+  base=absent
+  set_tools '[]'
+  mv "${REPO}/.devcontainer/install/available/4000-tool-ssh-client.sh" "${TEMP}/removed-installer"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Remove now unselected installer'
+  promote
+  [ "$(git -C "${REPO}" rev-parse starter^{tree})" = "$tree" ]
+  candidate --cancel
+  candidate
+  approval
+  base="$(git -C "${REPO}" rev-parse starter)"
+  promote
+  [ -z "$(git -C "${REPO}" ls-tree -r --name-only starter -- .devcontainer/install/03-enabled)" ]
+  candidate --cancel
+}
+
+@test "tool catalog dirty list is ignored by source transform and rejected by clean CLI guard" {
+  candidate --base-absent
+  prior="$(git -C "${REPO}" rev-parse starter-rc)"
+  tree="$(git -C "${REPO}" rev-parse starter-rc^{tree})"
+  printf '{}\n' > "${REPO}/.maintainer/starter-tools.json"
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must be clean"* ]]
+  run python3 - "${ROOT}" "${REPO}" "$tree" << 'PY'
+import importlib.util
+import os
+import sys
+spec = importlib.util.spec_from_file_location('source', sys.argv[1] + '/.maintainer/scripts/starter-source.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+os.chdir(sys.argv[2])
+assert module.filtered_tree(module.git('rev-parse', 'dev')) == sys.argv[3]
+PY
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+}
+
+# Independent oracle for the actual pre-normalization producer filter. It does
+# not call the implementation's filtered_tree or consult any tool list.
+historical_tree() {
+  (
+    cd "${REPO}" && python3 - "$1" "${TEMP}/historical-index" << 'PY'
+import json
+import os
+import subprocess
+import sys
+env = dict(os.environ, GIT_INDEX_FILE=sys.argv[2])
+def git(*args, data=None):
+    return subprocess.check_output(['git', *args], input=data, env=env)
+git('read-tree', 'dev')
+excluded = ['README.md', 'AGENTS.md', 'AGENTS.md.TEMPLATE', 'AGENTS.md.TEMPLATE.EXAMPLE',
+            'CHANGELOG.md', 'docs', '.github', 'odd', 'openspec', '.maintainer',
+            'skills-lock.json', '.agents/skills/external']
+paths = git('ls-files', '-z', '--', *excluded)
+git('update-index', '--force-remove', '-z', '--stdin', data=paths)
+skills = {'version': 1, 'skills': {'external': {'source': 'example/repo', 'skillPath': 'skills/external/SKILL.md'}}}
+blob = git('hash-object', '-w', '--stdin', data=(json.dumps(skills, indent=2) + '\n').encode()).decode().strip()
+git('update-index', '--add', '--cacheinfo', '100644', blob, '.devcontainer/skills/recommended.json')
+if sys.argv[1] == 'legacy':
+    compose = git('show', 'dev:.devcontainer/devcontainer.json').decode()
+    compose = compose.replace('    , "./config/compose/docker-compose.pi.yml"',
+                              '    // , "./config/compose/docker-compose.pi.yml"')
+    compose = compose.replace('    , "./config/compose/docker-compose.gentle-shell.yml"',
+                              '    // , "./config/compose/docker-compose.gentle-shell.yml"')
+    blob = git('hash-object', '-w', '--stdin', data=compose.encode()).decode().strip()
+    git('update-index', '--add', '--cacheinfo', '100644', blob, '.devcontainer/devcontainer.json')
+print(git('write-tree').decode().strip())
+PY
+  )
+}
+
+@test "tool catalog preserves real historical unmarked and Compose2 trees without a list" {
+  mv "${REPO}/.maintainer/starter-tools.json" "${TEMP}/removed-list"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Historical source without starter list'
+  source="$(git -C "${REPO}" rev-parse dev)"
+  for policy in legacy current; do
+    tree="$(historical_tree "$policy")"
+    marker=''
+    if [ "$policy" = current ]; then marker=$'\nStarter-Compose-Policy: 2'; fi
+    old="$(git -C "${REPO}" commit-tree "$tree" -m 'Prepare starter release candidate' \
+      -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: 0000000000000000000000000000000000000000${marker}")"
+    git -C "${REPO}" update-ref refs/heads/starter-rc "$old"
+    approval
+    base=absent
+    run promote
+    [ "$status" -ne 0 ]
+    run candidate --base-absent
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"committed regular 100644"* ]]
+    [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$old" ]
+    candidate --base-absent --cancel
+    absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+  done
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+}
+
+@test "tool catalog upgrades same-source historical identity and validates historical release ancestry" {
+  source="$(git -C "${REPO}" rev-parse dev)"
+  old_tree="$(historical_tree current)"
+  old="$(git -C "${REPO}" commit-tree "$old_tree" -m 'Prepare starter release candidate' \
+    -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: 0000000000000000000000000000000000000000
+Starter-Compose-Policy: 2")"
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$old"
+  candidate --base-absent
+  [ "$(git -C "${REPO}" show -s --format=%P starter-rc)" = "$old" ]
+  approval
+  base=absent
+  promote
+  candidate --cancel
+  historical_release="$(git -C "${REPO}" commit-tree "$old_tree" -m 'Publish consumer starter' \
+    -m "Starter-Release-Source: ${source}
+Starter-Compose-Policy: 2")"
+  git -C "${REPO}" update-ref refs/heads/starter "$historical_release"
+  candidate
+  approval
+  base="$historical_release"
+  promote
+  [ "$(git -C "${REPO}" show -s --format=%P starter)" = "$base" ]
+  candidate --cancel
+}
+
+@test "tool catalog rejects unknown duplicate malformed and reordered normalization markers" {
+  candidate --base-absent
+  approval
+  base=absent
+  for markers in 'Starter-Tools-Normalization: 2' 'Starter-Tools-Normalization: 01' \
+    'Starter-Tools-Normalization: ' $'Starter-Tools-Normalization: 1\nStarter-Tools-Normalization: 1' \
+    $'Starter-Tools-Normalization: 1\nStarter-Compose-Policy: 2'; do
+    forged="$(git -C "${REPO}" commit-tree "$tree" -m 'Prepare starter release candidate' \
+      -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: 0000000000000000000000000000000000000000
+Starter-Compose-Policy: 2
+${markers}")"
+    git -C "${REPO}" update-ref refs/heads/starter-rc "$forged"
+    run promote --approved-rc "$forged"
+    [ "$status" -ne 0 ]
+    run candidate --base-absent --cancel
+    [ "$status" -ne 0 ]
+    [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$forged" ]
+    absent git -C "${REPO}" show-ref --verify -q refs/heads/starter
+  done
+}
+
+@test "tool catalog validates actual historical release trees without consulting their invalid lists" {
+  for policy in legacy current; do
+    set_tools '{}'
+    old_source="$(git -C "${REPO}" rev-parse dev)"
+    old_tree="$(historical_tree "$policy")"
+    marker=''
+    if [ "$policy" = current ]; then marker=$'\nStarter-Compose-Policy: 2'; fi
+    old_release="$(git -C "${REPO}" commit-tree "$old_tree" -m 'Publish consumer starter' \
+      -m "Starter-Release-Source: ${old_source}${marker}")"
+    git -C "${REPO}" update-ref refs/heads/starter "$old_release"
+    set_tools '[]'
+    candidate
+    approval
+    base="$old_release"
+    promote
+    [ "$(git -C "${REPO}" show -s --format=%P starter)" = "$old_release" ]
+    candidate --cancel
+  done
+}
+
+@test "tool catalog ref transaction failures leave index worktree and approved refs unchanged" {
+  candidate --base-absent
+  approval
+  prior="$approved"
+  base=absent
+  set_tools '[]'
+  index="$(git -C "${REPO}" hash-object .git/index)"
+  touch "${REPO}/.git/refs/heads/starter-rc.lock"
+  run candidate --base-absent
+  [ "$status" -ne 0 ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$prior" ]
+  touch "${REPO}/.git/refs/heads/starter.lock"
+  run promote
+  [ "$status" -ne 0 ]
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter
+  [ "$(git -C "${REPO}" hash-object .git/index)" = "$index" ]
+  [ -z "$(git -C "${REPO}" status --porcelain)" ]
+}
+
 @test "candidate comments active optional and future paths without changing committed or dirty producer bytes" {
   printf '%s\n' '{' '  "dockerComposeFile": [' \
     '    "./docker-compose.yml"' \
@@ -90,7 +408,7 @@ approval() {
   grep -q '"./future/extra.yml"' "${TEMP}/published"
   grep -q '^    , "./config/compose/docker-compose.pi.yml"$' "${TEMP}/published"
   grep -q '// unrelated comment' "${TEMP}/published"
-  python3 - "${TEMP}/published" <<'PY'
+  python3 - "${TEMP}/published" << 'PY'
 import json
 import pathlib
 import sys
@@ -124,8 +442,8 @@ PY
     git -C "${REPO}" commit -qam 'Set invalid source JSONC'
     run candidate --base-absent
     [ "$status" -ne 0 ]
-    ! git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
-    ! git -C "${REPO}" show-ref --verify -q refs/heads/starter
+    absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+    absent git -C "${REPO}" show-ref --verify -q refs/heads/starter
   done
 }
 
@@ -138,8 +456,8 @@ PY
   first="$(git -C "${REPO}" rev-parse starter)"
   [ -z "$(git -C "${REPO}" show -s --format=%P starter)" ]
   [ "$(git -C "${REPO}" rev-parse starter^{tree})" = "$tree" ]
-  ! git -C "${REPO}" merge-base --is-ancestor dev starter
-  ! git -C "${REPO}" merge-base --is-ancestor starter-rc starter
+  absent git -C "${REPO}" merge-base --is-ancestor dev starter
+  absent git -C "${REPO}" merge-base --is-ancestor starter-rc starter
   [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
   run candidate
   [ "$status" -ne 0 ]
@@ -196,7 +514,7 @@ PY
   printf 'dirty\n' > "${REPO}/README.md"
   run promote
   [ "$status" -ne 0 ]
-  ! git -C "${REPO}" show-ref --verify -q refs/heads/starter
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter
 }
 
 @test "promotion refuses symbolic and legacy release targets and checked-out worktrees" {
@@ -240,7 +558,7 @@ PY
   git -C "${REPO}" branch -D dev
   run candidate --base-absent --cancel
   [ "$status" -eq 0 ]
-  ! git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
 }
 
 @test "promotion checks every candidate ancestor and previous release source ancestry" {
@@ -312,7 +630,7 @@ Starter-Compose-Policy: 2")"
   git -C "$consumer" add -A
   git -C "$consumer" commit -qm 'Customize consumer'
   consumer_head="$(git -C "$consumer" rev-parse HEAD)"
-  ! git -C "$consumer" merge-base --is-ancestor "$(git -C "${REPO}" rev-parse dev)" HEAD
+  absent git -C "$consumer" merge-base --is-ancestor "$(git -C "${REPO}" rev-parse dev)" HEAD
 
   for version in v2 v3; do
     candidate --cancel
@@ -390,7 +708,7 @@ Starter-Compose-Policy: 2")"
   [ "$status" -eq 0 ]
   first="$(git -C "${REPO}" rev-parse starter-rc)"
   [ -z "$(git -C "${REPO}" show -s --format=%P starter-rc)" ]
-  ! git -C "${REPO}" merge-base --is-ancestor dev starter-rc
+  absent git -C "${REPO}" merge-base --is-ancestor dev starter-rc
   [ "$(git -C "${REPO}" rev-parse starter-rc^{tree})" = "$(git -C "${REPO}" rev-parse starter^{tree})" ]
   [[ "$(git -C "${REPO}" show -s --format=%B starter-rc)" == *"Starter-Candidate-Source: ${source}"* ]]
   [[ "$(git -C "${REPO}" show -s --format=%B starter-rc)" == *"Starter-Candidate-Base: ${base}"* ]]
@@ -414,15 +732,15 @@ Starter-Compose-Policy: 2")"
   [ "$(git -C "${REPO}" ls-tree starter-rc LICENSE | cut -f1 | cut -d' ' -f1)" = 100644 ]
   [ "$(git -C "${REPO}" show starter-rc:.devcontainer/test/unit/shared.bats)" = shared ]
   [ "$(git -C "${REPO}" show starter-rc:.devcontainer/docs/guide.md)" = v1 ]
-  ! git -C "${REPO}" cat-file -e starter-rc:README.md
-  ! git -C "${REPO}" cat-file -e starter-rc:skills-lock.json
-  ! git -C "${REPO}" cat-file -e starter-rc:.agents/skills/external/SKILL.md
+  absent git -C "${REPO}" cat-file -e starter-rc:README.md
+  absent git -C "${REPO}" cat-file -e starter-rc:skills-lock.json
+  absent git -C "${REPO}" cat-file -e starter-rc:.agents/skills/external/SKILL.md
   [ "$(git -C "${REPO}" show starter-rc:.agents/skills/add-tool/SKILL.md)" = authored ]
   for path in AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
     .github odd openspec docs .maintainer; do
-    ! git -C "${REPO}" cat-file -e "starter-rc:${path}"
+    absent git -C "${REPO}" cat-file -e "starter-rc:${path}"
   done
-  run python3 - "${REPO}" <<'PY'
+  run python3 - "${REPO}" << 'PY'
 import json
 import subprocess
 import sys
@@ -453,14 +771,14 @@ PY
   first="$(git -C "${REPO}" rev-parse starter-rc)"
   run candidate --cancel
   [ "$status" -eq 0 ]
-  ! git -C "${REPO}" show-ref --verify --quiet refs/heads/starter-rc
+  absent git -C "${REPO}" show-ref --verify --quiet refs/heads/starter-rc
   printf 'v2\n' > "${REPO}/.devcontainer/docs/guide.md"
   git -C "${REPO}" commit -qam update
   run candidate
   [ "$status" -eq 0 ]
   [ -z "$(git -C "${REPO}" show -s --format=%P starter-rc)" ]
   [ "$(git -C "${REPO}" show starter-rc:.devcontainer/docs/guide.md)" = v2 ]
-  ! git -C "${REPO}" merge-base --is-ancestor "$first" starter-rc
+  absent git -C "${REPO}" merge-base --is-ancestor "$first" starter-rc
 }
 
 @test "candidate rejects a symbolic target without updating or deleting its aliased branch" {
@@ -516,9 +834,9 @@ PY
   for path in README.md AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE \
     CHANGELOG.md .github odd openspec docs .maintainer skills-lock.json \
     .agents/skills/external/SKILL.md; do
-    ! git -C "${REPO}" cat-file -e "starter:${path}"
+    absent git -C "${REPO}" cat-file -e "starter:${path}"
   done
-  run python3 - "${REPO}" <<'PY'
+  run python3 - "${REPO}" << 'PY'
 import json
 import subprocess
 import sys
@@ -543,9 +861,9 @@ PY
   promote
 
   [ "$(git -C "${REPO}" show -s --format=%P starter)" = "$first" ]
-  ! git -C "${REPO}" cat-file -e starter:README.md
-  ! git -C "${REPO}" cat-file -e starter:skills-lock.json
-  run python3 - "${REPO}" <<'PY'
+  absent git -C "${REPO}" cat-file -e starter:README.md
+  absent git -C "${REPO}" cat-file -e starter:skills-lock.json
+  run python3 - "${REPO}" << 'PY'
 import json
 import subprocess
 import sys
@@ -575,7 +893,7 @@ PY
     .devcontainer/docs/optional-skills.md; do
     [ "$(git -C "${REPO}" rev-parse "starter:${path}")" = "$(git -C "${ROOT}" hash-object "${path}")" ]
   done
-  ! git -C "${REPO}" cat-file -e starter:odd
+  absent git -C "${REPO}" cat-file -e starter:odd
 }
 
 @test "candidate rejects malformed skill lock and leaves release and candidate unchanged" {
@@ -597,8 +915,8 @@ PY
   printf 'dirty\n' > "${REPO}/README.md"
   run candidate --base-absent
   [ "$status" -ne 0 ]
-  ! git -C "${REPO}" show-ref --verify --quiet refs/heads/starter
-  ! git -C "${REPO}" show-ref --verify --quiet refs/heads/starter-rc
+  absent git -C "${REPO}" show-ref --verify --quiet refs/heads/starter
+  absent git -C "${REPO}" show-ref --verify --quiet refs/heads/starter-rc
 }
 
 @test "conflicting consumer merge retains the merge state for explicit resolution" {
@@ -625,7 +943,7 @@ PY
 }
 
 @test "distributed guides do not instruct consumers to run maintainer tasks" {
-  run python3 - "${ROOT}" <<'PY'
+  run python3 - "${ROOT}" << 'PY'
 from pathlib import Path
 import re
 import sys
@@ -686,7 +1004,7 @@ PY
   git -C "${REPO}" add -A
   git -C "${REPO}" commit -qm 'Include task help entry'
   candidate --base-absent
-  ! git -C "${REPO}" cat-file -e starter-rc:.maintainer/Taskfile.yml
+  absent git -C "${REPO}" cat-file -e starter-rc:.maintainer/Taskfile.yml
   git clone -q --no-local --branch starter-rc "${REPO}" "${TEMP}/consumer"
 
   run task --dir "${TEMP}/consumer" help

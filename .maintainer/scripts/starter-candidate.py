@@ -33,20 +33,21 @@ def checked_out(ref):
 
 def identity(commit):
     message = git("show", "-s", "--format=%B", commit)
-    source, base, policy = source_tree.identity_metadata(message, SUBJECT, (SOURCE, BASE))
+    source, base, policy, normalization = source_tree.identity_metadata(message, SUBJECT, (SOURCE, BASE))
     parents = git("show", "-s", "--format=%P", commit).split()
     require(len(parents) <= 1, "candidate must have at most one candidate parent")
     require(git("cat-file", "-t", source) == "commit", "invalid candidate source")
     require(base == ZERO or git("cat-file", "-t", base) == "commit", "invalid candidate base")
-    require(git("rev-parse", f"{commit}^{{tree}}") == source_tree.filtered_tree(source, policy),
+    require(git("rev-parse", f"{commit}^{{tree}}") == source_tree.filtered_tree(source, policy, normalization),
             "candidate tree does not match committed source")
-    return source, base, parents, policy
+    return source, base, parents, policy, normalization
 
 
-def published_candidate(release, prior, source, pinned_base, policy):
+def published_candidate(release, prior, source, pinned_base, policy, normalization):
     message = git("show", "-s", "--format=%B", release)
-    release_source, release_policy = source_tree.identity_metadata(message, RELEASE_SUBJECT, (RELEASE_SOURCE,))
-    require((release_source, release_policy) == (source, policy),
+    release_source, release_policy, release_normalization = source_tree.identity_metadata(
+        message, RELEASE_SUBJECT, (RELEASE_SOURCE,))
+    require((release_source, release_policy, release_normalization) == (source, policy, normalization),
             "release is not a publication of the candidate")
     parents = git("show", "-s", "--format=%P", release).split()
     require(parents == ([] if pinned_base == ZERO else [pinned_base]),
@@ -80,14 +81,14 @@ def main():
     source = git("rev-parse", source_ref) if exists(source_ref) else None
     prior = git("rev-parse", target_ref) if exists(target_ref) else None
     if prior:
-        old_source, old_base, parents, old_policy = identity(prior)
+        old_source, old_base, parents, old_policy, old_normalization = identity(prior)
         if old_base != base:
             require(args.cancel and base != ZERO,
                     "release base changed; refuse stale candidate")
-            published_candidate(base, prior, old_source, old_base, old_policy)
+            published_candidate(base, prior, old_source, old_base, old_policy, old_normalization)
         descendant_source = old_source
         while parents:
-            parent_source, parent_base, parents, _ = identity(parents[0])
+            parent_source, parent_base, parents, _, _ = identity(parents[0])
             require(parent_base == old_base and
                     subprocess.run(["git", "merge-base", "--is-ancestor", parent_source, descendant_source]).returncode == 0,
                     "candidate parent has unexpected provenance")
@@ -100,7 +101,8 @@ def main():
         assert source is not None
         require(subprocess.run(["git", "merge-base", "--is-ancestor", old_source, source]).returncode == 0,
                 "source must advance candidate source; cancel before replacing")
-        if source == old_source and old_policy == source_tree.CURRENT_COMPOSE_POLICY:
+        if (source == old_source and old_policy == source_tree.CURRENT_COMPOSE_POLICY
+                and old_normalization == source_tree.CURRENT_TOOLS_NORMALIZATION):
             print("Candidate already contains this source; nothing to update.")
             return
     else:
@@ -110,9 +112,10 @@ def main():
     try:
         tree = source_tree.filtered_tree(source)
     except ValueError as error:
-        raise ValueError(f"new candidate requires a committed source with four active Compose defaults: {error}") from error
+        raise ValueError(f"new candidate requires valid committed publication inputs: {error}") from error
     message = (f"{SUBJECT}\n\n{SOURCE}{source}\n{BASE}{base}\n"
-               f"{source_tree.COMPOSE_POLICY_HEADER}{source_tree.CURRENT_COMPOSE_POLICY}\n")
+               f"{source_tree.COMPOSE_POLICY_HEADER}{source_tree.CURRENT_COMPOSE_POLICY}\n"
+               f"{source_tree.TOOLS_NORMALIZATION_HEADER}{source_tree.CURRENT_TOOLS_NORMALIZATION}\n")
     commit = git("commit-tree", tree, *(["-p", prior] if prior else []), input=message.encode())
     git("update-ref", target_ref, commit, prior or ZERO)
     print(f"Candidate {args.target} at {commit}; source {source}; base {base}.")

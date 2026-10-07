@@ -56,6 +56,41 @@ explicit authorization for destination, operation, and credential/session.
 Future consumer clones of the new root will not share ancestry with `dev` or
 with the old unpublished branch.
 
+## Editable publication tool suggestions
+
+Edit `.maintainer/starter-tools.json` and commit the intended source before
+preparing a candidate. This producer-only file is one JSON array of canonical
+optional installer basenames; entries may be added, removed or replaced freely,
+including `[]`. The initial suggestions are:
+
+- `2080-browser-playwright.sh`
+- `3030-ai-pi-coding.sh`
+- `3040-ai-gentle-shell.sh`
+- `3070-ai-gga.sh`
+
+The filter reads the list from the pinned source commit and replaces the entire
+published `03-enabled/` group with exactly those canonical symlinks. It leaves
+producer aliases and mandatory core unchanged. Selected targets must be committed
+executable regular installers, exclude core, and satisfy the source dependency
+graph and execution order; missing prerequisites are rejected, not added.
+Compose selection is independent and unchanged by this list. Suggestions are
+installation defaults, not mandatory core or runtime auto-enablement.
+
+New identities carry `Starter-Tools-Normalization: 1` after the Compose policy
+header. This identifies the producer filtering algorithm, not a preset version
+or consumer upgrade policy. Historical identities without the header retain
+their original aliases and need no list. Every ancestor is recomputed using its
+own recorded source and markers. A same-source historical candidate can gain a
+normalized child only when that source already contains a valid list. Promotion
+requires an approved normalized candidate, even if the source branch later moves.
+
+The list is excluded from consumer trees with the rest of this directory;
+generated aliases are ordinary Git content. Consumers review their Git diff and
+choose which changes to keep. Ordinary merges may automatically merge clean
+changes; conflicts are resolved manually. There is no guaranteed prompt for
+every update, automatic migration, customization-preservation mechanism or
+consumer update support framework.
+
 ## Compose selection identity
 
 New candidates and releases carry exactly `Starter-Compose-Policy: 2` after
@@ -73,8 +108,8 @@ default preset, not mandatory core classification; consumers can change their
 owned Compose selection. Root `README.md` remains excluded from distribution.
 
 Existing unmarked linear candidate/release identities use the historical two-entry
-normalizer, including exact tree recomputation for every ancestor. No other filter
-policy changes. Unknown, duplicate or malformed markers fail closed; there is no
+normalizer, including exact tree recomputation for every ancestor. Tool alias
+normalization is identified separately above. Unknown, duplicate or malformed markers fail closed; there is no
 legacy creation switch. New promotion requires an explicitly current candidate.
 Historical RC `28a42cc55…` and release `ef2f71e5…` remain valid history, not an
 approval to publish the new preset. A legacy same-source RC can gain a current-policy

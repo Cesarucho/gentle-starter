@@ -109,6 +109,18 @@ the current selection. SSH server and audio still require their separately
 selected Compose overrides. Use `task install:disable -- NAME` or
 `task install:enable -- NAME` here.
 
+Published starter trees may include optional installation suggestions selected
+from an editable producer-only JSON array. The initial suggestions are Playwright,
+Pi Coding, Gentle Shell and GGA, without SSH client or PulseAudio. Publication generates
+their canonical aliases without changing producer activation or mandatory core;
+the producer-only list is not distributed. These are build defaults, not runtime
+auto-enablement, and Compose selection remains independent.
+
+Consumers own their aliases and Git diff. Ordinary starter merges may merge clean
+changes automatically; resolve conflicts manually and choose which changes to
+keep. There is no automatic migration or guaranteed preservation of custom
+selections, and no promise that every update requires conflict resolution.
+
 Disabling changes the active set for future image builds and postCreate
 repairs. It does not uninstall packages from the current container or delete
 mutable state already persisted under `.env.d/`. Re-enabling an installer

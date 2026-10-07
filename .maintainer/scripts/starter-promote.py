@@ -35,11 +35,11 @@ def oid(value):
 
 def release_source(base):
     message = git("show", "-s", "--format=%B", base)
-    source, policy = candidate.source_tree.identity_metadata(message, SUBJECT, (SOURCE,))
+    source, policy, normalization = candidate.source_tree.identity_metadata(message, SUBJECT, (SOURCE,))
     parents = git("show", "-s", "--format=%P", base).split()
     require(len(parents) <= 1, "release base has unexpected ancestry")
     require(git("cat-file", "-t", source) == "commit", "release source is missing")
-    require(git("rev-parse", f"{base}^{{tree}}") == candidate.source_tree.filtered_tree(source, policy),
+    require(git("rev-parse", f"{base}^{{tree}}") == candidate.source_tree.filtered_tree(source, policy, normalization),
             "release tree does not match committed source")
     if parents:
         require(ancestor(release_source(parents[0]), source), "release source ancestry diverged")
@@ -76,10 +76,12 @@ def main():
     current = args.approved_rc
     descendant_source = None
     while True:
-        source, pinned_base, parents, policy = candidate.identity(current)
+        source, pinned_base, parents, policy, normalization = candidate.identity(current)
         if current == args.approved_rc:
             require(policy == candidate.source_tree.CURRENT_COMPOSE_POLICY,
-                    "new publication requires a current four-default candidate")
+                     "new publication requires a current four-default candidate")
+            require(normalization == candidate.source_tree.CURRENT_TOOLS_NORMALIZATION,
+                    "new publication requires a normalized tool-list candidate")
         require(pinned_base == base, "candidate base differs from expected release base")
         require(descendant_source is None or ancestor(source, descendant_source),
                 "candidate source ancestry diverged")
@@ -91,10 +93,11 @@ def main():
         current = parents[0]
     require(git("rev-parse", f"{args.approved_rc}^{{tree}}") == args.expected_tree,
             "candidate tree differs from approval")
-    approved_source, _, _, _ = candidate.identity(args.approved_rc)
+    approved_source, _, _, _, _ = candidate.identity(args.approved_rc)
     require(approved_source == args.expected_source, "candidate source differs from approval")
     message = (f"{SUBJECT}\n\n{SOURCE}{approved_source}\n"
-               f"{candidate.source_tree.COMPOSE_POLICY_HEADER}{candidate.source_tree.CURRENT_COMPOSE_POLICY}\n")
+               f"{candidate.source_tree.COMPOSE_POLICY_HEADER}{candidate.source_tree.CURRENT_COMPOSE_POLICY}\n"
+               f"{candidate.source_tree.TOOLS_NORMALIZATION_HEADER}{candidate.source_tree.CURRENT_TOOLS_NORMALIZATION}\n")
     commit = git("commit-tree", args.expected_tree, *(["-p", base] if base != ZERO else []),
                  input=message.encode())
     git("update-ref", target_ref, commit, base)

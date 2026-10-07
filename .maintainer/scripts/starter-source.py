@@ -1,7 +1,9 @@
 """Build the distributable tree solely from committed source objects."""
 
+import importlib.util
 import json
 import os
+from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import tempfile
@@ -20,6 +22,17 @@ LEGACY_COMPOSE = (
 )
 CURRENT_COMPOSE_POLICY = "2"
 COMPOSE_POLICY_HEADER = "Starter-Compose-Policy: "
+TOOLS_LIST = ".maintainer/starter-tools.json"
+INSTALL = ".devcontainer/install"
+CURRENT_TOOLS_NORMALIZATION = "1"
+TOOLS_NORMALIZATION_HEADER = "Starter-Tools-Normalization: "
+
+# Use the local validator, never Python or installers from the source commit.
+spec = importlib.util.spec_from_file_location(
+    "starter_selection", Path(__file__).resolve().parents[2] / INSTALL / "lib/selection.py")
+assert spec is not None and spec.loader is not None
+selection_validator = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(selection_validator)
 REQUIRED_COMPOSE = LEGACY_COMPOSE + (
     "./config/compose/docker-compose.pi.yml",
     "./config/compose/docker-compose.gentle-shell.yml",
@@ -34,12 +47,16 @@ def compose_selection(policy):
 def identity_metadata(message, subject, headers):
     fields = "".join(re.escape(header) + r"([0-9a-f]{40,64})\n" for header in headers)
     marker = re.escape(COMPOSE_POLICY_HEADER) + r"([^\n]+)\n"
-    match = re.fullmatch(re.escape(subject) + r"\n\n" + fields + "(?:" + marker + ")?", message + "\n")
+    tools_marker = re.escape(TOOLS_NORMALIZATION_HEADER) + r"([^\n]+)\n"
+    match = re.fullmatch(re.escape(subject) + r"\n\n" + fields + "(?:" + marker + ")?"
+                        + "(?:" + tools_marker + ")?", message + "\n")
     require(match is not None, "invalid starter identity metadata")
     assert match is not None
-    *values, policy = match.groups()
+    *values, policy, normalization = match.groups()
     compose_selection(policy)
-    return (*values, policy)
+    require(normalization in (None, CURRENT_TOOLS_NORMALIZATION),
+            "unknown starter tools normalization")
+    return (*values, policy, normalization)
 
 
 JSONC_TOKEN = re.compile(
@@ -189,7 +206,96 @@ def compose_defaults(blob, policy=CURRENT_COMPOSE_POLICY):
         raise ValueError(f"invalid devcontainer JSONC: {error}") from error
 
 
-def filtered_tree(source, policy=CURRENT_COMPOSE_POLICY):
+class CommittedPath:
+    """The read-only Path subset needed by shared core/dependency validation."""
+
+    def __init__(self, entries, path):
+        self.entries = entries
+        self.path = PurePosixPath(path)
+
+    def __truediv__(self, child):
+        return CommittedPath(self.entries, self.path / child)
+
+    @property
+    def parent(self):
+        return CommittedPath(self.entries, self.path.parent)
+
+    def is_file(self):
+        return self.entries.get(str(self.path), (None,))[0] in ("100644", "100755")
+
+    def is_symlink(self):
+        return self.entries.get(str(self.path), (None,))[0] == "120000"
+
+    def read_text(self):
+        require(self.is_file(), f"missing or unsafe committed file: {self.path}")
+        return committed_blob(self.entries[str(self.path)][1]).decode("utf-8")
+
+
+def committed_blob(oid):
+    return subprocess.run(["git", "cat-file", "blob", oid], stdout=subprocess.PIPE,
+                          check=True).stdout
+
+
+def tool_selection(source):
+    entries = {}
+    raw = subprocess.run(["git", "ls-tree", "-rz", source, "--", INSTALL,
+                          ".devcontainer/Dockerfile", TOOLS_LIST],
+                         stdout=subprocess.PIPE, check=True).stdout
+    for entry in raw.split(b"\0"):
+        if entry:
+            metadata, path = entry.split(b"\t", 1)
+            mode, _, oid = metadata.decode().split()
+            entries[os.fsdecode(path)] = (mode, oid)
+    require(entries.get(TOOLS_LIST, (None,))[0] == "100644",
+            "starter tool list must be a committed regular 100644 file")
+    tools = json.loads(committed_blob(entries[TOOLS_LIST][1]))
+    require(isinstance(tools, list), "starter tool list must be an array")
+    require(all(isinstance(name, str) and selection_validator.CATALOG_NAME.fullmatch(name)
+                for name in tools), "starter tool entries must be safe canonical installer basenames")
+    require(len(tools) == len(set(tools)), "duplicate starter tool entry")
+    catalog = {path.removeprefix(INSTALL + "/available/"): value
+               for path, value in entries.items()
+               if path.startswith(INSTALL + "/available/") and
+               "/" not in path.removeprefix(INSTALL + "/available/")}
+    selected = {}
+
+    def executable(name):
+        require(catalog.get(name, (None,))[0] == "100755",
+                f"selected installer must be a committed executable regular file: {name}")
+
+    for path, (mode, oid) in entries.items():
+        if not path.startswith(INSTALL + "/02-core-tools/"):
+            continue
+        alias = path.removeprefix(INSTALL + "/")
+        name = alias.removeprefix("02-core-tools/")
+        if name == ".gitkeep" and mode in ("100644", "100755"):
+            continue
+        require(selection_validator.ALIAS_NAME.fullmatch(name) and mode == "120000",
+                f"invalid committed core alias: {alias}")
+        target = committed_blob(oid).decode("utf-8")
+        require(target.startswith("../available/") and target[13:] in catalog,
+                f"unsafe committed core alias: {alias}")
+        installer = target[13:]
+        executable(installer)
+        require(name not in catalog or name == installer, f"core alias collision: {alias}")
+        require(installer not in selected, f"duplicate core installer: {installer}")
+        selected[installer] = alias
+    for name in tools:
+        require(name not in selected, f"starter suggestion belongs to mandatory core: {name}")
+        executable(name)
+        selected[name] = "03-enabled/" + name
+    install = CommittedPath(entries, INSTALL)
+    selection_validator.validate_core(install, catalog, selected)
+    graph = selection_validator.read_graph(install, catalog, selected)
+    selection_validator.validate_order(selected, graph)
+    return tools
+
+
+def filtered_tree(source, policy=CURRENT_COMPOSE_POLICY,
+                  normalization=CURRENT_TOOLS_NORMALIZATION):
+    require(normalization in (None, CURRENT_TOOLS_NORMALIZATION),
+            "unknown starter tools normalization")
+    tools = tool_selection(source) if normalization is not None else None
     catalog = recommendations(source)
     compose = compose_defaults(subprocess.run(
         ["git", "show", f"{source}:{DEVCONTAINER}"], stdout=subprocess.PIPE,
@@ -201,7 +307,8 @@ def filtered_tree(source, policy=CURRENT_COMPOSE_POLICY):
         env = dict(os.environ, GIT_INDEX_FILE=os.path.join(temp, "index"))
         git("read-tree", source, env=env)
         paths = subprocess.run(
-            ["git", "ls-files", "-z", "--", *EXCLUDED, ".agents/skills"], env=env,
+            ["git", "ls-files", "-z", "--", *EXCLUDED, ".agents/skills",
+             *([INSTALL + "/03-enabled"] if tools is not None else [])], env=env,
             stdout=subprocess.PIPE, check=True,
         ).stdout.split(b"\0")
         paths = [os.fsdecode(path) for path in paths if path and
@@ -210,6 +317,10 @@ def filtered_tree(source, policy=CURRENT_COMPOSE_POLICY):
         if paths:
             git("update-index", "--force-remove", "-z", "--stdin", env=env,
                 input=b"\0".join(os.fsencode(path) for path in paths) + b"\0")
+        for name in tools or []:
+            blob = git("hash-object", "-w", "--stdin", input=("../available/" + name).encode())
+            git("update-index", "--add", "--cacheinfo", "120000", blob,
+                INSTALL + "/03-enabled/" + name, env=env)
         blob = git("hash-object", "-w", "--stdin", input=catalog)
         git("update-index", "--add", "--cacheinfo", "100644", blob, CATALOG, env=env)
         blob = git("hash-object", "-w", "--stdin", input=compose)
