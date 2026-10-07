@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "trees": [
+    {
+      "name": "OpenCode",
+      "runtime": ".config/opencode",
+      "seed": ".devcontainer/config/opencode",
+      "managed": ["AGENTS.md", "opencode.json", "opencode-non-sdd.json", "tui.json", "opencode-notifier.json", "commands/**", "plugins/**", "profiles/**", "prompts/**", "skills/**", "profile-versions/**", "auth.json"],
+      "excluded": ["opencode.jsonc", "**/.git/**", ".gitignore", "**/node_modules/**", ".gentle-ai-telemetry-runtime.json", "plugins/telemetry-runtime.ts", "**/profile-versions/**", "**/auth.json", "**/credentials.json", "**/sessions/**", "**/state/**", "**/logs/**", "**/cache/**"]
+    },
+    {
+      "name": "Pi Coding",
+      "owner": "3030-ai-pi-coding.sh",
+      "runtime": ".pi/agent",
+      "seed": ".devcontainer/config/pi/agent",
+      "managed": ["settings.json"],
+      "excluded": ["state/**", "sessions/**", "intercom/**", "bin/**", "chains/**", "agents/**", "gentle-ai/**", "pi-pretty/**", "auth.json", "trust.json", "APPEND_SYSTEM.md", "models-store.json", "mcp-cache.json", "mcp-npx-cache.json", "mcp.json.devcontainer-backup.*"]
+    }
+  ]
+}

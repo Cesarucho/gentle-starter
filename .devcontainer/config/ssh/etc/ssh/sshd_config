@@ -1,0 +1,37 @@
+# sshd_config — hardened for devcontainer use
+# Installed as /etc/ssh/sshd_config.gentle-starter by 4010-tool-ssh-server.sh.
+
+Port 22
+ListenAddress 0.0.0.0
+
+# Host keys — stored in ~/.ssh-server/ssh/ (persists across rebuilds)
+HostKey /home/ubuntu/.ssh-server/ssh/ssh_host_rsa_key
+HostKey /home/ubuntu/.ssh-server/ssh/ssh_host_ed25519_key
+
+# Security defaults
+PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KerberosAuthentication no
+GSSAPIAuthentication no
+# Ubuntu's account is password-locked by default. PAM permits that account to
+# authenticate with a public key while the directives above still forbid passwords.
+UsePAM yes
+
+# Auth
+PubkeyAuthentication yes
+AuthorizedKeysFile  .ssh/authorized_keys
+StrictModes yes
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO
+
+# Session
+ClientAliveInterval 120
+ClientAliveCountMax 3
+TCPKeepAlive yes
+
+# Disable unused subsystems
+Subsystem sftp /usr/lib/openssh/sftp-server

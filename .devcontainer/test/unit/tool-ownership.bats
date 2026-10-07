@@ -1,0 +1,187 @@
+#!/usr/bin/env bats
+
+setup() {
+	REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
+}
+
+run_ssh_runtime_installer() {
+	local root="$1"
+	mkdir -p "${root}/home" "${root}/bin" "${root}/target"
+	mkdir -p "${root}/.devcontainer/install/available" "${root}/.devcontainer/install/lib" \
+		"${root}/.devcontainer/install/03-enabled" "${root}/.taskfiles/scripts"
+	cp "${REPO_ROOT}/.devcontainer/install/available/4010-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${root}/.devcontainer/install/lib/"
+	mkdir -p "${root}/.devcontainer/config/compose"
+	cp -R "${REPO_ROOT}/.devcontainer/config/ssh" "${root}/.devcontainer/config/"
+	cp "${REPO_ROOT}/.devcontainer/config/compose/docker-compose.ssh-server.yml" "${root}/.devcontainer/config/compose/"
+	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/"
+	ln -sf ../available/4010-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
+	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"config/compose/docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
+	local identity
+	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/config/compose/docker-compose.ssh-server.yml" |
+		PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/.devcontainer/test/unit/manifest-fixture.py" "${root}")"
+	cat >"${root}/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+# No privilege escalation: allow only fixture destinations.
+[[ "${!#}" == "${FIXTURE_ROOT}/"* ]] || exit 97
+case "$1" in install|chmod) exec "$@" ;; *) exit 97 ;; esac
+EOF
+	cat >"${root}/bin/ssh-keygen" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = -l ]; then
+	[ -s "${3:-}" ]
+	exit
+fi
+while [ "$#" -gt 0 ]; do
+	if [ "$1" = -f ]; then
+		shift
+		: >"$1"
+		: >"$1.pub"
+		exit 0
+	fi
+	shift
+done
+exit 2
+EOF
+	chmod +x "${root}/bin/ssh-keygen" "${root}/bin/sudo"
+	run env HOME="${root}/home" PATH="${root}/bin:/usr/bin:/bin" \
+		WORKSPACE_DIR="${root}" DEVCONTAINER_PHASE=runtime FIXTURE_ROOT="${root}" \
+		PYTHONDONTWRITEBYTECODE=1 DEVCONTAINER_BIND_MANIFEST_ID="${identity}" \
+		SSH_CONFIG_DIR="${root}/keys" SSH_START_WRAPPER_TARGET="${root}/target/start-sshd" \
+		SSHD_CONFIG_TARGET="${root}/target/sshd_config.gentle-starter" \
+		bash -c 'seed_config_tree() { :; }; export -f seed_config_tree; exec bash "$1"' _ \
+		"${root}/.devcontainer/install/available/4010-tool-ssh-server.sh"
+}
+
+@test "image-owned direct binaries have exact architecture digests" {
+	local policy="${REPO_ROOT}/.devcontainer/tool-versions.conf"
+	for key in \
+		LOCK_OPENCODE_VERSION LOCK_OPENCODE_SHA256_AMD64 LOCK_OPENCODE_SHA256_ARM64 \
+		LOCK_ENGRAM_VERSION LOCK_ENGRAM_SHA256_AMD64 LOCK_ENGRAM_SHA256_ARM64; do
+		[ "$(grep -Ec "^${key}=\"[^\"]+\"$" "${policy}")" -eq 1 ]
+	done
+	for key in LOCK_OPENCODE_SHA256_AMD64 LOCK_OPENCODE_SHA256_ARM64 \
+		LOCK_ENGRAM_SHA256_AMD64 LOCK_ENGRAM_SHA256_ARM64; do
+		grep -Eq "^${key}=\"[0-9a-f]{64}\"$" "${policy}"
+	done
+}
+
+@test "OpenCode runtime performs no binary or network mutation" {
+	local calls="${BATS_TEST_TMPDIR}/calls"
+	mkdir -p "${BATS_TEST_TMPDIR}/bin"
+	cat >"${BATS_TEST_TMPDIR}/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf 'network\n' >>"${CALLS}"
+exit 97
+EOF
+	chmod +x "${BATS_TEST_TMPDIR}/bin/curl"
+	run env DEVCONTAINER_PHASE=runtime CALLS="${calls}" \
+		PATH="${BATS_TEST_TMPDIR}/bin:/usr/bin:/bin" \
+		bash "${REPO_ROOT}/.devcontainer/install/available/3000-ai-opencode.sh"
+	[ "${status}" -eq 0 ]
+	[ ! -e "${calls}" ]
+	[[ "${output}" == *"image-owned"* ]]
+}
+
+@test "Engram version parsing tolerates realistic trailing metadata" {
+	local root="${BATS_TEST_TMPDIR}/engram"
+	mkdir -p "${root}/bin" "${root}/home"
+	cat >"${root}/bin/engram" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = version ]; then printf 'engram version v1.20.0 (commit abc123, built 2026-07-20)\n'; exit 0; fi
+EOF
+	chmod +x "${root}/bin/engram"
+	run env HOME="${root}/home" DEVCONTAINER_PHASE=runtime ENGRAM_SETUP_PI=0 \
+		ENGRAM_INSTALL_DIR="${root}/bin" ENGRAM_DATA_DIR="${root}/data" \
+		bash "${REPO_ROOT}/.devcontainer/install/available/3010-ai-engram.sh"
+	[ "${status}" -eq 0 ]
+	[ -d "${root}/data" ]
+}
+
+@test "setup prepares enabled SSH before starting and accepts arbitrary aliases" {
+	local setup="${REPO_ROOT}/.devcontainer/setup.sh"
+	grep -Fq 'install_script_is_enabled "${_ssh_installer}"' "${setup}"
+	local prepare_line start_line
+	prepare_line="$(grep -nF 'DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"' "${setup}" | cut -d: -f1)"
+	start_line="$(grep -nF $'\t\tstart-sshd' "${setup}" | cut -d: -f1)"
+	[ -n "${prepare_line}" ]
+	[ -n "${start_line}" ]
+	[ "${prepare_line}" -lt "${start_line}" ]
+}
+
+@test "SSH runtime installs the startup wrapper as executable" {
+	local root="${BATS_TEST_TMPDIR}/new-wrapper"
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ "$(stat -c '%a' "${root}/target/start-sshd")" = 755 ]
+	cmp -s "${REPO_ROOT}/.devcontainer/config/ssh/usr/local/bin/start-sshd" \
+		"${root}/target/start-sshd"
+	cmp -s "${REPO_ROOT}/.devcontainer/config/ssh/etc/ssh/sshd_config" \
+		"${root}/target/sshd_config.gentle-starter"
+}
+
+@test "managed SSH config preserves key-only access for the password-locked ubuntu account" {
+	local config="${REPO_ROOT}/.devcontainer/config/ssh/etc/ssh/sshd_config"
+	grep -Fqx 'UsePAM yes' "${config}"
+	grep -Fqx 'StrictModes yes' "${config}"
+	grep -Fqx 'PubkeyAuthentication yes' "${config}"
+	grep -Fqx 'PasswordAuthentication no' "${config}"
+	grep -Fqx 'ChallengeResponseAuthentication no' "${config}"
+	grep -Fqx 'PermitRootLogin no' "${config}"
+	grep -Fqx 'AuthorizedKeysFile  .ssh/authorized_keys' "${config}"
+}
+
+@test "SSH authorization is authoritative, validated, and StrictModes-safe" {
+	local root="${BATS_TEST_TMPDIR}/authorized-keys"
+	mkdir -p "${root}/home/.ssh"
+	printf 'ssh-rsa AAAAlegacy legacy\n' >"${root}/home/.ssh/authorized_keys"
+	chmod 0777 "${root}/home/.ssh"
+
+	SSH_AUTHORIZED_KEYS='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestOnly lifecycle' run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ "$(<"${root}/home/.ssh/authorized_keys")" = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestOnly lifecycle' ]
+	[ "$(stat -c '%a' "${root}/home/.ssh")" = 700 ]
+	[ "$(stat -c '%a' "${root}/home/.ssh/authorized_keys")" = 600 ]
+
+	SSH_AUTHORIZED_KEYS='command="anything" ssh-ed25519 AAAAunsafe' run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"unsupported or malformed public key"* ]]
+	[ "$(<"${root}/home/.ssh/authorized_keys")" = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestOnly lifecycle' ]
+	SSH_AUTHORIZED_KEYS='' run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ ! -e "${root}/home/.ssh/authorized_keys" ]
+}
+
+@test "SSH runtime fails closed when the home path violates StrictModes" {
+	local root="${BATS_TEST_TMPDIR}/unsafe-home"
+	mkdir -p "${root}/home"
+	chmod 0777 "${root}/home"
+
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"StrictModes requires"* ]]
+}
+
+@test "SSH runtime preserves an existing regular wrapper and repairs its mode" {
+	local root="${BATS_TEST_TMPDIR}/existing-wrapper"
+	mkdir -p "${root}/target"
+	printf '#!/usr/bin/env bash\nprintf custom\\n\n' >"${root}/target/start-sshd"
+	chmod 0644 "${root}/target/start-sshd"
+	local before
+	before="$(sha256sum "${root}/target/start-sshd" | cut -d' ' -f1)"
+
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ "$(stat -c '%a' "${root}/target/start-sshd")" = 755 ]
+	[ "$(sha256sum "${root}/target/start-sshd" | cut -d' ' -f1)" = "${before}" ]
+}
+
+@test "persistent SSH host keys use a host-prepared passive bind" {
+	local compose="${REPO_ROOT}/.devcontainer/config/compose/docker-compose.ssh-server.yml"
+	yq -e '.services."container-svc".volumes[] | select(.source == "../.env.d/.ssh-server" and .target == "/home/ubuntu/.ssh-server" and .bind.create_host_path == false)' "${compose}" >/dev/null
+	local scripts=(sentinel)
+	WORKSPACE_DIR="${REPO_ROOT}"
+	source "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh"
+	compose_target_to_install_scripts "/home/ubuntu/.ssh-server" scripts
+	[ "${#scripts[@]}" -eq 0 ]
+}
