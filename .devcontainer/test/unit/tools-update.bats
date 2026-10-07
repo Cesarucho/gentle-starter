@@ -353,6 +353,14 @@ if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-
 fi
 if [ "\${response_status}" -eq 200 ]; then
 case "\${url}" in
+	https://registry.npmjs.org/@colbymchenry/codegraph/1.6.0)
+		body='{"name":"@colbymchenry/codegraph","version":"1.6.0"}'
+		[ "${mode}" != npm_bad_name ] || body='{"name":"unexpected","version":"1.6.0"}'
+		[ "${mode}" != npm_bad_version ] || body='{"name":"@colbymchenry/codegraph","version":"1.6.1"}' ;;
+	https://registry.npmjs.org/vitest/9.9.9)
+		body='{"name":"vitest","version":"9.9.9"}'
+		[ "${mode}" != npm_bad_name ] || body='{"name":"unexpected","version":"9.9.9"}'
+		[ "${mode}" != npm_bad_version ] || body='{"name":"vitest","version":"9.9.10"}' ;;
 	*registry.npmjs.org/gentle-pi)
 		body='{"versions":{"4.0.0":{},"4.1.0-beta.1":{}}}' ;;
 	*registry.npmjs.org/gentle-pi/4.0.0)
@@ -739,6 +747,34 @@ EOF
 	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/real-policy"
 }
 
+@test "exact npm metadata rejects wrong package names and versions without writing" {
+	local key package version mode
+	for key in CODEGRAPH VITEST; do
+		case "${key}" in
+		CODEGRAPH)
+			package=@colbymchenry/codegraph
+			version=1.6.0
+			;;
+		VITEST)
+			package=vitest
+			version=9.9.9
+			;;
+		esac
+		for mode in npm_bad_name npm_bad_version; do
+			sed -i "s/^TOOL_${key}_VERSION=.*/TOOL_${key}_VERSION=\"=${version}\"/" "${POLICY_FILE}"
+			write_curl_stub "${mode}"
+			chmod 0640 "${POLICY_FILE}"
+			cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+			run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+			[ "$status" -ne 0 ]
+			[[ "$output" == *"npm package ${package}@${version} identity validation failed"* ]]
+			cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+			[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+		done
+		sed -i "s/^TOOL_${key}_VERSION=.*/TOOL_${key}_VERSION=\"latest\"/" "${POLICY_FILE}"
+	done
+}
+
 @test "Engram byte scope rejects a publisher changing unrelated intent or comments" {
 	# Load definitions only; do not run the updater main or its provider discovery.
 	python3 - "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${TEST_ROOT}/scope.sh" <<'PY'
@@ -747,15 +783,27 @@ source = pathlib.Path(sys.argv[1]).read_text()
 assert source.endswith('main "$@"\n')
 pathlib.Path(sys.argv[2]).write_text(source[:-len('main "$@"\n')])
 PY
-	cp -p "${POLICY_FILE}" "${TEST_ROOT}/candidate"
-	sed -i 's/^TOOL_PI_CODING_AGENT_VERSION=.*/TOOL_PI_CODING_AGENT_VERSION="9.0.0"/' "${TEST_ROOT}/candidate"
-	run bash -c 'source "$1"; validate_scope "$2" "$3" engram-update' _ "${TEST_ROOT}/scope.sh" "${POLICY_FILE}" "${TEST_ROOT}/candidate"
-	[ "$status" -ne 0 ]
-	[[ "$output" == *'unrelated policy bytes'* ]]
-	cp -p "${POLICY_FILE}" "${TEST_ROOT}/candidate"
-	printf '# unexpected publisher comment\n' >>"${TEST_ROOT}/candidate"
-	run bash -c 'source "$1"; validate_scope "$2" "$3" engram-update' _ "${TEST_ROOT}/scope.sh" "${POLICY_FILE}" "${TEST_ROOT}/candidate"
-	[ "$status" -ne 0 ]
+	local mutation
+	for mutation in allowed unrelated comment; do
+		cp -p "${POLICY_FILE}" "${TEST_ROOT}/candidate"
+		# A permitted change proves this guard is not rejecting every candidate.
+		sed -i 's/^TOOL_ENGRAM_VERSION=.*/TOOL_ENGRAM_VERSION="1.99.0"/' "${TEST_ROOT}/candidate"
+		case "${mutation}" in
+		unrelated) sed -i 's/^TOOL_PI_CODING_AGENT_VERSION=.*/TOOL_PI_CODING_AGENT_VERSION="9.0.0"/' "${TEST_ROOT}/candidate" ;;
+		comment) printf '# unexpected publisher comment\n' >>"${TEST_ROOT}/candidate" ;;
+		esac
+		run bash -c '
+			source "$1"
+			UPDATE_KEYS=(TOOL_ENGRAM_VERSION LOCK_ENGRAM_VERSION LOCK_ENGRAM_SHA256_AMD64 LOCK_ENGRAM_SHA256_ARM64)
+			validate_scope "$2" "$3" scoped-update
+		' _ "${TEST_ROOT}/scope.sh" "${POLICY_FILE}" "${TEST_ROOT}/candidate"
+		if [ "${mutation}" = allowed ]; then
+			[ "$status" -eq 0 ]
+		else
+			[ "$status" -ne 0 ]
+			[[ "$output" == *'unrelated policy bytes'* ]]
+		fi
+	done
 }
 
 @test "exact GitHub asset pins reject unstable or incomplete releases atomically" {

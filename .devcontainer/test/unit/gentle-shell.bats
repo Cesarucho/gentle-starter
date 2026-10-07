@@ -118,28 +118,34 @@ functions = [re.search(r'^' + name + r'\(\) \{.*?^\}', source, re.M | re.S).grou
              for name in ('seed_config_tree', 'setup_versioned_configs')]
 Path(sys.argv[2]).write_text('\n'.join(functions))
 PY
-	export WORKSPACE_DIR="${REPO_ROOT}" SCRIPT_DIR="${REPO_ROOT}/.devcontainer"
+	# An absent baseline must be synthetic: the producer now ships Shell config.
+	export WORKSPACE_DIR="${TEST_ROOT}/workspace" SCRIPT_DIR="${TEST_ROOT}/workspace/.devcontainer"
+	mkdir -p "${SCRIPT_DIR}/config"
 	run bash -c 'source "$1"; install_script_is_enabled() { return 1; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
 	[ "$status" -eq 0 ]
 	[ ! -e "${HOME}/.gentle-shell" ]
 	run bash -c 'source "$1"; install_script_is_enabled() { [[ "$1" == */3040-ai-gentle-shell.sh ]]; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
 	[ "$status" -eq 0 ]
 	[ ! -e "${HOME}/.gentle-shell" ]
-	mkdir -p "${HOME}/.gentle-shell/agent" "${TEST_ROOT}/future-seed/agent"
+	mkdir -p "${HOME}/.gentle-shell/agent" "${SCRIPT_DIR}/config/gentle-shell/agent"
 	printf 'custom preferences\n' >"${HOME}/.gentle-shell/agent/settings.json"
 	run bash -c 'source "$1"; install_script_is_enabled() { [[ "$1" == */3040-ai-gentle-shell.sh ]]; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
 	[ "$status" -eq 0 ]
 	[ "$(<"${HOME}/.gentle-shell/agent/settings.json")" = 'custom preferences' ]
-	printf 'synthetic replacement\n' >"${TEST_ROOT}/future-seed/agent/settings.json"
-	printf 'synthetic future file\n' >"${TEST_ROOT}/future-seed/other"
-	run bash -c 'source "$1"; seed_config_tree "$2" "$HOME/.gentle-shell"' _ "${TEST_ROOT}/seed.sh" "${TEST_ROOT}/future-seed"
+	printf 'synthetic replacement\n' >"${SCRIPT_DIR}/config/gentle-shell/agent/settings.json"
+	printf 'synthetic future file\n' >"${SCRIPT_DIR}/config/gentle-shell/other"
+	run bash -c 'source "$1"; install_script_is_enabled() { return 1; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
+	[ "$status" -eq 0 ]
+	[ ! -e "${HOME}/.gentle-shell/other" ]
+	[ "$(<"${HOME}/.gentle-shell/agent/settings.json")" = 'custom preferences' ]
+	run bash -c 'source "$1"; install_script_is_enabled() { [[ "$1" == */3040-ai-gentle-shell.sh ]]; }; setup_versioned_configs' _ "${TEST_ROOT}/seed.sh"
 	[ "$status" -eq 0 ]
 	[ "$(<"${HOME}/.gentle-shell/agent/settings.json")" = 'custom preferences' ]
-	cmp "${TEST_ROOT}/future-seed/other" "${HOME}/.gentle-shell/other"
+	cmp "${SCRIPT_DIR}/config/gentle-shell/other" "${HOME}/.gentle-shell/other"
 	[ ! -e "${HOME}/.gentle-shell/agent/extensions" ]
 }
 
-@test "Shell passive bind is exact independently selected and has no runtime owner" {
+@test "Shell passive bind is exact selected by the producer and has no runtime owner" {
 	python3 - "${REPO_ROOT}" <<'PY'
 import importlib.util, sys
 from pathlib import Path
@@ -151,8 +157,10 @@ fragment = manifest.read_compose_fragment(root / ".devcontainer/config/compose/d
 assert fragment == {"services": {"container-svc": {"volumes": [{"type": "bind",
     "source": "../.env.d/.gentle-shell", "target": "/home/ubuntu/.gentle-shell",
     "bind": {"create_host_path": False}}]}}}
-assert "docker-compose.gentle-shell.yml" not in [path.name for path in manifest.selection(root)[1]]
-assert '// , "./config/compose/docker-compose.gentle-shell.yml"' in (root / ".devcontainer/devcontainer.json").read_text()
+assert "docker-compose.gentle-shell.yml" in [path.name for path in manifest.selection(root)[1]]
 assert '.gentle-shell' not in (root / ".devcontainer/lifecycle/setup-volumes.sh").read_text()
 PY
+	run bash -c 'source "$1"; devcontainer_install_is_active "$2" "$2/available/3040-ai-gentle-shell.sh"' _ \
+		"${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${REPO_ROOT}/.devcontainer/install"
+	[ "$status" -eq 0 ]
 }

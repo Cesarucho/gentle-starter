@@ -14,7 +14,7 @@ setup() {
   mkdir -p "${INSTALL_FIXTURE}/available" "${INSTALL_FIXTURE}/02-core-tools" \
     "${INSTALL_FIXTURE}/03-enabled" "${HOME_FIXTURE}/.pi/agent"
   local name
-  for name in 3020-ai-gentle-ai.sh 3030-ai-pi-coding.sh; do
+  for name in 3020-ai-gentle-ai.sh 3030-ai-pi-coding.sh 3040-ai-gentle-shell.sh; do
     printf '#!/bin/sh\nexit 99\n' >"${INSTALL_FIXTURE}/available/${name}"
   done
   ln -s ../available/3020-ai-gentle-ai.sh "${INSTALL_FIXTURE}/02-core-tools/3020-ai-gentle-ai.sh"
@@ -428,12 +428,29 @@ PY
   [ -L "${seed}/plugins/telemetry-runtime.ts" ]
 }
 
+@test "production manifest rejects a missing Shell owner before runtime reads or export" {
+  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  rm "${INSTALL_FIXTURE}/available/3040-ai-gentle-shell.sh"
+  printf old >"${REPO_FIXTURE}/.devcontainer/config/opencode/opencode.json"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.config/opencode/unsafe"
+  commit_fixture "missing owner"
+  local action
+  for action in diff export; do
+    run_helper "${action}"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Gentle Shell owner is not in the installer catalog: 3040-ai-gentle-shell.sh"* ]]
+    [[ "$output" != *"symlink is not allowed"* ]]
+    [ "$(<"${REPO_FIXTURE}/.devcontainer/config/opencode/opencode.json")" = old ]
+  done
+}
+
 @test "production manifest exports recursive portable config and excludes nested state before reads" {
   cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
   local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/config/opencode"
   local tree boundary
-  printf 'portable\r\n' >"${runtime}/opencode-non-sdd.json"
-  printf 'keep seed only' >"${seed}/opencode-non-sdd.json"
+  printf 'portable\r\n' >"${runtime}/opencode-example.json"
+  printf 'keep seed only' >"${seed}/opencode-example.json"
   for tree in commands plugins profiles prompts skills; do
     mkdir -p "${runtime}/${tree}/new/deep"
     printf 'portable' >"${runtime}/${tree}/new/deep/future.any"
@@ -456,14 +473,14 @@ PY
 
   run_helper diff
   [ "$status" -eq 1 ]
-  [[ "$output" == *"modified: OpenCode: opencode-non-sdd.json"* ]]
+  [[ "$output" == *"modified: OpenCode: opencode-example.json"* ]]
   [[ "$output" != *"new: OpenCode: plugins/telemetry-runtime.ts"* ]]
   [[ "$output" == *"candidates=0"* ]]
   run_helper export
   [ "$status" -eq 0 ]
   [[ "$output" == *"Exported: files=6"* ]]
   [ ! -e "${seed}/plugins/telemetry-runtime.ts" ]
-  cmp "${runtime}/opencode-non-sdd.json" "${seed}/opencode-non-sdd.json"
+  cmp "${runtime}/opencode-example.json" "${seed}/opencode-example.json"
   for tree in commands plugins profiles prompts skills; do
     cmp "${runtime}/${tree}/new/deep/future.any" "${seed}/${tree}/new/deep/future.any"
   done
