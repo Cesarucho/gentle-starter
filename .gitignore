@@ -18,3 +18,6 @@ __pycache__/
 # Installed external skills; keep the repository-authored skill tracked
 .agents/skills/*
 !.agents/skills/add-tool/
+
+# Playwright CLI runtime artifacts
+.playwright-cli/
