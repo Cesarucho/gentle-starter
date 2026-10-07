@@ -8,7 +8,7 @@ skills are opt-in; nothing installs automatically when the container starts.
 Inside the container, from the project root:
 
 ```bash
-task skills:suggest
+task suggest:skills
 ```
 
 Enter several listed numbers separated by spaces or commas, `all`, or `none`.
@@ -44,3 +44,9 @@ skill is added separately; if one fails, the remaining selected skills are still
 attempted and the failed names are reported. Check `skills-lock.json` and the
 installed skills after a partial failure. Your lock and custom skills remain
 your responsibility; this command does not remove or overwrite them directly.
+
+To select tools and skills together, use `task suggest:all`. Both catalogs and
+selections are validated before one final confirmation. Tools are activated first;
+Skills CLI runs only after the tool stage succeeds. Successful skill installs and
+tool activation remain applied if a later skill install fails. See
+[optional tools](optional-tools.md) for the future-build activation contract.

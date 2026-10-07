@@ -876,12 +876,20 @@ PY
   [ "$status" -eq 0 ]
 }
 
-@test "published starter preserves skills selector and guide bytes" {
+@test "published starter preserves unified selectors catalogs and guide bytes" {
   mkdir -p "${REPO}/.taskfiles/scripts"
-  for name in skills-suggest.sh skills-catalog.py; do
+  for name in skills-suggest.sh skills-catalog.py suggest.sh tools-catalog.py; do
     cp "${ROOT}/.taskfiles/scripts/${name}" "${REPO}/.taskfiles/scripts/${name}"
   done
   cp "${ROOT}/.devcontainer/docs/optional-skills.md" "${REPO}/.devcontainer/docs/optional-skills.md"
+  cp "${ROOT}/.devcontainer/docs/optional-tools.md" "${REPO}/.devcontainer/docs/optional-tools.md"
+  cp "${ROOT}/.devcontainer/docs/README.md" "${REPO}/.devcontainer/docs/README.md"
+  cp "${ROOT}/Taskfile.yml" "${REPO}/Taskfile.yml"
+  cp "${ROOT}/.taskfiles/suggest.yml" "${REPO}/.taskfiles/suggest.yml"
+  cp "${ROOT}/.devcontainer/install/recommended-tools.json" "${REPO}/.devcontainer/install/recommended-tools.json"
+  mkdir -p "${REPO}/.devcontainer/install/lib"
+  cp "${ROOT}/.devcontainer/install/lib/selection.py" "${REPO}/.devcontainer/install/lib/selection.py"
+  cp "${ROOT}/.maintainer/starter-tools.json" "${REPO}/.maintainer/starter-tools.json"
   git -C "${REPO}" add -A
   git -C "${REPO}" commit -qm 'Include skills selector and guidance'
   candidate --base-absent
@@ -890,10 +898,16 @@ PY
   promote
 
   for path in .taskfiles/scripts/skills-suggest.sh .taskfiles/scripts/skills-catalog.py \
-    .devcontainer/docs/optional-skills.md; do
+    .taskfiles/scripts/suggest.sh .taskfiles/scripts/tools-catalog.py .taskfiles/suggest.yml \
+    Taskfile.yml .devcontainer/install/recommended-tools.json .devcontainer/install/lib/selection.py \
+    .devcontainer/docs/optional-skills.md .devcontainer/docs/optional-tools.md .devcontainer/docs/README.md; do
     [ "$(git -C "${REPO}" rev-parse "starter:${path}")" = "$(git -C "${ROOT}" hash-object "${path}")" ]
   done
   absent git -C "${REPO}" cat-file -e starter:odd
+  [ "$(git -C "${REPO}" ls-tree starter:.devcontainer/install/03-enabled | wc -l)" -eq 4 ]
+  for name in 2080-browser-playwright.sh 3030-ai-pi-coding.sh 3040-ai-gentle-shell.sh 3070-ai-gga.sh; do
+    git -C "${REPO}" cat-file -e "starter:.devcontainer/install/03-enabled/${name}"
+  done
 }
 
 @test "candidate rejects malformed skill lock and leaves release and candidate unchanged" {

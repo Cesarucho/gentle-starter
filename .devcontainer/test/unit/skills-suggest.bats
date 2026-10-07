@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# Bats runs each test in isolation; these mock environment changes are intentional.
+# shellcheck disable=SC2030,SC2031
 
 setup() {
 	ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
@@ -125,11 +127,20 @@ assert_no_manual_workaround() {
 @test "Task rejects metacharacter arguments without executing them" {
 	local payload
 	printf -v payload '%s(touch %s)' '$' "${TEMP}/injected"
-	run task --taskfile "${ROOT}/Taskfile.yml" skills:suggest -- "$payload"
+	run task --taskfile "${ROOT}/Taskfile.yml" suggest:skills -- "$payload"
 	[ "$status" -ne 0 ]
 	[[ "$output" == *"Task arguments are not accepted"* ]]
 	[ ! -e "${TEMP}/injected" ]
 	[ ! -e "$CALLS" ]
+}
+
+@test "public suggestion names replace the old skills namespace" {
+	run task --taskfile "${ROOT}/Taskfile.yml" --list
+	[ "$status" -eq 0 ]
+	for name in suggest:skills suggest:tools suggest:all; do
+		[[ "$output" == *"$name"* ]]
+	done
+	[[ "$output" != *"skills:suggest"* ]]
 }
 
 @test "direct batch metacharacter name is rejected without execution" {

@@ -9,7 +9,7 @@ from pathlib import Path
 
 catalog_path = Path('.devcontainer/skills/recommended.json')
 if not catalog_path.is_file():
-    sys.exit('skills:suggest: published catalog unavailable; use the starter branch or install directly with Skills CLI')
+    sys.exit('suggest:skills: published catalog unavailable; use the starter branch or install directly with Skills CLI')
 
 try:
     catalog = json.loads(catalog_path.read_text())
@@ -25,7 +25,8 @@ try:
                 or not entry['skillPath']):
             raise ValueError('invalid catalog entry')
 except (OSError, ValueError) as error:
-    sys.exit(f'skills:suggest: {error}')
+    sys.exit(f'suggest:skills: {error}')
 
 for name in sorted(entries):
-    sys.stdout.buffer.write(name.encode() + b'\0' + entries[name]['source'].encode() + b'\0')
+    separator = b'\n' if sys.argv[1:] == ['--lines'] else b'\0'
+    sys.stdout.buffer.write(name.encode() + separator + entries[name]['source'].encode() + separator)

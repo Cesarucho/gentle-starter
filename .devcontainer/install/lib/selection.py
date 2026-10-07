@@ -178,6 +178,10 @@ def validate_order(selection, graph):
 
 
 def plan_enable(wanted, selection, graph):
+    return plan_enable_many([wanted], selection, graph)
+
+
+def plan_enable_many(wanted, selection, graph):
     projected = dict(selection)
     visited = set()
 
@@ -189,9 +193,42 @@ def plan_enable(wanted, selection, graph):
             include(dependency)
         projected.setdefault(node, f"03-enabled/{node}")
 
-    include(wanted)
+    for name in wanted:
+        include(name)
     validate_order(projected, graph)
     return sorted((alias, name) for name, alias in projected.items() if name not in selection)
+
+
+def normalize_roots(wanted, catalog, selection):
+    names = []
+    require(wanted, "at least one installer root is required")
+    for root in wanted:
+        require(isinstance(root, str) and root and "/" not in root and root not in (".", ".."),
+                "NAME must be a filename, not a path")
+        name = root if root.endswith(".sh") else root + ".sh"
+        require(name in catalog, f"{root} not found under available/")
+        require(not selection.get(name, "").startswith("02-core-tools/"),
+                f"{name} belongs to mandatory 02-core-tools")
+        if name not in names:
+            names.append(name)
+    return names
+
+
+def validate_executable_closure(roots, catalog, graph):
+    """Check only requested roots and required dependencies, including reused core.
+
+    Inspect static executable bits without running installers or changing the
+    global catalog/single-root validation contract. Call while holding the lock.
+    """
+    pending = list(reversed(roots))
+    visited = set()
+    while pending:
+        name = pending.pop()
+        if name in visited:
+            continue
+        visited.add(name)
+        require(catalog[name].stat().st_mode & 0o111, f"nonexecutable installer: {name}")
+        pending.extend(reversed(graph[name]))
 
 
 def apply_enable(install, plan, catalog, graph):
@@ -224,12 +261,26 @@ def apply_enable(install, plan, catalog, graph):
 
 
 def change_selection(install, operation, wanted):
+    require(operation in ("validate", "enable", "disable", "plan-many", "enable-many"),
+            f"unknown selection operation: {operation}")
     catalog = read_catalog(install)
     selection = read_selection(install, catalog)
     validate_core(install, catalog, selection)
     graph = read_graph(install, catalog, selection)
     if operation == "validate":
         validate_order(selection, graph)
+        return
+    if operation in ("plan-many", "enable-many"):
+        names = normalize_roots(wanted, catalog, selection)
+        plan = plan_enable_many(names, selection, graph)
+        validate_executable_closure(names, catalog, graph)
+        if operation == "plan-many":
+            for alias, name in plan:
+                print(f"Planned: {alias} -> available/{name}")
+        else:
+            apply_enable(install, plan, catalog, graph)
+            if not plan:
+                print("Selected tools are already enabled")
         return
     require(wanted and "/" not in wanted and wanted not in (".", ".."), "NAME must be a filename, not a path")
     name = wanted if wanted.endswith(".sh") else wanted + ".sh"
@@ -258,14 +309,20 @@ def interrupted(signum, _frame):
     raise InterruptedError(f"selection interrupted by signal {signum}")
 
 
+def validate_directories(install):
+    for directory in (install.parent, install, install / "available", *(install / group for group in GROUPS), install / "01-foundation"):
+        require(directory.is_dir() and not directory.is_symlink(), f"unsafe install directory: {directory}")
+
+
 def main():
     install = Path(sys.argv[1]).absolute()
     for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(signum, interrupted)
     with selection_lock(install):
-        for directory in (install.parent, install, install / "available", *(install / group for group in GROUPS), install / "01-foundation"):
-            require(directory.is_dir() and not directory.is_symlink(), f"unsafe install directory: {directory}")
-        change_selection(install, sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
+        validate_directories(install)
+        operation = sys.argv[2]
+        wanted = sys.argv[3:] if operation in ("plan-many", "enable-many") else (sys.argv[3] if len(sys.argv) > 3 else "")
+        change_selection(install, operation, wanted)
 
 
 if __name__ == "__main__":

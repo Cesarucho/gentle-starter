@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "tools": [
+    "2060-node-test.sh",
+    "2050-node-mermaid.sh",
+    "2040-node-contracts.sh",
+    "2110-go-debug.sh",
+    "2210-cli-plantuml.sh",
+    "2220-cli-c4-plantuml.sh",
+    "6020-cli-opentofu.sh",
+    "5020-cli-graphviz.sh",
+    "5010-cli-gitleaks.sh",
+    "2100-runtime-go.sh",
+    "2400-python-graphify.sh",
+    "2200-runtime-java.sh",
+    "4100-tool-pulseaudio-utils.sh",
+    "4000-tool-ssh-client.sh",
+    "5000-cli-glow.sh"
+  ]
+}
