@@ -8,7 +8,7 @@ skills are opt-in; nothing installs automatically when the container starts.
 Inside the container, from the project root:
 
 ```bash
-task skills:suggest
+task suggest:skills
 ```
 
 Enter several listed numbers separated by spaces or commas, `all`, or `none`.
@@ -34,24 +34,19 @@ skills add owner/repo --skill skill-name --agent universal --copy -y
 
 The universal target installs the skill in `.agents/skills/`.
 
+Installed external skills are Git-ignored; only the repository-authored `add-tool`
+is tracked under `.agents/skills/`. Keep `skills-lock.json` versioned to restore
+external packages. Local-only skills absent from the lock stay ignored and must
+be preserved separately; lock restoration does not recreate them.
+
 The task validates the whole selection before calling Skills CLI. Each selected
 skill is added separately; if one fails, the remaining selected skills are still
 attempted and the failed names are reported. Check `skills-lock.json` and the
 installed skills after a partial failure. Your lock and custom skills remain
 your responsibility; this command does not remove or overwrite them directly.
 
-## Temporary manual workaround
-
-After confirmed selected installation attempts, `task skills:suggest` shows this
-temporary, user-requested workaround, including after a partial failure. It only
-displays the commands; it never runs them or clears an installation failure.
-The user monitors the patch. Run these manually only if you choose:
-
-```bash
-skills add wondelai/skills/clean-code -a opencode -y
-skills add wondelai/skills/domain-driven-design -a opencode -y
-skills add https://github.com/upstash/context7/tree/master/plugins/agent-plugins/context7/skills/context7-mcp -a opencode -y
-```
-
-These exact commands explicitly target OpenCode by user choice. Normal suggested
-installs still use the universal target; skipping or cancelling shows no workaround.
+To select tools and skills together, use `task suggest:all`. Both catalogs and
+selections are validated before one final confirmation. Tools are activated first;
+Skills CLI runs only after the tool stage succeeds. Successful skill installs and
+tool activation remain applied if a later skill install fails. See
+[optional tools](optional-tools.md) for the future-build activation contract.

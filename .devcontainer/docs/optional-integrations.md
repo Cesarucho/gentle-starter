@@ -6,7 +6,12 @@ are not supported creation paths.
 
 ## Quick path
 
-1. Uncomment the required files in the ordered `dockerComposeFile` array in
+The new consumer persistence preset selects base Docker, core tools, Pi and Shell
+in that order. Other integrations are commented in generated consumer defaults,
+even when active in the producer. Consumers may customize their owned selection
+later. Pi and Shell remain optional catalog tools, not mandatory core installers.
+
+1. Uncomment any additional files in the ordered `dockerComposeFile` array in
    `.devcontainer/devcontainer.json`. Keep the base first and
    `config/compose/docker-compose-core-tools.yml` immediately afterward.
 2. Enable any required catalog installer separately with `task install:enable`.
@@ -17,7 +22,8 @@ are not supported creation paths.
 
 | Compose file | Purpose | Installer requirement |
 | --- | --- | --- |
-| `config/compose/docker-compose.pi.yml` | Persist `.env.d/.pi`; never installs Pi | Enable Pi Coding and optionally Pi Gentle |
+| `config/compose/docker-compose.pi.yml` | Persist passive `.env.d/.pi`; never installs Pi | Pi Coding is default-enabled; re-enable separately if disabled |
+| `config/compose/docker-compose.gentle-shell.yml` | Persist passive `.env.d/.gentle-shell`; never installs Shell | Gentle Shell is default-enabled; re-enable separately if disabled |
 | `config/compose/docker-compose.codegraph.yml` | Persist the root project's SQLite index | Enable `3060-ai-codegraph`; initialize manually |
 | `config/compose/docker-compose.ssh-agent.yml` | Host agent socket and `SSH_AUTH_SOCK=/ssh-agent` | Default OpenSSH client; no server required |
 | `config/compose/docker-compose.ssh-server.yml` | SSH port and persisted host keys | Enable `4010-tool-ssh-server`, rebuild, then up |
@@ -33,7 +39,7 @@ assuming any optional integration is active. Recreate through Task after this
 file-layout change even though existing mount sources and targets are unchanged.
 No data is migrated.
 Existing Pi data is never deleted when disabled. Pi configuration is seeded only
-with Pi Coding enabled; Gentle AI alone does not create `~/.pi/gentle-ai`.
+with Pi Coding enabled; no Pi extension configuration or packages are provisioned.
 
 ## Optional outbound SSH and manual host trust
 
@@ -56,6 +62,17 @@ Socket existence does not prove responsiveness or loaded keys. Entry presence
 does not prove valid trust; revoked or differing records and lookup errors require
 manual inspection. IDE terminals, nested ordinary shells, and other entrypoints
 do not run this welcome.
+
+Set `WELCOME_LOG_LEVEL` in the root `.env` to control only this welcome:
+`info` (the unset default) shows all informational messages and warnings;
+`warn` shows warnings and their supporting commands and URLs; `off` skips
+welcome output and checks. Values must be exact lowercase. Invalid values,
+including an explicit empty value, emit one `[warn]` and fall back to `info`
+without blocking the shell. Validation and diagnostics run only after the
+interactive TTY gate; `.bashrc` and nested-shell output are preserved.
+The existing Compose `env_file: ../.env` delivers this runtime variable.
+To apply root `.env` changes, run `task container:recreate` on the **HOST**
+from its repository checkout; no image rebuild is needed for this variable.
 
 When trust is missing, manually run:
 
@@ -283,8 +300,22 @@ invalid snapshots fail before runtime repair; there is no live Compose fallback.
 Host preparation resolves desired configuration and rejects an existing-container
 identity mismatch before preparing directories or publishing a snapshot.
 
-Task passes `id` at creation as `GENTLE_VOLUME_MANIFEST_ID`. Runtime validates strict
-snapshot shape, both digests, and that applied identity, then repairs from those
+Task passes `id` at creation as `DEVCONTAINER_BIND_MANIFEST_ID`. Runtime validates strict
+shape and identity before any managed-state or SSH mutation. There is no legacy
+token fallback. HOST attachment entrypoints use existing generated configuration
+read-only: the exact running target may attach with sanitized warnings for bind
+drift, missing identity, or invalid/unapplied snapshots, without preparation or
+automatic recreation. Stopped or absent targets use strict `container:up`; lookup,
+inspection, unsupported state, and concurrent configuration changes block.
+All six attachment entrypoints skip completely inside the CONTAINER.
+
+The identity covers bind semantics, not full `.env` bytes. Runtime environment
+changes can still require intentional HOST `task container:recreate`, even when
+the bind identity agrees. Missing generated configuration requires HOST
+`task container:up`; attachment does not regenerate it.
+
+Runtime validates strict snapshot shape, both digests, and that applied identity,
+then repairs from those
 same checked records. It does not read live env, selected files, host paths, or
 Compose. This is bind-contract integrity, not signing or full container configuration
 attestation; named volumes and application environment are outside this identity.

@@ -1,0 +1,58 @@
+{
+  "kind": "gentle-pi.agent_model_profiles",
+  "version": 1,
+  "profiles": {
+    "openai-pareto": {
+      "review-refuter": {
+        "model": "openai-codex/gpt-6-astra",
+        "thinking": "low"
+      },
+      "review-validator": {
+        "model": "openai-codex/gpt-6-luna",
+        "thinking": "high"
+      },
+      "jd-judge-a": {
+        "model": "openai-codex/gpt-6-astra",
+        "thinking": "low"
+      },
+      "jd-judge-b": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      },
+      "jd-fix-agent": {
+        "model": "openai-codex/gpt-6-luna",
+        "thinking": "high"
+      },
+      "gentle-ai-explore": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      },
+      "gentle-ai-verify": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      },
+      "gentle-ai-worker": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      },
+      "review-readability": {
+        "model": "openai-codex/gpt-6-luna",
+        "thinking": "low"
+      },
+      "review-reliability": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      },
+      "review-resilience": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      },
+      "review-risk": {
+        "model": "openai-codex/gpt-6.1-sol",
+        "thinking": "medium"
+      }
+    },
+    "current": {}
+  },
+  "active": "openai-pareto"
+}

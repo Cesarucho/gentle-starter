@@ -432,7 +432,7 @@ def main() -> int:
         for copy in copies:
             atomic_copy(copy.source, copy.destination)
         print(f"Exported: files={len(copies)}")
-        print("Review: git diff -- .devcontainer/config/opencode .devcontainer/config/pi")
+        print("Review: git diff -- " + " ".join(str(tree.seed.relative_to(repo)) for tree in trees))
         return 0
     except ConfigError as error:
         print(f"config-export: error: {error}", file=sys.stderr)

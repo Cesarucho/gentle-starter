@@ -19,12 +19,7 @@ GITHUB_API_CACHE_DIR="${DEPS_UPDATE_GITHUB_API_CACHE_DIR:-${XDG_CACHE_HOME:-${HO
 
 PACKAGE_SPECS=(
 	"LOCK_PNPM_VERSION|pnpm" "LOCK_PI_CODING_AGENT_VERSION|@earendil-works/pi-coding-agent"
-	"LOCK_SKILLS_VERSION|skills" "LOCK_GENTLE_PI_VERSION|gentle-pi"
-	"LOCK_PI_SUBAGENTS_VERSION|pi-subagents" "LOCK_PI_INTERCOM_VERSION|pi-intercom"
-	"LOCK_PI_WEB_ACCESS_VERSION|pi-web-access" "LOCK_PI_LENS_VERSION|pi-lens"
-	"LOCK_RPIV_TODO_VERSION|@juicesharp/rpiv-todo" "LOCK_RPIV_ASK_USER_QUESTION_VERSION|@juicesharp/rpiv-ask-user-question"
-	"LOCK_RPIV_BTW_VERSION|@juicesharp/rpiv-btw" "LOCK_GENTLE_ENGRAM_VERSION|gentle-engram"
-	"LOCK_PI_MCP_ADAPTER_VERSION|pi-mcp-adapter" "LOCK_PI_TERMINAL_THEME_VERSION|pi-terminal-theme"
+	"LOCK_SKILLS_VERSION|skills"
 	"LOCK_MARKDOWNLINT_CLI2_VERSION|markdownlint-cli2" "LOCK_MERMAID_CLI_VERSION|@mermaid-js/mermaid-cli"
 	"LOCK_PLAYWRIGHT_VERSION|playwright" "LOCK_PLAYWRIGHT_CLI_VERSION|@playwright/cli"
 	"LOCK_DEVCONTAINER_CLI_VERSION|@devcontainers/cli" "LOCK_VITEST_VERSION|vitest"
@@ -33,11 +28,12 @@ PACKAGE_SPECS=(
 	"LOCK_CODEGRAPH_VERSION|@colbymchenry/codegraph"
 )
 
+GENTLE_SHELL_KEYS=(LOCK_GENTLE_SHELL_VERSION LOCK_GENTLE_SHELL_INTEGRITY)
+
 MANAGED_KEYS=(
+	"${GENTLE_SHELL_KEYS[@]}"
 	LOCK_JAVA_INSTALL_VERSION LOCK_JAVA_REQUIRED_VERSION LOCK_NODE_MAJOR
 	LOCK_PI_CODING_AGENT_VERSION LOCK_SKILLS_VERSION LOCK_PNPM_VERSION LOCK_PLAYWRIGHT_CLI_VERSION LOCK_DEVCONTAINER_CLI_VERSION LOCK_VITEST_VERSION
-	LOCK_GENTLE_PI_VERSION LOCK_PI_SUBAGENTS_VERSION LOCK_PI_INTERCOM_VERSION LOCK_PI_WEB_ACCESS_VERSION LOCK_PI_LENS_VERSION
-	LOCK_RPIV_TODO_VERSION LOCK_RPIV_ASK_USER_QUESTION_VERSION LOCK_RPIV_BTW_VERSION LOCK_GENTLE_ENGRAM_VERSION LOCK_PI_MCP_ADAPTER_VERSION LOCK_PI_TERMINAL_THEME_VERSION
 	LOCK_GO_VERSION LOCK_GO_SHA256_AMD64 LOCK_GO_SHA256_ARM64 LOCK_BATS_VERSION LOCK_BATS_SHA256
 	LOCK_ENGRAM_VERSION LOCK_ENGRAM_SHA256_AMD64 LOCK_ENGRAM_SHA256_ARM64 LOCK_OPENCODE_VERSION LOCK_OPENCODE_SHA256_AMD64 LOCK_OPENCODE_SHA256_ARM64
 	LOCK_GENTLE_AI_VERSION LOCK_GENTLE_AI_SHA256_AMD64 LOCK_GENTLE_AI_SHA256_ARM64 LOCK_C4_PLANTUML_VERSION LOCK_C4_PLANTUML_SHA256
@@ -51,7 +47,7 @@ MANAGED_KEYS=(
 
 # Only newly introduced locks explicitly registered here may be bootstrapped.
 # Existing missing locks remain errors; this is not a selective update API.
-INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION)
+INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION "${GENTLE_SHELL_KEYS[@]}")
 
 declare -A CANDIDATES=()
 UPDATE_KEYS=()
@@ -96,6 +92,7 @@ stable_semver() {
 
 intent_key_for_lock() {
 	case "$1" in
+	LOCK_GENTLE_SHELL_*) printf TOOL_GENTLE_SHELL_VERSION ;;
 	LOCK_JAVA_*) printf TOOL_JAVA_VERSION ;;
 	LOCK_NODE_MAJOR) printf TOOL_NODE_VERSION ;;
 	LOCK_PHP_SERIES) printf TOOL_PHP_VERSION ;;
@@ -167,12 +164,12 @@ select_newest_stable_candidate() {
 
 strategy_for_key() {
 	case "$1" in
-	TOOL_CODEGRAPH_VERSION) printf npm ;;
+	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
 	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
 	TOOL_GRAPHIFY_VERSION) printf semver ;;
-	TOOL_PNPM_VERSION | TOOL_PI_CODING_AGENT_VERSION | TOOL_SKILLS_VERSION | TOOL_GENTLE_PI_VERSION | TOOL_PI_SUBAGENTS_VERSION | TOOL_PI_INTERCOM_VERSION | TOOL_PI_WEB_ACCESS_VERSION | TOOL_PI_LENS_VERSION | TOOL_RPIV_TODO_VERSION | TOOL_RPIV_ASK_USER_QUESTION_VERSION | TOOL_RPIV_BTW_VERSION | TOOL_GENTLE_ENGRAM_VERSION | TOOL_PI_MCP_ADAPTER_VERSION | TOOL_PI_TERMINAL_THEME_VERSION | TOOL_MARKDOWNLINT_CLI2_VERSION | TOOL_MERMAID_CLI_VERSION | TOOL_PLAYWRIGHT_VERSION | TOOL_PLAYWRIGHT_CLI_VERSION | TOOL_DEVCONTAINER_CLI_VERSION | TOOL_VITEST_VERSION | TOOL_SPECTRAL_VERSION | TOOL_REDOCLY_VERSION | TOOL_ASYNCAPI_VERSION) printf npm ;;
+	TOOL_PNPM_VERSION | TOOL_PI_CODING_AGENT_VERSION | TOOL_SKILLS_VERSION | TOOL_MARKDOWNLINT_CLI2_VERSION | TOOL_MERMAID_CLI_VERSION | TOOL_PLAYWRIGHT_VERSION | TOOL_PLAYWRIGHT_CLI_VERSION | TOOL_DEVCONTAINER_CLI_VERSION | TOOL_VITEST_VERSION | TOOL_SPECTRAL_VERSION | TOOL_REDOCLY_VERSION | TOOL_ASYNCAPI_VERSION) printf npm ;;
 	*) fail "unknown tool strategy for $1" ;;
 	esac
 }
@@ -348,6 +345,18 @@ fetch_github_api_url() {
 latest_package_version() {
 	local package_name="$1" intent="$2"
 	local version
+	if [[ "${intent}" == =* ]]; then
+		version="${intent#=}"
+		require_stable_semver "npm package ${package_name}" "${version}"
+		# Exact public metadata does not require npm configuration or credentials.
+		# shellcheck disable=SC2016
+		"${CURL_BIN}" -q -fsSL --max-time 15 --max-filesize 10000000 \
+			"https://registry.npmjs.org/${package_name}/${version}" |
+			"${JQ_BIN}" -e --arg name "${package_name}" --arg version "${version}" \
+				'.name == $name and .version == $version' >/dev/null || fail "npm package ${package_name}@${version} identity validation failed"
+		printf '%s\n' "${version}"
+		return
+	fi
 	version="$("${PNPM_BIN}" view "${package_name}" versions --json | "${JQ_BIN}" -er '.[]' | select_newest_stable_candidate "${intent}" npm "pnpm package ${package_name}")"
 	require_stable_semver "pnpm package ${package_name}" "${version}"
 	printf '%s\n' "${version}"
@@ -623,6 +632,27 @@ discover_github_binary_release() {
 	done
 }
 
+discover_gentle_shell() {
+	local intent version metadata integrity
+	intent="$(policy_value TOOL_GENTLE_SHELL_VERSION)"
+	if [[ "${intent}" == =* ]]; then
+		version="${intent#=}"
+	else
+		version="$(fetch_url https://registry.npmjs.org/gentle-pi | "${JQ_BIN}" -er '.versions | keys[]' | select_newest_stable_candidate "${intent}" npm gentle-pi)"
+	fi
+	require_stable_semver gentle-pi "${version}"
+	metadata="$(fetch_url "https://registry.npmjs.org/gentle-pi/${version}")"
+	# jq evaluates $version and $url, not the shell.
+	# shellcheck disable=SC2016
+	integrity="$(printf '%s' "${metadata}" | "${JQ_BIN}" -er --arg version "${version}" --arg url "https://registry.npmjs.org/gentle-pi/-/gentle-pi-${version}.tgz" '
+		if .name == "gentle-pi" and .version == $version and .dist.tarball == $url
+		and .bin["gentle-shell"] == "bin/gentle-shell.mjs" and (.gitHead | test("^[0-9a-f]{40}$"))
+		then .dist.integrity else error("invalid Shell registry identity") end')" || fail "Gentle Shell registry identity failed"
+	[[ "${integrity}" =~ ^sha512-[A-Za-z0-9+/]{86}==$ ]] || fail "Gentle Shell requires canonical SHA-512 SRI"
+	CANDIDATES[LOCK_GENTLE_SHELL_VERSION]="${version}"
+	CANDIDATES[LOCK_GENTLE_SHELL_INTEGRITY]="${integrity}"
+}
+
 discover_candidates() {
 	local spec key package_name
 	local java_intent node_intent php_intent
@@ -700,6 +730,7 @@ discover_candidates() {
 	[ -s "${c4_archive}" ] || fail "C4-PlantUML archive is empty"
 	CANDIDATES[LOCK_C4_PLANTUML_SHA256]="$(sha256sum "${c4_archive}" | awk '{print $1}')"
 	[[ "${CANDIDATES[LOCK_C4_PLANTUML_SHA256]}" =~ ^[0-9a-f]{64}$ ]] || fail "invalid C4-PlantUML SHA-256"
+	discover_gentle_shell
 }
 
 replace_assignment() {
@@ -719,6 +750,35 @@ replace_assignment() {
 validate_scope() {
 	local original="$1"
 	local candidate="$2"
+	if [ "${3:-}" = scoped-update ]; then
+		python3 - "${original}" "${candidate}" "${UPDATE_KEYS[@]}" <<'PY'
+import sys
+from pathlib import Path
+
+prefixes = tuple(key.encode() + b"=" for key in sys.argv[3:])
+def unrelated(path):
+    return b"".join(line for line in Path(path).read_bytes().splitlines(keepends=True)
+                    if not line.startswith(prefixes))
+if unrelated(sys.argv[1]) != unrelated(sys.argv[2]):
+    sys.exit("scoped update changed unrelated policy bytes")
+PY
+		return
+	fi
+	if [ "${3:-}" = retirement ]; then
+		shift 3
+		python3 - "${original}" "${candidate}" "$@" <<'PY'
+import sys
+from pathlib import Path
+
+original, candidate, *keys = sys.argv[1:]
+prefixes = tuple(key.encode("ascii") + b"=" for key in keys)
+expected = b"".join(line for line in Path(original).read_bytes().splitlines(keepends=True)
+                    if not line.startswith(prefixes))
+if Path(candidate).read_bytes() != expected:
+    sys.exit("candidate changed policy outside the explicit retirement scope")
+PY
+		return
+	fi
 	local pattern masked_original masked_candidate key baseline expected
 	pattern="$(
 		IFS='|'
@@ -758,7 +818,7 @@ publish_policy() {
 		fi
 	done
 
-	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}"
+	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}" "${1:-}"
 	validate_policy "${CANDIDATE_FILE}"
 	POLICY_FILE="${CANDIDATE_FILE}" validate_inventory
 
@@ -782,11 +842,70 @@ publish_policy() {
 	fi
 }
 
+validate_generated_section() {
+	[ "$(grep -c '^# GENERATED LOCK' "${POLICY_FILE}")" -eq 1 ] || fail "expected one generated lock section"
+	awk '/^# GENERATED LOCK/ { generated=1 } generated && /^TOOL_/ { exit 1 } !generated && /^LOCK_/ { exit 1 }' "${POLICY_FILE}" ||
+		fail "generated locks must follow all editable intent"
+}
+
+retire_locks() {
+	[ "$#" -gt 0 ] || fail "--retire-locks requires explicit keys"
+	[ ! -L "${POLICY_FILE}" ] || fail "retirement requires a regular policy file, not a symlink"
+	local key managed intent spec
+	declare -A requested=()
+	for key in "$@"; do
+		[[ "${key}" =~ ^LOCK_[A-Z0-9_]+$ ]] || fail "malformed retirement key: ${key}"
+		[ -z "${requested[${key}]:-}" ] || fail "duplicate retirement key: ${key}"
+		requested["${key}"]=1
+		for managed in "${MANAGED_KEYS[@]}" "${INITIAL_LOCK_KEYS[@]}"; do
+			[ "${key}" != "${managed}" ] || fail "still-managed retirement key: ${key}"
+		done
+		for spec in "${PACKAGE_SPECS[@]}"; do
+			[ "${key}" != "${spec%%|*}" ] || fail "registered package retirement key: ${key}"
+		done
+		intent="$(intent_key_for_lock "${key}")"
+		[[ "${intent}" == TOOL_* ]] || intent="TOOL_${intent}"
+		! grep -q "^${intent}=" "${POLICY_FILE}" || fail "retirement intent is still active: ${intent}"
+		if (strategy_for_key "${intent}" >/dev/null 2>&1); then
+			fail "registered strategy retirement key: ${key}"
+		fi
+	done
+	validate_policy "${POLICY_FILE}"
+	validate_generated_section
+	CANDIDATE_FILE="$(mktemp "$(dirname "${POLICY_FILE}")/.tool-versions.conf.XXXXXX")"
+	# Delete complete assignments only; all surviving bytes and order are retained.
+	python3 - "${POLICY_FILE}" "${CANDIDATE_FILE}" "$@" <<'PY'
+import sys
+from pathlib import Path
+
+original, candidate, *keys = sys.argv[1:]
+prefixes = tuple(key.encode("ascii") + b"=" for key in keys)
+lines = Path(original).read_bytes().splitlines(keepends=True)
+Path(candidate).write_bytes(b"".join(line for line in lines if not line.startswith(prefixes)))
+PY
+	validate_policy "${CANDIDATE_FILE}"
+	POLICY_FILE="${CANDIDATE_FILE}" validate_inventory
+	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}" retirement "$@"
+	if cmp -s "${POLICY_FILE}" "${CANDIDATE_FILE}"; then
+		printf 'No retirement changes.\n'
+	else
+		chmod --reference="${POLICY_FILE}" "${CANDIDATE_FILE}"
+		mv "${CANDIDATE_FILE}" "${POLICY_FILE}"
+		CANDIDATE_FILE=""
+		printf 'Retired explicit locks: %s\n' "$*"
+	fi
+}
+
 main() {
 	[ -f "${POLICY_FILE}" ] || fail "policy file not found: ${POLICY_FILE}"
 	[ -f "${COMMON_SH}" ] || fail "common installer library not found: ${COMMON_SH}"
+	if [ "${1:-}" = --retire-locks ]; then
+		shift
+		retire_locks "$@"
+		return
+	fi
 	[ -f "${ARCHIFY_ARCHIVE_SH}" ] || fail "Archify archive validator not found: ${ARCHIFY_ARCHIVE_SH}"
-	resolve_github_api_token
+	[ "${1:-}" = --update-pi ] || resolve_github_api_token
 	require_command "${PNPM_BIN}"
 	require_command "${CURL_BIN}"
 	require_command "${JQ_BIN}"
@@ -796,9 +915,7 @@ main() {
 	require_command unzip
 	validate_policy "${POLICY_FILE}"
 	# Appending requires the generated section to follow all editable intent.
-	[ "$(grep -c '^# GENERATED LOCK' "${POLICY_FILE}")" -eq 1 ] || fail "expected one generated lock section"
-	awk '/^# GENERATED LOCK/ { generated=1 } generated && /^TOOL_/ { exit 1 } !generated && /^LOCK_/ { exit 1 }' "${POLICY_FILE}" ||
-		fail "generated locks must follow all editable intent"
+	validate_generated_section
 	if [ "${1:-}" = "--validate" ]; then
 		validate_inventory
 		printf 'ok: %s\n' "${POLICY_FILE}"
@@ -807,6 +924,39 @@ main() {
 	validate_inventory bootstrap
 
 	TEMP_DIR="$(mktemp -d)"
+	if [ "${1:-}" = --update-engram ] || [ "${1:-}" = --update-pi ]; then
+		local tool=ENGRAM strategy=github-v baseline intent version_key
+		if [ "$1" = --update-pi ]; then
+			[ "$#" -eq 2 ] || fail "expected --update-pi exact-version"
+			tool=PI_CODING_AGENT
+			strategy=npm
+		fi
+		[ "$#" -le 2 ] || fail "expected --update-engram [exact-version]"
+		[ ! -L "${POLICY_FILE}" ] || fail "scoped update requires a regular policy file"
+		version_key="LOCK_${tool}_VERSION"
+		intent="$(policy_value "TOOL_${tool}_VERSION")"
+		if [ "$#" -eq 2 ]; then
+			require_stable_semver "${tool}" "$2"
+			intent="=$2"
+		fi
+		UPDATE_KEYS=("${version_key}")
+		if [ "${tool}" = PI_CODING_AGENT ]; then
+			CANDIDATES["${version_key}"]="$(latest_package_version @earendil-works/pi-coding-agent "${intent}")"
+		else
+			CANDIDATES["${version_key}"]="$(latest_github_release Gentleman-Programming/engram '^v[0-9]+\.[0-9]+\.[0-9]+$' no "${intent}")"
+			discover_github_binary_release LOCK_ENGRAM Gentleman-Programming/engram "${CANDIDATES[${version_key}]}" 'engram_{version}_linux_{arch}.tar.gz'
+			UPDATE_KEYS+=(LOCK_ENGRAM_SHA256_AMD64 LOCK_ENGRAM_SHA256_ARM64)
+		fi
+		intent_accepts_version "${intent}" "${CANDIDATES[${version_key}]}" "${strategy}" || fail "${tool} candidate escapes intent"
+		if [ "$#" -eq 2 ]; then baseline="$2"; else baseline="$(resolved_baseline "${version_key}" "${POLICY_FILE}")"; fi
+		if [ -n "${baseline}" ]; then
+			CANDIDATES["TOOL_${tool}_VERSION"]="${baseline}"
+			UPDATE_KEYS+=("TOOL_${tool}_VERSION")
+		fi
+		publish_policy scoped-update
+		return
+	fi
+	[ "$#" -eq 0 ] || fail "unsupported updater arguments"
 	discover_candidates
 	apply_intent_contract
 	prepare_baseline_updates

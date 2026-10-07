@@ -3,7 +3,8 @@
     "dockerComposeFile": [
         "./docker-compose.yml"
         , "./config/compose/docker-compose-core-tools.yml"
-        // , "./config/compose/docker-compose.pi.yml"
+        , "./config/compose/docker-compose.pi.yml"
+        , "./config/compose/docker-compose.gentle-shell.yml"
         // , "./config/compose/docker-compose.codegraph.yml"
         // , "./config/compose/docker-compose.ssh-agent.yml"
         // , "./config/compose/docker-compose.ssh-server.yml"
@@ -45,9 +46,7 @@
     "mounts": [
         "source=${localWorkspaceFolder},target=/home/ubuntu/${localEnv:APP_NAME},type=bind"
     ],
-
-    // Win11-native issue solved
-    // "postCreateCommand": "bash -lc 'find ${containerWorkspaceFolder}/.devcontainer -type f -name \"*.sh\" -exec sed -i \"s/\\r$//\" {} \\; && bash ${containerWorkspaceFolder}/.devcontainer/setup.sh'",
+    
     "postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh",
 
     "runArgs": [

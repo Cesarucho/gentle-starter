@@ -68,9 +68,6 @@ compose_target_to_install_scripts() {
 
 	scripts_ref=()
 	case "${target}" in
-	"/home/ubuntu/.pi")
-		scripts_ref+=("3040-ai-pi-gentle")
-		;;
 	"/home/ubuntu/.engram")
 		scripts_ref+=("3010-ai-engram")
 		;;

@@ -1,0 +1,16 @@
+{
+  "tuiMode": "fullscreen",
+  "theme": "Gentleman-Cute",
+  "packages": [
+    "npm:gentle-engram",
+    "npm:gentle-engram@0.2.0",
+    "npm:pi-web-access",
+    "npm:pi-btw"
+  ],
+  "extensions": [
+    "-builtin:codemode"
+  ],
+  "lastChangelogVersion": "1.0.4",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-6.1-sol"
+}

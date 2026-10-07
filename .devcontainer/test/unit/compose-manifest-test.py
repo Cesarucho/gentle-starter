@@ -81,10 +81,10 @@ class ManifestTests(ManifestFixture):
         with patch.object(manifest.sys, "argv", ["manifest", "ssh-agent", str(self.root)]), \
                 patch.object(manifest.subprocess, "run", side_effect=AssertionError("external command")), \
                 patch.object(manifest, "selection", side_effect=AssertionError("live selection")):
-            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": "old"}):
+            with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": "old"}):
                 with self.assertRaisesRegex(ValueError, "not applied"):
                     manifest.main()
-            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}):
+            with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": value["id"]}):
                 manifest.main()
         for change in ("selection", "readonly", "source", "agent"):
             invalid = copy.deepcopy(value)
@@ -151,7 +151,7 @@ if [ "$1" = build ]; then exit 0; fi
 # Reproduce the creation config invocation verified in CLI 0.89.0 source, not up.
 docker compose --project-name "$COMPOSE_PROJECT_NAME" -f .devcontainer/base.yml -f .devcontainer/extra.yml config --format json |
   python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["custom"]["volumes"][0]["source"])' >creation-source
-printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
+printf '%s' "$DEVCONTAINER_BIND_MANIFEST_ID" >creation-identity
 ''')
         for command in bin_dir.iterdir():
             command.chmod(0o755)
@@ -201,10 +201,10 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
 
     def test_runtime_rejects_desired_only_and_ignores_host_shell_differences(self):
         value = self.publish()
-        with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": "old"}):
+        with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": "old"}):
             with self.assertRaisesRegex(ValueError, "not applied"):
                 manifest.load_manifest(self.root, runtime=True)
-        with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"],
+        with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": value["id"],
                                      "HOME": "/container/home", "SSH_AUTH_SOCK": "/ssh-agent"}):
             self.assertEqual(manifest.load_manifest(self.root, runtime=True), value)
 
@@ -269,21 +269,26 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                          ".devcontainer/install/03-enabled", ".devcontainer/install/lib", ".taskfiles/scripts"):
             (self.root / relative).mkdir(parents=True, exist_ok=True)
         for relative in (".devcontainer/lifecycle/setup-volumes.sh",
-                         ".devcontainer/install/lib/activation.sh",
+                          ".devcontainer/install/lib/activation.sh",
+                          ".devcontainer/install/lib/selection.py",
                          ".devcontainer/lifecycle/compose-volume-records.py",
                          ".taskfiles/scripts/compose-manifest.py"):
             shutil.copy2(ROOT / relative, self.root / relative)
-        installer = self.root / ".devcontainer/install/available/3040-ai-pi-gentle.sh"
+        installer = self.root / ".devcontainer/install/available/3010-ai-engram.sh"
         installer.write_text('#!/bin/bash\nprintf repaired >"$WORKSPACE_DIR/calls"\n')
         link = self.root / ".devcontainer/install/03-enabled/47-custom.sh"
-        link.symlink_to("../available/3040-ai-pi-gentle.sh")
+        link.symlink_to("../available/3010-ai-engram.sh")
+        (self.root / ".devcontainer/install/02-core-tools").mkdir()
+        (self.root / ".devcontainer/install/dependencies.conf").write_text("")
+        (self.root / ".devcontainer/Dockerfile").write_text("FROM fixture AS core-tools\nCOPY install/02-core-tools/ /tmp/\n")
+        self.selected["volumes"] = [self.bind(str(self.root / ".env.d/.engram"), "/home/ubuntu/.engram")]
         value = self.publish()
-        environment = {**os.environ, "WORKSPACE_DIR": str(self.root), "GENTLE_VOLUME_MANIFEST_ID": "old"}
+        environment = {**os.environ, "WORKSPACE_DIR": str(self.root), "DEVCONTAINER_BIND_MANIFEST_ID": "old"}
         command = ["bash", "-c", 'source "$WORKSPACE_DIR/.devcontainer/lifecycle/setup-volumes.sh"; repair_installed_volumes']
         result = subprocess.run(command, env=environment, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.root / "calls").exists())
-        environment["GENTLE_VOLUME_MANIFEST_ID"] = value["id"]
+        environment["DEVCONTAINER_BIND_MANIFEST_ID"] = value["id"]
         result = subprocess.run(command, env=environment, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "calls").read_text(), "repaired")
@@ -334,6 +339,44 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertEqual((target / "opencode.json").read_text(), "user config\n")
         self.assertFalse((home / ".pi").exists())
 
+    def test_base_pi_and_core_gentle_seed_only_base_preferences_and_preserve_trust(self):
+        source = (ROOT / ".devcontainer/setup.sh").read_text()
+        seed = source[source.index("seed_config_tree() {"):source.index("\nrepair_user_local_parents()")]
+        setup = source[source.index("setup_versioned_configs() {"):source.index("\nsetup_pi_workspace_trust()")]
+        trust = source[source.index("setup_pi_workspace_trust() {"):source.index("\n# Setup git files configurations")]
+        baseline = self.root / ".devcontainer/config/pi/agent"
+        shutil.copytree(ROOT / ".devcontainer/config/pi/agent", baseline)
+        settings = json.loads((baseline / "settings.json").read_text())
+        self.assertEqual(settings["defaultModel"], "gpt-5.6-sol")
+        self.assertEqual(settings["defaultProvider"], "openai-codex")
+        self.assertEqual(settings["defaultThinkingLevel"], "low")
+        self.assertFalse(set(settings) & {"packages", "hud", "subagents", "theme", "powerline"})
+        home = self.root / "home"
+        agent = home / ".pi/agent"
+        agent.mkdir(parents=True)
+        (agent / "trust.json").write_text('{"/existing": true}')
+        command = ('install_script_is_enabled() { [[ "$1" == *3030-ai-pi-coding.sh || '
+                   '"$1" == *3020-ai-gentle-ai.sh ]]; }; ' + seed + setup + trust +
+                   '\nsetup_versioned_configs\nsetup_pi_workspace_trust\nsetup_versioned_configs')
+        result = subprocess.run(["bash", "-eu", "-c", command],
+                                env={**os.environ, "HOME": str(home), "WORKSPACE_DIR": str(self.root),
+                                     "SCRIPT_DIR": str(self.root / ".devcontainer")}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((agent / "settings.json").read_bytes(), (baseline / "settings.json").read_bytes())
+        self.assertFalse((home / ".pi/gentle-ai").exists())
+        self.assertFalse((agent / "mcp.json").exists())
+        self.assertFalse((agent / "subagents.json").exists())
+        trusted = json.loads((agent / "trust.json").read_text())
+        self.assertTrue(trusted["/existing"])
+        self.assertTrue(trusted[str(self.root)])
+        self.assertTrue(trusted["/home/ubuntu/code"])
+        (agent / "settings.json").write_text('{"defaultModel":"user-preference"}')
+        result = subprocess.run(["bash", "-eu", "-c", command],
+                                env={**os.environ, "HOME": str(home), "WORKSPACE_DIR": str(self.root),
+                                     "SCRIPT_DIR": str(self.root / ".devcontainer")}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((agent / "settings.json").read_text())["defaultModel"], "user-preference")
+
     def test_server_requires_both_enabled_installer_and_persisted_override(self):
         installer = self.root / ".devcontainer/install/available/4010-tool-ssh-server.sh"
         installer.parent.mkdir(parents=True)
@@ -346,7 +389,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.selected["volumes"] = [self.bind(str(self.root / ".env.d/.ssh-server"), "/home/ubuntu/.ssh-server")]
         self.config.write_text('{"service":"custom","dockerComposeFile":["base.yml","config/compose/docker-compose.ssh-server.yml"]}')
         value = self.publish()
-        with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}), \
+        with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": value["id"]}), \
                 patch.object(manifest.sys, "argv", ["manifest", "ssh-server", str(self.root)]):
             with self.assertRaisesRegex(ValueError, "disabled"):
                 manifest.main()
@@ -355,19 +398,19 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                 manifest.main()
             self.selected["volumes"][0]["read_only"] = True
             value = self.publish()
-            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}):
+            with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": value["id"]}):
                 with self.assertRaisesRegex(ValueError, "persisted-key override"):
                     manifest.main()
             self.selected["volumes"][0]["read_only"] = False
             self.config.write_text('{"service":"custom","dockerComposeFile":"base.yml"}')
             value = self.publish()
-            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}):
+            with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": value["id"]}):
                 with self.assertRaisesRegex(ValueError, "persisted-key override"):
                     manifest.main()
 
     def test_optional_installers_are_downstream_and_do_not_install_each_other(self):
         available = ROOT / ".devcontainer/install/available"
-        for name in ("4010-tool-ssh-server.sh", "4100-tool-pulseaudio-utils.sh", "3030-ai-pi-coding.sh", "3040-ai-pi-gentle.sh"):
+        for name in ("4010-tool-ssh-server.sh", "4100-tool-pulseaudio-utils.sh", "3030-ai-pi-coding.sh"):
             self.assertTrue((available / name).is_file())
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
@@ -378,7 +421,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             command.chmod(0o755)
         environment = {**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin", "CALLS": str(calls),
                        "DEVCONTAINER_PHASE": "build"}
-        for script, package in (("4000-tool-ssh.sh", "openssh-client"),
+        for script, package in (("4000-tool-ssh-client.sh", "openssh-client"),
                                 ("4010-tool-ssh-server.sh", "openssh-server"),
                                 ("4100-tool-pulseaudio-utils.sh", "pulseaudio-utils")):
             calls.write_text("")
@@ -398,7 +441,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         (self.root / ".env").write_text("")
         environment = {"APP_NAME": "fixture", "APP_PORT": "12340", "OPENCODE_PORT": "12341",
                        "SSH_PORT": "12342", "HOST_UID": "1234", "SSH_AUTH_SOCK": "/fixture/agent.sock",
-                       "GENTLE_VOLUME_MANIFEST_ID": "fixture-creation-identity"}
+                       "DEVCONTAINER_BIND_MANIFEST_ID": "fixture-creation-identity"}
         base_ports = set()
         for optional, expected in ((None, None), ("pi", "/home/ubuntu/.pi"),
                                    ("ssh-agent", "/ssh-agent"), ("ssh-server", "/home/ubuntu/.ssh-server"),
@@ -429,7 +472,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
                 self.assertEqual(ports, base_ports | {(22, "12342", "tcp", None)})
             else:
                 self.assertEqual(ports, base_ports)
-            self.assertEqual(selected["environment"]["GENTLE_VOLUME_MANIFEST_ID"], "fixture-creation-identity")
+            self.assertEqual(selected["environment"]["DEVCONTAINER_BIND_MANIFEST_ID"], "fixture-creation-identity")
             if optional == "audio":
                 self.assertEqual(selected["environment"]["PULSE_SERVER"], "unix:/pulse-native")
                 audio = next(volume for volume in selected["volumes"] if volume["target"] == expected)
@@ -454,7 +497,7 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
         self.assertNotIn("volumes", base)
         self.assertEqual(base["ports"], ["${APP_PORT}:${APP_PORT}"])
         self.assertEqual(base["env_file"], ["../.env"])
-        self.assertIn("GENTLE_VOLUME_MANIFEST_ID", base["environment"])
+        self.assertIn("DEVCONTAINER_BIND_MANIFEST_ID", base["environment"])
 
     def test_default_selection_keeps_core_active_and_optional_overrides_disabled(self):
         shutil.copytree(ROOT / ".devcontainer/config/compose", self.root / ".devcontainer/config/compose")
@@ -648,6 +691,107 @@ printf '%s' "$GENTLE_VOLUME_MANIFEST_ID" >creation-identity
             manifest.compose_model(self.root)
 
 
+class AttachmentTests(ManifestFixture):
+    """Only local files and mocked subprocesses; no daemon or Compose execution."""
+
+    def setUp(self):
+        super().setUp()
+        self.value = self.publish()
+        self.container = {"Name": "/fixture", "Config": {"Env": [
+            "DEVCONTAINER_BIND_MANIFEST_ID=" + self.value["id"]]},
+            "State": {"Status": "running", "Running": True, "Paused": False, "Restarting": False}}
+
+    def attach(self, lookup="fixture\n", failure=None, race=False):
+        service, paths, inputs = manifest.selection(self.root)
+        before = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        calls = []
+
+        def engine(command, **kwargs):
+            calls.append(command)
+            if command[2] == "ls":
+                return subprocess.CompletedProcess(command, 1 if failure == "lookup" else 0, lookup)
+            self.assertEqual(command, ["docker", "container", "inspect", "fixture"])
+            if race:
+                self.config.write_text('{}')
+            return subprocess.CompletedProcess(command, 1 if failure == "inspect" else 0,
+                                               json.dumps([self.container]))
+
+        output = io.StringIO()
+        with patch.object(manifest, "compose_model", return_value=(service, paths, inputs, self.selected, "")), \
+                patch.object(manifest.subprocess, "run", side_effect=engine), \
+                patch.object(manifest, "prepare", side_effect=AssertionError("preparation forbidden")), \
+                patch.object(manifest.os, "replace", side_effect=AssertionError("publication forbidden")), \
+                contextlib.redirect_stderr(output):
+            result = manifest.attachment(self.root)
+        after = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        self.assertEqual(before, after)
+        self.assertFalse((self.root / ".env.d").exists())
+        return result, output.getvalue(), calls
+
+    def test_running_verified_is_read_only(self):
+        state, warning, calls = self.attach()
+        self.assertEqual(state, "running")
+        self.assertEqual(warning, "")
+        self.assertEqual(len(calls), 2)
+
+    def test_drift_missing_token_and_bad_snapshot_warn_without_writes(self):
+        for condition in ("drift", "missing", "snapshot", "unapplied", "projection"):
+            with self.subTest(condition=condition):
+                self.setUp()
+                if condition == "drift":
+                    self.selected["volumes"][0]["read_only"] = True
+                elif condition == "missing":
+                    self.container["Config"]["Env"] = []
+                elif condition == "snapshot":
+                    (self.root / manifest.MANIFEST).write_text('private-invalid-json')
+                elif condition == "unapplied":
+                    self.container["Config"]["Env"] = ["DEVCONTAINER_BIND_MANIFEST_ID=" + "a" * 64]
+                else:
+                    self.selected["volumes"][0]["bind"] = {}
+                state, warning, _ = self.attach()
+                self.assertEqual(state, "running")
+                self.assertIn("[attachment:warning]", warning)
+                self.assertNotIn("private", warning)
+                self.assertNotIn(str(self.root), warning)
+
+    def test_absent_and_stopped_require_strict_startup(self):
+        self.assertEqual(self.attach(lookup="other-fixture\n")[0], "absent")
+        for state in ("created", "exited"):
+            self.container["State"].update(Status=state, Running=False)
+            self.assertEqual(self.attach()[0], "stopped")
+
+    def test_lookup_inspect_and_malformed_results_block(self):
+        for failure in ("lookup", "inspect"):
+            with self.assertRaises(ValueError):
+                self.attach(failure=failure)
+        for lookup in ("fixture\nfixture\n", "invalid name\n"):
+            with self.assertRaises(ValueError):
+                self.attach(lookup=lookup)
+        for mutation in ({"Name": "/other"}, {"State": {}}, {"Config": {"Env": "secret"}}):
+            original = copy.deepcopy(self.container)
+            self.container.update(mutation)
+            with self.assertRaises(ValueError):
+                self.attach()
+            self.container = original
+
+    def test_unsupported_and_contradictory_states_block(self):
+        for state in ("paused", "restarting", "dead", "removing", "unknown", "exited"):
+            self.container["State"]["Status"] = state
+            with self.assertRaises(ValueError):
+                self.attach()
+
+    def test_concurrent_input_change_blocks(self):
+        with self.assertRaises(ValueError):
+            self.attach(race=True)
+
+    def test_legacy_token_is_not_runtime_authority(self):
+        self.container["Config"]["Env"] = ["GENTLE_VOLUME_MANIFEST_ID=" + self.value["id"]]
+        self.assertIn("missing or unverified", self.attach()[1])
+        with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": self.value["id"]}, clear=True):
+            with self.assertRaisesRegex(ValueError, "not applied"):
+                manifest.load_manifest(self.root, runtime=True)
+
+
 class SemanticManifestTests(ManifestFixture):
     def test_env_and_input_bytes_do_not_define_mount_identity(self):
         original = self.publish()
@@ -662,7 +806,7 @@ class SemanticManifestTests(ManifestFixture):
                     else:
                         path.write_text("# reformatted\nservices: {}\n" if relative.endswith(".yml") else content)
                     self.assertEqual(self.projection()["id"], original["id"])
-                    with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": original["id"]}):
+                    with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": original["id"]}):
                         self.assertEqual(manifest.load_manifest(self.root, runtime=True), original)
         self.assertEqual(original["schema"], 3)
         self.assertNotIn("inputs", original)
@@ -721,7 +865,7 @@ class SemanticManifestTests(ManifestFixture):
         value = self.publish()
         self.config.unlink()
         (self.root / ".devcontainer/base.yml").unlink()
-        with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": value["id"]}), \
+        with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": value["id"]}), \
                 patch.object(manifest, "selection", side_effect=AssertionError("host selection read")), \
                 patch.object(manifest.subprocess, "run", side_effect=AssertionError("host command")):
             self.assertEqual(manifest.load_manifest(self.root, runtime=True), value)
@@ -771,7 +915,7 @@ class SemanticManifestTests(ManifestFixture):
                 manifest.load_manifest(self.root)
         self.publish()
         for applied in ("", "0" * 64):
-            with patch.dict(os.environ, {"GENTLE_VOLUME_MANIFEST_ID": applied}):
+            with patch.dict(os.environ, {"DEVCONTAINER_BIND_MANIFEST_ID": applied}):
                 with self.assertRaisesRegex(ValueError, "not applied"):
                     manifest.load_manifest(self.root, runtime=True)
 

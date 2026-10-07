@@ -181,13 +181,15 @@ class CodeGraphTests(unittest.TestCase):
 
     def test_mcp_seeds_are_disabled_and_consistent(self):
         entries = []
-        for name in ("opencode.json", "opencode-non-sdd.json"):
+        for name in ("opencode.json", "opencode-example.json"):
             config = json.loads((ROOT / ".devcontainer/config/opencode" / name).read_text())
             entries.append(config["mcp"]["codegraph"])
         self.assertEqual(entries[0], entries[1])
         self.assertIs(entries[0]["enabled"], False)
         self.assertEqual(entries[0]["type"], "local")
         self.assertEqual(entries[0]["command"], ["codegraph", "serve", "--mcp"])
+        self.assertEqual(entries[0]["environment"], {"CODEGRAPH_NO_DOWNLOAD": "1",
+                         "CODEGRAPH_NO_UPDATE_CHECK": "1", "CODEGRAPH_TELEMETRY": "0"})
 
     def test_catalog_is_optional_and_reuses_core_node(self):
         tree = ROOT / ".devcontainer/install"

@@ -210,6 +210,17 @@ load install-selection.sh
     command -v pi >/dev/null
 }
 
+@test "ai: optional Gentle Shell has native npm metadata and an executable bin" {
+    skip_if_install_disabled "3040-ai-gentle-shell.sh" "task install:enable -- 3040-ai-gentle-shell"
+    command -v gentle-shell >/dev/null
+    [ -x "$(command -v gentle-shell)" ]
+    local expected version package_root
+    expected="$(bash "${BATS_TEST_DIRNAME}/../../install/available/3040-ai-gentle-shell.sh" --print-version-policy)"
+    version="$(printf '%s\n' "$expected" | sed -n 's/^GENTLE_SHELL_VERSION=//p')"
+    package_root="$(npm root --global)"
+    node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(p.name!=="gentle-pi" || p.version!==process.argv[2] || p.bin?.["gentle-shell"]!=="bin/gentle-shell.mjs") process.exit(1)' "${package_root}/gentle-pi/package.json" "${version}"
+}
+
 @test "ai: pi is executable" {
     skip_if_install_disabled "3030-ai-pi-coding.sh" "task install:enable -- 3030-ai-pi-coding"
     [ -x "$(command -v pi)" ]
@@ -225,11 +236,6 @@ load install-selection.sh
     command -v gentle-ai >/dev/null
     run gentle-ai version
     [ "$status" -eq 0 ]
-}
-
-@test "ai: skills directory exists" {
-    skip_if_install_disabled "3040-ai-pi-gentle.sh" "task install:enable -- 3040-ai-pi-gentle"
-    [ -d "${HOME}/.pi/agent/skills" ] || [ -d "${HOME}/.pi/agent/npm/node_modules/gentle-pi/skills" ]
 }
 
 # ---------------------------------------------------------------------------

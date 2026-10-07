@@ -194,7 +194,7 @@ run_container() {
 	check_command gh optional
 	check_command playwright optional
 
-	if is_install_enabled 3030-ai-pi-coding.sh || is_install_enabled 3040-ai-pi-gentle.sh; then check_dir /home/ubuntu/.pi; fi
+	if is_install_enabled 3030-ai-pi-coding.sh; then check_dir /home/ubuntu/.pi; fi
 	if is_install_enabled 3010-ai-engram.sh; then check_dir /home/ubuntu/.engram; fi
 	check_dir /home/ubuntu/.gitconfig-volume
 

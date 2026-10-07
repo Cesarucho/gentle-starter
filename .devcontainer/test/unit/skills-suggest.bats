@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# Bats runs each test in isolation; these mock environment changes are intentional.
+# shellcheck disable=SC2030,SC2031
 
 setup() {
 	ROOT="$(cd "${BATS_TEST_DIRNAME}/../../.." && pwd)"
@@ -22,12 +24,11 @@ teardown() { rm -rf "${TEMP}"; }
 suggest() { (cd "${TEMP}/repo" && bash "${ROOT}/.taskfiles/scripts/skills-suggest.sh" "$@"); }
 export -f suggest
 
-assert_manual_workaround() {
-	local commands
-	commands=$'skills add wondelai/skills/clean-code -a opencode -y\nskills add wondelai/skills/domain-driven-design -a opencode -y\nskills add https://github.com/upstash/context7/tree/master/plugins/agent-plugins/context7/skills/context7-mcp -a opencode -y'
-	[[ "$output" == *"$commands"* ]]
-	[[ "$output" == *"shown only, NOT executed"* ]]
-	[[ "$output" == *"Temporary user-requested workaround (manual; the user monitors the patch)."* ]]
+assert_no_manual_workaround() {
+	[[ "$output" != *"Temporary user-requested workaround"* ]]
+	[[ "$output" != *"shown only, NOT executed"* ]]
+	[[ "$output" != *"skills add "* ]]
+	[[ "$output" != *"-a opencode"* ]]
 }
 
 @test "missing published catalog reports unavailable, not dev lock suggestions" {
@@ -67,15 +68,15 @@ assert_manual_workaround() {
 	[ "$status" -eq 0 ]
 	[ "$(wc -l <"$CALLS")" -eq 1 ]
 	[ "$(<"$CALLS")" = 'add example/two --skill beta --agent universal --copy -y' ]
-	assert_manual_workaround
-	[[ "$output" == *$'Installed: beta\n\nTemporary user-requested workaround'* ]]
+	assert_no_manual_workaround
+	[[ "$output" == *"Installed: beta"* ]]
 }
 
 @test "all selection and explicit batch names install selected entries" {
 	run bash -c 'printf "all\ny\n" | suggest'
 	[ "$status" -eq 0 ]
 	[ "$(wc -l <"$CALLS")" -eq 2 ]
-	assert_manual_workaround
+	assert_no_manual_workaround
 	: >"$CALLS"
 	run bash -c 'printf "y\n" | suggest beta alpha'
 	[ "$status" -eq 0 ]
@@ -85,7 +86,7 @@ assert_manual_workaround() {
 		printf '%s' "$first"
 	)" = 'add example/two --skill beta --agent universal --copy -y' ]
 	[ "$(<"$CALLS")" = $'add example/two --skill beta --agent universal --copy -y\nadd example/one --skill alpha --agent universal --copy -y' ]
-	assert_manual_workaround
+	assert_no_manual_workaround
 }
 
 @test "partial failure reports failed names and continues selected installs" {
@@ -95,17 +96,17 @@ assert_manual_workaround() {
 	[[ "$output" == *"install failed for: alpha"* ]]
 	[ "$(wc -l <"$CALLS")" -eq 2 ]
 	[ "$(<"$CALLS")" = $'add example/one --skill alpha --agent universal --copy -y\nadd example/two --skill beta --agent universal --copy -y' ]
-	assert_manual_workaround
-	[[ "$output" == *$'Attempted: add example/two --skill beta --agent universal --copy -y\n'*'install failed for: alpha'*$'\n\nTemporary user-requested workaround'* ]]
+	assert_no_manual_workaround
+	[[ "$output" == *$'Attempted: add example/two --skill beta --agent universal --copy -y\n'*'install failed for: alpha'* ]]
 }
 
-@test "failed sole install still displays manual commands without masking failure" {
+@test "failed sole install reports failure without manual commands" {
 	export FAIL_NAME=beta
 	run bash -c 'printf "y\n" | suggest beta'
 	[ "$status" -eq 1 ]
 	[ "$(<"$CALLS")" = 'add example/two --skill beta --agent universal --copy -y' ]
 	[[ "$output" != *"Installed:"* ]]
-	assert_manual_workaround
+	assert_no_manual_workaround
 }
 
 @test "empty catalog and selection or confirmation EOF show no workaround" {
@@ -126,11 +127,20 @@ assert_manual_workaround() {
 @test "Task rejects metacharacter arguments without executing them" {
 	local payload
 	printf -v payload '%s(touch %s)' '$' "${TEMP}/injected"
-	run task --taskfile "${ROOT}/Taskfile.yml" skills:suggest -- "$payload"
+	run task --taskfile "${ROOT}/Taskfile.yml" suggest:skills -- "$payload"
 	[ "$status" -ne 0 ]
 	[[ "$output" == *"Task arguments are not accepted"* ]]
 	[ ! -e "${TEMP}/injected" ]
 	[ ! -e "$CALLS" ]
+}
+
+@test "public suggestion names replace the old skills namespace" {
+	run task --taskfile "${ROOT}/Taskfile.yml" --list
+	[ "$status" -eq 0 ]
+	for name in suggest:skills suggest:tools suggest:all; do
+		[[ "$output" == *"$name"* ]]
+	done
+	[[ "$output" != *"skills:suggest"* ]]
 }
 
 @test "direct batch metacharacter name is rejected without execution" {

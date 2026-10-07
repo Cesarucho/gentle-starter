@@ -49,8 +49,6 @@ selected Compose → host manifest .devcontainer/lifecycle/setup-volumes.sh
                                                         ▼
                                          .devcontainer/install/available/
                                          ┌─────────────────────────────────┐
-                                         │ 3030-ai-pi-coding.sh            │
-                                         │ 3040-ai-pi-gentle.sh            │
                                          │ 3010-ai-engram.sh               │
                                          │ (yours here)                    │
                                          └─────────────────────────────────┘
@@ -119,7 +117,7 @@ After creation, the `postCreateCommand` runs `bash .devcontainer/setup.sh`:
 ```bash
 setup_versioned_configs         # copy enabled tools' missing baseline configs
 setup_pi_workspace_trust        # mark the workspace as trusted in trust.json
-repair_installed_volumes        # run enabled Pi Gentle and Engram state owners
+repair_installed_volumes        # run the enabled Engram state owner
 DEVCONTAINER_PHASE=runtime bash 4010-tool-ssh-server.sh  # installer + override enabled
 start-sshd                      # after SSH runtime preparation
 ```
@@ -143,11 +141,9 @@ passive mounts, while a mapped but disabled owner is intentionally skipped.
 For active owners, the script's idempotency guard decides whether the call is a
 no-op or actually does work.
 
-For example, disabling `3040-ai-pi-gentle` leaves the `.pi` mapping unchanged but
-removes its only runtime repair owner. Pi Coding remains image-owned and is not
-dispatched by volume repair. Disable is non-destructive: it does not remove Pi
-packages already persisted in `.env.d/.pi`, and volume repair does not provide
-a purge operation.
+The `.pi` bind is passive. Pi Coding remains image-owned and is not dispatched
+by volume repair. Existing Pi packages and configuration in `.env.d/.pi` are
+preserved; retirement of repository provisioning is not a user-state purge.
 
 So the actual "populate the empty bind mount" moment is inside the
 runtime-only branches of the install scripts, not in `lifecycle/setup-volumes.sh`
@@ -252,14 +248,14 @@ actually in a target:
 
 ```bash
 docker exec ${APP_NAME}-run ls -la ~/.engram/
-docker exec ${APP_NAME}-run cat ~/.pi/agent/mcp.json
+docker exec ${APP_NAME}-run cat ~/.pi/agent/settings.json
 ```
 
 Or from the host:
 
 ```bash
 ls -la .env.d/.engram/
-cat .env.d/.pi/agent/mcp.json
+cat .env.d/.pi/agent/settings.json
 ```
 
 (The host-side path is exactly the bind-mount source path.)

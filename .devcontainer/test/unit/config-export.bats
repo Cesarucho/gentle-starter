@@ -12,15 +12,14 @@ setup() {
     "${REPO_FIXTURE}/.devcontainer/config-export.json"
   INSTALL_FIXTURE="${REPO_FIXTURE}/.devcontainer/install"
   mkdir -p "${INSTALL_FIXTURE}/available" "${INSTALL_FIXTURE}/02-core-tools" \
-    "${INSTALL_FIXTURE}/03-enabled" "${HOME_FIXTURE}/.pi/agent" "${HOME_FIXTURE}/.pi/gentle-ai"
+    "${INSTALL_FIXTURE}/03-enabled" "${HOME_FIXTURE}/.pi/agent"
   local name
-  for name in 3020-ai-gentle-ai.sh 3030-ai-pi-coding.sh 3040-ai-pi-gentle.sh; do
+  for name in 3020-ai-gentle-ai.sh 3030-ai-pi-coding.sh 3040-ai-gentle-shell.sh; do
     printf '#!/bin/sh\nexit 99\n' >"${INSTALL_FIXTURE}/available/${name}"
   done
   ln -s ../available/3020-ai-gentle-ai.sh "${INSTALL_FIXTURE}/02-core-tools/3020-ai-gentle-ai.sh"
   ln -s ../available/3030-ai-pi-coding.sh "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
-  ln -s ../available/3040-ai-pi-gentle.sh "${INSTALL_FIXTURE}/03-enabled/7200-custom-gentle.sh"
-  printf '3040-ai-pi-gentle.sh|enabled|3030-ai-pi-coding.sh|pi\n' >"${INSTALL_FIXTURE}/dependencies.conf"
+  : >"${INSTALL_FIXTURE}/dependencies.conf"
   printf 'FROM fixture AS core-tools\nCOPY install/available/3020-ai-gentle-ai.sh /tmp/\n' \
     >"${REPO_FIXTURE}/.devcontainer/Dockerfile"
 }
@@ -146,14 +145,14 @@ commit_fixture() {
   printf 'state' >"${HOME_FIXTURE}/.pi/agent/mcp-cache.json"
   printf 'state' >"${HOME_FIXTURE}/.pi/agent/mcp-npx-cache.json"
   printf 'state' >"${HOME_FIXTURE}/.pi/agent/mcp.json.devcontainer-backup.20260902"
-  printf 'managed' >"${HOME_FIXTURE}/.pi/agent/subagents.json"
+  printf 'managed' >"${HOME_FIXTURE}/.pi/agent/settings.json"
   printf 'excluded' >"${HOME_FIXTURE}/.pi/agent/APPEND_SYSTEM.md"
   printf 'metadata' >"${HOME_FIXTURE}/.config/opencode/.gitignore"
 
   run_helper diff
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"new: Pi Coding: subagents.json"* ]]
+  [[ "$output" == *"new: Pi Coding: settings.json"* ]]
   [[ "$output" == *"candidates=0"* ]]
   [[ "$output" != *"APPEND_SYSTEM.md"* ]]
   [[ "$output" != *"models-store"* ]]
@@ -212,12 +211,12 @@ PY
 @test "unrelated repository changes do not block export" {
   printf 'unrelated' >"${REPO_FIXTURE}/notes.txt"
   mkdir -p "${HOME_FIXTURE}/.pi/agent"
-  printf 'new' >"${HOME_FIXTURE}/.pi/agent/mcp.json"
+  printf 'new' >"${HOME_FIXTURE}/.pi/agent/settings.json"
 
   run_helper export
 
   [ "$status" -eq 0 ]
-  [ "$(<"${REPO_FIXTURE}/.devcontainer/config/pi/agent/mcp.json")" = "new" ]
+  [ "$(<"${REPO_FIXTURE}/.devcontainer/config/pi/agent/settings.json")" = "new" ]
 }
 
 @test "preflight rejects symlinks without partial writes" {
@@ -286,7 +285,7 @@ PY
 @test "export preserves existing mode and gives new files mode 0644" {
   mkdir -p "${HOME_FIXTURE}/.pi/agent"
   printf 'replacement' >"${HOME_FIXTURE}/.pi/agent/settings.json"
-  printf 'new' >"${HOME_FIXTURE}/.pi/agent/mcp.json"
+  printf 'new' >"${HOME_FIXTURE}/.config/opencode/tui.json"
   printf 'old' >"${REPO_FIXTURE}/.devcontainer/config/pi/agent-settings-placeholder"
   mkdir -p "${REPO_FIXTURE}/.devcontainer/config/pi/agent"
   mv "${REPO_FIXTURE}/.devcontainer/config/pi/agent-settings-placeholder" \
@@ -298,7 +297,7 @@ PY
 
   [ "$status" -eq 0 ]
   [ "$(stat -c %a "${REPO_FIXTURE}/.devcontainer/config/pi/agent/settings.json")" = "600" ]
-  [ "$(stat -c %a "${REPO_FIXTURE}/.devcontainer/config/pi/agent/mcp.json")" = "644" ]
+  [ "$(stat -c %a "${REPO_FIXTURE}/.devcontainer/config/opencode/tui.json")" = "644" ]
 }
 
 @test "task propagates the intentional diff exit code" {
@@ -429,12 +428,29 @@ PY
   [ -L "${seed}/plugins/telemetry-runtime.ts" ]
 }
 
+@test "production manifest rejects a missing Shell owner before runtime reads or export" {
+  cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
+  rm "${INSTALL_FIXTURE}/available/3040-ai-gentle-shell.sh"
+  printf old >"${REPO_FIXTURE}/.devcontainer/config/opencode/opencode.json"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.config/opencode/unsafe"
+  commit_fixture "missing owner"
+  local action
+  for action in diff export; do
+    run_helper "${action}"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Gentle Shell owner is not in the installer catalog: 3040-ai-gentle-shell.sh"* ]]
+    [[ "$output" != *"symlink is not allowed"* ]]
+    [ "$(<"${REPO_FIXTURE}/.devcontainer/config/opencode/opencode.json")" = old ]
+  done
+}
+
 @test "production manifest exports recursive portable config and excludes nested state before reads" {
   cp "${REPOSITORY_ROOT}/.devcontainer/config-export.json" "${REPO_FIXTURE}/.devcontainer/config-export.json"
   local runtime="${HOME_FIXTURE}/.config/opencode" seed="${REPO_FIXTURE}/.devcontainer/config/opencode"
   local tree boundary
-  printf 'portable\r\n' >"${runtime}/opencode-non-sdd.json"
-  printf 'keep seed only' >"${seed}/opencode-non-sdd.json"
+  printf 'portable\r\n' >"${runtime}/opencode-example.json"
+  printf 'keep seed only' >"${seed}/opencode-example.json"
   for tree in commands plugins profiles prompts skills; do
     mkdir -p "${runtime}/${tree}/new/deep"
     printf 'portable' >"${runtime}/${tree}/new/deep/future.any"
@@ -457,14 +473,14 @@ PY
 
   run_helper diff
   [ "$status" -eq 1 ]
-  [[ "$output" == *"modified: OpenCode: opencode-non-sdd.json"* ]]
+  [[ "$output" == *"modified: OpenCode: opencode-example.json"* ]]
   [[ "$output" != *"new: OpenCode: plugins/telemetry-runtime.ts"* ]]
   [[ "$output" == *"candidates=0"* ]]
   run_helper export
   [ "$status" -eq 0 ]
   [[ "$output" == *"Exported: files=6"* ]]
   [ ! -e "${seed}/plugins/telemetry-runtime.ts" ]
-  cmp "${runtime}/opencode-non-sdd.json" "${seed}/opencode-non-sdd.json"
+  cmp "${runtime}/opencode-example.json" "${seed}/opencode-example.json"
   for tree in commands plugins profiles prompts skills; do
     cmp "${runtime}/${tree}/new/deep/future.any" "${seed}/${tree}/new/deep/future.any"
   done
@@ -513,7 +529,7 @@ PY
 }
 
 @test "disabled Pi skips unsafe runtime and dirty seed without blocking OpenCode" {
-  rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh" "${INSTALL_FIXTURE}/03-enabled/7200-custom-gentle.sh"
+  rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
   rm -r "${HOME_FIXTURE}/.pi"
   ln -s "${FIXTURE}/missing" "${HOME_FIXTURE}/.pi"
   ln -s "${FIXTURE}/missing" "${REPO_FIXTURE}/.devcontainer/config/pi/agent"
@@ -521,7 +537,6 @@ PY
   run_helper diff
   [ "$status" -eq 1 ]
   [[ "$output" == *"skipped: Pi Coding: owner 3030-ai-pi-coding.sh is disabled"* ]]
-  [[ "$output" == *"skipped: Pi Gentle: owner 3040-ai-pi-gentle.sh is disabled"* ]]
   [[ "$output" == *"candidates=0"* ]]
   run_helper export
   [ "$status" -eq 0 ]
@@ -531,33 +546,31 @@ PY
   [ "$status" -eq 0 ]
 }
 
-@test "Pi Coding custom alias does not activate Pi Gentle through core Gentle AI" {
-  rm "${INSTALL_FIXTURE}/03-enabled/7200-custom-gentle.sh"
+@test "valid custom Pi alias participates without executing installers or binaries" {
   printf agent >"${HOME_FIXTURE}/.pi/agent/settings.json"
-  ln -s "${FIXTURE}/missing" "${HOME_FIXTURE}/.pi/gentle-ai/unsafe"
-  mkdir -p "${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai"
-  printf dirty >"${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai/models.json"
   run_helper diff
   [ "$status" -eq 1 ]
   [[ "$output" == *"new: Pi Coding: settings.json"* ]]
-  [[ "$output" == *"skipped: Pi Gentle"* ]]
   run_helper export
   [ "$status" -eq 0 ]
+  [[ "$output" == *"Exported: files=1"* ]]
   [ "$(<"${REPO_FIXTURE}/.devcontainer/config/pi/agent/settings.json")" = agent ]
-  [ "$(<"${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai/models.json")" = dirty ]
 }
 
-@test "both valid custom Pi aliases participate without executing installers or binaries" {
+@test "base Pi export never provisions legacy extension config or scans retired runtime tree" {
+  mkdir -p "${HOME_FIXTURE}/.pi/gentle-ai"
+  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.pi/gentle-ai/unsafe"
+  printf legacy >"${HOME_FIXTURE}/.pi/agent/mcp.json"
+  printf legacy >"${HOME_FIXTURE}/.pi/agent/subagents.json"
   printf agent >"${HOME_FIXTURE}/.pi/agent/settings.json"
-  printf gentle >"${HOME_FIXTURE}/.pi/gentle-ai/models.json"
-  run_helper diff
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"new: Pi Coding: settings.json"* ]]
-  [[ "$output" == *"new: Pi Gentle: models.json"* ]]
   run_helper export
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Exported: files=2"* ]]
-  [ "$(<"${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai/models.json")" = gentle ]
+  [ -e "${REPO_FIXTURE}/.devcontainer/config/pi/agent/settings.json" ]
+  [ ! -e "${REPO_FIXTURE}/.devcontainer/config/pi/agent/mcp.json" ]
+  [ ! -e "${REPO_FIXTURE}/.devcontainer/config/pi/agent/subagents.json" ]
+  [ ! -e "${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai" ]
+  [ -L "${HOME_FIXTURE}/.pi/gentle-ai/unsafe" ]
+  [ "$(<"${HOME_FIXTURE}/.pi/agent/mcp.json")" = legacy ]
 }
 
 @test "invalid Pi selection errors before runtime inspection or writes" {
@@ -565,13 +578,6 @@ PY
   commit_fixture "old config"
   printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
   rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
-  local command
-  for command in diff export; do
-    run_helper "$command"
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"requires enabled installer 3030-ai-pi-coding.sh"* ]]
-    [ "$(<"${REPO_FIXTURE}/.devcontainer/config/opencode/opencode.json")" = old ]
-  done
   ln -s ../available/missing.sh "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
   run_helper diff
   [ "$status" -eq 2 ]
@@ -604,8 +610,8 @@ PY
 }
 
 @test "dirty participating Pi seed blocks export before unsafe runtime inspection" {
-  mkdir -p "${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai"
-  printf dirty >"${REPO_FIXTURE}/.devcontainer/config/pi/gentle-ai/models.json"
+  mkdir -p "${REPO_FIXTURE}/.devcontainer/config/pi/agent"
+  printf dirty >"${REPO_FIXTURE}/.devcontainer/config/pi/agent/settings.json"
   ln -s "${FIXTURE}/missing" "${HOME_FIXTURE}/.config/opencode/unsafe"
   printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
   run_helper export

@@ -50,7 +50,6 @@ prepare_setup_sandbox() {
 		"${SETUP_WORKSPACE}/.devcontainer/install/lib" \
 		"${SETUP_WORKSPACE}/.devcontainer/config/opencode/nested" \
 		"${SETUP_WORKSPACE}/.devcontainer/config/pi/agent" \
-		"${SETUP_WORKSPACE}/.devcontainer/config/pi/gentle-ai" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts" \
 		"${HOME_DIR}/.config/opencode" \
 		"${HOME_DIR}/.pi" \
@@ -67,7 +66,6 @@ prepare_setup_sandbox() {
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/opencode.json"
 	printf 'nested baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/nested/agent.md"
 	printf 'pi baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/pi/agent/settings.json"
-	printf 'gentle baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/pi/gentle-ai/persona.json"
 	printf 'user customisation\n' >"${HOME_DIR}/.config/opencode/opencode.json"
 	printf 'child payload\n' >"${OPENCODE_SENTINEL}"
 	printf '0:0\n' >"${PI_OWNER_FILE}"
@@ -424,14 +422,30 @@ path_metadata() {
 	[ ! -e "${HOME_DIR}/.pi" ]
 }
 
-@test "seeded OpenCode plugins use the split review and SDD implementations" {
+@test "seeded OpenCode uses native ODD agents and the review transport without retired SDD plugins" {
 	local plugins_dir="${REPO_ROOT}/.devcontainer/config/opencode/plugins"
-	local sdd_plugin="${plugins_dir}/sdd-task-result-artifacts.ts"
+	local transport="${plugins_dir}/opencode-review-transport.ts"
 
-	[ -f "${plugins_dir}/opencode-review-transport.ts" ]
-	[ -f "${sdd_plugin}" ]
+	[ -f "${transport}" ]
+	[ ! -e "${plugins_dir}/sdd-task-result-artifacts.ts" ]
 	[ ! -e "${plugins_dir}/review-result-artifacts.ts" ]
-	grep -Eq '^const SDD_PHASES = \[.*"sdd-research".*\]$' "${sdd_plugin}"
+	grep -Fq 'Schema: "gentle-ai.provider-transport/v1"' "${transport}"
+	grep -Fq 'opencode_review_transport_relay_refused' "${transport}"
+	grep -Fq 'opencode_review_transport_binary_skew' "${transport}"
+	python3 - "${REPO_ROOT}/.devcontainer/config/opencode/opencode.json" <<'PY'
+import json, sys
+from pathlib import Path
+config = json.loads(Path(sys.argv[1]).read_text())
+assert config["default_agent"] == "gentle-orchestrator"
+assert not any(name.startswith("sdd-") for name in config["agent"])
+for name in ("gentle-ai-explore", "gentle-ai-verify", "gentle-ai-worker"):
+    agent = config["agent"][name]
+    assert agent["mode"] == "subagent" and agent["hidden"] is True
+    assert agent["permission"]["task"] == "deny"
+for name in ("gentle-ai-explore", "gentle-ai-verify"):
+    assert config["agent"][name]["permission"]["edit"] == "deny"
+    assert config["agent"][name]["permission"]["write"] == "deny"
+PY
 }
 
 @test "OpenCode share state is passive and has no repair installer mapping" {

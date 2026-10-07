@@ -2,6 +2,151 @@
 
 load install-fixture
 
+@test "batch rejects nonexecutable roots and required dependencies before planning or applying" {
+	for name in 1020-tool-leaf 1010-tool-middle 1000-runtime-base; do
+		chmod 0644 "${INSTALL}/available/${name}.sh"
+		for operation in plan-many enable-many; do
+			run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" "$operation" 1030-tool-companion 1020-tool-leaf
+			[ "$status" -ne 0 ]
+			[[ "$output" == *"nonexecutable installer: ${name}.sh"* ]]
+			[[ "$output" != *"Planned:"* ]]
+			[[ "$output" != *"Enabled:"* ]]
+			[ -z "$(ls -A "${INSTALL}/03-enabled")" ]
+		done
+		chmod 0755 "${INSTALL}/available/${name}.sh"
+	done
+}
+
+@test "batch checks reused core dependency modes without changing single-root behavior" {
+	core_base
+	chmod 0644 "${INSTALL}/available/1000-runtime-base.sh"
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1020-tool-leaf
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"nonexecutable installer: 1000-runtime-base.sh"* ]]
+	[ -z "$(ls -A "${INSTALL}/03-enabled")" ]
+	activate enable 1020-tool-leaf
+	[ "$status" -eq 0 ]
+	activate disable 1020-tool-leaf
+	[ "$status" -eq 0 ]
+}
+
+@test "batch mode validation excludes unrelated installers and companion edges" {
+	chmod 0644 "${INSTALL}/available/1030-tool-companion.sh"
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1020-tool-leaf
+	[ "$status" -eq 0 ]
+	[ -L "${INSTALL}/03-enabled/1020-tool-leaf.sh" ]
+	[ ! -L "${INSTALL}/03-enabled/1030-tool-companion.sh" ]
+}
+
+@test "batch validates every root before creating the first link" {
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1030-tool-companion missing-tool
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"not found under available/"* ]]
+	[ -z "$(ls -A "${INSTALL}/03-enabled")" ]
+}
+
+@test "batch preflight is nonmutating and application includes all roots once" {
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" plan-many 1020-tool-leaf 1030-tool-companion
+	[ "$status" -eq 0 ]
+	[ -z "$(ls -A "${INSTALL}/03-enabled")" ]
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1020-tool-leaf 1030-tool-companion 1020-tool-leaf.sh
+	[ "$status" -eq 0 ]
+	local aliases=("${INSTALL}/03-enabled/"*.sh)
+	[ "${#aliases[@]}" -eq 4 ]
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1030-tool-companion 1020-tool-leaf
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"already enabled"* ]]
+}
+
+@test "batch rejects a mandatory second root without enabling the first" {
+	core_base
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1030-tool-companion 1000-runtime-base
+	[ "$status" -ne 0 ]
+	[[ "$output" == *mandatory* ]]
+	[ -z "$(ls -A "${INSTALL}/03-enabled")" ]
+}
+
+@test "batch revalidates a formerly valid plan against current dependency order" {
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" plan-many 1020-tool-leaf 1030-tool-companion
+	[ "$status" -eq 0 ]
+	ln -s ../available/1020-tool-leaf.sh "${INSTALL}/03-enabled/00-custom.sh"
+	run python3 "${INSTALL}/lib/selection.py" "${INSTALL}" enable-many 1020-tool-leaf 1030-tool-companion
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"must run before"* ]]
+	[ "$(ls -A "${INSTALL}/03-enabled")" = 00-custom.sh ]
+}
+
+@test "batch participates in the existing directory lock before inspecting roots" {
+	run python3 - "${INSTALL}" <<'PY'
+import fcntl
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+install = Path(sys.argv[1])
+fd = os.open(install, os.O_RDONLY)
+fcntl.flock(fd, fcntl.LOCK_EX)
+process = subprocess.Popen([sys.executable, str(install / 'lib/selection.py'), str(install),
+                            'enable-many', '1020-tool-leaf', '1030-tool-companion'],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+try:
+    time.sleep(0.3)
+    assert process.poll() is None
+    assert not list((install / '03-enabled').iterdir())
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    out, err = process.communicate(timeout=5)
+    assert process.returncode == 0, (out, err)
+    assert len(list((install / '03-enabled').iterdir())) == 4
+finally:
+    os.close(fd)
+    if process.poll() is None:
+        process.kill()
+        process.wait()
+PY
+	[ "$status" -eq 0 ]
+}
+
+@test "batch rollback preserves a replacement of an operation-owned alias" {
+	run python3 - "${INSTALL}" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+from unittest.mock import patch
+install = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location('selection', install / 'lib/selection.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+catalog = module.read_catalog(install)
+graph = module.read_graph(install, catalog, {})
+plan = module.plan_enable_many(['1020-tool-leaf.sh', '1030-tool-companion.sh'], {}, graph)
+original = Path.symlink_to
+calls = 0
+def replace_then_fail(link, target):
+    global calls
+    calls += 1
+    if calls == 3:
+        first = install / plan[0][0]
+        # Keep the old inode allocated so replacement cannot reuse its identity.
+        first.rename(install / 'old-owned-link')
+        original(first, '../available/1030-tool-companion.sh')
+        raise OSError('injected creation failure')
+    return original(link, target)
+with patch.object(Path, 'symlink_to', replace_then_fail):
+    try:
+        module.apply_enable(install, plan, catalog, graph)
+    except OSError:
+        pass
+    else:
+        raise AssertionError('expected creation failure')
+assert (install / plan[0][0]).readlink() == Path('../available/1030-tool-companion.sh')
+assert not (install / plan[1][0]).is_symlink()
+assert not (install / plan[2][0]).is_symlink()
+assert not (install / plan[3][0]).is_symlink()
+PY
+	[ "$status" -eq 0 ]
+}
+
 @test "enable activates transitive required dependencies but not companions" {
 	activate enable 1020-tool-leaf
 	[ "$status" -eq 0 ]

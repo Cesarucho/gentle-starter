@@ -8,10 +8,9 @@
       "managed": [
         "AGENTS.md",
         "opencode.json",
-        "opencode-non-sdd.json",
+        "opencode-example.json",
         "opencode-notifier.json",
         "tui.json",
-        ".gentle-ai-default-agent.json",
         "commands/**",
         "plugins/**",
         "profiles/**",
@@ -19,6 +18,28 @@
         "skills/**"
       ],
       "excluded": [
+        "commands/sdd-*.md",
+        "plugins/sdd-task-result-artifacts.ts",
+        "prompts/sdd/**",
+        "skills/sdd-apply/**",
+        "skills/sdd-archive/**",
+        "skills/sdd-design/**",
+        "skills/sdd-explore/**",
+        "skills/sdd-init/**",
+        "skills/sdd-onboard/**",
+        "skills/sdd-propose/**",
+        "skills/sdd-research/**",
+        "skills/sdd-spec/**",
+        "skills/sdd-tasks/**",
+        "skills/sdd-verify/**",
+        "skills/branch-pr/**",
+        "skills/comment-writer/**",
+        "skills/gentle-ai-bench/**",
+        "skills/issue-creation/**",
+        "skills/rdd-defect-workflow/**",
+        "skills/systemic-issue-triage/**",
+        "skills/_shared/openspec-convention.md",
+        "skills/_shared/sdd-*.md",
         "opencode.jsonc",
         "**/.git/**",
         ".gitignore",
@@ -31,6 +52,9 @@
         "**/auth.json",
         "**/credentials.json",
         "**/sessions/**",
+        "**/history/**",
+        "**/*.db",
+        "**/*.sqlite*",
         "**/state/**",
         "**/logs/**",
         "**/cache/**",
@@ -44,9 +68,7 @@
       "seed": ".devcontainer/config/pi/agent",
       "managed": [
         "settings.json",
-        "mcp.json",
-        "mcp.presets.json",
-        "subagents.json"
+        "trust.json"
       ],
       "excluded": [
         "npm/**",
@@ -59,7 +81,10 @@
         "gentle-ai/**",
         "pi-pretty/**",
         "auth.json",
-        "trust.json",
+        "credentials.json",
+        "history/**",
+        "*.db",
+        "*.sqlite*",
         "APPEND_SYSTEM.md",
         "models-store.json",
         "mcp-cache.json",
@@ -73,29 +98,33 @@
       ]
     },
     {
-      "name": "Pi Gentle",
-      "owner": "3040-ai-pi-gentle.sh",
-      "runtime": ".pi/gentle-ai",
-      "seed": ".devcontainer/config/pi/gentle-ai",
+      "name": "Gentle Shell",
+      "owner": "3040-ai-gentle-shell.sh",
+      "runtime": ".gentle-shell",
+      "seed": ".devcontainer/config/gentle-shell",
       "managed": [
-        "banner.json",
-        "models.json",
-        "models.openai.json",
-        "models.opencode.json",
-        "persona.json"
+        "config.json",
+        "agent/settings.json",
+        "agent/subagents.json",
+        "agent/trust.json",
+        "agent/.gentle-shell-home"
       ],
       "excluded": [
-        "auth.json",
-        "credentials.json",
-        "sessions/**",
-        "state/**",
-        "npm/**",
-        "intercom/**",
-        "run-history.jsonl",
-        "logs/**",
-        "pids/**",
-        "cache/**",
-        "caches/**"
+        "**/auth.json", "**/credentials.json", "**/sessions/**",
+        "**/history/**", "**/state/**", "**/*.db", "**/*.sqlite*",
+        "**/logs/**", "**/cache/**", "**/caches/**", "**/run-history.jsonl"
+      ]
+    },
+    {
+      "name": "Pi Gentle AI",
+      "owner": "3040-ai-gentle-shell.sh",
+      "runtime": ".pi/gentle-ai",
+      "seed": ".devcontainer/config/pi/gentle-ai",
+      "managed": ["models.json", "persona.json", "profiles.json"],
+      "excluded": [
+        "**/auth.json", "**/credentials.json", "**/sessions/**",
+        "**/history/**", "**/state/**", "**/*.db", "**/*.sqlite*",
+        "**/logs/**", "**/cache/**", "**/caches/**", "**/run-history.jsonl"
       ]
     }
   ]

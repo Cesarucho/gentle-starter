@@ -57,19 +57,20 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ "${prepare_line}" -lt "${up_line}" ]
 	env_line="$(grep -nF '. .devcontainer/.env' <<<"${task_definition}" | cut -d: -f1)"
 	[ "${env_line}" -lt "${prepare_line}" ]
-	[[ "${task_definition}" == *'export GENTLE_VOLUME_MANIFEST_ID'* ]]
+	[[ "${task_definition}" == *'export DEVCONTAINER_BIND_MANIFEST_ID'* ]]
 }
 
-@test "host UID generation is guarded and running containers do not bypass preparation" {
+@test "host UID generation is guarded and attachment never prepares running containers" {
 	definition="$(awk '/^  ensure-identity-env:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  ensure-identity-env:/{exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
 	guard="$(grep -nF 'if [ -f /.dockerenv ]' <<<"${definition}" | cut -d: -f1)"
 	uid="$(grep -nF 'host_uid="$(id -u)"' <<<"${definition}" | cut -d: -f1)"
 	[ "${guard}" -lt "${uid}" ]
 	[[ "${definition}" != *'HOST_GID'* ]]
 	definition="$(awk '/^  ensure-running:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  ensure-running:/{exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
-	prepare="$(grep -nF 'prepare-bind-mounts.sh' <<<"${definition}" | cut -d: -f1)"
-	running="$(grep -nF 'if docker ps' <<<"${definition}" | cut -d: -f1)"
-	[ "${prepare}" -lt "${running}" ]
+	[[ "${definition}" != *'prepare-bind-mounts.sh'* ]]
+	[[ "${definition}" != *'ensure-identity-env'* ]]
+	[[ "${definition}" == *'compose-manifest.py attachment'* ]]
+	[[ "${definition}" == *'stopped|absent) task container:up'* ]]
 }
 
 @test "build and up regenerate locale settings before sourcing generated env" {
@@ -93,6 +94,46 @@ REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/../../.." && pwd)"
 	[ -n "${rm_line}" ]
 	[ "${rm_line}" -lt "${build_line}" ]
 	[ -z "${up_line}" ]
+}
+
+@test "all attachment entrypoints skip inside the container and retain read-only exec" {
+	[ -f /.dockerenv ] || skip "requires container host marker"
+	for operation in connect opencode opencode:server pi engram gentle-shell; do
+		definition="$(awk -v task="${operation}:" '$0 == "  " task {capture=1; next} capture && /^  [[:alnum:]:-]+:/ {exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+		[[ "${definition}" == *'    status:'* ]]
+		[[ "${definition}" == *'- task: ensure-running'* ]]
+		[[ "${definition}" == *'- task: run-devcontainer'* ]]
+		run env -u FORCE_HOST_CONTEXT task --dir "${REPO_ROOT}" "container:${operation}"
+		[ "${status}" -eq 0 ]
+	done
+	definition="$(awk '/^  run-devcontainer:/{capture=1} capture && /^  [[:alnum:]-]+:/ && !/^  run-devcontainer:/{exit} capture' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+	[[ "${definition}" != *'ensure-identity-env'* ]]
+	[[ "${definition}" != *'prepare-bind-mounts'* ]]
+}
+
+@test "attachment policy errors never start and stopped or absent states use up" {
+	body="$(awk '/^  ensure-running:/{capture=1; next} capture && /^  [[:alnum:]-]+:/ {exit} capture && /^      - \|/ {body=1; next} body {sub(/^        /, ""); print}' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
+	mkdir -p "${BATS_TEST_TMPDIR}/.devcontainer"
+	printf 'APP_NAME=fixture\n' >"${BATS_TEST_TMPDIR}/.devcontainer/.env"
+	for result in running stopped absent failure malformed; do
+		run env RESULT="${result}" FORCE_HOST_CONTEXT=1 bash -c '
+cd "$BATS_TEST_TMPDIR" || exit 97
+python3() {
+  case "$2" in
+    project-name) printf "fixture-project\n" ;;
+    attachment) [ "$RESULT" != failure ] || return 17; printf "%s\n" "$RESULT" ;;
+    *) return 98 ;;
+  esac
+}
+task() { [ "$*" = container:up ] || return 99; printf "strict startup\n"; }
+eval "$1"
+' _ "${body}"
+		case "${result}" in
+			running) [ "${status}" -eq 0 ]; [[ "${output}" != *'strict startup'* ]] ;;
+			stopped|absent) [ "${status}" -eq 0 ]; [[ "${output}" == *'strict startup'* ]] ;;
+			*) [ "${status}" -ne 0 ]; [[ "${output}" != *'strict startup'* ]] ;;
+		esac
+	done
 }
 
 # Execute the actual task shell body with fail-closed command doubles. No daemon
