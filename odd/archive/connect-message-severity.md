@@ -29,7 +29,7 @@ strict TDD configuration has been verified.
 
 - [x] T01: Add deterministic prefix and missing-command regression assertions;
   observe RED, implement labels and capability guard, then observe GREEN.
-- [ ] T02: Verify preserved safety behavior, run focused quality checks, and
+- [x] T02: Verify preserved safety behavior, run focused quality checks, and
   reconcile native review or explicitly accepted unavailable proof.
 - [x] T03: Implement and document `WELCOME_LOG_LEVEL` with observed RED/GREEN
   and deterministic unset, info, warn, off, invalid, empty, and non-TTY cases.
@@ -120,3 +120,19 @@ T02 remains pending parent review reconciliation.
 
 Next step: parent reconciliation of T02 and native review authority.
 The writer does not close or archive this record.
+
+## Final parent-reconciled disposition
+
+COMPLETE for the bounded welcome diagnostics and `WELCOME_LOG_LEVEL` scope.
+Repository locator: `odd/archive/connect-message-severity.md`.
+
+- The parent reconciled T02 against the documented T03 evidence: 10 real
+  plain/hashed parser cases passed, superseding the earlier historical SKIP;
+  Bats passed 1/1 and the recorded focused quality checks passed.
+- Delivery commit `635dc72` is an ancestor of current HEAD `45fd4e4` on `dev`;
+  the scoped implementation remains delivered unchanged. Earlier pending-status
+  and next-step prose above is preserved as historical evidence.
+- Native review is disabled/unmanaged with RDD off clone-local. This is an
+  explicit parent reconciliation, not a native review PASS or approval receipt.
+- Closure claims no live SSH, agent, recreation, build, release, or publication
+  proof. No behavior tests were rerun for this document-only archive operation.

@@ -77,7 +77,7 @@ verification below; the earlier selector and distribution results were not rerun
 ## Latest local documentation verification
 
 - The six-path markdownlint command recorded in
-  [the cleanup task](../tasks/simplify-development-tools-docs.md#authorized-final-cleanup)
+  [the cleanup task](./simplify-development-tools-docs.md#authorized-final-cleanup)
   checked 22 files because repository configuration adds broader globs: no issues.
 - The same six paths with `--no-globs` checked 6 files: no issues.
 - `git diff --check` passed; focused guide-link and README-contract Bats passed

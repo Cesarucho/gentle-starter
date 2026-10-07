@@ -19,7 +19,7 @@ approval question is required. This document records, rather than grants, author
 | CFG-01 | Complete | Read-only baseline mapping and owner inventory |
 | CFG-02 | Complete | Manifest, one seed call, existing export review hint |
 | CFG-03 | Complete | Actual isolated commands and static checks; no live proof |
-| CFG-04 | Local complete; mirror pending | Documentation and preservation proof |
+| CFG-04 | Closed local scope; full mirror saved | Documentation and preservation proof |
 
 Mirror: pending. Previous save failed because session registration could not be
 confirmed. One final full-content save/readback attempt is permitted; no invented
@@ -182,3 +182,17 @@ After both source commits, all 81 owner-data entries matched the snapshot above,
 all non-source refs matched, and the worktree/index were clean. This final
 evidence-only document update records actual source IDs, not its own future ID.
 No RC/publication, remote operation or new runtime proof was performed.
+
+## Parent reconciliation and archive disposition
+
+The parent reconciled and marked the authorized local configuration/export scope
+complete on 2026-10-06. Archive locator: `odd/archive/sync-ai-tool-configs.md`.
+Source `e8503f3` is a verified ancestor of HEAD `45fd4e4`.
+The owner's four removed exclusions remain authoritative; earlier proof predates
+them. All bounded-proof, per-file atomicity and preservation limitations above
+remain intact. Latest native consent was declined, not PASS. No personal HOME,
+RC, publication or new runtime verification is claimed or required for this scope.
+Historical mirror failures above remain historical. Successful full-content save
+recovered observation `2970` under `odd/sync-ai-tool-configs/tasks`; final body
+readback evidence belongs in the closure task and handoff. No session identity was
+invented or registered. A03 and final closure remain parent-owned.

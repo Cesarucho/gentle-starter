@@ -87,3 +87,18 @@ The producer workflow must use committed `dev` source and an existing clean
 ## Next step
 
 Review locally; publication remains a separate human decision.
+
+## Parent reconciliation and archive disposition
+
+The parent marked this workflow superseded on 2026-10-06 by
+`odd/archive/retire-legacy-starter-distribution.md`. Retirement commits `72f0c72`
+and `905abeb` are verified ancestors of HEAD `45fd4e4`; the removed producer
+workflow is not claimed operational. Historical implementation and proof remain
+above, including ancestor commits `010c663`, `c856509` and `1594194`.
+SPR-2 actual identity: `9a1668b8b7ca9e87898f96ee287c3a7eceada6a8`, also a verified
+HEAD ancestor. Archive locator: `odd/archive/starter-producer-release-workflow.md`.
+Successful full-content save recovered observation `2047` under
+`odd/starter-producer-release-workflow/tasks`; the prior mirror remains in
+observation version history. Final body readback evidence belongs in the closure
+task and handoff. No session identity was invented or registered, and no
+functional checks were rerun. A03 and final closure remain parent-owned.

@@ -48,7 +48,7 @@ pending owner approval; no review is performed.
   whitespace and the tree-label mismatch, deliberately left untouched.
 
 Repository locator: `/home/ubuntu/gentle-starter`;
-task: `odd/tasks/simplify-development-tools-docs.md`;
+task: `odd/archive/simplify-development-tools-docs.md`;
 Engram topic: `odd/simplify-development-tools-docs/tasks`.
 
 ## Authorized final cleanup
@@ -108,3 +108,21 @@ behavior changes, installed-skill edits, staging, commits, network, or builds.
 
 No candidate was regenerated from the old source. No network, build, Docker,
 download, SSH trust change, remote operation, promotion, tag, or review was run.
+
+## Final parent-reconciled disposition
+
+COMPLETE for the bounded local documentation scope.
+Repository locator: `odd/archive/simplify-development-tools-docs.md`.
+
+- Delivery commits `b64b5fe` and `86c5fcb` are ancestors of current HEAD
+  `45fd4e4` on `dev`. The current source retains the documentation objective
+  and accepted SSH selection correction.
+- The unchecked source-commit/owner-inspection item above is stale historical
+  workflow evidence, superseded by actual delivery. It remains unchecked to
+  avoid inventing an owner-approval receipt beyond that delivery.
+- The recorded final 8/8 and 32/32 checks suffice for this bounded local scope;
+  they are historical observed proof, not newly rerun tests or a current release
+  gate. Later candidate-source history includes the corrected source, but no
+  current candidate was verified by this archive operation.
+- No fresh RC is needed for local closure. This disposition claims no native
+  review approval, live SSH, Docker lifecycle, release, or publication proof.

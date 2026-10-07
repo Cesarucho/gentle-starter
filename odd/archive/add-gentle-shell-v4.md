@@ -243,7 +243,7 @@ proof of these pending changes or rewrite owner configuration to reproduce it.
 
 ### Readback and memory mirror
 
-Full readback locator: `odd/tasks/add-gentle-shell-v4.md`, from line 1 through EOF.
+Full readback locator: `odd/archive/add-gentle-shell-v4.md`, from line 1 through EOF.
 Mirror the complete document under project `gentle-starter`, topic
 `odd/add-gentle-shell-v4/tasks`. Engram registration was reported unavailable in
 the parent context: make at most one mirror save attempt after this update, omit
@@ -414,7 +414,7 @@ publication, commits, staging and ref mutation remain forbidden. No network,
 Docker, Bats execution, installs, live HOME, credentials or providers. Historical
 runtime evidence above is not proof of this feature.
 
-Full readback locator remains `odd/tasks/add-gentle-shell-v4.md`, line 1 through
+Full readback locator remains `odd/archive/add-gentle-shell-v4.md`, line 1 through
 EOF, including GS4-28–31. Engram registration remains unavailable as recorded
 above; the complete local document is the pending authoritative mirror. Do not
 invent a session identity or retry persistence in a loop. Source implementation
@@ -531,3 +531,18 @@ source branch remained identical, including custom RC
 `28a42cc55f7a3eefec7af4c7e4e9ce2ea32bc87c`; worktree/index were then clean.
 No candidate, promotion, publication, remote operation, Bats execution or native
 review PASS occurred. Full Engram mirror remains pending without retry.
+
+## Parent reconciliation and archive disposition
+
+The parent reconciled and marked native integration, bounded follow-ups and local
+publication-policy implementation complete on 2026-10-06. Archive locator:
+`odd/archive/add-gentle-shell-v4.md`. Sources `227a812`, `e8503f3` and `f2f5ff6`
+are verified ancestors of HEAD `45fd4e4`. Latest local-only scope supersedes older
+RC authority; live TUI, RC and publication remain separate, not current gates.
+Registered runtime `7b442143` and eighteen scratch CLI cases remain historical
+evidence, not rerun or relabeled. Latest native consent was declined, not PASS.
+All historical limitations and mirror failures are preserved. Successful
+full-content save recovered observation `2509` under `odd/add-gentle-shell-v4/tasks`;
+the prior mirror remains in observation version history. Final body readback
+evidence belongs in the closure task and handoff. No session identity was invented
+or registered. A03 and final closure remain parent-owned.
