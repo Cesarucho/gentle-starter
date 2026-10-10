@@ -9,6 +9,16 @@
 
 load install-selection.sh
 
+@test "openspec: selected CLI matches the generated lock" {
+    skip_if_install_disabled "3080-ai-openspec.sh" "task install:enable -- 3080-ai-openspec"
+    command -v openspec >/dev/null
+    source "${BATS_TEST_DIRNAME}/../../install/lib/common.sh"
+    devcontainer_load_tool_versions
+    run openspec --version
+    [ "$status" -eq 0 ]
+    [ "$output" = "${LOCK_OPENSPEC_VERSION}" ]
+}
+
 # ---------------------------------------------------------------------------
 # Core tools
 # ---------------------------------------------------------------------------

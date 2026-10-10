@@ -26,6 +26,7 @@ PACKAGE_SPECS=(
 	"LOCK_SPECTRAL_VERSION|@stoplight/spectral-cli" "LOCK_REDOCLY_VERSION|@redocly/cli"
 	"LOCK_ASYNCAPI_VERSION|@asyncapi/cli"
 	"LOCK_CODEGRAPH_VERSION|@colbymchenry/codegraph"
+	"LOCK_OPENSPEC_VERSION|@fission-ai/openspec"
 )
 
 GENTLE_SHELL_KEYS=(LOCK_GENTLE_SHELL_VERSION LOCK_GENTLE_SHELL_INTEGRITY)
@@ -42,12 +43,13 @@ MANAGED_KEYS=(
 	LOCK_PLANTUML_VERSION LOCK_PLANTUML_SHA256 LOCK_DELVE_VERSION LOCK_DELVE_SHA256_AMD64 LOCK_DELVE_SHA256_ARM64
 	LOCK_SPECTRAL_VERSION LOCK_REDOCLY_VERSION LOCK_ASYNCAPI_VERSION LOCK_ARCHIFY_VERSION LOCK_ARCHIFY_SHA256
 	LOCK_CODEGRAPH_VERSION
+	LOCK_OPENSPEC_VERSION
 	LOCK_GGA_VERSION LOCK_GGA_COMMIT LOCK_GGA_SHA256
 )
 
 # Only newly introduced locks explicitly registered here may be bootstrapped.
 # Existing missing locks remain errors; this is not a selective update API.
-INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION "${GENTLE_SHELL_KEYS[@]}")
+INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION LOCK_OPENSPEC_VERSION "${GENTLE_SHELL_KEYS[@]}")
 
 declare -A CANDIDATES=()
 UPDATE_KEYS=()
@@ -164,7 +166,7 @@ select_newest_stable_candidate() {
 
 strategy_for_key() {
 	case "$1" in
-	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION) printf npm ;;
+	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION | TOOL_OPENSPEC_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
 	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
@@ -902,6 +904,29 @@ main() {
 	if [ "${1:-}" = --retire-locks ]; then
 		shift
 		retire_locks "$@"
+		return
+	fi
+	if [ "${1:-}" = --update-openspec ]; then
+		[ "$#" -eq 1 ] || fail "expected --update-openspec without arguments"
+		[ ! -L "${POLICY_FILE}" ] || fail "scoped update requires a regular policy file"
+		require_command "${CURL_BIN}"
+		require_command "${JQ_BIN}"
+		validate_policy "${POLICY_FILE}"
+		validate_generated_section
+		validate_inventory bootstrap
+		TEMP_DIR="$(mktemp -d)"
+		local intent metadata version
+		intent="$(policy_value TOOL_OPENSPEC_VERSION)"
+		# Public metadata only: no npm configuration, credentials, or unrelated providers.
+		metadata="$("${CURL_BIN}" -q -fsSL --max-time 60 --max-filesize 10000000 \
+			'https://registry.npmjs.org/@fission-ai/openspec')" || fail "OpenSpec metadata request failed"
+		version="$(printf '%s' "${metadata}" | "${JQ_BIN}" -er '
+			if .name == "@fission-ai/openspec" and (.versions | type == "object")
+			then .versions | keys[] else error("invalid OpenSpec registry identity") end
+		' | select_newest_stable_candidate "${intent}" npm OpenSpec)" || fail "OpenSpec metadata has no matching stable version"
+		CANDIDATES[LOCK_OPENSPEC_VERSION]="${version}"
+		UPDATE_KEYS=(LOCK_OPENSPEC_VERSION)
+		publish_policy scoped-update
 		return
 	fi
 	[ -f "${ARCHIFY_ARCHIVE_SH}" ] || fail "Archify archive validator not found: ${ARCHIFY_ARCHIVE_SH}"

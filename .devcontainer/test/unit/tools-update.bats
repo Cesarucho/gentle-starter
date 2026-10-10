@@ -55,6 +55,65 @@ setup() {
 	write_forbidden_stub pi
 }
 
+write_openspec_metadata() {
+	cat >"${BIN_DIR}/curl" <<EOF
+#!/usr/bin/env bash
+printf 'curl %s\n' "\$*" >>"${CALLS_FILE}"
+printf '%s\n' '$1'
+EOF
+	chmod +x "${BIN_DIR}/curl"
+}
+
+@test "openspec scoped bootstrap selects stable 1.x and preserves unrelated bytes and mode" {
+	sed -i '/^LOCK_OPENSPEC_VERSION=/d; s/^TOOL_OPENSPEC_VERSION=.*/TOOL_OPENSPEC_VERSION="1"/' "${POLICY_FILE}"
+	write_openspec_metadata '{"name":"@fission-ai/openspec","versions":{"1.0.0":{},"1.9.0":{},"1.10.0":{},"1.11.0-beta.1":{},"2.0.0":{}}}'
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-openspec
+	[ "$status" -eq 0 ]
+	[ "$(grep -c '^LOCK_OPENSPEC_VERSION="1.10.0"$' "${POLICY_FILE}")" -eq 1 ]
+	grep -q '^TOOL_OPENSPEC_VERSION="1"$' "${POLICY_FILE}"
+	grep -v '^LOCK_OPENSPEC_VERSION=' "${POLICY_FILE}" >"${TEST_ROOT}/unrelated"
+	cmp "${TEST_ROOT}/before" "${TEST_ROOT}/unrelated"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	[ "$(wc -l <"${CALLS_FILE}")" -eq 1 ]
+	grep -Fq 'https://registry.npmjs.org/@fission-ai/openspec' "${CALLS_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-openspec
+	[ "$status" -eq 0 ]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "openspec scoped update rejects invalid or incompatible metadata atomically" {
+	local metadata
+	sed -i 's/^TOOL_OPENSPEC_VERSION=.*/TOOL_OPENSPEC_VERSION="1"/' "${POLICY_FILE}"
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	for metadata in invalid '{"name":"wrong","versions":{"1.0.0":{}}}' '{"name":"@fission-ai/openspec","versions":[]}' '{"name":"@fission-ai/openspec","versions":{"2.0.0":{},"1.0.0-beta.1":{}}}'; do
+		write_openspec_metadata "${metadata}"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-openspec
+		[ "$status" -ne 0 ]
+		cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+		[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	done
+	write_forbidden_stub curl
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-openspec
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'OpenSpec metadata request failed'* ]]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "openspec scoped update rejects extra arguments and symlink policy before network" {
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-openspec 1.0.0
+	[ "$status" -ne 0 ]
+	[ ! -s "${CALLS_FILE}" ]
+	mv "${POLICY_FILE}" "${TEST_ROOT}/real-policy"
+	ln -s "${TEST_ROOT}/real-policy" "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-openspec
+	[ "$status" -ne 0 ]
+	[ ! -s "${CALLS_FILE}" ]
+}
+
 @test "new CodeGraph lock is bootstrapped by the updater with an exact pin" {
 	sed -i '/^LOCK_CODEGRAPH_VERSION=/d; s/^TOOL_CODEGRAPH_VERSION=.*/TOOL_CODEGRAPH_VERSION="=1.6.0"/' "${POLICY_FILE}"
 	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
