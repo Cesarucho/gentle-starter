@@ -64,6 +64,284 @@ EOF
 	chmod +x "${BIN_DIR}/curl"
 }
 
+@test "only mixed selection preserves unrelated bytes mode and provider order" {
+	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only engram,vitest
+	[ "$status" -eq 0 ]
+	grep -q '^TOOL_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_SHA256_AMD64="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"$' "${POLICY_FILE}"
+	grep -q '^LOCK_ENGRAM_SHA256_ARM64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"$' "${POLICY_FILE}"
+	local pattern='^(TOOL_VITEST_VERSION|LOCK_VITEST_VERSION|LOCK_ENGRAM_.*)='
+	grep -Ev "${pattern}" "${TEST_ROOT}/before" >"${TEST_ROOT}/unrelated-before"
+	grep -Ev "${pattern}" "${POLICY_FILE}" >"${TEST_ROOT}/unrelated-after"
+	cmp "${TEST_ROOT}/unrelated-before" "${TEST_ROOT}/unrelated-after"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	[ "$(sed -n '1p' "${CALLS_FILE}")" = 'pnpm view vitest versions --json' ]
+	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 2 ]
+	! grep -Eq 'gh |archify|anomalyco|gentle-ai|go.dev|pypi|packagist' "${CALLS_FILE}"
+}
+
+@test "only local selection needs no network authentication or unrelated prerequisites" {
+	export DEPS_UPDATE_PNPM=/absent DEPS_UPDATE_CURL=/absent DEPS_UPDATE_JQ=/absent
+	export DEPS_UPDATE_SLEEP=/absent DEPS_UPDATE_GH=/absent TOOLS_UPDATE_USE_GH_AUTH=1
+	export DEPS_UPDATE_ARCHIFY_ARCHIVE_SH=/absent
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only php,node,java
+	[ "$status" -eq 0 ]
+	[ ! -s "${CALLS_FILE}" ]
+}
+
+@test "only npm selection skips GitHub auth Archify and unrelated calls" {
+	export DEPS_UPDATE_ARCHIFY_ARCHIVE_SH=/absent DEPS_UPDATE_GH=/absent
+	export TOOLS_UPDATE_USE_GH_AUTH=1 DEPS_UPDATE_SLEEP=/absent DEPS_UPDATE_CURL=/absent
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only openspec,skills
+	[ "$status" -eq 0 ]
+	[ "$(cat "${CALLS_FILE}")" = $'pnpm view skills versions --json\npnpm view @fission-ai/openspec versions --json' ]
+}
+
+@test "only strict parsing rejects malformed lists and mode combinations before side effects" {
+	local list
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	write_forbidden_stub mktemp
+	for list in '' ',node' 'node,' 'node,,go' 'Node' 'node, go' 'node,node' 'all' 'playwright-cli' 'gentle-pi' 'TOOL_NODE_VERSION' '2000-runtime-node' 'node;go' unknown; do
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only "${list}"
+		[ "$status" -ne 0 ]
+		[[ "$output" == *'--only'* ]]
+		[ ! -s "${CALLS_FILE}" ]
+	done
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only
+	[ "$status" -ne 0 ]
+	local mode
+	for mode in --only --validate --retire-locks --update-engram --update-pi --update-openspec extra; do
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only node "${mode}"
+		[ "$status" -ne 0 ]
+		[ ! -s "${CALLS_FILE}" ]
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${mode}" --only node
+		[ "$status" -ne 0 ]
+		[ ! -s "${CALLS_FILE}" ]
+	done
+}
+
+@test "only playwright resolves both independently constrained component locks" {
+	sed -i -e 's/^TOOL_PLAYWRIGHT_VERSION=.*/TOOL_PLAYWRIGHT_VERSION="9.9.8"/' \
+		-e 's/^TOOL_PLAYWRIGHT_CLI_VERSION=.*/TOOL_PLAYWRIGHT_CLI_VERSION="9"/' "${POLICY_FILE}"
+	run task --dir "${REPO_ROOT}" tools:update -- --only playwright
+	[ "$status" -eq 0 ]
+	grep -q '^LOCK_PLAYWRIGHT_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_PLAYWRIGHT_CLI_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^TOOL_PLAYWRIGHT_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^TOOL_PLAYWRIGHT_CLI_VERSION="9"$' "${POLICY_FILE}"
+	[ "$(cat "${CALLS_FILE}")" = $'pnpm view playwright versions --json\npnpm view @playwright/cli versions --json' ]
+}
+
+@test "only selected later-provider and publication failures remain atomic" {
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	write_curl_stub engram_bad_digest
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest,engram
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'has no valid SHA-256'* ]]
+	grep -q '^pnpm view vitest ' "${CALLS_FILE}"
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	write_curl_stub success
+	# Fail only the final atomic replacement, not the staging assignments.
+	cat >"${BIN_DIR}/mv" <<'SH'
+#!/usr/bin/env bash
+[ "${2:-}" != "$DEPS_UPDATE_POLICY_FILE" ] || exit 71
+exec /usr/bin/mv "$@"
+SH
+	chmod +x "${BIN_DIR}/mv"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -ne 0 ]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	[ -z "$(find "${TEST_ROOT}" -maxdepth 1 -name '.tool-versions.conf.*')" ]
+}
+
+@test "only refuses missing unselected initial locks before discovery" {
+	sed -i '/^LOCK_OPENSPEC_VERSION=/d' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only node
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'LOCK_OPENSPEC_VERSION is absent'* ]]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	[ ! -s "${CALLS_FILE}" ]
+}
+
+@test "only bootstraps registered selected outputs without repairing unselected locks" {
+	sed -i '/^LOCK_CODEGRAPH_VERSION=/d; /^LOCK_GENTLE_SHELL_/d' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only gentle-shell,codegraph
+	[ "$status" -eq 0 ]
+	[ "$(grep -c '^LOCK_CODEGRAPH_VERSION="10.0.0"$' "${POLICY_FILE}")" -eq 1 ]
+	[ "$(grep -c '^LOCK_GENTLE_SHELL_' "${POLICY_FILE}")" -eq 2 ]
+}
+
+@test "only every canonical identity publishes the complete full-update output set independently" {
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/original"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -eq 0 ]
+	cp "${POLICY_FILE}" "${TEST_ROOT}/full"
+	local name
+	for name in java node go pnpm bats engram opencode gentle-ai pi-coding-agent gentle-shell skills codegraph openspec gga c4-plantuml markdownlint-cli2 mermaid-cli archify graphify playwright devcontainer-cli vitest php phpunit terraform gitleaks pulumi opentofu terragrunt kubectl plantuml delve spectral redocly asyncapi; do
+		cp -p "${TEST_ROOT}/original" "${POLICY_FILE}"
+		: >"${CALLS_FILE}"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only "${name}"
+		[ "$status" -eq 0 ]
+		run python3 - "${TEST_ROOT}/original" "${TEST_ROOT}/full" "${POLICY_FILE}" "${name}" "${CALLS_FILE}" <<'PY'
+import re, sys
+from pathlib import Path
+before, full, after = (Path(p).read_bytes() for p in sys.argv[1:4])
+identity = sys.argv[4].upper().replace('-', '_').encode()
+prefixes = (b'TOOL_' + identity + b'_', b'LOCK_' + identity + b'_')
+def owned(data):
+    return b''.join(line for line in data.splitlines(keepends=True) if line.startswith(prefixes))
+def unrelated(data):
+    return b''.join(line for line in data.splitlines(keepends=True) if not line.startswith(prefixes))
+assert owned(after) == owned(full), sys.argv[4] + ': incomplete coupled outputs'
+assert unrelated(after) == unrelated(before), sys.argv[4] + ': unrelated mutation'
+assert re.search(rb'^LOCK_' + identity + rb'_', after, re.M)
+packages = {
+    'pnpm': 'pnpm', 'pi-coding-agent': '@earendil-works/pi-coding-agent',
+    'skills': 'skills', 'codegraph': '@colbymchenry/codegraph',
+    'openspec': '@fission-ai/openspec', 'markdownlint-cli2': 'markdownlint-cli2',
+    'mermaid-cli': '@mermaid-js/mermaid-cli', 'playwright': 'playwright',
+    'devcontainer-cli': '@devcontainers/cli', 'vitest': 'vitest',
+    'spectral': '@stoplight/spectral-cli', 'redocly': '@redocly/cli',
+    'asyncapi': '@asyncapi/cli',
+}
+urls = {
+    'java': (), 'node': (), 'php': (), 'go': ('https://go.dev/dl/',),
+    'bats': ('/bats-core/bats-core/',), 'engram': ('/Gentleman-Programming/engram/',),
+    'opencode': ('/anomalyco/opencode/',), 'gentle-ai': ('/Gentleman-Programming/gentle-ai/',),
+    'gentle-shell': ('https://registry.npmjs.org/gentle-pi/',),
+    'gga': ('/Gentleman-Programming/gentleman-guardian-angel/',),
+    'c4-plantuml': ('/plantuml-stdlib/C4-PlantUML/',), 'archify': ('/tt-a1i/archify/',),
+    'graphify': ('https://pypi.org/pypi/graphifyy/json',),
+    'phpunit': ('https://repo.packagist.org/p2/phpunit/phpunit.json',),
+    'terraform': ('https://releases.hashicorp.com/terraform/index.json',),
+    'gitleaks': ('/gitleaks/gitleaks/',), 'pulumi': ('/pulumi/pulumi/',),
+    'opentofu': ('/opentofu/opentofu/',), 'terragrunt': ('/gruntwork-io/terragrunt/',),
+    'kubectl': ('https://dl.k8s.io/release/stable-',),
+    'plantuml': ('/plantuml/plantuml/', '/maven2/net/sourceforge/plantuml/plantuml/'),
+    'delve': ('/go-delve/delve/',),
+}
+name = sys.argv[4]
+expected_npm = [f'pnpm view {packages[name]} versions --json'] if name in packages else []
+if name == 'playwright': expected_npm.append('pnpm view @playwright/cli versions --json')
+calls = Path(sys.argv[5]).read_text().splitlines()
+assert [c for c in calls if c.startswith('pnpm ')] == expected_npm
+for call in calls:
+    if call.startswith('curl '):
+        assert any(part in call.split()[-1] for part in urls.get(name, ())), name + ': unrelated ' + call
+    assert not call.startswith(('gh ', 'npm ', 'pi ', 'sleep ')), name + ': unrelated ' + call
+PY
+		[ "$status" -eq 0 ]
+	done
+}
+
+@test "only GitHub selection authenticates but Go and Terraform do not" {
+	export TOOLS_UPDATE_USE_GH_AUTH=invalid
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only terraform,go
+	[ "$status" -eq 0 ]
+	! grep -q '^gh ' "${CALLS_FILE}"
+	: >"${CALLS_FILE}"
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	write_gh_stub token
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only gitleaks
+	[ "$status" -eq 0 ]
+	[ "$(grep -c '^gh auth token --hostname github.com$' "${CALLS_FILE}")" -eq 1 ]
+	grep -Fq 'header Authorization: Bearer [redacted]' "${CALLS_FILE}"
+}
+
+@test "only advances selected bare baselines while preserving partial exact and provider intents" {
+	sed -i -e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' \
+		-e 's/^TOOL_PNPM_VERSION=.*/TOOL_PNPM_VERSION="9.9"/' \
+		-e 's/^TOOL_CODEGRAPH_VERSION=.*/TOOL_CODEGRAPH_VERSION="=1.6.0"/' \
+		-e 's/^TOOL_GO_VERSION=.*/TOOL_GO_VERSION="9.0.0"/' \
+		-e 's/^TOOL_DELVE_VERSION=.*/TOOL_DELVE_VERSION="1.0.0"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest,pnpm,codegraph,go,delve,kubectl,plantuml
+	[ "$status" -eq 0 ]
+	grep -q '^TOOL_VITEST_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^TOOL_GO_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_GO_VERSION="go9.9.9"$' "${POLICY_FILE}"
+	grep -q '^TOOL_DELVE_VERSION="1.99.0"$' "${POLICY_FILE}"
+	grep -q '^LOCK_DELVE_VERSION="v1.99.0"$' "${POLICY_FILE}"
+	grep -q '^TOOL_PNPM_VERSION="9.9"$' "${POLICY_FILE}"
+	grep -q '^TOOL_CODEGRAPH_VERSION="=1.6.0"$' "${POLICY_FILE}"
+	grep -q '^TOOL_KUBECTL_VERSION="1.36.4"$' "${POLICY_FILE}"
+	grep -q '^TOOL_PLANTUML_VERSION="1.2026.8"$' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest,pnpm,codegraph,go,delve,kubectl,plantuml
+	[ "$status" -eq 0 ]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="8.0.0"/' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'no stable candidate matching 8.0.0'* ]]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+}
+
+@test "only refuses symlink policy and validates unrelated inventory offline" {
+	printf 'LOCK_UNKNOWN_VERSION="1.0.0"\n' >>"${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -ne 0 ]
+	[ ! -s "${CALLS_FILE}" ]
+	mv "${POLICY_FILE}" "${TEST_ROOT}/real-policy"
+	ln -s "${TEST_ROOT}/real-policy" "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'regular policy file'* ]]
+	[ ! -s "${CALLS_FILE}" ]
+}
+
+@test "legacy update-pi exact version preserves unrelated bytes mode and provider isolation" {
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-pi 9.9.9
+	[ "$status" -eq 0 ]
+	grep -q '^TOOL_PI_CODING_AGENT_VERSION="9.9.9"$' "${POLICY_FILE}"
+	grep -q '^LOCK_PI_CODING_AGENT_VERSION="9.9.9"$' "${POLICY_FILE}"
+	local pattern='^(TOOL_PI_CODING_AGENT_VERSION|LOCK_PI_CODING_AGENT_VERSION)='
+	grep -Ev "${pattern}" "${TEST_ROOT}/before" >"${TEST_ROOT}/unrelated-before"
+	grep -Ev "${pattern}" "${POLICY_FILE}" >"${TEST_ROOT}/unrelated-after"
+	cmp "${TEST_ROOT}/unrelated-before" "${TEST_ROOT}/unrelated-after"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	[ "$(cat "${CALLS_FILE}")" = 'curl -q -fsSL --max-time 15 --max-filesize 10000000 https://registry.npmjs.org/@earendil-works/pi-coding-agent/9.9.9' ]
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	: >"${CALLS_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-pi 9.9.9
+	[ "$status" -eq 0 ]
+	cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	[ "$(cat "${CALLS_FILE}")" = 'curl -q -fsSL --max-time 15 --max-filesize 10000000 https://registry.npmjs.org/@earendil-works/pi-coding-agent/9.9.9' ]
+}
+
+@test "legacy update-pi exact argument parsing rejects missing extra and nonexact versions" {
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	write_forbidden_stub mktemp
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-pi
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'expected --update-pi exact-version'* ]]
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-pi 9.9.9 extra
+	[ "$status" -ne 0 ]
+	[[ "$output" == *'expected --update-pi exact-version'* ]]
+	local version
+	for version in '' latest 9 9.9 '=9.9.9' '9.9.9-rc.1' ' 9.9.9' unsafe; do
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --update-pi "${version}"
+		[ "$status" -ne 0 ]
+		[[ "$output" == *'not a stable semantic version'* ]]
+		cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+		[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+		[ ! -s "${CALLS_FILE}" ]
+	done
+}
+
 @test "openspec scoped bootstrap selects stable 1.x and preserves unrelated bytes and mode" {
 	sed -i '/^LOCK_OPENSPEC_VERSION=/d; s/^TOOL_OPENSPEC_VERSION=.*/TOOL_OPENSPEC_VERSION="1"/' "${POLICY_FILE}"
 	write_openspec_metadata '{"name":"@fission-ai/openspec","versions":{"1.0.0":{},"1.9.0":{},"1.10.0":{},"1.11.0-beta.1":{},"2.0.0":{}}}'
@@ -412,6 +690,8 @@ if [ "${mode}" = gentle_fail ] && [[ "\${url}" == *Gentleman-Programming/gentle-
 fi
 if [ "\${response_status}" -eq 200 ]; then
 case "\${url}" in
+	https://registry.npmjs.org/@earendil-works/pi-coding-agent/9.9.9)
+		body='{"name":"@earendil-works/pi-coding-agent","version":"9.9.9"}' ;;
 	https://registry.npmjs.org/@colbymchenry/codegraph/1.6.0)
 		body='{"name":"@colbymchenry/codegraph","version":"1.6.0"}'
 		[ "${mode}" != npm_bad_name ] || body='{"name":"unexpected","version":"1.6.0"}'

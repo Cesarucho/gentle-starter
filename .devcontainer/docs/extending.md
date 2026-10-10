@@ -327,6 +327,58 @@ fi
 
 `3010-ai-engram.sh` is a real example of this pattern.
 
+### Update selected tool versions
+
+Run the updater **inside the container** to change only selected policy inputs:
+
+```bash
+task tools:update -- --only engram,opencode
+task tools:update -- --only playwright
+```
+
+Use `--only LIST` once, with comma-separated canonical lowercase names and no
+spaces. Without the filter, `task tools:update` updates the full inventory as
+before. Selection follows the existing provider order, not the list order.
+
+| Managed tools | Canonical names |
+| --- | --- |
+| Runtimes and package tooling | `java`, `node`, `go`, `pnpm`, `php`, `phpunit` |
+| AI and code tooling | `engram`, `opencode`, `gentle-ai`, `pi-coding-agent`, `gentle-shell`, `skills`, `codegraph`, `openspec`, `gga`, `archify`, `graphify` |
+| Testing and containers | `bats`, `playwright`, `vitest`, `devcontainer-cli` |
+| Docs and contracts | `c4-plantuml`, `markdownlint-cli2`, `mermaid-cli`, `plantuml`, `spectral`, `redocly`, `asyncapi` |
+| Infrastructure and debugging | `terraform`, `gitleaks`, `pulumi`, `opentofu`, `terragrunt`, `kubectl`, `delve` |
+
+`playwright` selects both library and CLI locks, honoring their separate intents
+as one update unit ([ADR 0003](../../docs/en/adr/0003-unified-tool-policy-ownership.md)).
+Other grouped installer intents remain independent: for example, `spectral` does
+not select `redocly` or `asyncapi`. There is no `all` alias, package-name alias,
+installer-name alias, or `TOOL_*` alias; `playwright-cli` is not a separate selection.
+Selecting a tool does not enable it or expand activation dependencies.
+
+Missing or empty lists, whitespace, uppercase names, unknown or duplicate names,
+repeated flags, extra arguments, and combinations with other modes are rejected
+before discovery, authentication, or temporary-file creation. The complete policy
+inventory is validated offline, including unrelated intents and locks; missing
+unselected outputs are not bootstrapped. Only explicitly registered initial locks
+may be added, and only when their tool is selected. Only selected providers and prerequisites
+are used: local Java/Node/PHP channels need no network, and npm-only selection does
+not request GitHub authentication or Archify prerequisites.
+
+Every selected tool retains its complete integrity outputs, including both Linux
+architecture digests where required. Eligible complete bare SemVer baselines
+advance only for selected tools; channels, partials and exact pins retain their
+intent. Unrelated policy bytes and file mode are preserved. All discovery and
+validation must succeed before one atomic publication; failure leaves the policy
+unchanged. This changes policy only, not installed tools. Review the diff, then
+separately apply it on the **host** with `task container:rebuild` followed by
+`task container:up`.
+
+Legacy modes remain available: `--update-engram [exact-version]`,
+`--update-pi exact-version`, `--update-openspec`, `--validate`, and `--retire-locks`.
+The legacy OpenSpec mode remains public-registry-only and lock-only; generic
+`--only openspec` uses normal npm discovery and eligible baseline advancement.
+`--validate` checks the full existing inventory offline without provider tooling.
+
 ### Retire obsolete generated locks offline
 
 After removing a tool's editable intents and updater registrations, retire only

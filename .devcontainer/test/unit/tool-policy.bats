@@ -15,6 +15,13 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	[ -z "$(sed -nE 's/^((TOOL|LOCK)_[A-Z0-9_]+)=.*/\1/p' "${POLICY}" | sort | uniq -d)" ]
 }
 
+@test "offline validation does not require provider commands authentication or Archify helpers" {
+	run env DEPS_UPDATE_PNPM=/absent DEPS_UPDATE_CURL=/absent DEPS_UPDATE_JQ=/absent \
+		DEPS_UPDATE_GH=/absent DEPS_UPDATE_SLEEP=/absent TOOLS_UPDATE_USE_GH_AUTH=1 \
+		DEPS_UPDATE_ARCHIFY_ARCHIVE_SH=/absent "${UPDATER}" --validate
+	[ "$status" -eq 0 ]
+}
+
 @test "unknown tool intent fails closed" {
 	cp "${POLICY}" "${TEST_ROOT}/policy"
 	sed -i '/^# GENERATED LOCK/i TOOL_UNKNOWN_VERSION="latest"' "${TEST_ROOT}/policy"

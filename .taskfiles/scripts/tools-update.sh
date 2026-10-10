@@ -47,8 +47,122 @@ MANAGED_KEYS=(
 	LOCK_GGA_VERSION LOCK_GGA_COMMIT LOCK_GGA_SHA256
 )
 
+# Public policy identities, not installer names or package aliases. Playwright
+# owns both component intents; other grouped installers remain independent.
+TOOL_NAMES=(
+	java node go pnpm bats engram opencode gentle-ai pi-coding-agent gentle-shell
+	skills codegraph openspec gga c4-plantuml markdownlint-cli2 mermaid-cli archify
+	graphify playwright devcontainer-cli vitest php phpunit terraform gitleaks
+	pulumi opentofu terragrunt kubectl plantuml delve spectral redocly asyncapi
+)
+SELECTIVE=false
+declare -A SELECTED_TOOLS=()
+
+tool_for_key() {
+	local name prefix owner=""
+	for name in "${TOOL_NAMES[@]}"; do
+		prefix="${name^^}"
+		prefix="${prefix//-/_}"
+		if [[ "${1#*_}" == "${prefix}_"* ]]; then
+			[ -z "${owner}" ] || fail "ambiguous selection ownership for $1"
+			owner="${name}"
+		fi
+	done
+	[ -n "${owner}" ] || fail "missing selection ownership for $1"
+	printf '%s' "${owner}"
+}
+
+key_is_selected() {
+	[ "${SELECTIVE}" = true ] || return 0
+	[ -n "${SELECTED_TOOLS[$(tool_for_key "$1")]:-}" ]
+}
+
+parse_arguments() {
+	local name known arg canonical
+	# Reject combined modes even when --only appears after a legacy flag.
+	for arg in "$@"; do
+		if [ "${arg}" = --only ]; then
+			if [ "$#" -ne 2 ] || [ "$1" != --only ]; then
+				fail "expected --only LIST as the only mode"
+			fi
+			[[ "$2" =~ ^[a-z0-9]+(-[a-z0-9]+)*(,[a-z0-9]+(-[a-z0-9]+)*)*$ ]] || fail "--only requires a nonempty canonical comma-separated list"
+			local -a names
+			IFS=, read -r -a names <<<"$2"
+			for name in "${names[@]}"; do
+				known=false
+				for canonical in "${TOOL_NAMES[@]}"; do
+					[ "${name}" != "${canonical}" ] || known=true
+				done
+				[ "${known}" = true ] || fail "unknown --only tool: ${name}"
+				[ -z "${SELECTED_TOOLS[${name}]:-}" ] || fail "duplicate --only tool: ${name}"
+				SELECTED_TOOLS["${name}"]=1
+			done
+			SELECTIVE=true
+			return
+		fi
+	done
+	case "${1:-}" in
+	'') [ "$#" -eq 0 ] || fail "unsupported updater arguments" ;;
+	--validate | --update-openspec) [ "$#" -eq 1 ] || fail "expected $1 without arguments" ;;
+	--retire-locks) [ "$#" -gt 1 ] || fail "--retire-locks requires explicit keys" ;;
+	--update-engram | --update-pi)
+		if [ "$1" = --update-pi ]; then
+			[ "$#" -eq 2 ] || fail "expected --update-pi exact-version"
+		else
+			[ "$#" -le 2 ] || fail "expected --update-engram [exact-version]"
+		fi
+		[ "$#" -ne 2 ] || require_stable_semver "$1" "$2"
+		;;
+	*) fail "unsupported updater arguments" ;;
+	esac
+}
+
+require_selected_providers() {
+	local name spec key
+	for name in "${!SELECTED_TOOLS[@]}"; do
+		case "${name}" in
+		java | node | php) ;;
+		pnpm | pi-coding-agent | skills | codegraph | openspec | markdownlint-cli2 | mermaid-cli | playwright | devcontainer-cli | vitest | spectral | redocly | asyncapi)
+			require_command "${JQ_BIN}"
+			;;
+		*)
+			require_command "${CURL_BIN}"
+			require_command "${JQ_BIN}"
+			;;
+		esac
+		case "${name}" in
+		bats | engram | opencode | gentle-ai | gga | c4-plantuml | archify | gitleaks | pulumi | opentofu | terragrunt | plantuml | delve)
+			require_command "${SLEEP_BIN}"
+			require_command sha256sum
+			;;
+		esac
+	done
+	for spec in "${PACKAGE_SPECS[@]}"; do
+		key="${spec%%|*}"
+		if key_is_selected "${key}"; then
+			if [[ "$(policy_value "$(intent_key_for_lock "${key}")")" == =* ]]; then
+				require_command "${CURL_BIN}"
+			else
+				require_command "${PNPM_BIN}"
+			fi
+		fi
+	done
+	if [ -n "${SELECTED_TOOLS[archify]:-}" ]; then
+		[ -f "${ARCHIFY_ARCHIVE_SH}" ] || fail "Archify archive validator not found: ${ARCHIFY_ARCHIVE_SH}"
+		require_command node
+		require_command unzip
+	fi
+	# Strategy names do not identify the transport (Go and Terraform aren't GitHub).
+	for name in bats engram opencode gentle-ai gga c4-plantuml archify gitleaks pulumi opentofu terragrunt plantuml delve; do
+		if [ -n "${SELECTED_TOOLS[${name}]:-}" ]; then
+			resolve_github_api_token
+			break
+		fi
+	done
+}
+
 # Only newly introduced locks explicitly registered here may be bootstrapped.
-# Existing missing locks remain errors; this is not a selective update API.
+# Other missing locks remain errors; selection never expands this registry.
 INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION LOCK_OPENSPEC_VERSION "${GENTLE_SHELL_KEYS[@]}")
 
 declare -A CANDIDATES=()
@@ -179,6 +293,7 @@ strategy_for_key() {
 apply_intent_contract() {
 	local key intent_key intent strategy candidate
 	for key in "${MANAGED_KEYS[@]}"; do
+		key_is_selected "${key}" || continue
 		[[ "${key}" == *_VERSION ]] || continue
 		[ "${key}" != LOCK_JAVA_REQUIRED_VERSION ] || continue
 		intent_key="$(intent_key_for_lock "${key}")"
@@ -477,8 +592,10 @@ resolved_baseline() {
 
 prepare_baseline_updates() {
 	local key baseline intent_key
-	UPDATE_KEYS=("${MANAGED_KEYS[@]}")
+	UPDATE_KEYS=()
 	for key in "${MANAGED_KEYS[@]}"; do
+		key_is_selected "${key}" || continue
+		UPDATE_KEYS+=("${key}")
 		baseline="$(resolved_baseline "${key}" "${POLICY_FILE}")"
 		[ -n "${baseline}" ] || continue
 		intent_key="$(intent_key_for_lock "${key}")"
@@ -496,6 +613,7 @@ validate_inventory() {
 	done
 
 	for key in "${MANAGED_KEYS[@]}"; do
+		tool_for_key "${key}" >/dev/null
 		inventory["${key}"]=$((${inventory["${key}"]:-0} + 1))
 	done
 	while IFS= read -r key; do
@@ -506,7 +624,7 @@ validate_inventory() {
 	for key in "${!inventory[@]}"; do
 		[ "${inventory[${key}]}" -eq 1 ] || fail "inventory key ${key} is classified more than once"
 		if ! grep -q "^${key}=" "${POLICY_FILE}"; then
-			if [ "${1:-}" != bootstrap ] || ! initial_lock_is_registered "${key}"; then
+			if [ "${1:-}" != bootstrap ] || ! initial_lock_is_registered "${key}" || ! key_is_selected "${key}"; then
 				fail "inventory key ${key} is absent from the policy"
 			fi
 			intent_key="$(intent_key_for_lock "${key}")"
@@ -516,6 +634,7 @@ validate_inventory() {
 
 	while IFS= read -r intent_key; do
 		validate_intent "${intent_key}" "$(policy_value "${intent_key}")" "$(strategy_for_key "${intent_key}")"
+		tool_for_key "${intent_key}" >/dev/null
 	done < <(sed -nE 's/^(TOOL_[A-Z0-9_]+_VERSION)=.*/\1/p' "${POLICY_FILE}")
 }
 
@@ -658,81 +777,131 @@ discover_gentle_shell() {
 discover_candidates() {
 	local spec key package_name
 	local java_intent node_intent php_intent
-	java_intent="$(policy_value TOOL_JAVA_VERSION)"
-	node_intent="$(policy_value TOOL_NODE_VERSION)"
-	php_intent="$(policy_value TOOL_PHP_VERSION)"
-	CANDIDATES[LOCK_JAVA_INSTALL_VERSION]="${java_intent#=}"
-	CANDIDATES[LOCK_JAVA_REQUIRED_VERSION]="$(cut -d- -f1 <<<"${java_intent#=}" | cut -d. -f1)"
-	CANDIDATES[LOCK_NODE_MAJOR]="$(cut -d. -f1 <<<"${node_intent#=}")"
-	CANDIDATES[LOCK_PHP_SERIES]="$(cut -d. -f1,2 <<<"${php_intent#=}")"
-	CANDIDATES[LOCK_GRAPHIFY_VERSION]="$(latest_pypi_version graphifyy "$(policy_value TOOL_GRAPHIFY_VERSION)")"
-	CANDIDATES[LOCK_PHPUNIT_VERSION]="$(latest_composer_version phpunit/phpunit "$(policy_value TOOL_PHPUNIT_VERSION)")"
+	if key_is_selected LOCK_JAVA_INSTALL_VERSION; then
+		java_intent="$(policy_value TOOL_JAVA_VERSION)"
+		CANDIDATES[LOCK_JAVA_INSTALL_VERSION]="${java_intent#=}"
+		CANDIDATES[LOCK_JAVA_REQUIRED_VERSION]="$(cut -d- -f1 <<<"${java_intent#=}" | cut -d. -f1)"
+	fi
+	if key_is_selected LOCK_NODE_MAJOR; then
+		node_intent="$(policy_value TOOL_NODE_VERSION)"
+		CANDIDATES[LOCK_NODE_MAJOR]="$(cut -d. -f1 <<<"${node_intent#=}")"
+	fi
+	if key_is_selected LOCK_PHP_SERIES; then
+		php_intent="$(policy_value TOOL_PHP_VERSION)"
+		CANDIDATES[LOCK_PHP_SERIES]="$(cut -d. -f1,2 <<<"${php_intent#=}")"
+	fi
+	if key_is_selected LOCK_GRAPHIFY_VERSION; then
+		CANDIDATES[LOCK_GRAPHIFY_VERSION]="$(latest_pypi_version graphifyy "$(policy_value TOOL_GRAPHIFY_VERSION)")"
+	fi
+	if key_is_selected LOCK_PHPUNIT_VERSION; then
+		CANDIDATES[LOCK_PHPUNIT_VERSION]="$(latest_composer_version phpunit/phpunit "$(policy_value TOOL_PHPUNIT_VERSION)")"
+	fi
 
 	printf 'Discovering exact pnpm package versions...\n'
 	for spec in "${PACKAGE_SPECS[@]}"; do
 		IFS='|' read -r key package_name <<<"${spec}"
+		key_is_selected "${key}" || continue
 		CANDIDATES["${key}"]="$(latest_package_version "${package_name}" "$(policy_value "$(intent_key_for_lock "${key}")")")"
 	done
 
 	printf 'Discovering constrained direct releases...\n'
-	CANDIDATES[LOCK_GENTLE_AI_VERSION]="$(latest_github_release 'Gentleman-Programming/gentle-ai' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GENTLE_AI_VERSION)")"
-	discover_gentle_ai_digests
-	CANDIDATES[LOCK_GGA_VERSION]="$(latest_github_release 'Gentleman-Programming/gentleman-guardian-angel' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GGA_VERSION)")"
-	discover_gga_source
-	discover_archify_release
-	CANDIDATES[LOCK_C4_PLANTUML_VERSION]="$(latest_github_release 'plantuml-stdlib/C4-PlantUML' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_C4_PLANTUML_VERSION)")"
-	CANDIDATES[LOCK_TERRAFORM_VERSION]="$(latest_terraform_version "$(policy_value TOOL_TERRAFORM_VERSION)")"
-	CANDIDATES[LOCK_GITLEAKS_VERSION]="$(latest_github_release 'gitleaks/gitleaks' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GITLEAKS_VERSION)")"
-	CANDIDATES[LOCK_PULUMI_VERSION]="$(latest_github_release 'pulumi/pulumi' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_PULUMI_VERSION)")"
-	CANDIDATES[LOCK_OPENTOFU_VERSION]="$(latest_github_release 'opentofu/opentofu' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_OPENTOFU_VERSION)")"
-	CANDIDATES[LOCK_TERRAGRUNT_VERSION]="$(latest_github_release 'gruntwork-io/terragrunt' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_TERRAGRUNT_VERSION)")"
-	CANDIDATES[LOCK_KUBECTL_VERSION]="$(latest_kubectl_version "$(policy_value TOOL_KUBECTL_VERSION)")"
-	CANDIDATES[LOCK_PLANTUML_VERSION]="$(latest_github_release 'plantuml/plantuml' '^v1\.[0-9]{4}\.[0-9]+$' no "$(policy_value TOOL_PLANTUML_VERSION)" plantuml)"
-	local plantuml_digest
-	plantuml_digest="$(fetch_url "https://repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/${CANDIDATES[LOCK_PLANTUML_VERSION]}/plantuml-${CANDIDATES[LOCK_PLANTUML_VERSION]}.jar.sha256")"
-	plantuml_digest="${plantuml_digest//[[:space:]]/}"
-	[[ "${plantuml_digest}" =~ ^[0-9a-f]{64}$ ]] || fail "PlantUML Maven metadata has an invalid SHA-256"
-	CANDIDATES[LOCK_PLANTUML_SHA256]="${plantuml_digest}"
-	CANDIDATES[LOCK_DELVE_VERSION]="$(latest_github_release 'go-delve/delve' '^v[0-9]+\.[0-9]+\.[0-9]+$' yes "$(policy_value TOOL_DELVE_VERSION)")"
-	CANDIDATES[LOCK_ENGRAM_VERSION]="$(latest_github_release 'Gentleman-Programming/engram' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_ENGRAM_VERSION)")"
-	CANDIDATES[LOCK_OPENCODE_VERSION]="$(latest_github_release 'anomalyco/opencode' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_OPENCODE_VERSION)")"
-	discover_github_binary_release LOCK_ENGRAM Gentleman-Programming/engram "${CANDIDATES[LOCK_ENGRAM_VERSION]}" 'engram_{version}_linux_{arch}.tar.gz'
-	discover_github_binary_release LOCK_OPENCODE anomalyco/opencode "${CANDIDATES[LOCK_OPENCODE_VERSION]}" 'opencode-linux-{arch}.tar.gz'
+	if key_is_selected LOCK_GENTLE_AI_VERSION; then
+		CANDIDATES[LOCK_GENTLE_AI_VERSION]="$(latest_github_release 'Gentleman-Programming/gentle-ai' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GENTLE_AI_VERSION)")"
+		discover_gentle_ai_digests
+	fi
+	if key_is_selected LOCK_GGA_VERSION; then
+		CANDIDATES[LOCK_GGA_VERSION]="$(latest_github_release 'Gentleman-Programming/gentleman-guardian-angel' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GGA_VERSION)")"
+		discover_gga_source
+	fi
+	if key_is_selected LOCK_ARCHIFY_VERSION; then discover_archify_release; fi
+	if key_is_selected LOCK_C4_PLANTUML_VERSION; then
+		CANDIDATES[LOCK_C4_PLANTUML_VERSION]="$(latest_github_release 'plantuml-stdlib/C4-PlantUML' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_C4_PLANTUML_VERSION)")"
+	fi
+	if key_is_selected LOCK_TERRAFORM_VERSION; then
+		CANDIDATES[LOCK_TERRAFORM_VERSION]="$(latest_terraform_version "$(policy_value TOOL_TERRAFORM_VERSION)")"
+	fi
+	if key_is_selected LOCK_GITLEAKS_VERSION; then
+		CANDIDATES[LOCK_GITLEAKS_VERSION]="$(latest_github_release 'gitleaks/gitleaks' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_GITLEAKS_VERSION)")"
+	fi
+	if key_is_selected LOCK_PULUMI_VERSION; then
+		CANDIDATES[LOCK_PULUMI_VERSION]="$(latest_github_release 'pulumi/pulumi' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_PULUMI_VERSION)")"
+	fi
+	if key_is_selected LOCK_OPENTOFU_VERSION; then
+		CANDIDATES[LOCK_OPENTOFU_VERSION]="$(latest_github_release 'opentofu/opentofu' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_OPENTOFU_VERSION)")"
+	fi
+	if key_is_selected LOCK_TERRAGRUNT_VERSION; then
+		CANDIDATES[LOCK_TERRAGRUNT_VERSION]="$(latest_github_release 'gruntwork-io/terragrunt' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_TERRAGRUNT_VERSION)")"
+	fi
+	if key_is_selected LOCK_KUBECTL_VERSION; then
+		CANDIDATES[LOCK_KUBECTL_VERSION]="$(latest_kubectl_version "$(policy_value TOOL_KUBECTL_VERSION)")"
+	fi
+	if key_is_selected LOCK_PLANTUML_VERSION; then
+		CANDIDATES[LOCK_PLANTUML_VERSION]="$(latest_github_release 'plantuml/plantuml' '^v1\.[0-9]{4}\.[0-9]+$' no "$(policy_value TOOL_PLANTUML_VERSION)" plantuml)"
+		local plantuml_digest
+		plantuml_digest="$(fetch_url "https://repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/${CANDIDATES[LOCK_PLANTUML_VERSION]}/plantuml-${CANDIDATES[LOCK_PLANTUML_VERSION]}.jar.sha256")"
+		plantuml_digest="${plantuml_digest//[[:space:]]/}"
+		[[ "${plantuml_digest}" =~ ^[0-9a-f]{64}$ ]] || fail "PlantUML Maven metadata has an invalid SHA-256"
+		CANDIDATES[LOCK_PLANTUML_SHA256]="${plantuml_digest}"
+	fi
+	if key_is_selected LOCK_DELVE_VERSION; then
+		CANDIDATES[LOCK_DELVE_VERSION]="$(latest_github_release 'go-delve/delve' '^v[0-9]+\.[0-9]+\.[0-9]+$' yes "$(policy_value TOOL_DELVE_VERSION)")"
+	fi
+	if key_is_selected LOCK_ENGRAM_VERSION; then
+		CANDIDATES[LOCK_ENGRAM_VERSION]="$(latest_github_release 'Gentleman-Programming/engram' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_ENGRAM_VERSION)")"
+	fi
+	if key_is_selected LOCK_OPENCODE_VERSION; then
+		CANDIDATES[LOCK_OPENCODE_VERSION]="$(latest_github_release 'anomalyco/opencode' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_OPENCODE_VERSION)")"
+	fi
+	if key_is_selected LOCK_ENGRAM_VERSION; then
+		discover_github_binary_release LOCK_ENGRAM Gentleman-Programming/engram "${CANDIDATES[LOCK_ENGRAM_VERSION]}" 'engram_{version}_linux_{arch}.tar.gz'
+	fi
+	if key_is_selected LOCK_OPENCODE_VERSION; then
+		discover_github_binary_release LOCK_OPENCODE anomalyco/opencode "${CANDIDATES[LOCK_OPENCODE_VERSION]}" 'opencode-linux-{arch}.tar.gz'
+	fi
 
-	local go_json go_version architecture go_digest
-	go_json="$(fetch_url 'https://go.dev/dl/?mode=json')"
-	go_version="$(printf '%s' "${go_json}" | "${JQ_BIN}" -er '.[].version' | select_newest_stable_candidate "$(policy_value TOOL_GO_VERSION)" github-v Go)"
-	[[ "${go_version}" =~ ^go[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Go returned an invalid stable version"
-	CANDIDATES[LOCK_GO_VERSION]="${go_version}"
-	for architecture in amd64 arm64; do
-		# shellcheck disable=SC2016
-		go_digest="$(printf '%s' "${go_json}" | "${JQ_BIN}" -er --arg version "${go_version}" --arg arch "${architecture}" '[.[].files[] | select(.version == $version and .os == "linux" and .arch == $arch and .kind == "archive")] | if length == 1 then .[0].sha256 else error("expected one Go archive") end')" || fail "Go must publish one linux/${architecture} archive"
-		[[ "${go_digest}" =~ ^[0-9a-f]{64}$ ]] || fail "Go ${architecture} archive has an invalid SHA-256"
-		CANDIDATES["LOCK_GO_SHA256_${architecture^^}"]="${go_digest}"
-	done
+	if key_is_selected LOCK_GO_VERSION; then
+		local go_json go_version architecture go_digest
+		go_json="$(fetch_url 'https://go.dev/dl/?mode=json')"
+		go_version="$(printf '%s' "${go_json}" | "${JQ_BIN}" -er '.[].version' | select_newest_stable_candidate "$(policy_value TOOL_GO_VERSION)" github-v Go)"
+		[[ "${go_version}" =~ ^go[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Go returned an invalid stable version"
+		CANDIDATES[LOCK_GO_VERSION]="${go_version}"
+		for architecture in amd64 arm64; do
+			# shellcheck disable=SC2016
+			go_digest="$(printf '%s' "${go_json}" | "${JQ_BIN}" -er --arg version "${go_version}" --arg arch "${architecture}" '[.[].files[] | select(.version == $version and .os == "linux" and .arch == $arch and .kind == "archive")] | if length == 1 then .[0].sha256 else error("expected one Go archive") end')" || fail "Go must publish one linux/${architecture} archive"
+			[[ "${go_digest}" =~ ^[0-9a-f]{64}$ ]] || fail "Go ${architecture} archive has an invalid SHA-256"
+			CANDIDATES["LOCK_GO_SHA256_${architecture^^}"]="${go_digest}"
+		done
+	fi
 
-	CANDIDATES[LOCK_BATS_VERSION]="$(latest_github_release 'bats-core/bats-core' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_BATS_VERSION)")"
-	local bats_archive="${TEMP_DIR}/bats.tar.gz"
-	fetch_url_to_file "https://github.com/bats-core/bats-core/archive/refs/tags/v${CANDIDATES[LOCK_BATS_VERSION]}.tar.gz" "${bats_archive}"
-	CANDIDATES[LOCK_BATS_SHA256]="$(sha256sum "${bats_archive}" | awk '{print $1}')"
+	if key_is_selected LOCK_BATS_VERSION; then
+		CANDIDATES[LOCK_BATS_VERSION]="$(latest_github_release 'bats-core/bats-core' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_BATS_VERSION)")"
+		local bats_archive="${TEMP_DIR}/bats.tar.gz"
+		fetch_url_to_file "https://github.com/bats-core/bats-core/archive/refs/tags/v${CANDIDATES[LOCK_BATS_VERSION]}.tar.gz" "${bats_archive}"
+		CANDIDATES[LOCK_BATS_SHA256]="$(sha256sum "${bats_archive}" | awk '{print $1}')"
+	fi
 
-	local delve_checksums delve_version
-	delve_version="${CANDIDATES[LOCK_DELVE_VERSION]#v}"
-	delve_checksums="$(fetch_url "https://github.com/go-delve/delve/releases/download/v${delve_version}/checksums.txt")"
-	for architecture in amd64 arm64; do
-		go_digest="$(printf '%s\n' "${delve_checksums}" | awk -v name="dlv_${delve_version}_linux_${architecture}.tar.gz" '$2 == name {print $1}')"
-		[[ "${go_digest}" =~ ^[0-9a-f]{64}$ ]] || fail "Delve checksums omit linux/${architecture}"
-		CANDIDATES["LOCK_DELVE_SHA256_${architecture^^}"]="${go_digest}"
-	done
+	if key_is_selected LOCK_DELVE_VERSION; then
+		local delve_checksums delve_version
+		local architecture go_digest
+		delve_version="${CANDIDATES[LOCK_DELVE_VERSION]#v}"
+		delve_checksums="$(fetch_url "https://github.com/go-delve/delve/releases/download/v${delve_version}/checksums.txt")"
+		for architecture in amd64 arm64; do
+			go_digest="$(printf '%s\n' "${delve_checksums}" | awk -v name="dlv_${delve_version}_linux_${architecture}.tar.gz" '$2 == name {print $1}')"
+			[[ "${go_digest}" =~ ^[0-9a-f]{64}$ ]] || fail "Delve checksums omit linux/${architecture}"
+			CANDIDATES["LOCK_DELVE_SHA256_${architecture^^}"]="${go_digest}"
+		done
+	fi
 
-	local c4_archive="${TEMP_DIR}/c4-plantuml.tar.gz"
-	fetch_url_to_file \
-		"https://codeload.github.com/plantuml-stdlib/C4-PlantUML/tar.gz/refs/tags/v${CANDIDATES[LOCK_C4_PLANTUML_VERSION]}" \
-		"${c4_archive}"
-	[ -s "${c4_archive}" ] || fail "C4-PlantUML archive is empty"
-	CANDIDATES[LOCK_C4_PLANTUML_SHA256]="$(sha256sum "${c4_archive}" | awk '{print $1}')"
-	[[ "${CANDIDATES[LOCK_C4_PLANTUML_SHA256]}" =~ ^[0-9a-f]{64}$ ]] || fail "invalid C4-PlantUML SHA-256"
-	discover_gentle_shell
+	if key_is_selected LOCK_C4_PLANTUML_VERSION; then
+		local c4_archive="${TEMP_DIR}/c4-plantuml.tar.gz"
+		fetch_url_to_file \
+			"https://codeload.github.com/plantuml-stdlib/C4-PlantUML/tar.gz/refs/tags/v${CANDIDATES[LOCK_C4_PLANTUML_VERSION]}" \
+			"${c4_archive}"
+		[ -s "${c4_archive}" ] || fail "C4-PlantUML archive is empty"
+		CANDIDATES[LOCK_C4_PLANTUML_SHA256]="$(sha256sum "${c4_archive}" | awk '{print $1}')"
+		[[ "${CANDIDATES[LOCK_C4_PLANTUML_SHA256]}" =~ ^[0-9a-f]{64}$ ]] || fail "invalid C4-PlantUML SHA-256"
+	fi
+	if key_is_selected LOCK_GENTLE_SHELL_VERSION; then discover_gentle_shell; fi
 }
 
 replace_assignment() {
@@ -820,9 +989,9 @@ publish_policy() {
 		fi
 	done
 
-	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}" "${1:-}"
 	validate_policy "${CANDIDATE_FILE}"
 	POLICY_FILE="${CANDIDATE_FILE}" validate_inventory
+	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}" "${1:-}"
 
 	printf '\nVersion policy updates:\n'
 	for key in "${UPDATE_KEYS[@]}"; do
@@ -899,8 +1068,31 @@ PY
 }
 
 main() {
+	parse_arguments "$@"
 	[ -f "${POLICY_FILE}" ] || fail "policy file not found: ${POLICY_FILE}"
 	[ -f "${COMMON_SH}" ] || fail "common installer library not found: ${COMMON_SH}"
+	if [ "${SELECTIVE}" = true ]; then
+		[ ! -L "${POLICY_FILE}" ] || fail "scoped update requires a regular policy file"
+		require_command python3
+		validate_policy "${POLICY_FILE}"
+		validate_generated_section
+		# Selected updates never repair missing unrelated outputs.
+		validate_inventory bootstrap
+		require_selected_providers
+		TEMP_DIR="$(mktemp -d)"
+		discover_candidates
+		apply_intent_contract
+		prepare_baseline_updates
+		publish_policy scoped-update
+		return
+	fi
+	if [ "${1:-}" = --validate ]; then
+		validate_policy "${POLICY_FILE}"
+		validate_generated_section
+		validate_inventory
+		printf 'ok: %s\n' "${POLICY_FILE}"
+		return
+	fi
 	if [ "${1:-}" = --retire-locks ]; then
 		shift
 		retire_locks "$@"
@@ -941,11 +1133,6 @@ main() {
 	validate_policy "${POLICY_FILE}"
 	# Appending requires the generated section to follow all editable intent.
 	validate_generated_section
-	if [ "${1:-}" = "--validate" ]; then
-		validate_inventory
-		printf 'ok: %s\n' "${POLICY_FILE}"
-		exit 0
-	fi
 	validate_inventory bootstrap
 
 	TEMP_DIR="$(mktemp -d)"
