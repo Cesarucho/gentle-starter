@@ -68,6 +68,34 @@ It checks recorded identity/ancestry and a direct publication's parent/tree
 match, not full publication correctness. Inconsistent state fails closed without
 action commands. The existing promotion/rejection checks remain authoritative.
 
+## Blocked command diagnostics
+
+When candidate preparation refuses a stale RC or status reports `inconsistent`,
+the default output shows only the full blocked RC ID and a concise reason,
+alongside the original error. For an RC that recorded an absent initial base:
+
+```text
+State: inconsistent
+Blocked RC: FULL_RC_SHA
+Reason: this RC expected no starter release, but starter now exists.
+```
+
+`FULL_RC_SHA` is the full ID on the `Blocked RC:` line, not a branch abbreviation.
+For metadata details, use read-only status from the **CONTAINER repository root**:
+
+```bash
+task --taskfile .maintainer/Taskfile.yml distribution:status -- --verbose
+```
+
+`--verbose` also works with candidate preparation; it changes only blocked
+diagnostics, not successful reports or mutation guards. The detailed report retains
+`RC:`, candidate branch, source/tree/pinned/current-base labels and the metadata-claims
+warning. Missing, malformed or unreadable fields are `unavailable`; `absent` means
+a recorded initial base or a missing current release ref. The original error and
+nonzero exit remain: diagnostics do not validate the full filtered tree,
+approve promotion, or authorize deletion. Inconsistent state stays blocked and
+prints no promotion/rejection commands; no automatic recovery is performed.
+
 ## Reject an RC instead of promoting it
 
 Before promotion, copy the preparation/status **guarded rejection command**

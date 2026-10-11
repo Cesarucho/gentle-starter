@@ -170,6 +170,163 @@ workflow_task() {
   (cd "${REPO}" && unset PYTHONDONTWRITEBYTECODE && task --taskfile .maintainer/Taskfile.yml "$@")
 }
 
+diagnostic_identities() {
+  [[ "$output" == *"Diagnostic only (metadata claims; not approval or full filtered-tree validation)."* ]]
+  [[ "$output" == *"Candidate branch: starter-rc"* ]]
+  [[ "$output" == *"RC: ${approved}"* ]]
+  [[ "$output" == *"Tree: ${tree}"* ]]
+  [[ "$output" != *"distribution:promote"* ]]
+  [[ "$output" != *"distribution:reject"* ]]
+}
+
+@test "diagnostics stale candidate and inconsistent status show exact identities without changing refs" {
+  candidate --base-absent
+  approval
+  git -C "${REPO}" branch starter dev
+  refs="$(git -C "${REPO}" show-ref)"
+  run candidate --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"starter candidate: release base changed; refuse stale candidate"* ]]
+  diagnostic_identities
+  [[ "$output" == *"Source: ${source}"* ]]
+  [[ "$output" == *"Pinned base: absent"* ]]
+  [[ "$output" == *"Current base: ${source}"* ]]
+  [ "$(git -C "${REPO}" show-ref)" = "$refs" ]
+  run candidate --base-absent --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"release base presence does not match --base-absent"* ]]
+  diagnostic_identities
+  [ "$(git -C "${REPO}" show-ref)" = "$refs" ]
+  before="$(workflow_snapshot)"
+  run candidate --status --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"State: inconsistent"* ]]
+  [[ "$output" == *"starter candidate: invalid starter identity metadata"* ]]
+  diagnostic_identities
+  [[ "$output" == *"Source: ${source}"* ]]
+  [[ "$output" == *"Pinned base: absent"* ]]
+  [[ "$output" == *"Current base: ${source}"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+}
+
+@test "diagnostics malformed metadata remains unavailable without masking the original error" {
+  candidate --base-absent
+  approval
+  for message in 'unrecognized candidate' $'Prepare starter release candidate\n\nStarter-Candidate-Source: $(touch UNSAFE)\nStarter-Candidate-Base: invalid'; do
+    approved="$(git -C "${REPO}" commit-tree "$tree" -m "$message")"
+    git -C "${REPO}" update-ref refs/heads/starter-rc "$approved"
+    for mode in --status --base-absent; do
+      before="$(workflow_snapshot)"
+      run candidate "$mode" --verbose
+      [ "$status" -eq 1 ]
+      [[ "$output" == *"starter candidate: invalid starter identity metadata"* ]]
+      diagnostic_identities
+      [[ "$output" == *"Source: unavailable"* ]]
+      [[ "$output" == *"Pinned base: unavailable"* ]]
+      [[ "$output" == *"Current base: absent"* ]]
+      [[ "$output" != *'$(touch'* ]]
+      [ "$(workflow_snapshot)" = "$before" ]
+    done
+  done
+}
+
+@test "diagnostics absent RC does not fabricate an identity or add failure noise" {
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 0 ]
+  [ "$output" = 'State: absent (no local candidate)' ]
+  [ "$(workflow_snapshot)" = "$before" ]
+  run candidate
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"release base presence does not match --base-absent"* ]]
+  [[ "$output" != *"RC:"* ]]
+  [[ "$output" != *"Diagnostic only"* ]]
+}
+
+compact_diagnostic() {
+  [[ "$output" == *"Blocked RC: ${approved}"* ]]
+  [[ "$output" == *"Reason: "* ]]
+  [[ "$output" != *"Source:"* && "$output" != *"Tree:"* ]]
+  [[ "$output" != *"Pinned base:"* && "$output" != *"Current base:"* ]]
+  [[ "$output" != *"Diagnostic only"* && "$output" != *"Candidate branch:"* ]]
+  [[ "$output" != *"distribution:promote"* && "$output" != *"distribution:reject"* ]]
+  python3 - "$output" "$approved" << 'PY'
+import re
+import sys
+assert re.findall(r'(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])', sys.argv[1]) == [sys.argv[2]]
+PY
+}
+
+@test "diagnostics compact default prints one RC and contextual reason with custom branches" {
+  candidate --base-absent --target rc/local
+  approved="$(git -C "${REPO}" rev-parse rc/local)"
+  git -C "${REPO}" branch release/local dev
+  for mode in --status --base-absent ''; do
+    before="$(workflow_snapshot)"
+    if [ -n "$mode" ]; then
+      run candidate --target rc/local --base release/local "$mode"
+    else
+      run candidate --target rc/local --base release/local
+    fi
+    [ "$status" -eq 1 ]
+    compact_diagnostic
+    [[ "$output" == *"Reason: this RC expected no release/local release, but release/local now exists."* ]]
+    [ "$(workflow_snapshot)" = "$before" ]
+  done
+  before="$(workflow_snapshot)"
+  run candidate --status --target rc/local --base release/local --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Candidate branch: rc/local"* ]]
+  [[ "$output" == *"Current base: $(git -C "${REPO}" rev-parse release/local)"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+}
+
+@test "diagnostics compact malformed provenance does not invent an absent-base explanation" {
+  approved="$(git -C "${REPO}" rev-parse dev)"
+  git -C "${REPO}" branch starter-rc dev
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 1 ]
+  compact_diagnostic
+  [[ "$output" == *"Reason: recorded identity metadata is malformed or unavailable."* ]]
+  [[ "$output" == *"starter candidate: invalid starter identity metadata"* ]]
+  [[ "$output" != *"expected no"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+}
+
+@test "diagnostics compact missing pinned base keeps the expected-base failure accurate" {
+  prepare
+  candidate
+  approval
+  git -C "${REPO}" branch -D starter
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 1 ]
+  compact_diagnostic
+  [[ "$output" == *"Reason: this RC's expected starter release is missing."* ]]
+  [[ "$output" == *"starter candidate: release base changed; refuse stale candidate"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+}
+
+@test "diagnostics verbose leaves successful reports and exclusive flag guards unchanged" {
+  candidate --base-absent
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 0 ]
+  report="$output"
+  run candidate --status --verbose
+  [ "$status" -eq 0 ]
+  [ "$output" = "$report" ]
+  [ "$(workflow_snapshot)" = "$before" ]
+  run candidate --status --verbose --base-absent
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"status discovers base presence; omit --base-absent"* ]]
+  run candidate --reject --verbose
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--reject requires --expected-rc"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+}
+
 @test "workflow status absent pending and directly promoted is read-only even when dirty" {
   before="$(workflow_snapshot)"
   run candidate --status

@@ -97,6 +97,76 @@ def report(args, rc, source, pinned_base, policy, normalization, *, promoted=Fal
     print("Guarded RC deletion (not release rollback): " + shlex.join(command))
 
 
+def blocked_diagnostics(args, target_ref, base_ref, error):
+    """Best-effort, read-only identities; never replace the guard's original error."""
+    def inspect(*command):
+        try:
+            return git(*command)
+        except (ValueError, subprocess.CalledProcessError, OSError, UnicodeError):
+            return "unavailable"
+
+    rc = inspect("rev-parse", "--verify", target_ref)
+    reasons = {
+        "invalid starter identity metadata": "recorded identity metadata is malformed or unavailable.",
+        "invalid candidate source": "recorded candidate source is invalid.",
+        "invalid candidate base": "recorded candidate base is invalid.",
+        "candidate identity requires a full commit ID": "recorded source or base cannot be verified as a full commit ID.",
+        "candidate parent has unexpected provenance": "candidate ancestry does not match its recorded provenance.",
+        "candidate tree does not match committed source": "candidate tree differs from its recorded source.",
+        "release base changed; refuse stale candidate": "the release base no longer matches this RC.",
+        "release base presence does not match --base-absent": "release presence conflicts with the requested base mode.",
+        "release is not a publication of the candidate": "the current release is not a publication of this RC.",
+        "release does not descend directly from candidate base": "the current release has unexpected ancestry.",
+        "release tree differs from candidate": "the current release tree differs from this RC.",
+        "status requires nonsymbolic local refs": "a local ref is symbolic rather than an independent branch.",
+        "local branch must point to a commit": "a local branch does not identify a commit.",
+    }
+    reason = reasons.get(str(error), "candidate state could not be verified; see the original error.")
+    base_errors = {"release base changed; refuse stale candidate",
+                   "release base presence does not match --base-absent",
+                   "release is not a publication of the candidate", "invalid starter identity metadata"}
+    if str(error) in base_errors:
+        try:
+            # Metadata validity supports an explanation, not approval or tree validation.
+            _, pinned_base, _, _, _ = metadata(rc)
+            current = git("rev-parse", "--verify", base_ref) if exists(base_ref) else ZERO
+            if pinned_base == ZERO and current != ZERO:
+                reason = f"this RC expected no {args.base} release, but {args.base} now exists."
+            elif pinned_base != ZERO and current == ZERO:
+                reason = f"this RC's expected {args.base} release is missing."
+        except (ValueError, subprocess.CalledProcessError, OSError, UnicodeError):
+            pass
+    if not args.verbose:
+        print(f"Blocked RC: {rc}")
+        print(f"Reason: {reason}")
+        return
+
+    tree = inspect("rev-parse", "--verify", f"{rc}^{{tree}}") if rc != "unavailable" else rc
+    message = inspect("show", "-s", "--format=%B", rc) if rc != "unavailable" else ""
+
+    def claimed_commit(header, *, absent=False):
+        values = [line[len(header):] for line in message.splitlines() if line.startswith(header)]
+        if len(values) != 1 or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", values[0]) is None:
+            return "unavailable"
+        value = values[0]
+        if value == ZERO:
+            return "absent" if absent else "unavailable"
+        return value if inspect("rev-parse", "--verify", f"{value}^{{commit}}") == value else "unavailable"
+
+    # show-ref distinguishes absence from a failed inspection; no status/index refresh.
+    try:
+        presence = subprocess.run(["git", "show-ref", "--verify", "--quiet", base_ref]).returncode
+    except OSError:
+        presence = -1
+    base = "absent" if presence == 1 else inspect("rev-parse", "--verify", base_ref)
+    print(f"Reason: {reason}")
+    print("Diagnostic only (metadata claims; not approval or full filtered-tree validation).")
+    for label, value in (("Candidate branch", args.target), ("RC", rc),
+                         ("Source", claimed_commit(SOURCE)), ("Tree", tree),
+                         ("Pinned base", claimed_commit(BASE, absent=True)), ("Current base", base)):
+        print(f"{label}: {value}")
+
+
 def status_report(args, target_ref, base_ref):
     # This path deliberately does not call identity()/filtered_tree(), status,
     # temporary-index helpers, or any object/ref writer. Dirty worktrees are OK.
@@ -141,6 +211,7 @@ def main():
     modes.add_argument("--reject", action="store_true", help="delete only the explicitly pinned verified candidate")
     modes.add_argument("--status", action="store_true", help="read-only local identity inspection, not full tree validation")
     parser.add_argument("--expected-rc", help="full candidate commit ID required by --reject")
+    parser.add_argument("--verbose", action="store_true", help="include metadata details in blocked candidate/status diagnostics")
     args = parser.parse_args()
     require(args.reject == (args.expected_rc is not None), "--reject requires --expected-rc; pin is exclusive to rejection")
     require(not (args.status and args.base_absent), "status discovers base presence; omit --base-absent")
@@ -159,8 +230,9 @@ def main():
                     require(git("cat-file", "-t", git("rev-parse", ref)) == "commit",
                             "local branch must point to a commit")
             status_report(args, target_ref, base_ref)
-        except (ValueError, subprocess.CalledProcessError):
+        except (ValueError, subprocess.CalledProcessError) as error:
             print("State: inconsistent")
+            blocked_diagnostics(args, target_ref, base_ref, error)
             raise
         return
     require(not git("status", "--porcelain", "--untracked-files=all"),
@@ -170,8 +242,13 @@ def main():
             "candidate target must not be a symbolic ref")
     require(not checked_out(target_ref),
             "candidate branch must not be checked out")
-    require(exists(base_ref) != args.base_absent,
-            "release base presence does not match --base-absent")
+    try:
+        require(exists(base_ref) != args.base_absent,
+                "release base presence does not match --base-absent")
+    except ValueError as error:
+        if not deleting and exists(target_ref):
+            blocked_diagnostics(args, target_ref, base_ref, error)
+        raise
     base = ZERO if args.base_absent else git("rev-parse", base_ref)
     require(exists(source_ref) or deleting, "source must be an existing local branch")
     source = git("rev-parse", source_ref) if exists(source_ref) else None
@@ -179,18 +256,23 @@ def main():
     if args.reject:
         require(prior == pin, "candidate moved since rejection pin or is missing")
     if prior:
-        old_source, old_base, parents, old_policy, old_normalization = identity(prior)
-        if old_base != base:
-            require(deleting and base != ZERO,
-                    "release base changed; refuse stale candidate")
-            published_candidate(base, prior, old_source, old_base, old_policy, old_normalization)
-        descendant_source = old_source
-        while parents:
-            parent_source, parent_base, parents, _, _ = identity(parents[0])
-            require(parent_base == old_base and
-                    subprocess.run(["git", "merge-base", "--is-ancestor", parent_source, descendant_source]).returncode == 0,
-                    "candidate parent has unexpected provenance")
-            descendant_source = parent_source
+        try:
+            old_source, old_base, parents, old_policy, old_normalization = identity(prior)
+            if old_base != base:
+                require(deleting and base != ZERO,
+                        "release base changed; refuse stale candidate")
+                published_candidate(base, prior, old_source, old_base, old_policy, old_normalization)
+            descendant_source = old_source
+            while parents:
+                parent_source, parent_base, parents, _, _ = identity(parents[0])
+                require(parent_base == old_base and
+                        subprocess.run(["git", "merge-base", "--is-ancestor", parent_source, descendant_source]).returncode == 0,
+                        "candidate parent has unexpected provenance")
+                descendant_source = parent_source
+        except (ValueError, subprocess.CalledProcessError) as error:
+            if not deleting:
+                blocked_diagnostics(args, target_ref, base_ref, error)
+            raise
         if deleting:
             git("update-ref", "-d", target_ref, pin if args.reject else prior)
             print(f"Canceled {args.target} at {prior}; release unchanged.")
