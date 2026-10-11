@@ -94,6 +94,297 @@ absent() {
   [ "$status" -ne 0 ]
 }
 
+@test "workflow initial and no-op reports capture exact approval and rejection identities" {
+  run candidate --base-absent
+  [ "$status" -eq 0 ]
+  approval
+  [[ "$output" == *"RC: ${approved}"* ]]
+  [[ "$output" == *"Source: ${source}"* ]]
+  [[ "$output" == *"Tree: ${tree}"* ]]
+  [[ "$output" == *"Pinned base: absent"* ]]
+  [[ "$output" == *"Compose policy: 2"* ]]
+  [[ "$output" == *"Tools normalization: 1"* ]]
+  [[ "$output" == *"unapproved local candidate"* ]]
+  [[ "$output" == *"--approved-rc ${approved} --expected-tree ${tree} --expected-base absent --expected-source ${source}"* ]]
+  [[ "$output" == *"--expected-rc ${approved} --base-absent"* ]]
+  report="$output"
+  run candidate --base-absent
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nothing to update"* ]]
+  [[ "$output" == *"${report#*$'\n'}"* ]]
+}
+
+@test "workflow later report uses pinned base and custom branch names in copyable commands" {
+  prepare
+  base="$(git -C "${REPO}" rev-parse starter)"
+  git -C "${REPO}" branch release/local starter
+  git -C "${REPO}" branch source/local dev
+  run candidate --source source/local --target rc/local --base release/local
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Pinned base: ${base}"* ]]
+  [[ "$output" == *"--candidate rc/local --target release/local"* ]]
+  [[ "$output" == *"--source source/local --target rc/local --base release/local"* ]]
+  [[ "$output" != *"--base-absent"* ]]
+  # Parse the emitted shell text independently: custom names and pins must be
+  # single arguments, with no variable substitution or mutable-ref discovery.
+  python3 - "$output" << 'PY'
+import shlex
+import sys
+lines = sys.argv[1].splitlines()
+commands = [shlex.split(line.split(': ', 1)[1]) for line in lines
+            if line.startswith(('Promote only', 'Guarded RC'))]
+assert len(commands) == 2
+assert commands[0][commands[0].index('--candidate') + 1] == 'rc/local'
+assert commands[0][commands[0].index('--target') + 1] == 'release/local'
+assert commands[1][commands[1].index('--source') + 1] == 'source/local'
+assert commands[1][commands[1].index('--target') + 1] == 'rc/local'
+assert commands[1][commands[1].index('--base') + 1] == 'release/local'
+assert '$' not in sys.argv[1]
+PY
+  run candidate --status --source source/local --target rc/local --base release/local
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"State: pending"* ]]
+  [[ "$output" == *"Pinned base: ${base}"* ]]
+}
+
+# Include bytes and names of every fixture file, including objects, index and refs.
+# Status must not create even a temporary index or Python bytecode in the fixture.
+workflow_snapshot() {
+  python3 - "${REPO}" << 'PY'
+import hashlib
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+digest = hashlib.sha256()
+for path in sorted(root.rglob('*')):
+    digest.update(str(path.relative_to(root)).encode())
+    if path.is_symlink():
+        digest.update(path.readlink().as_posix().encode())
+    elif path.is_file():
+        digest.update(path.read_bytes())
+print(digest.hexdigest())
+PY
+}
+
+workflow_task() {
+  (cd "${REPO}" && unset PYTHONDONTWRITEBYTECODE && task --taskfile .maintainer/Taskfile.yml "$@")
+}
+
+@test "workflow status absent pending and directly promoted is read-only even when dirty" {
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"State: absent"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+  candidate --base-absent
+  approval
+  base=absent
+  printf 'dirty\n' > "${REPO}/README.md"
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"State: pending"* ]]
+  [[ "$output" == *"metadata only"* ]]
+  [[ "$output" == *"--expected-rc ${approved} --base-absent"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+  printf 'maintainer\n' > "${REPO}/README.md"
+  promote
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"State: directly-promoted"* ]]
+  [[ "$output" == *"--expected-rc ${approved}"* ]]
+  [[ "$output" != *"--base-absent"* ]]
+  [[ "$output" != *"distribution:promote"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+  release="$(git -C "${REPO}" rev-parse starter)"
+  candidate --reject --expected-rc "$approved"
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$release" ]
+  [ "$(git -C "${REPO}" rev-parse dev)" = "$source" ]
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+}
+
+@test "workflow status fails closed for malformed metadata changed base and symbolic refs" {
+  candidate --base-absent
+  approval
+  git -C "${REPO}" branch starter dev
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"State: inconsistent"* ]]
+  [[ "$output" != *"distribution:reject"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$source"
+  run candidate --status
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid starter identity metadata"* ]]
+  malformed="$(git -C "${REPO}" commit-tree "$tree" -m 'Prepare starter release candidate' \
+    -m 'Starter-Candidate-Source: 0000000000000000000000000000000000000000
+Starter-Candidate-Base: 0000000000000000000000000000000000000000
+Starter-Compose-Policy: 2
+Starter-Tools-Normalization: 1')"
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$malformed"
+  before="$(workflow_snapshot)"
+  run candidate --status
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid candidate source"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+  git -C "${REPO}" symbolic-ref refs/heads/starter-rc refs/heads/dev
+  run candidate --status
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"symbolic"* ]]
+  run candidate --status --target ../invalid
+  [ "$status" -ne 0 ]
+}
+
+@test "workflow reject requires full matching pin and explicit initial absence" {
+  candidate --base-absent
+  approval
+  for flags in '--reject' "--reject --expected-rc ${approved:0:12}" \
+    "--reject --expected-rc ${source}" \
+    "--cancel --expected-rc ${approved}" "--status --reject --expected-rc ${approved}"; do
+    # Fixture flags are deliberately split into individual arguments.
+    # shellcheck disable=SC2086
+    run candidate --base-absent ${flags}
+    [ "$status" -ne 0 ]
+    [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  done
+  run candidate --reject --expected-rc "$approved"
+  [ "$status" -ne 0 ]
+  run candidate --reject --expected-rc "$approved" --base-absent
+  [ "$status" -eq 0 ]
+  [ "$(git -C "${REPO}" rev-parse dev)" = "$source" ]
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+}
+
+@test "workflow stale approval and reject pins refuse an advanced RC" {
+  candidate --base-absent
+  approval
+  base=absent
+  git -C "${REPO}" commit --allow-empty -qm advance
+  candidate --base-absent
+  current="$(git -C "${REPO}" rev-parse starter-rc)"
+  run promote
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"candidate moved since approval"* ]]
+  run candidate --reject --expected-rc "$approved" --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"candidate moved since rejection pin"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$current" ]
+}
+
+@test "workflow pinned rejection handles later and promoted cleanup without changing release" {
+  prepare
+  release="$(git -C "${REPO}" rev-parse starter)"
+  candidate
+  approval
+  candidate --reject --expected-rc "$approved"
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$release" ]
+  candidate
+  approval
+  base="$release"
+  promote
+  published="$(git -C "${REPO}" rev-parse starter)"
+  run candidate --reject --expected-rc "$approved" --base-absent
+  [ "$status" -ne 0 ]
+  candidate --reject --expected-rc "$approved"
+  [ "$(git -C "${REPO}" rev-parse starter)" = "$published" ]
+}
+
+@test "workflow reject retains guards for dirty checked-out symbolic corrupted and changed base" {
+  candidate --base-absent
+  approval
+  printf 'dirty\n' > "${REPO}/README.md"
+  run candidate --reject --expected-rc "$approved" --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must be clean"* ]]
+  printf 'maintainer\n' > "${REPO}/README.md"
+  git -C "${REPO}" worktree add -q "${TEMP}/rc" starter-rc
+  run candidate --reject --expected-rc "$approved" --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must not be checked out"* ]]
+  git -C "${REPO}" worktree remove "${TEMP}/rc"
+  git -C "${REPO}" branch starter dev
+  run candidate --reject --expected-rc "$approved"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid starter identity metadata"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  git -C "${REPO}" branch -D starter
+  bad="$(git -C "${REPO}" commit-tree "$tree" -m bad)"
+  child="$(git -C "${REPO}" commit-tree "$tree" -p "$bad" -m 'Prepare starter release candidate' \
+    -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: 0000000000000000000000000000000000000000
+Starter-Compose-Policy: 2
+Starter-Tools-Normalization: 1")"
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$child"
+  run candidate --reject --expected-rc "$child" --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid starter identity metadata"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$child" ]
+  git -C "${REPO}" symbolic-ref refs/heads/starter-rc refs/heads/dev
+  run candidate --reject --expected-rc "$source" --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must not be a symbolic ref"* ]]
+  [ "$(git -C "${REPO}" rev-parse dev)" = "$source" ]
+}
+
+@test "workflow rejection CAS failure retains pinned RC and release" {
+  candidate --base-absent
+  approval
+  touch "${REPO}/.git/refs/heads/starter-rc.lock"
+  run candidate --reject --expected-rc "$approved" --base-absent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"update-ref"* ]]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter
+}
+
+@test "workflow metadata-only status never calls filtered-tree or full identity validation" {
+  candidate --base-absent
+  before="$(workflow_snapshot)"
+  run python3 - "${ROOT}" "${REPO}" << 'PY'
+import importlib.util
+import os
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('candidate', Path(sys.argv[1]) / '.maintainer/scripts/starter-candidate.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+def forbidden(*args, **kwargs):
+    raise AssertionError('status attempted full identity/tree validation')
+module.identity = forbidden
+module.source_tree.filtered_tree = forbidden
+os.chdir(sys.argv[2])
+sys.argv = ['starter-candidate.py', '--status']
+module.main()
+PY
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"State: pending"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+}
+
+@test "workflow Task wiring forwards status and explicit rejection arguments" {
+  mkdir -p "${REPO}/.maintainer/scripts" "${REPO}/.maintainer/tasks" \
+    "${REPO}/.devcontainer/install/lib"
+  cp "${ROOT}/.maintainer/Taskfile.yml" "${REPO}/.maintainer/Taskfile.yml"
+  cp "${ROOT}/.maintainer/tasks/test.yml" "${REPO}/.maintainer/tasks/test.yml"
+  cp "${ROOT}"/.maintainer/scripts/starter-*.py "${REPO}/.maintainer/scripts/"
+  cp "${ROOT}/.devcontainer/install/lib/selection.py" "${REPO}/.devcontainer/install/lib/selection.py"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -qm 'Include actual Task wiring'
+  candidate --base-absent
+  approval
+  before="$(workflow_snapshot)"
+  run workflow_task distribution:status
+  printf '%s\n' "$output"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"State: pending"* ]]
+  [ "$(workflow_snapshot)" = "$before" ]
+  run workflow_task distribution:reject -- --expected-rc "$approved" --base-absent
+  [ "$status" -eq 0 ]
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+}
+
 @test "tool catalog generates exactly five canonical symlinks without changing producer extras" {
   before="$(git -C "${REPO}" rev-parse dev:.devcontainer/install)"
   index="$(git -C "${REPO}" hash-object .git/index)"

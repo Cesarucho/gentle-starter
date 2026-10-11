@@ -5,10 +5,14 @@ import argparse
 import importlib.util
 import os
 from pathlib import Path
+import re
+import shlex
 import subprocess
 import sys
 
 
+# Status must remain read-only even without caller-supplied Python settings.
+sys.dont_write_bytecode = True
 script = Path(__file__).with_name("starter-source.py")
 spec = importlib.util.spec_from_file_location("starter_source", script)
 assert spec is not None and spec.loader is not None
@@ -56,17 +60,109 @@ def published_candidate(release, prior, source, pinned_base, policy, normalizati
             "release tree differs from candidate")
 
 
+def metadata(commit):
+    """Inspect identity and ancestry without recomputing or writing filtered trees."""
+    require(git("cat-file", "-t", commit) == "commit", "candidate must be a commit")
+    source, base, policy, normalization = source_tree.identity_metadata(
+        git("show", "-s", "--format=%B", commit), SUBJECT, (SOURCE, BASE))
+    parents = git("show", "-s", "--format=%P", commit).split()
+    require(len(parents) <= 1, "candidate must have at most one candidate parent")
+    require(source != ZERO, "invalid candidate source")
+    for value in (source, base):
+        if value != ZERO:
+            require(git("rev-parse", "--verify", f"{value}^{{commit}}") == value,
+                    "candidate identity requires a full commit ID")
+    return source, base, parents, policy, normalization
+
+
+def report(args, rc, source, pinned_base, policy, normalization, *, promoted=False):
+    tree = git("rev-parse", f"{rc}^{{tree}}")
+    base = "absent" if pinned_base == ZERO else pinned_base
+    print("Local identity report (metadata only for status; not approval or full tree validation).")
+    print("Already published locally." if promoted else "unapproved local candidate")
+    for label, value in (("RC", rc), ("Source", source), ("Tree", tree),
+                         ("Pinned base", base), ("Compose policy", policy or "legacy"),
+                         ("Tools normalization", normalization or "legacy")):
+        print(f"{label}: {value}")
+    task = ["task", "--taskfile", ".maintainer/Taskfile.yml"]
+    if not promoted:
+        command = task + ["distribution:promote", "--", "--candidate", args.target,
+                          "--target", args.base, "--approved-rc", rc, "--expected-tree", tree,
+                          "--expected-base", base, "--expected-source", source]
+        print("Promote only after explicit review/approval: " + shlex.join(command))
+    command = task + ["distribution:reject", "--", "--source", args.source,
+                      "--target", args.target, "--base", args.base, "--expected-rc", rc]
+    if pinned_base == ZERO and not promoted:
+        command.append("--base-absent")
+    print("Guarded RC deletion (not release rollback): " + shlex.join(command))
+
+
+def status_report(args, target_ref, base_ref):
+    # This path deliberately does not call identity()/filtered_tree(), status,
+    # temporary-index helpers, or any object/ref writer. Dirty worktrees are OK.
+    if not exists(target_ref):
+        print("State: absent (no local candidate)")
+        return
+    rc = git("rev-parse", target_ref)
+    source, pinned_base, parents, policy, normalization = metadata(rc)
+    descendant_source = source
+    while parents:
+        parent_source, parent_base, parents, _, _ = metadata(parents[0])
+        require(parent_base == pinned_base and
+                subprocess.run(["git", "merge-base", "--is-ancestor", parent_source, descendant_source],
+                               capture_output=True).returncode == 0,
+                "candidate parent has unexpected provenance")
+        descendant_source = parent_source
+    base = git("rev-parse", base_ref) if exists(base_ref) else ZERO
+    promoted = base != pinned_base
+    if promoted:
+        require(base != ZERO, "release base changed; refuse stale candidate")
+        published_candidate(base, rc, source, pinned_base, policy, normalization)
+    print("State: directly-promoted" if promoted else "State: pending")
+    report(args, rc, source, pinned_base, policy, normalization, promoted=promoted)
+
+
+def expected_rc(value):
+    # Match the repository's full object-ID width, not an abbreviation/range.
+    width = 64 if git("rev-parse", "--show-object-format") == "sha256" else 40
+    require(re.fullmatch(r"[0-9a-f]{" + str(width) + r"}", value) is not None,
+            "expected full hexadecimal RC object ID")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default="dev", help="committed local source branch")
     parser.add_argument("--target", default="starter-rc", help="local candidate branch")
     parser.add_argument("--base", default="starter", help="local release branch")
     parser.add_argument("--base-absent", action="store_true", help="pin an absent release branch for an initial root release")
-    parser.add_argument("--cancel", action="store_true", help="delete only a verified candidate")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--cancel", action="store_true", help="legacy deletion of a verified candidate")
+    modes.add_argument("--reject", action="store_true", help="delete only the explicitly pinned verified candidate")
+    modes.add_argument("--status", action="store_true", help="read-only local identity inspection, not full tree validation")
+    parser.add_argument("--expected-rc", help="full candidate commit ID required by --reject")
     args = parser.parse_args()
+    require(args.reject == (args.expected_rc is not None), "--reject requires --expected-rc; pin is exclusive to rejection")
+    require(not (args.status and args.base_absent), "status discovers base presence; omit --base-absent")
+    pin = expected_rc(args.expected_rc) if args.reject else None
+    deleting = args.cancel or args.reject
     source_ref, target_ref, base_ref = map(branch, (args.source, args.target, args.base))
     require(len({source_ref, target_ref, base_ref}) == 3, "source, candidate and base must differ")
     require(git("rev-parse", "--show-toplevel") == os.getcwd(), "run from the repository root")
+    if args.status:
+        try:
+            for ref in (source_ref, target_ref, base_ref):
+                require(subprocess.run(["git", "symbolic-ref", "-q", ref],
+                                       capture_output=True).returncode == 1,
+                        "status requires nonsymbolic local refs")
+                if exists(ref):
+                    require(git("cat-file", "-t", git("rev-parse", ref)) == "commit",
+                            "local branch must point to a commit")
+            status_report(args, target_ref, base_ref)
+        except (ValueError, subprocess.CalledProcessError):
+            print("State: inconsistent")
+            raise
+        return
     require(not git("status", "--porcelain", "--untracked-files=all"),
             "worktree and index must be clean")
     require(subprocess.run(["git", "symbolic-ref", "-q", target_ref],
@@ -77,13 +173,15 @@ def main():
     require(exists(base_ref) != args.base_absent,
             "release base presence does not match --base-absent")
     base = ZERO if args.base_absent else git("rev-parse", base_ref)
-    require(exists(source_ref) or args.cancel, "source must be an existing local branch")
+    require(exists(source_ref) or deleting, "source must be an existing local branch")
     source = git("rev-parse", source_ref) if exists(source_ref) else None
     prior = git("rev-parse", target_ref) if exists(target_ref) else None
+    if args.reject:
+        require(prior == pin, "candidate moved since rejection pin or is missing")
     if prior:
         old_source, old_base, parents, old_policy, old_normalization = identity(prior)
         if old_base != base:
-            require(args.cancel and base != ZERO,
+            require(deleting and base != ZERO,
                     "release base changed; refuse stale candidate")
             published_candidate(base, prior, old_source, old_base, old_policy, old_normalization)
         descendant_source = old_source
@@ -93,8 +191,8 @@ def main():
                     subprocess.run(["git", "merge-base", "--is-ancestor", parent_source, descendant_source]).returncode == 0,
                     "candidate parent has unexpected provenance")
             descendant_source = parent_source
-        if args.cancel:
-            git("update-ref", "-d", target_ref, prior)
+        if deleting:
+            git("update-ref", "-d", target_ref, pin if args.reject else prior)
             print(f"Canceled {args.target} at {prior}; release unchanged.")
             return
         require(source is not None, "source must be an existing local branch")
@@ -104,9 +202,10 @@ def main():
         if (source == old_source and old_policy == source_tree.CURRENT_COMPOSE_POLICY
                 and old_normalization == source_tree.CURRENT_TOOLS_NORMALIZATION):
             print("Candidate already contains this source; nothing to update.")
+            report(args, prior, old_source, old_base, old_policy, old_normalization)
             return
     else:
-        require(not args.cancel, "no candidate to cancel")
+        require(not deleting, "no candidate to cancel")
     require(source is not None, "source must be an existing local branch")
 
     try:
@@ -119,6 +218,8 @@ def main():
     commit = git("commit-tree", tree, *(["-p", prior] if prior else []), input=message.encode())
     git("update-ref", target_ref, commit, prior or ZERO)
     print(f"Candidate {args.target} at {commit}; source {source}; base {base}.")
+    report(args, commit, source, base, source_tree.CURRENT_COMPOSE_POLICY,
+           source_tree.CURRENT_TOOLS_NORMALIZATION)
 
 
 if __name__ == "__main__":

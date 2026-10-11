@@ -16,6 +16,7 @@ maintainer docs, not in consumer-facing relative links.
 | File | What it's for |
 |---|---|
 | [Environment guides](../../.devcontainer/docs/README.md) | Extension, install, volume, integration, and configuration workflows. |
+| [Local starter release workflow](../../.maintainer/README-distribution.md) | Producer happy path, pinned RC rejection and next release; `.maintainer/` is excluded from consumer distributions. |
 | [`container-foundation.md`](./container-foundation.md) | Automatic same-builder caching for the internal core Docker stage. |
 | [`adr/0001-install-layout-refactor.md`](./adr/0001-install-layout-refactor.md) | Install-tree, ownership, ordering, and config-seeding decision. |
 | [`adr/0002-centralized-tool-version-policy.md`](./adr/0002-centralized-tool-version-policy.md) | Canonical declarative tool-version policy and secure loader decision. |

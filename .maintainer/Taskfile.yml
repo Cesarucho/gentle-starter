@@ -23,3 +23,15 @@ tasks:
     dir: ..
     cmds:
       - python3 .maintainer/scripts/starter-promote.py {{.CLI_ARGS}}
+
+  distribution:status:
+    desc: Inspect local candidate metadata without writing Git state
+    dir: ..
+    cmds:
+      - python3 .maintainer/scripts/starter-candidate.py --status {{.CLI_ARGS}}
+
+  distribution:reject:
+    desc: Delete only a verified local RC with an explicit full expected-RC pin
+    dir: ..
+    cmds:
+      - python3 .maintainer/scripts/starter-candidate.py --reject {{.CLI_ARGS}}

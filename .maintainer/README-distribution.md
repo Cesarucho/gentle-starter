@@ -1,60 +1,121 @@
 # Prepare linear consumer releases locally
 
-## Isolated candidate preparation (local only)
+## Happy path: prepare, approve, promote, clean up
 
-Integrate the release code into `dev` separately before preparing a release;
-this feature branch alone does not make it available on `dev`. The old local and
-remote `starter` refs are absent, and no new `starter-rc` or `starter` release has
-been published. A local `backup/starter-before-linear` preserves the old ref at
-`42b5d16`; it is not a release base. With a clean checkout and committed `dev`,
-run `task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --base-absent`
-for the first local candidate. For later releases, omit `--base-absent` to pin the
-existing local `starter` as the base. The command does not change `starter`, the
-checkout, or remotes. Inspect the candidate
-commit message for `Starter-Candidate-Source` and `Starter-Candidate-Base`, and
-inspect its tree before any separate promotion. The first candidate is a root;
-subsequent candidate commits have only the preceding candidate as parent. A
-source-only advance creates a new candidate even when its filtered tree is
-unchanged. Repeating the same source under the current policy is a no-op. For an initial release with
-no local `starter` ref, pass `--base-absent` explicitly to candidate creation
-and cancellation. Never use this flag when `starter` already exists.
+Use this producer-only guide from the **CONTAINER repository root** (currently
+`/home/ubuntu/gentle-starter`, the same checkout bind-mounted from the HOST).
+These commands use local Git only: they do not build, install, fetch or push.
+The `.maintainer/` directory is excluded from consumer distributions.
 
-To discard a candidate, run
-`task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel --base-absent`
-for the first candidate (omit `--base-absent` for later releases).
-This deletes only a verified local candidate ref; it refuses a changed base or
-unrecognized candidate. After cancellation, a new candidate starts from a new
-root. Candidate preparation is not publication; promotion to a linear `starter`
-release is not performed by this command. After reviewing the candidate,
-record its full commit SHA, tree SHA, source SHA from the candidate marker, and
-the exact base SHA (or `absent` for a new release ref). Promote locally with:
+**Prerequisite:** intended source changes are committed on `dev`, and the
+producer worktree/index are clean. Integrate implementation changes before
+release preparation; uncommitted edits are not publication inputs. Do not check
+out `starter-rc` or `starter` in a worktree during mutation.
+
+1. Prepare the RC. Choose the command based on actual local `starter` presence:
+
+   ```bash
+   # CONTAINER: initial release ONLY when local starter is absent.
+   task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --base-absent
+   # CONTAINER: later release when local starter exists; use this instead.
+   task --taskfile .maintainer/Taskfile.yml distribution:candidate
+   ```
+
+2. Keep the printed full RC, source, tree, pinned base and policy markers.
+   Preparation prints exact promotion and guarded rejection commands, including
+   custom branch names. It labels the RC **unapproved**; printing is not approval.
+   Inspect/review/test that captured RC, not whatever `dev` or `starter-rc` points
+   to later. For local Git inspection, substitute the captured full RC ID:
+
+   ```bash
+   # CONTAINER: replace FULL_RC_SHA with the captured ID, not a mutable ref.
+   git show --no-patch --format=fuller FULL_RC_SHA
+   git ls-tree -r FULL_RC_SHA
+   ```
+
+3. Only after explicit approval, copy the **printed promotion command unchanged**.
+   It already contains all four approval pins; no second invocation discovers
+   approval from ambient refs. Its shape is:
 
 ```bash
+# CONTAINER: illustrative shape; prefer the exact printed command.
 task --taskfile .maintainer/Taskfile.yml distribution:promote -- \
+  --candidate starter-rc --target starter \
   --approved-rc FULL_RC_SHA --expected-tree FULL_TREE_SHA \
   --expected-base FULL_BASE_SHA_OR_absent --expected-source FULL_SOURCE_SHA
 ```
 
-Promotion refuses a moved or canceled candidate, mismatched tree/source/base,
-unrecognized release history, symbolic refs, dirty checkout, or a
-release checked out in any worktree. It verifies the entire candidate chain,
-filtered trees for every previous release against its recorded source, and
-previous release source ancestry; it then creates one root
-release (initial) or one commit with the prior release as its sole parent and
-compare-and-swap updates the local release ref. It does not require the source
-branch to be checked out or at the approved source tip. No remote is touched.
-After promotion, `starter-rc` remains pinned to the approved candidate but its
-base is stale. Cancel the verified candidate with
-`task --taskfile .maintainer/Taskfile.yml distribution:candidate -- --cancel`
-before preparing another; the new local `starter` exists, so do not pass
-`--base-absent`. Cancellation
-verifies that the new release published that candidate. A canceled candidate
-cannot be promoted. Neither candidate creation, cancellation, nor promotion
-fetches, pushes, or deletes remote refs. Verify the local root release and its
-tree after first promotion. Any remote publication requires separate review and
-explicit authorization for destination, operation, and credential/session.
-Future consumer clones of the new root will not share ancestry with `dev` or
-with the old unpublished branch.
+Promotion verifies the complete candidate chain, exact filtered trees, previous
+release history/source ancestry and all four pins. It refuses moved/canceled RCs,
+changed bases, malformed/symbolic refs, dirty checkout or a checked-out release.
+It creates one root release initially, or one commit whose sole parent is the
+previous `starter`, then compare-and-swap updates that local ref. Source may
+have advanced after capture without invalidating that approved source pin.
+
+**After promotion:** remove the retained RC before the next cycle:
+
+```bash
+# CONTAINER: read-only status prints the current guarded cleanup command.
+task --taskfile .maintainer/Taskfile.yml distribution:status
+# Copy its distribution:reject command with the captured full expected RC.
+# Local starter now exists: promoted cleanup must NOT use --base-absent.
+```
+
+Status works even with a dirty worktree and classifies local metadata as
+`absent`, `pending`, `directly-promoted`, or `inconsistent`. It does not create
+objects, indexes, files or refs, recompute filtered trees, or grant approval.
+It checks recorded identity/ancestry and a direct publication's parent/tree
+match, not full publication correctness. Inconsistent state fails closed without
+action commands. The existing promotion/rejection checks remain authoritative.
+
+## Reject an RC instead of promoting it
+
+Before promotion, copy the preparation/status **guarded rejection command**
+instead of the promotion command. It requires `--expected-rc FULL_RC_SHA` inside
+the helper and uses that exact ID for compare-and-swap deletion. Initial rejection
+also requires `--base-absent`; later rejection does not. For example:
+
+```bash
+# CONTAINER: initial unpromoted RC only; substitute the captured full RC ID.
+task --taskfile .maintainer/Taskfile.yml distribution:reject -- --expected-rc FULL_RC_SHA --base-absent
+```
+
+Rejection deletes only the verified local candidate ref, retaining `dev` and
+`starter`. It refuses stale pins, dirty checkout, checked-out/symbolic RCs,
+corrupted candidate history or an unrelated changed release base. After direct
+promotion, the same guarded operation verifies the publication and cleans up
+the retained RC; **it does not undo the release**. The initial printed rejection
+command becomes stale after promotion: obtain status again, preserving the RC
+pin and omitting the absence flag. Legacy `distribution:candidate -- --cancel`
+remains compatible and provenance-guarded, but use pinned rejection for this flow.
+
+Rollback after promotion is a different decision: make a corrective committed
+source and prepare/review a new linear release. Rejection cannot roll back
+`starter`; do not force-reset published history as an RC cleanup shortcut.
+
+## Next release and separate publication authority
+
+After rejection, fix/commit `dev` and prepare again; the new RC starts at a root.
+While an RC remains pending, preparation advances its candidate-only chain if
+source advances. Repeating the same source/current policies is a no-op that
+prints the same complete report. A source-only change still creates a new RC
+even if the filtered tree is unchanged; prior approval/rejection pins then fail.
+After promotion and guarded cleanup, prepare without `--base-absent` to pin
+the new `starter`, then repeat the approval steps above.
+
+Optional [consumer lifecycle proof](#explicit-base-lifecycle-proof) requires
+separate operational authorization, cost forecast and timeout. It proves its
+own committed fixture, **not the exact primary RC**; do not treat a fixture pass
+as automatic approval or claim expensive proof from unit tests.
+For a separately authorized manual RC build/connect test, use an independent
+local clone in a separate **HOST folder**, pinned to the captured RC; the mounted
+producer checkout is not that clone. Run `task container:*` on the HOST from that
+clone's root, not inside this CONTAINER. No host destination is assumed here.
+
+Remote publication is separate from local promotion and requires explicit
+destination/operation/credential-session authority. None of these commands
+pushes or deletes remote refs. Future consumer clones should use the published
+linear `starter` ancestry, which does not descend from producer `dev`.
 
 ## Editable publication tool suggestions
 
@@ -111,18 +172,24 @@ Existing unmarked linear candidate/release identities use the historical two-ent
 normalizer, including exact tree recomputation for every ancestor. Tool alias
 normalization is identified separately above. Unknown, duplicate or malformed markers fail closed; there is no
 legacy creation switch. New promotion requires an explicitly current candidate.
-Historical RC `28a42cc55…` and release `ef2f71e5…` remain valid history, not an
-approval to publish the new preset. A legacy same-source RC can gain a current-policy
+A legacy same-source RC can gain a current-policy
 child only if that committed source already contains all four active entries;
 source equality is allowed by the unchanged ancestry check. Otherwise commit a
 new source first. Source/base pins, approved IDs, exact trees, parent provenance
-and compare-and-swap remain required. No primary publication has been performed
-for this change. The reduced base lifecycle fixture below intentionally stays two.
+and compare-and-swap remain required. The reduced base lifecycle fixture below
+intentionally stays two.
+
+### Historical identities (not current instructions or approval)
+
+Historical RC `28a42cc55…` and release `ef2f71e5…` document earlier policy history.
+They are not current checkout metadata or approval to publish another preset.
+Always capture current full IDs from the local helper; never reuse these examples.
 
 ## Explicit base lifecycle proof
 
 For an explicit **consumer release/DinD smoke** instead of the reduced base
-scenario, run `task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --consumer`
+scenario, from the **CONTAINER producer repository root**, run
+`task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --consumer`
 (the same optional `--daemon-visible-scratch ABSOLUTE_PARENT` applies). This
 uses the same registered scratch, exact-byte cached-image bind probe, local
 daemon identity, success cleanup and failed-run retention described below.
@@ -152,6 +219,7 @@ operational authorization, outside the normal `task test`, `task test:starter`,
 and `task validate` routes:
 
 ```bash
+# CONTAINER: producer repository root; separate operational authorization required.
 task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle
 # Optional alternative existing parent (still probed):
 task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --daemon-visible-scratch /absolute/scratch-parent
@@ -384,7 +452,7 @@ explicit source review, not broader grants or automatic retries.
 
 ## Recovering test-owned resources
 
-Start with a read-only preview from the **original source worktree**:
+Start with a read-only preview from the **CONTAINER original source worktree root**:
 
 ```bash
 task --taskfile .maintainer/Taskfile.yml test:starter:clean
