@@ -103,6 +103,18 @@ or the centralized version policy for pnpm itself.
 
 ### `03-enabled/` — optional tools
 
+OpenSpec is available as `3080-ai-openspec.sh` but is not enabled by default.
+It installs `@fission-ai/openspec` globally through npm at the generated exact lock,
+requires core Node/npm (Node >=20.19.0), and keeps no managed persistent state.
+`TOOL_OPENSPEC_VERSION="1"` selects stable 1.x releases, excluding prereleases and
+2.x. Run `task tools:update -- --update-openspec` to refresh only its lock from
+public npm metadata without changing unrelated policy bytes or downloading tools.
+To use it in a future image, enable `3080-ai-openspec` through `install:enable`,
+then follow the normal HOST rebuild workflow. Runtime repair does not install it.
+Project initialization (`openspec init`) and configuration remain manual; the
+installer only verifies `openspec --version`. npm lifecycle scripts retain their
+normal behavior; this catalog addition does not establish actual-install proof.
+
 This group runs after all core tools. The active selection is defined by its
 symlinks, not a fixed inventory in this guide. Run `task install:list` to inspect
 the current selection. SSH server and audio still require their separately
