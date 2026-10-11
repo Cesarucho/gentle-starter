@@ -92,8 +92,6 @@ def report(args, rc, source, pinned_base, policy, normalization, *, promoted=Fal
         print("Promote only after explicit review/approval: " + shlex.join(command))
     command = task + ["distribution:reject", "--", "--source", args.source,
                       "--target", args.target, "--base", args.base, "--expected-rc", rc]
-    if pinned_base == ZERO and not promoted:
-        command.append("--base-absent")
     print("Guarded RC deletion (not release rollback): " + shlex.join(command))
 
 
@@ -205,7 +203,8 @@ def main():
     parser.add_argument("--source", default="dev", help="committed local source branch")
     parser.add_argument("--target", default="starter-rc", help="local candidate branch")
     parser.add_argument("--base", default="starter", help="local release branch")
-    parser.add_argument("--base-absent", action="store_true", help="pin an absent release branch for an initial root release")
+    parser.add_argument("--base-absent", action="store_true",
+                        help="pin an absent release for preparation/legacy cancel; ignored by --reject")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--cancel", action="store_true", help="legacy deletion of a verified candidate")
     modes.add_argument("--reject", action="store_true", help="delete only the explicitly pinned verified candidate")
@@ -242,14 +241,18 @@ def main():
             "candidate target must not be a symbolic ref")
     require(not checked_out(target_ref),
             "candidate branch must not be checked out")
-    try:
-        require(exists(base_ref) != args.base_absent,
-                "release base presence does not match --base-absent")
-    except ValueError as error:
-        if not deleting and exists(target_ref):
-            blocked_diagnostics(args, target_ref, base_ref, error)
-        raise
-    base = ZERO if args.base_absent else git("rev-parse", base_ref)
+    # Explicit discard depends on the candidate's historical identity, not the
+    # current release. Preparation and legacy cancellation retain their guards.
+    base = None
+    if not args.reject:
+        try:
+            require(exists(base_ref) != args.base_absent,
+                    "release base presence does not match --base-absent")
+        except ValueError as error:
+            if not deleting and exists(target_ref):
+                blocked_diagnostics(args, target_ref, base_ref, error)
+            raise
+        base = ZERO if args.base_absent else git("rev-parse", base_ref)
     require(exists(source_ref) or deleting, "source must be an existing local branch")
     source = git("rev-parse", source_ref) if exists(source_ref) else None
     prior = git("rev-parse", target_ref) if exists(target_ref) else None
@@ -258,7 +261,7 @@ def main():
     if prior:
         try:
             old_source, old_base, parents, old_policy, old_normalization = identity(prior)
-            if old_base != base:
+            if not args.reject and old_base != base:
                 require(deleting and base != ZERO,
                         "release base changed; refuse stale candidate")
                 published_candidate(base, prior, old_source, old_base, old_policy, old_normalization)

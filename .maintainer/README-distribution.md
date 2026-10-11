@@ -58,7 +58,7 @@ have advanced after capture without invalidating that approved source pin.
 # CONTAINER: read-only status prints the current guarded cleanup command.
 task --taskfile .maintainer/Taskfile.yml distribution:status
 # Copy its distribution:reject command with the captured full expected RC.
-# Local starter now exists: promoted cleanup must NOT use --base-absent.
+# Rejection needs only the captured full RC pin, even after promotion.
 ```
 
 Status works even with a dirty worktree and classifies local metadata as
@@ -93,29 +93,35 @@ diagnostics, not successful reports or mutation guards. The detailed report reta
 warning. Missing, malformed or unreadable fields are `unavailable`; `absent` means
 a recorded initial base or a missing current release ref. The original error and
 nonzero exit remain: diagnostics do not validate the full filtered tree,
-approve promotion, or authorize deletion. Inconsistent state stays blocked and
-prints no promotion/rejection commands; no automatic recovery is performed.
+approve promotion, or authorize deletion. Inconsistent state blocks preparation/
+promotion and prints no action commands; no automatic recovery is performed.
+It is not itself a barrier to explicitly pinned rejection of a valid candidate.
 
 ## Reject an RC instead of promoting it
 
 Before promotion, copy the preparation/status **guarded rejection command**
 instead of the promotion command. It requires `--expected-rc FULL_RC_SHA` inside
-the helper and uses that exact ID for compare-and-swap deletion. Initial rejection
-also requires `--base-absent`; later rejection does not. For example:
+the helper and uses that exact ID for compare-and-swap deletion. The same single
+command discards an initial, later, obsolete or retained promoted RC:
 
 ```bash
-# CONTAINER: initial unpromoted RC only; substitute the captured full RC ID.
-task --taskfile .maintainer/Taskfile.yml distribution:reject -- --expected-rc FULL_RC_SHA --base-absent
+# CONTAINER: substitute the captured full RC ID, including from Blocked RC.
+task --taskfile .maintainer/Taskfile.yml distribution:reject -- --expected-rc FULL_RC_SHA
 ```
 
 Rejection deletes only the verified local candidate ref, retaining `dev` and
 `starter`. It refuses stale pins, dirty checkout, checked-out/symbolic RCs,
-corrupted candidate history or an unrelated changed release base. After direct
-promotion, the same guarded operation verifies the publication and cleans up
-the retained RC; **it does not undo the release**. The initial printed rejection
-command becomes stale after promotion: obtain status again, preserving the RC
-pin and omitting the absence flag. Legacy `distribution:candidate -- --cancel`
-remains compatible and provenance-guarded, but use pinned rejection for this flow.
+corrupted candidate identity, source, tree or provenance chain. The recorded
+historical base commit must still be valid, but current `starter` may be absent,
+missing, advanced or unrelated; current `dev` may have moved or be absent.
+Rejection validates the full candidate chain, not its relationship to today's
+release. After promotion it removes the retained RC; **it does not undo the
+release**, promote anything, or create a replacement RC.
+
+`--base-absent` remains accepted for rejection compatibility but has no effect
+on discard. It still controls initial preparation and legacy
+`distribution:candidate -- --cancel`, whose base-presence, stale-base and
+legitimate-publication cleanup guards are unchanged. Prefer pinned rejection.
 
 Rollback after promotion is a different decision: make a corrective committed
 source and prepare/review a new linear release. Rejection cannot roll back

@@ -106,7 +106,8 @@ absent() {
   [[ "$output" == *"Tools normalization: 1"* ]]
   [[ "$output" == *"unapproved local candidate"* ]]
   [[ "$output" == *"--approved-rc ${approved} --expected-tree ${tree} --expected-base absent --expected-source ${source}"* ]]
-  [[ "$output" == *"--expected-rc ${approved} --base-absent"* ]]
+  [[ "$output" == *"--expected-rc ${approved}"* ]]
+  [[ "$output" != *"--base-absent"* ]]
   report="$output"
   run candidate --base-absent
   [ "$status" -eq 0 ]
@@ -342,7 +343,8 @@ PY
   [ "$status" -eq 0 ]
   [[ "$output" == *"State: pending"* ]]
   [[ "$output" == *"metadata only"* ]]
-  [[ "$output" == *"--expected-rc ${approved} --base-absent"* ]]
+  [[ "$output" == *"--expected-rc ${approved}"* ]]
+  [[ "$output" != *"--base-absent"* ]]
   [ "$(workflow_snapshot)" = "$before" ]
   printf 'maintainer\n' > "${REPO}/README.md"
   promote
@@ -394,7 +396,7 @@ Starter-Tools-Normalization: 1')"
   [ "$status" -ne 0 ]
 }
 
-@test "workflow reject requires full matching pin and explicit initial absence" {
+@test "workflow reject requires full matching pin but no initial absence flag" {
   candidate --base-absent
   approval
   for flags in '--reject' "--reject --expected-rc ${approved:0:12}" \
@@ -407,11 +409,12 @@ Starter-Tools-Normalization: 1')"
     [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
   done
   run candidate --reject --expected-rc "$approved"
-  [ "$status" -ne 0 ]
-  run candidate --reject --expected-rc "$approved" --base-absent
   [ "$status" -eq 0 ]
   [ "$(git -C "${REPO}" rev-parse dev)" = "$source" ]
   absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+  run candidate --reject --expected-rc "$approved"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"candidate moved since rejection pin or is missing"* ]]
 }
 
 @test "workflow stale approval and reject pins refuse an advanced RC" {
@@ -443,12 +446,11 @@ Starter-Tools-Normalization: 1')"
   promote
   published="$(git -C "${REPO}" rev-parse starter)"
   run candidate --reject --expected-rc "$approved" --base-absent
-  [ "$status" -ne 0 ]
-  candidate --reject --expected-rc "$approved"
+  [ "$status" -eq 0 ]
   [ "$(git -C "${REPO}" rev-parse starter)" = "$published" ]
 }
 
-@test "workflow reject retains guards for dirty checked-out symbolic corrupted and changed base" {
+@test "workflow reject retains dirty checked-out symbolic and corrupted guards despite obsolete base" {
   candidate --base-absent
   approval
   printf 'dirty\n' > "${REPO}/README.md"
@@ -462,10 +464,12 @@ Starter-Tools-Normalization: 1')"
   [[ "$output" == *"must not be checked out"* ]]
   git -C "${REPO}" worktree remove "${TEMP}/rc"
   git -C "${REPO}" branch starter dev
-  run candidate --reject --expected-rc "$approved"
+  run candidate --cancel
   [ "$status" -ne 0 ]
   [[ "$output" == *"invalid starter identity metadata"* ]]
   [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  candidate --reject --expected-rc "$approved"
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
   git -C "${REPO}" branch -D starter
   bad="$(git -C "${REPO}" commit-tree "$tree" -m bad)"
   child="$(git -C "${REPO}" commit-tree "$tree" -p "$bad" -m 'Prepare starter release candidate' \
@@ -494,6 +498,155 @@ Starter-Tools-Normalization: 1")"
   [[ "$output" == *"update-ref"* ]]
   [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
   absent git -C "${REPO}" show-ref --verify -q refs/heads/starter
+}
+
+# Explicit discard validates historical candidate inputs, not today's release.
+reject_preserves_other_refs() {
+  local refs index source_object base_object
+  refs="$(git -C "${REPO}" show-ref | grep -v ' refs/heads/starter-rc$')"
+  index="$(git -C "${REPO}" hash-object .git/index)"
+  source_object="$(git -C "${REPO}" cat-file commit "$source")"
+  base_object="$(git -C "${REPO}" cat-file commit "$historical_base")"
+  run candidate --reject --expected-rc "$approved" "$@"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Canceled starter-rc at ${approved}; release unchanged."* ]]
+  [ "$(git -C "${REPO}" show-ref)" = "$refs" ]
+  [ "$(git -C "${REPO}" hash-object .git/index)" = "$index" ]
+  [ "$(git -C "${REPO}" cat-file commit "$source")" = "$source_object" ]
+  [ "$(git -C "${REPO}" cat-file commit "$historical_base")" = "$base_object" ]
+  absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
+}
+
+@test "obsolete initial base reject ignores unrelated starter with and without legacy absence flag" {
+  for mode in normal legacy; do
+    candidate --base-absent
+    approval
+    historical_base="$source"
+    git -C "${REPO}" update-ref refs/heads/starter "$source"
+    base=absent
+    for operation in --cancel --base-absent --status; do
+      run candidate "$operation"
+      [ "$status" -ne 0 ]
+      [[ "$output" != *"distribution:reject"* ]]
+      [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+    done
+    run promote
+    [ "$status" -ne 0 ]
+    if [ "$mode" = legacy ]; then
+      reject_preserves_other_refs --base-absent
+    else
+      reject_preserves_other_refs
+    fi
+    git -C "${REPO}" update-ref -d refs/heads/starter "$source"
+  done
+}
+
+@test "obsolete later base reject accepts unrelated advancement or missing current starter" {
+  for state in advanced missing; do
+    prepare
+    historical_base="$(git -C "${REPO}" rev-parse starter)"
+    candidate
+    approval
+    base="$historical_base"
+    if [ "$state" = advanced ]; then
+      unrelated="$(git -C "${REPO}" commit-tree "$tree" -p "$historical_base" -m 'Unrelated release')"
+      git -C "${REPO}" update-ref refs/heads/starter "$unrelated" "$historical_base"
+    else
+      git -C "${REPO}" update-ref -d refs/heads/starter "$historical_base"
+    fi
+    for operation in --cancel --status ''; do
+      run candidate ${operation:+"$operation"}
+      [ "$status" -ne 0 ]
+      [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+    done
+    run promote
+    [ "$status" -ne 0 ]
+    reject_preserves_other_refs
+    git -C "${REPO}" update-ref refs/heads/starter "$historical_base"
+  done
+}
+
+@test "reject accepts moved or missing source branch using historical source identity" {
+  candidate --base-absent
+  approval
+  historical_base="$source"
+  git -C "${REPO}" commit --allow-empty -qm 'Advance source'
+  reject_preserves_other_refs
+  candidate --base-absent
+  approval
+  historical_base="$source"
+  git -C "${REPO}" switch -q -c retained
+  git -C "${REPO}" branch -D dev
+  reject_preserves_other_refs
+}
+
+@test "obsolete base reject still refuses invalid source tree base and chain provenance" {
+  candidate --base-absent
+  approval
+  good="$approved"
+  wrong_tree="$(git -C "${REPO}" rev-parse dev^{tree})"
+  zero=0000000000000000000000000000000000000000
+  git -C "${REPO}" branch starter dev
+  for fault in metadata source tree base chain; do
+    claimed_source="$source"
+    claimed_base="$zero"
+    claimed_tree="$tree"
+    parent=()
+    if [ "$fault" = source ]; then claimed_source="$tree"; fi
+    if [ "$fault" = tree ]; then claimed_tree="$wrong_tree"; fi
+    if [ "$fault" = base ]; then claimed_base="$tree"; fi
+    if [ "$fault" = chain ]; then
+      ancestor="$(git -C "${REPO}" commit-tree "$tree" -m 'Prepare starter release candidate' \
+        -m "Starter-Candidate-Source: ${source}
+Starter-Candidate-Base: ${source}
+Starter-Compose-Policy: 2
+Starter-Tools-Normalization: 1")"
+      parent=(-p "$ancestor")
+    fi
+    message="Prepare starter release candidate
+
+Starter-Candidate-Source: ${claimed_source}
+Starter-Candidate-Base: ${claimed_base}
+Starter-Compose-Policy: 2
+Starter-Tools-Normalization: 1"
+    if [ "$fault" = metadata ]; then message='Unrecognized candidate'; fi
+    forged="$(git -C "${REPO}" commit-tree "$claimed_tree" "${parent[@]}" -m "$message")"
+    git -C "${REPO}" update-ref refs/heads/starter-rc "$forged"
+    refs="$(git -C "${REPO}" show-ref)"
+    run candidate --reject --expected-rc "$forged"
+    [ "$status" -ne 0 ]
+    case "$fault" in
+      metadata) [[ "$output" == *"invalid starter identity metadata"* ]] ;;
+      source) [[ "$output" == *"invalid candidate source"* ]] ;;
+      tree) [[ "$output" == *"candidate tree does not match committed source"* ]] ;;
+      base) [[ "$output" == *"invalid candidate base"* ]] ;;
+      chain) [[ "$output" == *"candidate parent has unexpected provenance"* ]] ;;
+    esac
+    [ "$(git -C "${REPO}" show-ref)" = "$refs" ]
+  done
+  git -C "${REPO}" update-ref refs/heads/starter-rc "$good"
+}
+
+@test "reject retains index root and distinct custom branch guards" {
+  candidate --base-absent
+  approval
+  for flags in '--source starter-rc' '--target starter' '--base dev' '--target ../invalid'; do
+    # shellcheck disable=SC2086
+    run candidate --reject --expected-rc "$approved" $flags
+    [ "$status" -ne 0 ]
+    [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
+  done
+  run bash -c 'cd "$1/.devcontainer" && python3 "$2/.maintainer/scripts/starter-candidate.py" --reject --expected-rc "$3"' _ "$REPO" "$ROOT" "$approved"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"run from the repository root"* ]]
+  printf 'staged\n' > "${REPO}/README.md"
+  git -C "${REPO}" add README.md
+  index="$(git -C "${REPO}" hash-object .git/index)"
+  run candidate --reject --expected-rc "$approved"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must be clean"* ]]
+  [ "$(git -C "${REPO}" hash-object .git/index)" = "$index" ]
+  [ "$(git -C "${REPO}" rev-parse starter-rc)" = "$approved" ]
 }
 
 @test "workflow metadata-only status never calls filtered-tree or full identity validation" {
@@ -537,7 +690,7 @@ PY
   [ "$status" -eq 0 ]
   [[ "$output" == *"State: pending"* ]]
   [ "$(workflow_snapshot)" = "$before" ]
-  run workflow_task distribution:reject -- --expected-rc "$approved" --base-absent
+  run workflow_task distribution:reject -- --expected-rc "$approved"
   [ "$status" -eq 0 ]
   absent git -C "${REPO}" show-ref --verify -q refs/heads/starter-rc
 }
