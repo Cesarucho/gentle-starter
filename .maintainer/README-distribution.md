@@ -22,8 +22,10 @@ out `starter-rc` or `starter` in a worktree during mutation.
    ```
 
 2. Keep the printed full RC, source, tree, pinned base and policy markers.
-   Preparation prints exact promotion and guarded rejection commands, including
-   custom branch names. It labels the RC **unapproved**; printing is not approval.
+   Preparation and pending status print the exact promotion command on its own
+   line under **Next command (only after explicit review/approval)**, followed by
+   a guarded rejection **Alternative**. Commands include custom branch names and
+   full pins. The RC remains **unapproved**; printing is not approval.
    Inspect/review/test that captured RC, not whatever `dev` or `starter-rc` points
    to later. For local Git inspection, substitute the captured full RC ID:
 
@@ -67,6 +69,8 @@ objects, indexes, files or refs, recompute filtered trees, or grant approval.
 It checks recorded identity/ancestry and a direct publication's parent/tree
 match, not full publication correctness. Inconsistent state fails closed without
 action commands. The existing promotion/rejection checks remain authoritative.
+For `directly-promoted`, **Next command (remove retained RC; starter unchanged)**
+contains only the standalone guarded rejection command, never a new promotion.
 
 ## Blocked command diagnostics
 

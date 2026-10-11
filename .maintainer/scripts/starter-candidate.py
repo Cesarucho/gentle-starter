@@ -80,8 +80,9 @@ def report(args, rc, source, pinned_base, policy, normalization, *, promoted=Fal
     base = "absent" if pinned_base == ZERO else pinned_base
     print("Local identity report (metadata only for status; not approval or full tree validation).")
     print("Already published locally." if promoted else "unapproved local candidate")
-    for label, value in (("RC", rc), ("Source", source), ("Tree", tree),
-                         ("Pinned base", base), ("Compose policy", policy or "legacy"),
+    for label, value in (("RC (--approved-rc)", rc), ("Source (--expected-source)", source),
+                         ("Tree (--expected-tree)", tree),
+                         ("Base (--expected-base)", base), ("Compose policy", policy or "legacy"),
                          ("Tools normalization", normalization or "legacy")):
         print(f"{label}: {value}")
     task = ["task", "--taskfile", ".maintainer/Taskfile.yml"]
@@ -89,10 +90,13 @@ def report(args, rc, source, pinned_base, policy, normalization, *, promoted=Fal
         command = task + ["distribution:promote", "--", "--candidate", args.target,
                           "--target", args.base, "--approved-rc", rc, "--expected-tree", tree,
                           "--expected-base", base, "--expected-source", source]
-        print("Promote only after explicit review/approval: " + shlex.join(command))
+        print("\nNext command (only after explicit review/approval):")
+        print(shlex.join(command))
     command = task + ["distribution:reject", "--", "--source", args.source,
                       "--target", args.target, "--base", args.base, "--expected-rc", rc]
-    print("Guarded RC deletion (not release rollback): " + shlex.join(command))
+    print("\nNext command (remove retained RC; starter unchanged):" if promoted else
+          "\nAlternative (discard this RC; starter unchanged):")
+    print(shlex.join(command))
 
 
 def blocked_diagnostics(args, target_ref, base_ref, error):

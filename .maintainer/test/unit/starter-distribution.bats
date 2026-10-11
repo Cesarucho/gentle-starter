@@ -98,13 +98,14 @@ absent() {
   run candidate --base-absent
   [ "$status" -eq 0 ]
   approval
-  [[ "$output" == *"RC: ${approved}"* ]]
-  [[ "$output" == *"Source: ${source}"* ]]
-  [[ "$output" == *"Tree: ${tree}"* ]]
-  [[ "$output" == *"Pinned base: absent"* ]]
+  [[ "$output" == *$'\n'"RC (--approved-rc): ${approved}"$'\n'* ]]
+  [[ "$output" == *$'\n'"Source (--expected-source): ${source}"$'\n'* ]]
+  [[ "$output" == *$'\n'"Tree (--expected-tree): ${tree}"$'\n'* ]]
+  [[ "$output" == *$'\n'"Base (--expected-base): absent"$'\n'* ]]
   [[ "$output" == *"Compose policy: 2"* ]]
   [[ "$output" == *"Tools normalization: 1"* ]]
   [[ "$output" == *"unapproved local candidate"* ]]
+  [[ "$output" == *$'\n\nNext command (only after explicit review/approval):\n'"task --taskfile .maintainer/Taskfile.yml distribution:promote -- --candidate starter-rc --target starter --approved-rc ${approved} --expected-tree ${tree} --expected-base absent --expected-source ${source}"$'\n\nAlternative (discard this RC; starter unchanged):\n'"task --taskfile .maintainer/Taskfile.yml distribution:reject -- --source dev --target starter-rc --base starter --expected-rc ${approved}" ]]
   [[ "$output" == *"--approved-rc ${approved} --expected-tree ${tree} --expected-base absent --expected-source ${source}"* ]]
   [[ "$output" == *"--expected-rc ${approved}"* ]]
   [[ "$output" != *"--base-absent"* ]]
@@ -122,19 +123,32 @@ absent() {
   git -C "${REPO}" branch source/local dev
   run candidate --source source/local --target rc/local --base release/local
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Pinned base: ${base}"* ]]
+  [[ "$output" == *"Base (--expected-base): ${base}"* ]]
   [[ "$output" == *"--candidate rc/local --target release/local"* ]]
   [[ "$output" == *"--source source/local --target rc/local --base release/local"* ]]
   [[ "$output" != *"--base-absent"* ]]
   # Parse the emitted shell text independently: custom names and pins must be
   # single arguments, with no variable substitution or mutable-ref discovery.
-  python3 - "$output" << 'PY'
+  python3 - "$output" "$(git -C "${REPO}" rev-parse rc/local)" \
+    "$(git -C "${REPO}" rev-parse rc/local^{tree})" "$base" \
+    "$(git -C "${REPO}" rev-parse source/local)" << 'PY'
 import shlex
 import sys
 lines = sys.argv[1].splitlines()
-commands = [shlex.split(line.split(': ', 1)[1]) for line in lines
-            if line.startswith(('Promote only', 'Guarded RC'))]
+commands = [shlex.split(line) for line in lines if line.startswith('task ')]
 assert len(commands) == 2
+assert commands[0] == ['task', '--taskfile', '.maintainer/Taskfile.yml',
+                       'distribution:promote', '--', '--candidate', 'rc/local',
+                       '--target', 'release/local', '--approved-rc', sys.argv[2],
+                       '--expected-tree', sys.argv[3], '--expected-base', sys.argv[4],
+                       '--expected-source', sys.argv[5]]
+assert commands[1] == ['task', '--taskfile', '.maintainer/Taskfile.yml',
+                       'distribution:reject', '--', '--source', 'source/local',
+                       '--target', 'rc/local', '--base', 'release/local',
+                       '--expected-rc', sys.argv[2]]
+for heading in ('Next command (only after explicit review/approval):',
+                'Alternative (discard this RC; starter unchanged):'):
+    assert lines[lines.index(heading) + 1].startswith('task ')
 assert commands[0][commands[0].index('--candidate') + 1] == 'rc/local'
 assert commands[0][commands[0].index('--target') + 1] == 'release/local'
 assert commands[1][commands[1].index('--source') + 1] == 'source/local'
@@ -145,7 +159,7 @@ PY
   run candidate --status --source source/local --target rc/local --base release/local
   [ "$status" -eq 0 ]
   [[ "$output" == *"State: pending"* ]]
-  [[ "$output" == *"Pinned base: ${base}"* ]]
+  [[ "$output" == *"Base (--expected-base): ${base}"* ]]
 }
 
 # Include bytes and names of every fixture file, including objects, index and refs.
@@ -343,6 +357,8 @@ PY
   [ "$status" -eq 0 ]
   [[ "$output" == *"State: pending"* ]]
   [[ "$output" == *"metadata only"* ]]
+  [[ "$output" == *$'\nNext command (only after explicit review/approval):\ntask '* ]]
+  [[ "$output" == *$'\nAlternative (discard this RC; starter unchanged):\ntask '* ]]
   [[ "$output" == *"--expected-rc ${approved}"* ]]
   [[ "$output" != *"--base-absent"* ]]
   [ "$(workflow_snapshot)" = "$before" ]
@@ -352,6 +368,9 @@ PY
   run candidate --status
   [ "$status" -eq 0 ]
   [[ "$output" == *"State: directly-promoted"* ]]
+  [[ "$output" == *$'\n\nNext command (remove retained RC; starter unchanged):\n'"task --taskfile .maintainer/Taskfile.yml distribution:reject -- --source dev --target starter-rc --base starter --expected-rc ${approved}" ]]
+  [[ "$output" != *"Alternative ("* ]]
+  [[ "$output" == *$'\n'"RC (--approved-rc): ${approved}"$'\n'* ]]
   [[ "$output" == *"--expected-rc ${approved}"* ]]
   [[ "$output" != *"--base-absent"* ]]
   [[ "$output" != *"distribution:promote"* ]]
