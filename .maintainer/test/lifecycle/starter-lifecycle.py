@@ -3,6 +3,7 @@
 
 import hashlib
 import importlib.util
+import inspect
 import json
 import os
 from pathlib import Path
@@ -18,9 +19,13 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from test_resources import LABEL, Run, Unsafe
 
-VERIFY_CHECKS = frozenset({"container-replaced", "managed-state", "candidate-unchanged", "locale-timezone"})
+VERIFY_CHECKS = frozenset({"container-replaced", "managed-state", "candidate-unchanged", "locale-timezone", "runtime-directories"})
 TEST_LOCALE = "en_GB.UTF-8"
 TEST_TIMEZONE = "Europe/Madrid"
+AUTHORITY = ".git/gentle-ai/review-mode/rar-authority"
+SSH_SOURCE = ".env.d/.ssh-server"
+SSH_TARGET = "/home/ubuntu/.ssh-server"
+PORT_RESET = "services:\n  container-svc:\n    ports: !reset []\n"
 
 
 def failure_message(lifecycle):
@@ -128,7 +133,7 @@ def expected_after_setup(root, configured):
     return {**configured, "files": files}
 
 
-def configure(root):
+def configure(root, runtime_directories=False):
     """Select the public base and core state; do not merge Compose in Python."""
     module = resolver(root)
     service, paths, _ = module.selection(root)
@@ -152,6 +157,46 @@ def configure(root):
         (root / name).write_text("")
         (root / name).chmod(0o600)
     (root / ".env").write_text(f"LOCALE={TEST_LOCALE}\nTZ={TEST_TIMEZONE}\n")
+    if runtime_directories:
+        installer = root / ".devcontainer/install/available/4010-tool-ssh-server.sh"
+        if not installer.is_file() or installer.is_symlink():
+            raise Unsafe("Runtime fixture requires the canonical SSH installer")
+        (root / ".devcontainer/install/03-enabled" / installer.name).symlink_to("../available/" + installer.name)
+        config["dockerComposeFile"] += ["./config/compose/docker-compose.ssh-server.yml",
+                                       "./config/compose/starter-runtime-no-ports.yml"]
+        (root / ".devcontainer/config/compose/starter-runtime-no-ports.yml").write_text(PORT_RESET)
+        (root / ".devcontainer/devcontainer.json").write_text(json.dumps(config, indent=4) + "\n")
+
+
+def tree_state(base):
+    """Read only run-owned synthetic trees; reject links, special files and unsafe owners."""
+    base = Path(base)
+    if base.resolve() != base.absolute():
+        raise Unsafe("Synthetic tree has a symlinked parent")
+    result = {}
+    pending = [base]
+    while pending:
+        path = pending.pop()
+        metadata = path.lstat()
+        mode = stat.S_IMODE(metadata.st_mode)
+        if stat.S_ISLNK(metadata.st_mode):
+            raise Unsafe("Synthetic tree contains a symlink")
+        if metadata.st_uid != os.getuid() or mode & 0o7022:
+            raise Unsafe("Synthetic tree has unsafe ownership or modes")
+        if stat.S_ISDIR(metadata.st_mode):
+            content = "directory"
+            pending.extend(path.iterdir())
+        elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(descriptor, "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                if (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino):
+                    raise Unsafe("Synthetic file replaced during inspection")
+                content = hashlib.sha256(stream.read()).hexdigest()
+        else:
+            raise Unsafe("Synthetic tree contains a symlink or unsupported file")
+        result[str(path.relative_to(base))] = [metadata.st_uid, metadata.st_gid, mode, content]
+    return result
 
 
 class Lifecycle:
@@ -309,25 +354,41 @@ class Lifecycle:
         self.ownership.stage("prepare")
         self.ownership.produce(["bash", str(HERE / "create-candidate.sh"), str(self.root), str(self.candidate)],
                                self.root, self.env, "prepare")
-        configure(self.candidate)
+        runtime_directories = isinstance(self, RuntimeDirectoriesLifecycle)
+        if runtime_directories:
+            configure(self.candidate, runtime_directories=True)
+        else:
+            configure(self.candidate)
         for path in self.candidate.rglob("*"):
             if ".git" not in path.relative_to(self.candidate).parts and path.is_symlink() and not path.resolve().is_relative_to(self.candidate):
                 raise ValueError("Candidate has an escaping symlink; replace it with a repository-local input before lifecycle execution")
         port = run("bash", ".taskfiles/scripts/project-identity.sh", "-o", "code", cwd=self.candidate, env=self.env)
         self.env.update(APP_NAME=self.candidate.name, APP_PORT=port, OPENCODE_PORT=str(int(port) + 1))
+        if runtime_directories:
+            self.env["SSH_PORT"] = "22"
         self.validate_base()
         self.label_candidate()
+        if runtime_directories:
+            self.prepare_runtime_directories()
         configured = expected_after_setup(self.candidate, snapshot(self.candidate))
         if getattr(self, "allow_generated_dockerfile_read", False):
             spec = importlib.util.spec_from_file_location("generated_read", HERE / "generated-dockerfile-read.py")
             assert spec and spec.loader
             adapter = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(adapter)
-            adapter.prepare(self)
+            if runtime_directories:
+                adapter.prepare(self, runtime_directories=True)
+            else:
+                adapter.prepare(self)
             self._generated_read_adapter = adapter
         self.task("build")
+        if runtime_directories:
+            self.assert_runtime_seed()
         self.task("up")
         first = self.container()
+        if runtime_directories:
+            self.verify_check = "runtime-directories"
+            self.assert_runtime_directories(first, first=True)
         self.assert_state(first, write=True)
         self.verify_check = "locale-timezone"
         self.assert_locale(first)
@@ -338,6 +399,10 @@ class Lifecycle:
         if first == second:
             raise RuntimeError("Recreate did not replace the service container")
         self.verify_check = "managed-state"
+        if runtime_directories:
+            self.verify_check = "runtime-directories"
+            self.assert_runtime_directories(second)
+            self.verify_check = "managed-state"
         self.assert_state(second)
         self.verify_check = "locale-timezone"
         self.assert_locale(second)
@@ -565,6 +630,136 @@ class Lifecycle:
         self.ownership.retain()
 
 
+class RuntimeDirectoriesLifecycle(Lifecycle):
+    """Opt-in synthetic policy proof, never a native review receipt or SSH login."""
+
+    def validate_base(self):
+        module = resolver(self.candidate)
+        _, paths, _ = module.selection(self.candidate)
+        expected = ["docker-compose.yml", "config/compose/docker-compose-core-tools.yml",
+                    "config/compose/docker-compose.ssh-server.yml", "config/compose/starter-runtime-no-ports.yml"]
+        if paths != [self.candidate / ".devcontainer" / name for name in expected]:
+            raise Unsafe("Runtime fixture requires the exact isolated Compose selection")
+        ssh = module.read_compose_fragment(paths[2])
+        if ssh != {"services": {"container-svc": {"ports": ["${SSH_PORT}:22"], "volumes": [
+                {"type": "bind", "source": "../" + SSH_SOURCE, "target": SSH_TARGET,
+                 "bind": {"create_host_path": False}}]}}} or paths[3].read_text() != PORT_RESET:
+            raise Unsafe("Runtime fixture SSH override or port reset differs from the reviewed contract")
+        manifest = super().validate_base()
+        _, _, selected = self.resolve()
+        if selected.get("ports"):
+            raise Unsafe("Runtime fixture resolved ports must be empty; Compose !reset support is required")
+        records = [v for v in manifest["volumes"] if v["source"] == SSH_SOURCE]
+        if len(records) != 1 or records[0]["target"] != SSH_TARGET:
+            raise Unsafe("Runtime fixture requires exact managed SSH mapping")
+        return manifest
+
+    def seed_runtime_directories(self):
+        """Only after create-candidate: its independent .git never contains real authority."""
+        if self.candidate == self.root or not self.candidate.is_relative_to(self.scratch):
+            raise Unsafe("Runtime fixture must be isolated from the source")
+        for name in (".git", ".env.d"):
+            path = self.candidate / name
+            metadata = path.lstat()
+            if (path.resolve() != path.absolute() or not stat.S_ISDIR(metadata.st_mode)
+                    or metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) & 0o7022):
+                raise Unsafe("Runtime fixture parent has unsafe ownership, mode or type")
+        for name in (".git/gentle-ai", SSH_SOURCE):
+            if os.path.lexists(self.candidate / name):
+                raise Unsafe("Synthetic runtime fixture already exists")
+        for name in (".git/gentle-ai", ".git/gentle-ai/review-mode", AUTHORITY, SSH_SOURCE):
+            path = self.candidate / name
+            path.mkdir(mode=0o755)
+            path.chmod(0o755)
+        self.runtime_parents = {}
+        for name in (".git", ".git/gentle-ai", ".git/gentle-ai/review-mode"):
+            metadata = (self.candidate / name).lstat()
+            self.runtime_parents[name] = [metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)]
+        self.runtime_before = {}
+        for name in (AUTHORITY, SSH_SOURCE):
+            base = self.candidate / name
+            child = base / "preserved"
+            child.mkdir(mode=0o750)
+            child.chmod(0o750)
+            sentinel = child / "sentinel"
+            sentinel.write_bytes(b"Synthetic lifecycle sentinel; not authority or credentials.\n")
+            sentinel.chmod(0o640)
+            self.runtime_before[name] = tree_state(base)
+        if os.path.lexists(self.candidate / SSH_SOURCE / "ssh"):
+            raise Unsafe("SSH policy child must be absent before up")
+
+    def prepare_runtime_directories(self):
+        self.seed_runtime_directories()
+
+    def assert_runtime_seed(self):
+        for name, expected in self.runtime_before.items():
+            if tree_state(self.candidate / name) != expected:
+                raise Unsafe("Synthetic initial runtime state changed before up")
+
+    def assert_preserved_trees(self):
+        for name, expected in self.runtime_parents.items():
+            path = self.candidate / name
+            metadata = path.lstat()
+            if (path.resolve() != path.absolute() or not stat.S_ISDIR(metadata.st_mode)
+                    or [metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)] != expected):
+                raise Unsafe("Synthetic authority parent metadata was not preserved")
+        for name, before in self.runtime_before.items():
+            after = tree_state(self.candidate / name)
+            expected = {key: list(value) for key, value in before.items()}
+            expected["."][2] = 0o700
+            if name == SSH_SOURCE:
+                marker = "." + self.candidate.name + "-marker"
+                after = {key: value for key, value in after.items()
+                         if key != "ssh" and not key.startswith("ssh/") and key != marker}
+            if after != expected:
+                raise Unsafe("Synthetic runtime contents, descendants or ownership were not preserved")
+
+    def container_tree(self, container, base):
+        script = ("import hashlib, json, os, stat, sys\nfrom pathlib import Path\n"
+                  "Unsafe = RuntimeError\n" + inspect.getsource(tree_state) +
+                  "\nprint(json.dumps(tree_state(Path(sys.argv[1])), sort_keys=True))\n")
+        return json.loads(self.docker("exec", "--user", "ubuntu", container, "python3", "-c", script, str(base)))
+
+    def assert_runtime_directories(self, container, first=False):
+        ports = json.loads(self.docker("inspect", "--format", "{{json .NetworkSettings.Ports}}", container))
+        if not isinstance(ports, dict) or any(value for value in ports.values()):
+            raise Unsafe("Runtime fixture actual published ports must be empty")
+        mounts = json.loads(self.docker("inspect", "--format", "{{json .Mounts}}", container))
+        workspace = "/home/ubuntu/" + self.candidate.name
+        for source, target in ((self.candidate, workspace), (self.candidate / SSH_SOURCE, SSH_TARGET)):
+            matches = [m for m in mounts if m["Destination"] == target]
+            if len(matches) != 1 or not (matches[0]["Type"] == "bind" and matches[0]["Source"] == str(source) and matches[0]["RW"]):
+                raise Unsafe("Runtime fixture actual workspace or SSH bind mapping differs")
+        manifest = resolver(self.candidate).load_manifest(self.candidate)
+        records = [v for v in manifest["volumes"] if v["source"] == SSH_SOURCE]
+        if (len(records) != 1 or records[0]["target"] != SSH_TARGET
+                or not records[0]["managed"] or records[0]["read_only"]):
+            raise Unsafe("Applied runtime SSH mapping differs")
+        identity = self.docker("exec", "--user", "ubuntu", container, "printenv", "DEVCONTAINER_BIND_MANIFEST_ID")
+        if identity != manifest["id"]:
+            raise Unsafe("Runtime container does not have the applied manifest identity")
+        self.assert_preserved_trees()
+        for name, expected in self.runtime_parents.items():
+            value = self.docker("exec", "--user", "ubuntu", container, "stat", "-c", "%u:%g:%a", workspace + "/" + name)
+            if value != f"{expected[0]}:{expected[1]}:{expected[2]:o}":
+                raise Unsafe("Synthetic authority host/container parent metadata differs")
+        for name, target in ((AUTHORITY, workspace + "/" + AUTHORITY), (SSH_SOURCE, SSH_TARGET)):
+            if tree_state(self.candidate / name) != self.container_tree(container, target):
+                raise Unsafe("Runtime fixture host/container metadata or content differs")
+        keys = tree_state(self.candidate / SSH_SOURCE / "ssh")
+        uid, gid = self.runtime_before[SSH_SOURCE]["."][:2]
+        expected_names = {".", "ssh_host_rsa_key", "ssh_host_rsa_key.pub", "ssh_host_ed25519_key", "ssh_host_ed25519_key.pub"}
+        if set(keys) != expected_names or keys["."] != [uid, gid, 0o700, "directory"]:
+            raise Unsafe("SSH policy child or generated key set differs")
+        for name in expected_names - {"."}:
+            if keys[name][:3] != [uid, gid, 0o644 if name.endswith(".pub") else 0o600]:
+                raise Unsafe("Generated SSH key ownership or mode differs")
+        if first:
+            self.runtime_keys = keys
+        elif keys != self.runtime_keys:
+            raise Unsafe("Generated SSH host keys changed across recreation")
+
+
 class ConsumerLifecycle(Lifecycle):
     """Exercise the filtered release without reducing its published Features."""
 
@@ -645,11 +840,14 @@ def main():
     consumer = "--consumer" in sys.argv[1:]
     attachment = "--attachment" in sys.argv[1:]
     generated_read = "--allow-generated-dockerfile-read" in sys.argv[1:]
+    runtime_directories = "--runtime-directories" in sys.argv[1:]
+    if runtime_directories and (consumer or attachment):
+        raise SystemExit("Runtime directories forbids consumer and attachment")
     if consumer and attachment:
         raise SystemExit("Select consumer or attachment, not both")
-    if generated_read and (consumer or not attachment):
-        raise SystemExit("Generated Dockerfile read requires --attachment and forbids --consumer")
-    selectors = {"--consumer", "--attachment", "--allow-generated-dockerfile-read"}
+    if generated_read and (consumer or not (attachment or runtime_directories)):
+        raise SystemExit("Generated Dockerfile read requires --attachment or --runtime-directories and forbids --consumer")
+    selectors = {"--consumer", "--attachment", "--allow-generated-dockerfile-read", "--runtime-directories"}
     if any(sys.argv[1:].count(flag) > 1 for flag in selectors):
         raise SystemExit("Duplicate lifecycle selector")
     args = [arg for arg in sys.argv[1:] if arg not in selectors]
@@ -658,7 +856,8 @@ def main():
     elif len(args) == 2 and args[0] == "--daemon-visible-scratch":
         parent = Path(args[1])
     else:
-        raise SystemExit("Usage: task test:starter:lifecycle [-- --consumer | --attachment] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
+        raise SystemExit("Usage: task test:starter:lifecycle [-- --consumer | --attachment | --runtime-directories] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
+                         "[--allow-generated-dockerfile-read only with --attachment or --runtime-directories]\n"
                          "Explicit expensive build/start/recreate; the local Docker daemon must pass an exact-byte bind probe first.")
     root = Path(run("git", "rev-parse", "--show-toplevel")).resolve()
     if Path.cwd() != root or not parent.is_absolute() or not parent.is_dir() or parent.resolve() != parent or parent == root or parent.is_relative_to(root):
@@ -668,6 +867,7 @@ def main():
         if not shutil.which(command):
             raise SystemExit(f"Required command unavailable: {command}")
     print("[starter-lifecycle] Explicit " + ("consumer release/DinD" if consumer else
+          "base lifecycle + synthetic runtime directories (no published ports)" if runtime_directories else
           "base lifecycle + Task attachment" if attachment else "base lifecycle") + " scenario. "
           "Expect downloads, minutes of CPU/build time and substantial disk use; startup may build. "
            "Shared build cache is retained; owned images are removed only when exclusive ownership is verified. "
@@ -676,7 +876,8 @@ def main():
     scratch = Path(ownership.data["scratch"])
     print(f"[starter-lifecycle] Recovery run: {ownership.data['run']}; inventory: {ownership.path}", flush=True)
     try:
-        lifecycle = (ConsumerLifecycle if consumer else Lifecycle)(root, scratch, ownership)
+        lifecycle_class = ConsumerLifecycle if consumer else RuntimeDirectoriesLifecycle if runtime_directories else Lifecycle
+        lifecycle = lifecycle_class(root, scratch, ownership)
         if attachment:
             lifecycle.attachment_scenario = True
         lifecycle.allow_generated_dockerfile_read = generated_read
@@ -744,7 +945,9 @@ def main():
         return 1
     print(("Fixture release clone/build/start and nested Docker verified. Exactly two verified feature state volumes retained; "
            "this is not complete resource cleanup. " if consumer else
-            "Base build/start/direct-exec/recreate, managed persistence verified. ") + "Primary preservation verified. "
+             "Base build/start/direct-exec/recreate, managed persistence verified. ") +
+          ("Synthetic authority and SSH directory/key preservation with no published ports verified. " if runtime_directories else "") +
+          "Primary preservation verified. "
           "Registered owned resources removed; shared build cache and compact run diagnostics retained.")
     return 0
 

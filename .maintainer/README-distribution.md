@@ -318,6 +318,64 @@ environment contents are never hashed. Source preservation is checked on failure
 as well as success. Mock regressions cover failure/interrupt cleanup; a successful
 live cycle does not itself inject every possible operational failure.
 
+### Synthetic runtime-directory scenario
+
+After separate operational authorization, from the **CONTAINER producer repository
+root**, run:
+
+```bash
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --runtime-directories
+```
+
+This selector is incompatible with `--consumer` and `--attachment`. The separately
+consented [exact generated-Dockerfile read adapter](#optional-exact-generated-dockerfile-read-adapter)
+may be added with `--allow-generated-dockerfile-read`; it is not enabled by default.
+The default base proof remains unchanged.
+The same optional `--daemon-visible-scratch ABSOLUTE_PARENT` and mandatory
+cached-image exact-byte bind probe apply. No build starts if that probe fails.
+Task's simulated HOST operations run only in the independent scratch candidate,
+never with a guard bypass in the primary checkout.
+
+**Preflight and cost forecast:** inspect current installers, hooks and Dockerfile;
+require local Docker, cached `ubuntu:24.04`, a writable canonical scratch parent,
+and Compose support for `ports: !reset []`. The candidate selects the canonical
+SSH-server installer and managed server override, followed by a candidate-only
+port-reset override. Unsupported reset behavior or nonempty resolved ports fails
+before build; actual published ports must also be empty after both creations.
+Production Compose files in the primary worktree are untouched. Budget roughly
+5–15 minutes warm or 20–45 minutes cold, 2–8 GiB incremental disk/cache, and cold
+package/tool downloads of roughly 0.5–2 GiB (cache and selected hooks can increase
+these estimates). One base/core/optional-SSH build is explicit; up/recreate may
+also invoke cached builds. Reserve a 45-minute soft budget and a longer supervisor
+deadline, for example 60 minutes, for finalization; reassess if inputs exceed the
+forecast. No consumer Features, nested Docker, updater, login or remote SSH proof
+is requested by this scenario.
+
+The fixture seeds only the candidate's independent `.git` with a synthetic
+`gentle-ai/review-mode/rar-authority` at `0755`, owned safe parents, an innocuous
+sentinel and distinct `0750` child/`0640` file modes. Original `.git` metadata and
+real authority contents are never copied or inspected; public snapshots still
+exclude `.git`. After up/postCreate and replacement/recreate, the proof requires
+an actual writable candidate workspace bind, authority `0700`, unchanged parent
+metadata, ownership/group, protected bytes and descendant modes.
+
+The separately seeded, runtime-user-owned `.env.d/.ssh-server` bind root starts at
+`0755`, with unselected sentinel data and no `ssh` child. The current manifest must
+map that exact managed source to `/home/ubuntu/.ssh-server`. PostCreate must leave
+the installer-owned root at `0700` and policy-created child at `0700`, preserving
+unselected data, ownership and modes. Host/container metadata and synthetic hashes
+must match; generated RSA/Ed25519 host-key bytes and modes must survive recreation.
+Private bytes and hashes are not printed. A private run-owned HOME and allowlisted
+environment exclude inherited credentials, agents and `SSH_AUTHORIZED_KEYS`.
+There are no host port publications or SSH logins; container-local service startup
+is exercised, not external connectivity or authorization.
+
+Success uses the existing scoped resource cleanup; shared build cache and compact
+diagnostics remain. Failure/interruption retains private scratch, inventory and
+logs under the existing recovery contract. Generated keys and logs remain sensitive:
+review/redact before sharing. This is synthetic lifecycle evidence, **not a Gentle
+native receipt, native review approval, real-authority repair, or DinD proof**.
+
 ### Focused Task attachment scenario
 
 After separate operational authorization, from the CONTAINER repository root:
@@ -369,20 +427,32 @@ then inspect the record and preview before authorizing recovery.
 
 ### Optional exact generated-Dockerfile read adapter
 
-The maintainer harness accepts `--attachment --allow-generated-dockerfile-read`.
-The second flag alone, with `--consumer`, or repeated is rejected before run
+The maintainer harness accepts `--attachment --allow-generated-dockerfile-read`
+or `--runtime-directories --allow-generated-dockerfile-read`. The read flag alone,
+with `--consumer`, or repeated is rejected before run
 registration. Defaults and consumer behavior are unchanged. This selector is not
 a native Compose/Buildx flag and does not authorize running the lifecycle recipe.
 
 After separate live authorization and a fresh cost/timeout forecast, add the
-selector to the CONTAINER attachment recipe above. The candidate remains a
+selector to the CONTAINER attachment or runtime-directory recipe above. The candidate remains a
 simulated HOST inside CONTAINER; never use the primary worktree as a host fixture.
 No live proof of this adapter is recorded here.
 
 ```bash
 # CONTAINER: future live run only after explicit authorization and cost forecast.
 task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --attachment --allow-generated-dockerfile-read
+# CONTAINER: alternative runtime-directory scenario, not a second authorized run.
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --runtime-directories --allow-generated-dockerfile-read
 ```
+
+Consent covers only the exact validated generated Dockerfile from that run's native
+invocation, never a directory/root read grant or an entitlement inferred from error
+text. The runtime selector retains its SSH/no-port Compose forwarding, exact-byte
+probe, synthetic preservation assertions and original resource closure. Its cost
+forecast remains 5–15 minutes warm / 20–45 minutes cold, 2–8 GiB incremental cache
+and roughly 0.5–2 GiB cold downloads; refresh these estimates and supervisor timeouts
+before one authorized fresh attempt. A retained failed run is not resumed or cleaned
+by selecting this adapter. Do not disable Bake or change global Docker environment.
 
 **Private selection.** Preparation derives `HOME` from the registered scratch
 inventory and verifies its marker, inode and held lease without calling Docker.
@@ -392,7 +462,7 @@ under that run's `HOME/.docker` is:
 | Path | Purpose | Mode |
 | --- | --- | --- |
 | `config.json` | Exact `cliPluginsExtraDirs` selection | `0600` |
-| `generated-read.json` | Owned binding and nine exact path pins | `0600` |
+| `generated-read.json` | Owned binding and nine base or eleven runtime path pins | `0600` |
 | `plugins/docker-compose` | Private native Compose snapshot | `0500` |
 | `plugins/docker-buildx` | Generated deterministic bootstrap | `0500` |
 | `native/docker-buildx` | Private native Buildx, outside plugin discovery | `0500` |
@@ -404,7 +474,13 @@ Buildx delegates to `native/docker-buildx`, not its discoverable wrapper, avoidi
 wrapper recursion. Compose's actual parent executable must be its private copy.
 
 The nine pinned paths comprise the two natives, config, launcher, exact repository
-adapter/helper dependencies and three candidate inputs. The bootstrap validates
+adapter/helper dependencies and three candidate inputs. Runtime-directory selection
+adds only the exact candidate SSH Compose and no-port-reset inputs, pinned during
+preparation; the Compose parent must forward both in that order before its generated
+build override. Reset bytes must be exactly `ports: !reset []` in the accepted
+service fragment, and both inputs retain startup bytes/owner/mode checks plus full
+per-invocation identity rechecks. No arbitrary extra Compose file is accepted.
+The bootstrap validates
 dependency owner/mode/identity/hash through bounded no-follow descriptor reads,
 then compiles the verified bytes without a module-path reread or custom import
 fallback. It embeds the binding path for internal Docker metadata calls that omit
@@ -439,8 +515,8 @@ PID/start-ticks/session/boot identity before releasing its stopped producer.
 Legacy inventories remain readable/recoverable under existing policy; missing
 anchors cannot authorize this adapter and are never fabricated.
 
-**Evidence boundary.** Focused synthetic fixtures cover 43 lifecycle, 54 adapter
-and 52 ownership tests (149 total), with native execution, subprocess and daemon
+**Evidence boundary.** Focused synthetic fixtures cover lifecycle, adapter
+and ownership contracts, with native execution, subprocess and daemon
 effects mocked. This is not actual Docker plugin discovery, native relocation,
 protocol compatibility or live lifecycle proof; those need separate authorization.
 
@@ -453,6 +529,25 @@ targets, secrets, SSH, network/devices, inline Dockerfiles, extra contexts or br
 filesystem/write grants. Unsupported native shapes fail closed rather than being
 adapted implicitly. Native Bake JSON/argv forwarding remains unproved without a
 separately authorized live run.
+
+The exact admitted Compose producer labels are `5.5.1` and `5.6.0`, not a version
+range. Independent pre-change verification of an isolated native Compose `5.6.0`
+capture found that its original payload rejected only the version label; changing
+that label to `5.5.1` in memory passed all remaining strict argv, schema, build
+arguments, context, labels, output, tags and generated-byte checks. The capture used
+native Buildx `0.38.0` and Dev Containers `0.89.0`'s matching layout, with zero native
+Buildx delegations. This proves the observed controlled producer shape, **not a
+native Buildx build, successful lifecycle or general version compatibility**.
+
+Version labels alone never authenticate a producer: all existing binary/input pins,
+lease, ancestry, owner/inode/content and exact-file grant checks still apply.
+Unknown or malformed versions and incompatible shapes fail closed; no ranges,
+global filesystem grants or automatic fallback are admitted. Tracked tests use only
+synthetic known-shape fixtures, not private captured JSON, argv, environment or paths.
+Historical private capture artifacts remain immutable; their source pins were
+independently verified before this edit, not refreshed to claim current readback
+after the expected source-hash change. Fresh live proof still requires independent
+verification, a renewed cost/timeout forecast and explicit operational authorization.
 
 The native result path is constrained to Compose's UUIDv4 naming contract, absent
 including dangling symlinks, with canonical parent identity rechecked before exec.

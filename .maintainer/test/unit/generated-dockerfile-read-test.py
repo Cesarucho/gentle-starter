@@ -260,7 +260,15 @@ class AdapterTests(unittest.TestCase):
         self.home.mkdir(mode=0o700)
         self.lifecycle = SimpleNamespace(home=self.home, candidate=self.candidate,
                                          root=self.root, ownership=self.owner, env={})
-        G.prepare(self.lifecycle)
+        self.runtime_directories = self._testMethodName.startswith("test_runtime_")
+        self.ssh = self.core.parent / "docker-compose.ssh-server.yml"
+        self.reset = self.core.parent / "starter-runtime-no-ports.yml"
+        if self.runtime_directories:
+            self.ssh.write_text("services:\n  container-svc:\n    ports: [\"${SSH_PORT}:22\"]\n")
+            self.reset.write_text("services:\n  container-svc:\n    ports: !reset []\n")
+            G.prepare(self.lifecycle, runtime_directories=True)
+        else:
+            G.prepare(self.lifecycle)
         self.origin_directory = self.native_directory
         self.native_directory = self.home / ".docker/native"
         self.compose_native = self.home / ".docker/plugins/docker-compose"
@@ -294,6 +302,8 @@ class AdapterTests(unittest.TestCase):
         self.parent_argv = [str(self.compose_native), "compose", "--project-name", self.owner.data["project"],
                             "-f", str(self.context / "docker-compose.yml"), "-f", str(self.core),
                             "-f", str(self.override), "build", "container-svc"]
+        if self.runtime_directories:
+            self.parent_argv[8:8] = ["-f", str(self.ssh), "-f", str(self.reset)]
         self.parent = self.mock(G, "compose_process", side_effect=lambda: (
             self.compose_native, b"\0".join(x.encode() for x in self.parent_argv) + b"\0"))
         self.exec = self.mock(G.os, "execvpe")
@@ -340,6 +350,82 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(environment, self.environment)
         self.assertEqual(self.frozen, [raw])
         self.assertEqual(self.docker.daemon.call_count, 2)
+
+    def test_runtime_compose_inputs_add_only_the_exact_generated_file_grant(self):
+        for version in ("5.5.1", "5.6.0"):
+            with self.subTest(version=version):
+                document = copy.deepcopy(self.document)
+                document["target"]["container-svc"]["labels"]["com.docker.compose.version"] = version
+                # Synthetic known shape only, never copied private capture data.
+                raw = b"\n " + json.dumps(document, indent=2).encode() + b"\n"
+                self.delegate(payload=raw)
+                native, argv, environment = self.exec.call_args.args
+                self.assertEqual(argv, [native, *self.args, "--allow", "fs.read=" + str(self.generated)])
+                self.assertEqual(environment, self.environment)
+                self.assertEqual(self.frozen, [raw])
+                self.exec.reset_mock()
+                self.frozen.clear()
+        pins = G.validate_selection(self.environment)["pins"]
+        self.assertIn(str(self.ssh), pins)
+        self.assertIn(str(self.reset), pins)
+
+    def test_runtime_compose_reordered_missing_or_extra_inputs_refuse(self):
+        original = list(self.parent_argv)
+        for files in (["-f", str(self.reset), "-f", str(self.ssh)],
+                      ["-f", str(self.ssh)],
+                      ["-f", str(self.ssh), "-f", str(self.reset), "-f", str(self.core)]):
+            with self.subTest(files=files):
+                self.parent_argv = original[:8] + files + original[12:]
+                self.refused()
+
+    def test_runtime_candidate_inputs_and_reset_content_must_remain_pinned(self):
+        for path in (self.ssh, self.reset):
+            original = path.read_bytes()
+            path.write_bytes(b"services: {}\n")
+            self.refused()
+            path.write_bytes(original)
+
+    def test_runtime_never_accepts_broad_or_preexisting_generated_grants(self):
+        for grant in ("fs.read=/", "fs.read=" + str(self.generated), "fs.write=" + str(self.context)):
+            with self.subTest(grant=grant):
+                self.refused(args=[*self.args, "--allow", grant])
+
+    def test_runtime_still_rejects_incompatible_native_shape_and_generated_bytes(self):
+        document = copy.deepcopy(self.document)
+        document["target"]["container-svc"]["labels"]["com.docker.compose.version"] = "5.6.1"
+        self.refused(document=document)
+        self.generated.write_bytes(self.generated.read_bytes() + b"# unsupported extra bytes\n")
+        self.refused()
+
+    def test_runtime_version_admission_is_finite_and_exact(self):
+        for version in (None, "5.6.1", "5.5.2", "v5.6.0", "5.6", ">=5.5.1", "5.5.1 || 5.6.0",
+                        "5.6.0+local", "5.6.0\n", "", 5.6, [], {}):
+            with self.subTest(version=version):
+                document = copy.deepcopy(self.document)
+                document["target"]["container-svc"]["labels"]["com.docker.compose.version"] = version
+                self.refused(document=document)
+        document = copy.deepcopy(self.document)
+        del document["target"]["container-svc"]["labels"]["com.docker.compose.version"]
+        self.refused(document=document)
+
+    def test_runtime_admitted_version_does_not_authorize_changed_shape_or_duplicate_labels(self):
+        document = copy.deepcopy(self.document)
+        target = document["target"]["container-svc"]
+        target["labels"]["com.docker.compose.version"] = "5.6.0"
+        for field, value in (("output", ["type=registry"]), ("output", "type=docker"),
+                             ("args", {**target["args"], "TZ": "UTC"}),
+                             ("labels", {**target["labels"], "com.docker.compose.project": "foreign"}),
+                             ("labels", {**target["labels"], "extra": "foreign"}),
+                             ("context", str(self.root)), ("tags", ["foreign:tag"]),
+                             ("ssh", []), ("target", "devcontainer")):
+            with self.subTest(field=field, value=value):
+                rejected = copy.deepcopy(document)
+                rejected["target"]["container-svc"][field] = value
+                self.refused(document=rejected)
+        raw = json.dumps(document).encode()
+        key = b'"com.docker.compose.version": "5.6.0"'
+        self.refused(payload=raw.replace(key, key + b", " + key))
+        self.refused(args=[*self.args, "--allow", "fs.read=/"], document=document)
 
     def test_documented_buildx_plugin_prefix_preserves_original_native_argv(self):
         self.environment["DOCKER_CLI_PLUGIN_ORIGINAL_CLI_COMMAND"] = "/usr/bin/docker"

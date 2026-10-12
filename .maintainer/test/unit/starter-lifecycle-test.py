@@ -434,7 +434,7 @@ class LifecycleTests(unittest.TestCase):
                 H.main()
         run.create.assert_not_called()
 
-    def test_generated_read_requires_attachment_and_rejects_duplicate_selectors(self):
+    def test_generated_read_requires_supported_scenario_and_rejects_duplicate_selectors(self):
         for flags in (["--allow-generated-dockerfile-read"], ["--consumer", "--allow-generated-dockerfile-read"],
                       ["--attachment", "--allow-generated-dockerfile-read", "--allow-generated-dockerfile-read"]):
             with self.subTest(flags=flags), patch.object(sys, "argv", ["lifecycle", *flags]), patch.object(H, "Run") as run:
@@ -448,7 +448,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertNotIn("HGDR_BINDING", lifecycle.env)
         self.assertNotIn("DOCKER_CONFIG", lifecycle.env)
 
-    def test_generated_read_opt_in_reaches_only_attachment_lifecycle(self):
+    def test_generated_read_opt_in_reaches_attachment_lifecycle(self):
         owner = Mock()
         owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
         owner.path = self.root / "inventory.json"
@@ -525,6 +525,268 @@ class LifecycleTests(unittest.TestCase):
             lifecycle.missing_token_attachment("original")
         lifecycle.owned_operation.assert_not_called()
         lifecycle.ownership.produce.assert_not_called()
+
+    def runtime_fixture(self):
+        lifecycle = self.lifecycle()
+        lifecycle.candidate.mkdir()
+        (lifecycle.candidate / ".git").mkdir(mode=0o755)
+        (lifecycle.candidate / ".env.d").mkdir(mode=0o755)
+        lifecycle.__class__ = H.RuntimeDirectoriesLifecycle
+        return lifecycle
+
+    def test_runtime_seed_is_candidate_only_and_preserves_distinct_descendants(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.seed_runtime_directories()
+        authority = lifecycle.candidate / H.AUTHORITY
+        self.assertEqual(authority.stat().st_mode & 0o777, 0o755)
+        self.assertEqual((authority / "preserved").stat().st_mode & 0o777, 0o750)
+        self.assertEqual((authority / "preserved/sentinel").stat().st_mode & 0o777, 0o640)
+        self.assertFalse((lifecycle.candidate / H.SSH_SOURCE / "ssh").exists())
+        self.assertFalse((self.root / H.AUTHORITY).exists())
+        authority.chmod(0o700)
+        (lifecycle.candidate / H.SSH_SOURCE).chmod(0o700)
+        lifecycle.assert_preserved_trees()
+        (authority / "preserved/sentinel").write_bytes(b"corruption")
+        with self.assertRaisesRegex(H.Unsafe, "preserved"):
+            lifecycle.assert_preserved_trees()
+
+    def test_runtime_selection_enables_only_canonical_ssh_and_final_port_reset(self):
+        self.fixture()
+        available = self.root / ".devcontainer/install/available"
+        available.mkdir()
+        (available / "4010-tool-ssh-server.sh").write_text("synthetic installer")
+        original = (self.root / ".devcontainer/docker-compose.yml").read_bytes()
+        H.configure(self.root, runtime_directories=True)
+        config = json.loads((self.root / ".devcontainer/devcontainer.json").read_text())
+        self.assertEqual(config["dockerComposeFile"][-2:], ["./config/compose/docker-compose.ssh-server.yml",
+            "./config/compose/starter-runtime-no-ports.yml"])
+        self.assertEqual((self.root / ".devcontainer/config/compose/starter-runtime-no-ports.yml").read_text(), H.PORT_RESET)
+        link = self.root / ".devcontainer/install/03-enabled/4010-tool-ssh-server.sh"
+        self.assertEqual(link.resolve(), available / link.name)
+        self.assertFalse((link.parent / "3030-ai-pi-coding.sh").exists())
+        self.assertEqual((self.root / ".devcontainer/docker-compose.yml").read_bytes(), original)
+
+    def test_runtime_resolution_rejects_ports_or_wrong_managed_target_before_seed(self):
+        lifecycle = self.runtime_fixture()
+        module = Mock()
+        names = ["docker-compose.yml", "config/compose/docker-compose-core-tools.yml",
+                 "config/compose/docker-compose.ssh-server.yml", "config/compose/starter-runtime-no-ports.yml"]
+        paths = [lifecycle.candidate / ".devcontainer" / name for name in names]
+        paths[-1].parent.mkdir(parents=True)
+        paths[-1].write_text(H.PORT_RESET)
+        module.selection.return_value = ("container-svc", paths, {})
+        module.read_compose_fragment.return_value = {"services": {"container-svc": {
+            "ports": ["${SSH_PORT}:22"], "volumes": [{"type": "bind", "source": "../" + H.SSH_SOURCE,
+            "target": H.SSH_TARGET, "bind": {"create_host_path": False}}]}}}
+        manifest = {"volumes": [{"source": H.SSH_SOURCE, "target": H.SSH_TARGET}]}
+        lifecycle.resolve = Mock(return_value=(module, "container-svc", {"ports": [{"published": "22"}]}))
+        with patch.object(H, "resolver", return_value=module), patch.object(H.Lifecycle, "validate_base", return_value=manifest):
+            with self.assertRaisesRegex(H.Unsafe, "resolved ports"):
+                lifecycle.validate_base()
+            lifecycle.resolve.return_value = (module, "container-svc", {})
+            self.assertEqual(lifecycle.validate_base(), manifest)
+            manifest["volumes"][0]["target"] = "/wrong"
+            with self.assertRaisesRegex(H.Unsafe, "managed SSH mapping"):
+                lifecycle.validate_base()
+        self.assertFalse((lifecycle.candidate / H.AUTHORITY).exists())
+
+    def test_runtime_tree_rejects_symlinks_and_unsafe_modes(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.seed_runtime_directories()
+        authority = lifecycle.candidate / H.AUTHORITY
+        (authority / "escape").symlink_to("/unreadable/private")
+        with self.assertRaisesRegex(H.Unsafe, "symlink|unsupported"):
+            H.tree_state(authority)
+        with self.assertRaisesRegex(H.Unsafe, "already exists"):
+            lifecycle.seed_runtime_directories()
+
+    def test_runtime_seed_refuses_symlinked_or_writable_parents_without_mutation(self):
+        lifecycle = self.runtime_fixture()
+        (lifecycle.candidate / ".git").chmod(0o777)
+        with self.assertRaisesRegex(H.Unsafe, "parent"):
+            lifecycle.seed_runtime_directories()
+        self.assertFalse((lifecycle.candidate / H.AUTHORITY).exists())
+        (lifecycle.candidate / ".git").chmod(0o755)
+        (lifecycle.candidate / ".env.d/.ssh-server").symlink_to("/unreadable/private")
+        with self.assertRaisesRegex(H.Unsafe, "already exists"):
+            lifecycle.seed_runtime_directories()
+        self.assertFalse((lifecycle.candidate / ".git/gentle-ai").exists())
+
+    def test_runtime_selector_rejects_other_scenarios_before_registration(self):
+        for flags in (["--consumer"], ["--attachment"], ["--runtime-directories"],
+                      ["--allow-generated-dockerfile-read", "--allow-generated-dockerfile-read"],
+                      ["--consumer", "--allow-generated-dockerfile-read"],
+                      ["--attachment", "--allow-generated-dockerfile-read"]):
+            with self.subTest(flags=flags), patch.object(sys, "argv", ["lifecycle", "--runtime-directories", *flags]), \
+                    patch.object(H, "Run") as owner:
+                with self.assertRaises(SystemExit):
+                    H.main()
+                owner.create.assert_not_called()
+
+    def test_runtime_execution_seeds_before_build_and_asserts_after_both_creations(self):
+        lifecycle = self.runtime_fixture()
+        events = Mock()
+        lifecycle.validate_base = Mock()
+        lifecycle.label_candidate = Mock()
+        lifecycle.prepare_runtime_directories = events.prepare
+        lifecycle.assert_runtime_seed = events.seed
+        lifecycle.assert_runtime_directories = events.runtime
+        lifecycle.task = events.task
+        lifecycle.assert_state = events.state
+        lifecycle.assert_locale = events.locale
+        lifecycle.container = Mock(side_effect=["first", "second"])
+        source = {"head": "commit", "branch": "main", "index": "", "files": {}}
+        with patch.object(H, "configure"), patch.object(H, "snapshot", return_value=source), \
+                patch.object(H, "run", return_value="12000"):
+            lifecycle.execute()
+        self.assertEqual(events.mock_calls, [call.prepare(), call.task("build"), call.seed(), call.task("up"),
+            call.runtime("first", first=True), call.state("first", write=True), call.locale("first"),
+            call.task("recreate"), call.runtime("second"), call.state("second"), call.locale("second")])
+
+    def test_runtime_assertions_reject_public_ports_and_wrong_workspace_before_reading_keys(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.assert_preserved_trees = Mock()
+        lifecycle.docker = Mock(return_value='{"22/tcp":[{"HostPort":"22"}]}')
+        with self.assertRaisesRegex(H.Unsafe, "ports"):
+            lifecycle.assert_runtime_directories("first", first=True)
+        self.assertEqual(lifecycle.docker.call_count, 1)
+        lifecycle.docker = Mock(side_effect=["{}", "[]"])
+        with self.assertRaisesRegex(H.Unsafe, "workspace"):
+            lifecycle.assert_runtime_directories("first", first=True)
+        self.assertEqual(lifecycle.docker.call_count, 2)
+
+    def test_runtime_generated_read_prepares_pinned_scenario_before_build(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.allow_generated_dockerfile_read = True
+        events = Mock()
+        lifecycle.validate_base = Mock()
+        lifecycle.label_candidate = Mock()
+        lifecycle.prepare_runtime_directories = events.runtime_prepare
+        lifecycle.assert_runtime_seed = Mock()
+        lifecycle.assert_runtime_directories = Mock()
+        lifecycle.task = events.task
+        lifecycle.assert_state = Mock()
+        lifecycle.assert_locale = Mock()
+        lifecycle.container = Mock(side_effect=["first", "second"])
+        adapter = Mock()
+        adapter.prepare = events.adapter_prepare
+        source = {"head": "commit", "branch": "main", "index": "", "files": {}}
+        with patch.object(H, "configure"), patch.object(H, "snapshot", return_value=source), \
+                patch.object(H, "run", return_value="12000"), \
+                patch.object(H.importlib.util, "spec_from_file_location"), \
+                patch.object(H.importlib.util, "module_from_spec", return_value=adapter):
+            lifecycle.execute()
+        self.assertEqual(events.mock_calls, [call.runtime_prepare(),
+            call.adapter_prepare(lifecycle, runtime_directories=True), call.task("build"),
+            call.task("up"), call.task("recreate")])
+        self.assertIs(lifecycle._generated_read_adapter, adapter)
+
+    def test_runtime_preparation_failure_prevents_build(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.validate_base = Mock()
+        lifecycle.label_candidate = Mock()
+        lifecycle.prepare_runtime_directories = Mock(side_effect=H.Unsafe("unsafe seed"))
+        lifecycle.task = Mock()
+        with patch.object(H, "configure"), patch.object(H, "run", return_value="12000"):
+            with self.assertRaisesRegex(H.Unsafe, "unsafe seed"):
+                lifecycle.execute()
+        lifecycle.task.assert_not_called()
+
+    def test_runtime_postcreate_failure_prevents_recreate(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.validate_base = Mock()
+        lifecycle.label_candidate = Mock()
+        lifecycle.prepare_runtime_directories = Mock()
+        lifecycle.assert_runtime_seed = Mock()
+        lifecycle.assert_runtime_directories = Mock(side_effect=H.Unsafe("postCreate contract failed"))
+        lifecycle.container = Mock(return_value="first")
+        lifecycle.task = Mock()
+        source = {"head": "commit", "branch": "main", "index": "", "files": {}}
+        with patch.object(H, "configure"), patch.object(H, "snapshot", return_value=source), \
+                patch.object(H, "run", return_value="12000"):
+            with self.assertRaisesRegex(H.Unsafe, "postCreate"):
+                lifecycle.execute()
+        self.assertEqual(lifecycle.task.call_args_list, [call("build"), call("up")])
+        self.assertIn("runtime-directories", H.failure_message(lifecycle))
+
+    def test_runtime_selector_constructs_only_the_opt_in_lifecycle(self):
+        owner = Mock()
+        owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
+        owner.path = self.root / "inventory.json"
+        with patch.object(sys, "argv", ["lifecycle", "--runtime-directories"]), \
+                patch.object(H, "run", return_value=str(self.root)), patch.object(H, "Run") as run, \
+                patch.object(H, "RuntimeDirectoriesLifecycle") as runtime, patch.object(H, "Lifecycle") as base, \
+                patch.object(H, "ConsumerLifecycle") as consumer, patch.object(H.shutil, "which", return_value="available"), \
+                patch.object(H.Path, "cwd", return_value=self.root), patch.object(H.signal, "signal"), patch("builtins.print"):
+            run.create.return_value = owner
+            runtime.return_value.env = dict(os.environ)
+            runtime.return_value.cleanup.return_value = []
+            self.assertEqual(H.main(), 0)
+            runtime.assert_called_once_with(self.root, self.root / "scratch", owner)
+            base.assert_not_called()
+            consumer.assert_not_called()
+
+    def test_runtime_generated_read_selector_constructs_only_runtime_lifecycle(self):
+        owner = Mock()
+        owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root / "scratch")}
+        owner.path = self.root / "inventory.json"
+        with patch.object(sys, "argv", ["lifecycle", "--runtime-directories", "--allow-generated-dockerfile-read"]), \
+                patch.object(H, "run", return_value=str(self.root)), patch.object(H, "Run") as run, \
+                patch.object(H, "RuntimeDirectoriesLifecycle") as runtime, patch.object(H, "Lifecycle") as base, \
+                patch.object(H, "ConsumerLifecycle") as consumer, patch.object(H.shutil, "which", return_value="available"), \
+                patch.object(H.Path, "cwd", return_value=self.root), patch.object(H.signal, "signal"), patch("builtins.print"):
+            run.create.return_value = owner
+            runtime.return_value.env = dict(os.environ)
+            runtime.return_value.cleanup.return_value = []
+            self.assertEqual(H.main(), 0)
+            self.assertTrue(runtime.return_value.allow_generated_dockerfile_read)
+            runtime.assert_called_once_with(self.root, self.root / "scratch", owner)
+            base.assert_not_called()
+            consumer.assert_not_called()
+
+    def test_runtime_full_assertion_preserves_generated_keys_without_disclosing_bytes(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.seed_runtime_directories()
+        (lifecycle.candidate / H.AUTHORITY).chmod(0o700)
+        ssh = lifecycle.candidate / H.SSH_SOURCE
+        ssh.chmod(0o700)
+        child = ssh / "ssh"
+        child.mkdir(mode=0o700)
+        for kind in ("rsa", "ed25519"):
+            for suffix in ("", ".pub"):
+                path = child / ("ssh_host_" + kind + "_key" + suffix)
+                path.write_bytes(b"synthetic generated key stand-in, never a real credential")
+                path.chmod(0o644 if suffix else 0o600)
+        workspace = "/home/ubuntu/" + lifecycle.candidate.name
+        mounts = [{"Type": "bind", "Source": str(lifecycle.candidate), "Destination": workspace, "RW": True},
+                  {"Type": "bind", "Source": str(ssh), "Destination": H.SSH_TARGET, "RW": True}]
+        parents = [f"{uid}:{gid}:{mode:o}" for uid, gid, mode in lifecycle.runtime_parents.values()]
+        lifecycle.docker = Mock(side_effect=["{}", json.dumps(mounts), "applied", *parents] * 3)
+        lifecycle.container_tree = Mock(side_effect=lambda _, target: H.tree_state(
+            ssh if target == H.SSH_TARGET else lifecycle.candidate / H.AUTHORITY))
+        module = Mock()
+        module.load_manifest.return_value = {"id": "applied", "volumes": [{"source": H.SSH_SOURCE,
+            "target": H.SSH_TARGET, "managed": True, "read_only": False}]}
+        with patch.object(H, "resolver", return_value=module):
+            lifecycle.assert_runtime_directories("first", first=True)
+            lifecycle.assert_runtime_directories("replacement")
+            (child / "ssh_host_rsa_key").write_bytes(b"corrupted key")
+            with self.assertRaisesRegex(H.Unsafe, "host keys changed"):
+                lifecycle.assert_runtime_directories("replacement")
+
+    def test_runtime_initial_state_is_rechecked_before_up(self):
+        lifecycle = self.runtime_fixture()
+        lifecycle.seed_runtime_directories()
+        lifecycle.assert_runtime_seed()
+        (lifecycle.candidate / H.SSH_SOURCE / "ssh").mkdir(mode=0o700)
+        with self.assertRaisesRegex(H.Unsafe, "before up"):
+            lifecycle.assert_runtime_seed()
+
+    def test_runtime_public_snapshot_excludes_authority_without_opening_it(self):
+        (self.root / ".git").mkdir()
+        (self.root / ".git/gentle-ai").symlink_to("/unreadable/private")
+        with patch.object(H, "run", return_value=H.AUTHORITY + "/receipt\0"):
+            self.assertEqual(H.snapshot(self.root)["files"], {})
 
     def opt_in(self, lifecycle):
         lifecycle.allow_generated_dockerfile_read = True

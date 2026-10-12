@@ -17,10 +17,12 @@ import uuid
 from test_resources import Docker, ENDPOINT, LABEL, Run, Unsafe, private, process_status, producer_identity, read_record
 
 LIMIT = 262144
+COMPOSE_VERSIONS = ("5.5.1", "5.6.0")
 NATIVE_DIRECTORIES = ("/usr/libexec/docker/cli-plugins", "/usr/lib/docker/cli-plugins")
 NATIVE_LIMIT = 134217728
 METADATA_DIRECTORY = Path("/tmp")
 PREFIX = b"\n    ARG _DEV_CONTAINERS_BASE_IMAGE=scratch\n"
+PORT_RESET = b"services:\n  container-svc:\n    ports: !reset []\n"
 SUFFIX = (b'\n\nFROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage\n'
           b'LABEL devcontainer.metadata="[ \\\n'
           b'{\\"postCreateCommand\\":\\"bash \\${containerWorkspaceFolder}/.devcontainer/setup.sh\\",'
@@ -371,14 +373,18 @@ if __name__ == "__main__":
 '''
 
 
-def selection_paths(data, config):
+def selection_paths(data, config, runtime_directories=False):
     context = Path(data["scratch"]) / ("starter-lifecycle-" + data["run"]) / ".devcontainer"
     here = Path(__file__).absolute().parent
-    return {"compose": config / "plugins/docker-compose", "buildx": config / "native/docker-buildx",
+    paths = {"compose": config / "plugins/docker-compose", "buildx": config / "native/docker-buildx",
             "launcher": config / "plugins/docker-buildx", "config": config / "config.json",
             "adapter": here / "generated-dockerfile-read.py", "helper": here / "test_resources.py",
             "dockerfile": context / "Dockerfile", "base": context / "docker-compose.yml",
             "core": context / "config/compose/docker-compose-core-tools.yml"}
+    if runtime_directories:
+        paths.update(ssh=context / "config/compose/docker-compose.ssh-server.yml",
+                     reset=context / "config/compose/starter-runtime-no-ports.yml")
+    return paths
 
 
 def launcher_bytes(binding_path, paths, pins):
@@ -412,7 +418,7 @@ def owned_selection(inputs, record, root):
     return data
 
 
-def prepare(lifecycle):
+def prepare(lifecycle, runtime_directories=False):
     """Future authorized live run only; validation never calls Docker here."""
     inputs = Inputs()
     data = owned_selection(inputs, lifecycle.ownership.path, lifecycle.root)
@@ -444,9 +450,11 @@ def prepare(lifecycle):
         if directory != config:
             directory.mkdir(mode=0o700)
         exact_private(directory, 0o700, directory=True)
-    paths = selection_paths(data, config)
-    for name in ("adapter", "helper", "dockerfile", "base", "core"):
+    paths = selection_paths(data, config, runtime_directories=runtime_directories)
+    for name in ("adapter", "helper", "dockerfile", "base", "core") + (("ssh", "reset") if runtime_directories else ()):
         inputs.read(paths[name])
+    if runtime_directories:
+        require(inputs.read(paths["reset"]) == PORT_RESET, "unsupported runtime port reset")
     for name in ("compose", "buildx"):
         publish_native_snapshot(find_native("docker-" + name), paths[name].parent, paths[name].name)
         inputs.read(paths[name], native=True)
@@ -482,9 +490,14 @@ def binding(inputs, environment):
             "foreign selection home")
     for directory in (home, path.parent, path.parent / "plugins", path.parent / "native"):
         exact_private(directory, 0o700, directory=True)
-    paths = selection_paths(data, path.parent)
+    require(isinstance(value["pins"], dict), "invalid selection pins")
+    runtime_paths = selection_paths(data, path.parent, runtime_directories=True)
+    # Only preparation's two exact additional pins select the runtime shape;
+    # neither argv, an error message nor arbitrary on-disk files grant authority.
+    runtime_directories = str(runtime_paths["reset"]) in value["pins"]
+    paths = selection_paths(data, path.parent, runtime_directories=runtime_directories)
     require(value["native"] == {name: str(paths[name]) for name in ("compose", "buildx")}
-            and isinstance(value["pins"], dict) and set(value["pins"]) == {str(p) for p in paths.values()},
+            and set(value["pins"]) == {str(p) for p in paths.values()},
             "foreign selection paths or pins")
     for name, selected in paths.items():
         pin = value["pins"][str(selected)]
@@ -495,7 +508,7 @@ def binding(inputs, environment):
         require(pin[0][2] == os.getuid() and stat.S_ISREG(pin[0][4])
                 and not pin[0][4] & 0o022 and 0 <= pin[0][5] <= (NATIVE_LIMIT if pin[2] else LIMIT),
                 "unsafe declared selection pin")
-        if name in {"dockerfile", "base", "core"}:
+        if name in {"dockerfile", "base", "core", "ssh", "reset"}:
             continue  # Current desired attachment drift is not private-selection drift.
         if name in {"compose", "buildx", "launcher", "config"}:
             exact_private(selected, 0o600 if name == "config" else 0o500)
@@ -581,9 +594,19 @@ def compose_override(inputs, value, data, generated):
         argv = [argv[0], *argv[2:]]
     context = Path(data["scratch"]) / ("starter-lifecycle-" + data["run"]) / ".devcontainer"
     base, core = context / "docker-compose.yml", context / "config/compose/docker-compose-core-tools.yml"
-    require(len(argv) in {10, 11} and argv[1:7] == ["--project-name", data["project"], "-f", str(base), "-f", str(core)]
-            and argv[7] == "-f" and argv[9:] in (["build"], ["build", "container-svc"]), "unsupported Compose parent argv")
-    override = Path(argv[8])
+    ssh, reset = core.parent / "docker-compose.ssh-server.yml", core.parent / "starter-runtime-no-ports.yml"
+    candidates = [base, core, context / "Dockerfile"]
+    prefix = ["--project-name", data["project"], "-f", str(base), "-f", str(core)]
+    if str(reset) in value["pins"]:
+        prefix += ["-f", str(ssh), "-f", str(reset)]
+        candidates += [ssh, reset]
+    offset = 1 + len(prefix)
+    require(len(argv) in {offset + 3, offset + 4} and argv[1:offset] == prefix
+            and argv[offset] == "-f" and argv[offset + 2:] in (["build"], ["build", "container-svc"]),
+            "unsupported Compose parent argv")
+    override = Path(argv[offset + 1])
+    if reset in candidates:
+        require(inputs.read(reset) == PORT_RESET, "unsupported runtime port reset")
     root = generated_directory(generated)
     require(override.parent == root / "docker-compose"
             and re.fullmatch(r"docker-compose\.devcontainer\.build-[0-9]+\.yml", override.name), "foreign generated override")
@@ -597,7 +620,7 @@ def compose_override(inputs, value, data, generated):
     for path in (override, generated):
         metadata = path.lstat()
         require(metadata.st_mtime_ns >= started and metadata.st_ctime_ns >= started, "stale generated producer input")
-    for path in (base, core, context / "Dockerfile"):
+    for path in candidates:
         inputs.read(path)
         pin = value["pins"].get(str(path))
         current = inputs.files[path]
@@ -661,9 +684,12 @@ def bake_input(inputs, data, payload, args):
     require(isinstance(target, dict) and set(target) in (required, required | {"target"}), "unsupported Bake fields")
     require(target["output"] == ["type=docker"]
             and ("target" not in target or target["target"] == "dev_containers_target_stage"), "unsupported Bake output/stage")
+    labels = target["labels"]
+    version = labels.get("com.docker.compose.version") if isinstance(labels, dict) else None
     require(target["context"] == str(context) and target["tags"] == [data["tag"]]
-            and target["labels"] == {LABEL: data["run"], "com.docker.compose.project": data["project"],
-                                     "com.docker.compose.service": "container-svc", "com.docker.compose.version": "5.5.1"},
+            and version in COMPOSE_VERSIONS
+            and labels == {LABEL: data["run"], "com.docker.compose.project": data["project"],
+                           "com.docker.compose.service": "container-svc", "com.docker.compose.version": version},
             "foreign Bake context/image/labels")
     require(target["args"] == {"APP_NAME": context.parent.name, "LOCALE": "en_GB.UTF-8", "TZ": "Europe/Madrid",
                                "BUILDKIT_INLINE_CACHE": "1", "_DEV_CONTAINERS_BASE_IMAGE": "devcontainer"}, "unsupported Bake build arguments")
