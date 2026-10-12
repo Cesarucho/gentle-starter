@@ -97,3 +97,10 @@ Apply declarative, exact-directory runtime permissions after mounts are availabl
 - Final independent checks: 50 Python, 41 general Bats, 15 SSH ownership and 12 startup fixtures pass; shell syntax and diff check pass. Parent spot check reran50 Python successfully. Setup ordering is SSH preparation, general policy application, then SSH startup; no recurring hooks.
 - Consolidation complete: one JSON, explicit enabled_installer applicability, no obsolete SSH policy file or executable references. No pending in-scope work or product decisions; original baseline/native/real-lifecycle limitations remain disclosed. AGENTS.md preserved, no staging/commits/runtime authority repair.
 - Rearchived to odd/archive/runtime-directory-permissions.md with full mirror reconciliation. Next recommended step: owner review of the local diff.
+
+## Owner-approved delivery
+
+- Implementation commit: `9ef579d4a6a829369c8669e2e2f367da96a2ab49` (`feat(runtime): centralize exact directory permission policy`).
+- Delivery branch: `feat/runtime-directory-policy`, created from `dev` at `c2c0f8724cc503bbc0d67e397e365e5e5ade4d48`; no push performed.
+- Precommit review found the OpenCode policy-helper mock still expected three arguments. Its strict signature now matches five-argument exclusions/apply and seven-argument enabled-SSH exclusions. Direct executable branch tests observed RED before correction; independent verification passed18 accepted/rejected cases without setup, teardown or sudo. Full privileged OpenCode suite remains skipped, not claimed PASS.
+- Final focused rerun passed50 Python helper tests and41+15+12 Bats tests; maintainer proof is recorded separately. Owner AGENTS.md and all private Git evidence excluded. Registry0755 changes and the new operational-test skill remain future work, not part of this delivery.

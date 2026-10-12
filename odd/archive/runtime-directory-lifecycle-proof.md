@@ -99,3 +99,10 @@ Prove runtime-directory policy behavior through an isolated real Docker lifecycl
 - All344 public source hashes, index/status/diffs/AGENTS/remotes/branch/HEAD preserved during live execution. Parent reran61 adapter tests and diff check PASS; exact-run read-only recovery preview confirmed passed/removed without mutations.
 - No pending authorized implementation or product decisions. Original unrelated Compose/Pi baseline mismatch remains outside this proof, native review unavailable/unassessable handled through independent verification without a receipt. All source changes remain unstaged/uncommitted; owner AGENTS change independent.
 - Archived as odd/archive/runtime-directory-lifecycle-proof.md with full mirror reconciliation; no current navigation references require changes. Next recommended action: owner reviews intended source/test/docs/skill diff and separately authorizes commits. Deletion of retained failed scopes remains a separate explicit action.
+
+## Owner-approved delivery
+
+- Operational proof/compatibility commit: `e8b0754945e017888363dbf9591ce0211e103429` (`test(maintainer): prove isolated runtime directory lifecycle`).
+- Delivery branch: `feat/runtime-directory-policy`; no push performed. Depends on runtime policy commit `9ef579d4a6a829369c8669e2e2f367da96a2ab49`.
+- Final focused rerun passed61 adapter,59 lifecycle and52 resource tests; real isolated run48a34c66 remains passed/cleaned in212 seconds, not redundantly rerun for commit. Private capture artifacts and prior retained scopes excluded; owner AGENTS.md remains an independent uncommitted change.
+- Delivery does not authorize future registry0755 changes, a new operational-test skill, cleanup of retained scopes, publishing or native RDD approval.

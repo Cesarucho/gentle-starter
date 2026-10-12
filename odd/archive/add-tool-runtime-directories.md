@@ -36,3 +36,9 @@ Teach add-tool to route managed runtime directory creation and modes to the unif
 - Instruction-only TDD exception applies; no runtime/application tests or authority repair performed. Native assessment high/unassessable and mode unavailable handled by independent instruction verification, no receipt claimed.
 - No pending in-scope implementation or decisions. Archived to odd/archive/add-tool-runtime-directories.md; no navigation links reference former tasks locator. Existing runtime changes and owner AGENTS.md preserved; all changes unstaged/uncommitted.
 - Next recommended action: owner reviews skill diff and reference.
+
+## Owner-approved delivery
+
+- Skill/reference commit: `58492f6afb90e11de6d59a747ae14920fed6aa22` (`docs(add-tool): route runtime directories through unified policy`).
+- Delivery branch: `feat/runtime-directory-policy`; no push performed. Depends on runtime policy commit `9ef579d4a6a829369c8669e2e2f367da96a2ab49`.
+- Includes the two reviewed reference corrections for Engram build/runtime phases and host private-source modes. Metadata unchanged; no registry refresh. Owner AGENTS.md and private evidence excluded; proposed operational-test skill not created in this unit.
