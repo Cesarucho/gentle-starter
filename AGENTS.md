@@ -70,9 +70,19 @@ record and full mirror. If archival is unsafe or the mirror is unavailable,
 preserve existing state and honestly report archive or mirror pending rather than
 claiming closure.
 
+Before creating a new `odd/tasks/` record, the parent MUST inventory and reconcile
+existing records there against the closure criteria above. This gate explicitly
+authorizes only precreation archival of proven completed or explicitly superseded
+records, with all archival, history, collision, navigation, Engram mirror, and
+readback guarantees above. Preserve active, pending, or ambiguous records; unrelated
+active work does not block creation, and the directory need not be empty. If an
+eligible record cannot be safely archived or its full mirror verified, report the
+blocker and do not create the new record until resolved.
+
 This rule applies only to ODD records. It authorizes no source mutations beyond
-the approved scope and no retroactive bulk classification or archival of existing
-records without explicit authorization.
+the approved scope. Outside the narrowly scoped precreation gate above, retroactive
+bulk classification or archival requires explicit authorization; the gate does
+not authorize general bulk cleanup.
 
 ## Project initialization and updates
 
