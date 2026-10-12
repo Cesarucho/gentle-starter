@@ -25,6 +25,31 @@ The four extension surfaces are:
 
 Each surface has a deep-dive document or ADR.
 
+For exact-directory runtime modes, extend
+[`runtime-directory-permissions.json`](../config/runtime-directory-permissions.json),
+not an installer or recursive `chmod` pass. Rules select `workspace` or a writable
+managed source identifier from the applied Compose manifest, and never change
+bind roots or ownership. Setup protects policy subtrees before normalization and
+automatically applies the policy only during postCreate on creation/recreation,
+not on later starts or public host restart. Use `missing: "skip"` for optional
+existing state or `missing: "create"` for explicit provisioning. Every missing
+intermediate requires its own create rule; children are constructed privately
+before exact final modes are applied. Dry-run validation never provisions state.
+Skipped directories created later remain untouched until the next setup invocation.
+Optional SSH uses an explicit `when.enabled_installer` condition in this same
+policy. Disabled rules are not applicable; enabled rules require their writable
+managed root in the applied manifest. Invalid conditions and unconditional unknown
+roots fail closed. SSH preparation selects only its root's rules;
+`SSH_CONFIG_DIR` must match that validated target before any mutation.
+SSH root privacy and authorization recovery are still specialized installer work.
+Setup validates SSH with deferred root privacy before normalization, then leaves
+that root's application to the installer after specialized privacy recovery.
+Subset selection narrows mutation, not filesystem validation: every applicable
+rule must be safe, including unselected authority paths. General application runs
+after SSH root recovery and before service startup; unselected modes stay unchanged.
+See [the runtime permission contract](install-volumes.md#exact-directory-runtime-permissions)
+for the schema, lifecycle boundaries and fail-closed checks.
+
 [Gentle Shell](gentle-shell.md) is a native npm example: optional activation,
 standard Pi plus core Node/npm prerequisites, updater-owned package SRI,
 upstream lifecycle scripts, missing-only placeholder seeding

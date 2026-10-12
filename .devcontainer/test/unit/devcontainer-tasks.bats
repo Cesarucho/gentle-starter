@@ -143,6 +143,7 @@ run_lifecycle() {
 	local body
 	body="$(awk -v task="${operation}:" '$0 == "  " task {capture=1; next} capture && /^  [[:alnum:]-]+:/ {exit} capture && /^      - \|/ {body=1; next} body {sub(/^        /, ""); print}' "${REPO_ROOT}/.taskfiles/devcontainer.yml")"
 	run env FORCE_HOST_CONTEXT="${HOST_CONTEXT:-1}" bash -c '
+cd "$BATS_TEST_TMPDIR" || exit 97
 task() {
   printf "task %s\n" "$*" >> "$BATS_TEST_TMPDIR/calls"
   if [[ "$*" == *resolve-container-name ]]; then
@@ -172,7 +173,7 @@ eval "$1"
 ' _ "${body}"
 }
 
-@test "container:restart preserves running and stopped container identity" {
+@test "container:restart preserves identity without runtime repair or generated env sourcing" {
 	for state in running stopped; do
 		export CONTAINER_STATE="${state}"
 		run_lifecycle restart
@@ -216,9 +217,10 @@ docker restart same-container-id' ]
 		run_lifecycle restart
 		[ "${status}" -ne 0 ]
 		[[ "${output}" != *'container:up'* ]]
-		if [ "${step}" != restart ]; then
+		if [ "${step}" = resolve ] || [ "${step}" = lookup ]; then
 			[[ "$(<"${BATS_TEST_TMPDIR}/calls")" != *'docker restart'* ]]
 		fi
+		[[ "$(<"${BATS_TEST_TMPDIR}/calls")" != *'docker exec'* ]]
 		rm "${BATS_TEST_TMPDIR}/calls"
 	done
 }

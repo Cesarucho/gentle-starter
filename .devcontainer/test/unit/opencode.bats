@@ -61,6 +61,8 @@ prepare_setup_sandbox() {
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/setup-volumes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/setup-volumes.sh"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/compose-volume-records.py" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/compose-volume-records.py"
 	cp "${REPO_ROOT}/.devcontainer/lifecycle/restore-tracked-modes.sh" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/restore-tracked-modes.sh"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/runtime-directory-permissions.py" "${SETUP_WORKSPACE}/.devcontainer/lifecycle/"
+	cp "${REPO_ROOT}/.devcontainer/config/runtime-directory-permissions.json" "${SETUP_WORKSPACE}/.devcontainer/config/"
 	cp "${REPO_ROOT}/.taskfiles/scripts/yq-compatibility.sh" \
 		"${SETUP_WORKSPACE}/.taskfiles/scripts/yq-compatibility.sh"
 	printf 'project baseline\n' >"${SETUP_WORKSPACE}/.devcontainer/config/opencode/opencode.json"
@@ -142,6 +144,26 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 case "${1:-}" in
+"${SETUP_WORKSPACE}/.devcontainer/lifecycle/runtime-directory-permissions.py")
+	[ "$#" -ge 5 ] && [ "$3" = "${SETUP_WORKSPACE}" ] || exit 2
+	# Policy security and normalizer preservation have separate unprivileged fixtures.
+	case "$2" in
+	exclusions)
+		[ "$4" = --defer-root ] && [ "$5" = .env.d/.ssh-server ] || exit 2
+		if [ "$#" -eq 7 ]; then
+			[ "$6" = --expected-root ] &&
+				[ "$7" = ".env.d/.ssh-server=${SSH_CONFIG_DIR:-${HOME}/.ssh-server}" ] || exit 2
+		else
+			[ "$#" -eq 5 ] || exit 2
+		fi
+		printf '%s\0' "${SETUP_WORKSPACE}/.git/gentle-ai/review-mode/rar-authority"
+		;;
+	apply)
+		[ "$#" -eq 5 ] && [ "$4" = --exclude-root ] && [ "$5" = .env.d/.ssh-server ] || exit 2
+		;;
+	*) exit 2 ;;
+	esac
+	;;
 "${SETUP_WORKSPACE}/.taskfiles/scripts/compose-manifest.py")
 	[ "$#" -eq 3 ] && [ "$3" = "${SETUP_WORKSPACE}" ] || exit 2
 	# These tests isolate setup behavior, not creation-time manifest identity.

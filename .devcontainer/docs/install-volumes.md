@@ -149,6 +149,158 @@ So the actual "populate the empty bind mount" moment is inside the
 runtime-only branches of the install scripts, not in `lifecycle/setup-volumes.sh`
 itself. `lifecycle/setup-volumes.sh` is the dispatch; the scripts are the work.
 
+## Exact-directory runtime permissions
+
+Use [runtime-directory-permissions.json](../config/runtime-directory-permissions.json)
+for directories that must retain a specific mode after mounts are available.
+The default rule repairs only the workspace's
+`.git/gentle-ai/review-mode/rar-authority` directory to `0700`, if it exists.
+It never creates authority state or reads its contents. The same policy also
+declares SSH child creation, explicitly conditional on installer activation:
+
+```json
+{
+  "version": 1,
+  "rules": [
+    {
+      "root": "workspace",
+      "path": ".git/gentle-ai/review-mode/rar-authority",
+      "mode": "0700",
+      "missing": "skip"
+    },
+    {
+      "root": ".env.d/.ssh-server",
+      "path": "ssh",
+      "mode": "0700",
+      "missing": "create",
+      "when": {"enabled_installer": "4010-tool-ssh-server.sh"}
+    }
+  ]
+}
+```
+
+| Field | Contract |
+| --- | --- |
+| `root` | `workspace`, or an exact managed source identifier such as `.env.d/.gentle-ai` from the applied Compose manifest |
+| `path` | Nonempty relative exact directory, not the root itself; no absolute paths, empty components, `.` or `..` |
+| `mode` | Four-character ordinary octal text, `0000` through `0777`; no special bits |
+| `missing` | `skip` leaves absent paths alone; `create` provisions only explicitly declared directories. Only `ENOENT` is treated as absence. |
+| `when` | Optional exact object `{"enabled_installer": "4010-tool-ssh-server.sh"}` for managed roots. Names must identify a real canonical catalog installer; activation uses valid canonical aliases, including custom names. Unknown names or condition fields are errors even when disabled. |
+
+A disabled installer makes its conditional rule **not applicable**, independently
+of Compose selection. An enabled installer requires its writable managed root in
+the validated applied manifest; an absent or invalid target fails before setup
+normalization. Unconditional unknown roots always fail. Conditions do not enable
+tools or select Compose overrides. Duplicate and unsafe parent declarations are
+checked before applicability filtering.
+
+For a managed bind, a rule such as `root: ".env.d/.gentle-ai"`,
+`path: "private-cache"` selects `private-cache` under that bind's **container
+target**, not its host path. The manifest must pass snapshot integrity and the
+container's `DEVCONTAINER_BIND_MANIFEST_ID` applied-identity gate. Read-only,
+external and file mounts are not repair roots. Duplicate JSON keys, duplicate
+source mappings, cross-root aliases and crossings into other mounts fail closed.
+Parent-child rules within one root are allowed, but a configured parent cannot
+be group/world writable. Every missing intermediate needed by `create` must
+have its own `missing: "create"` rule; there is no implicit `mkdir -p`.
+Workspace rules cannot bypass mount restrictions through `.env.d` source paths.
+
+For example, creating both `private-cache` and its `index` child requires two
+rules (their order does not matter):
+
+```json
+{
+  "version": 1,
+  "rules": [
+    {"root": ".env.d/.gentle-ai", "path": "private-cache", "mode": "0700", "missing": "create"},
+    {"root": ".env.d/.gentle-ai", "path": "private-cache/index", "mode": "0750", "missing": "create"}
+  ]
+}
+```
+
+The helper traverses pinned directory descriptors with `O_NOFOLLOW` and
+`O_DIRECTORY`, verifies owner and ancestor safety, validates the entire plan,
+then creates missing declared nodes relative to pinned parents with a restrictive
+umask and initial mode `0700`. It retains their descriptors and finalizes exact
+modes deepest-first after all children are constructed, including `0000` parents
+and children. Existing directories receive only the selected exact mode; no
+descendant permissions are recursively repaired. Target directories must belong
+to the runtime user. Ancestors cannot be group/world writable; absolute system
+ancestors may belong to root, including root-owned sticky temporary parents.
+Symlink components, wrong types, unexpected owners and permission-denied errors
+are failures, not missing-path skips. A file-based `.git` worktree is explicitly
+unsupported for the default rule; external Git metadata is never modified.
+An unreadable leaf requiring a mode change fails without privilege escalation;
+an already-correct `0000` leaf is a metadata-only no-op.
+Existing inaccessible parents are not temporarily opened up for traversal or
+creation. `validate` and `exclusions` never create directories or change modes.
+
+The helper rechecks ownership, ancestor safety and pinned inode identities before
+mutation. Concurrent creation collisions are errors, not entries to adopt;
+detected replacements and symlinks fail closed. This is **not a transaction or
+full race immunity**: a later error can leave newly created private directories
+or already-finalized modes behind, and same-user replacements in narrow syscall
+windows cannot all be excluded. It does not delete directories or roll back modes.
+
+During **CONTAINER postCreate**, setup obtains validated exclusions before any
+generic normalization. It protects complete policy subtrees (including absent
+ones), managed bind-source roots and workspace-contained mount targets from
+workspace `chown`, `chmod` and tracked-mode restoration. It applies the policy
+after those passes and specialized SSH root recovery, except installer-owned
+child application described below. Normalization elsewhere remains unchanged. Descendant modes,
+file contents, ownership and host-prepared bind-root modes are preserved.
+Exclusions also protect the first absent parent component, so normalization cannot
+later rewrite a newly appearing ancestor of a declared subtree.
+
+Automatic policy application occurs only during **CONTAINER postCreate setup**,
+on creation/recreation. Later starts and **HOST `task container:restart`** do not
+run the permission helper; restart preserves the same container's existing
+behavior. A directory skipped because it was missing remains untouched if it is
+created later, until the next setup invocation. This is setup-time policy
+application, not continuous enforcement.
+
+To validate without changing modes, run inside the **CONTAINER**, using its actual
+workspace path:
+
+```bash
+python3 .devcontainer/lifecycle/runtime-directory-permissions.py validate "$PWD"
+```
+
+### Scoped SSH child provisioning
+
+The optional SSH installer selects `.env.d/.ssh-server` rules from the unified
+policy with `--root`, only after the enabled SSH/applied-manifest gate passes.
+It creates only `ssh`
+under the writable managed `.env.d/.ssh-server` target at `0700`, before host-key
+generation. Its explicit condition makes disabled SSH harmless to ordinary setup,
+whether or not the optional mount is selected.
+
+Runtime `SSH_CONFIG_DIR` must exactly match the validated applied target; an
+unbound override fails before root chmod, directory creation, keys or configuration
+writes. Root ownership, type and ancestors are checked without following symlinks;
+the installer separately retains its root privacy `chmod 0700` recovery. Setup
+uses validation-only `--defer-root .env.d/.ssh-server` to validate that owned root
+and its children before normalization without requiring root privacy already be
+recovered. No other ancestor checks are relaxed; workspace privacy cannot be
+deferred. General application excludes this root with `--exclude-root`, leaving
+recovery and child application to SSH preparation. The installer repeats dry-run
+validation with `--expected-root SOURCE=TARGET` before any mutation and applies
+only its selected root after recovery; unrelated authority rules are not reapplied.
+`--defer-root` is refused for `apply`. Cross-root mapping and boundary validation
+and filesystem validation still cover all applicable declarations before subset
+selection. Unselected symlinks, wrong types, owners and unsafe ancestors block
+SSH preparation before root recovery. Full-policy descriptors remain metadata-only
+and pinned for a safety recheck before selected application; unselected exact modes
+are never applied. General setup application follows specialized SSH recovery so
+it can validate every root strictly, before service startup. The
+scoped helper never changes bind roots. `~/.ssh` authorization preparation,
+local-parent ownership recovery, host bind provisioning and build installation
+remain separate. There is no legacy unbound-override fallback.
+
+The general policy is not host bind provisioning, recursive repair or
+ownership recovery. Correct unsafe ancestors or unsupported layout deliberately
+as the owner; do not use `sudo` or full setup merely to silence a policy failure.
+
 ## Adding a new stateful volume (worked example)
 
 Let's say you want to add a PostgreSQL data dir that survives rebuilds.

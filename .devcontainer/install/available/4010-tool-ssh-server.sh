@@ -85,8 +85,11 @@ _devcontainer_ssh_install_config() {
 
 _devcontainer_ssh_seed_config() {
 	local home_owner key_type key_file
-	mkdir -p "${SSH_CONFIG_DIR}/ssh"
-	chmod 0700 "${SSH_CONFIG_DIR}" "${SSH_CONFIG_DIR}/ssh"
+	# Root privacy remains installer-owned; the helper owns only the exact child.
+	chmod 0700 "${SSH_CONFIG_DIR}"
+	python3 "${WORKSPACE_DIR}/.devcontainer/lifecycle/runtime-directory-permissions.py" \
+		apply "${WORKSPACE_DIR}" --root .env.d/.ssh-server \
+		--expected-root ".env.d/.ssh-server=${SSH_CONFIG_DIR}"
 	for key_type in rsa ed25519; do
 		key_file="${SSH_CONFIG_DIR}/ssh/ssh_host_${key_type}_key"
 		if [ ! -f "${key_file}" ]; then
@@ -162,6 +165,10 @@ main() {
 		_devcontainer_ssh_install
 	elif devcontainer_is_runtime; then
 		python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" ssh-server "${WORKSPACE_DIR}" >/dev/null
+		# Reject unbound overrides before root chmod, key generation or configuration writes.
+		python3 "${WORKSPACE_DIR}/.devcontainer/lifecycle/runtime-directory-permissions.py" \
+			validate "${WORKSPACE_DIR}" --root .env.d/.ssh-server --defer-root .env.d/.ssh-server \
+			--expected-root ".env.d/.ssh-server=${SSH_CONFIG_DIR}"
 		_devcontainer_ssh_seed_config
 	fi
 }

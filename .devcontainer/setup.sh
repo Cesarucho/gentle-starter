@@ -15,8 +15,10 @@ source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
 
 # Validate snapshot integrity AND the creation-time identity before any runtime mutation.
 python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null
+runtime_root_expectations=()
 if install_script_is_enabled "${SCRIPT_DIR}/install/available/4010-tool-ssh-server.sh"; then
 	python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" ssh-server "${WORKSPACE_DIR}" >/dev/null
+	runtime_root_expectations=(--expected-root ".env.d/.ssh-server=${SSH_CONFIG_DIR:-${HOME}/.ssh-server}")
 fi
 
 # sudo chown -R ${UID}:${UID} ${HOME}/.codex
@@ -37,13 +39,38 @@ build_gitignore_prune_args() {
 }
 
 # Fix project file permissions to standard privileges, excluding ignored directories.
+# Preflight and collect protected subtrees before ANY generic ownership/mode repair.
+# The trailing status record propagates process-substitution failure without a temp file.
+runtime_exclusions=()
+mapfile -d '' -t runtime_exclusions < <(
+	policy_status=0
+	# Validate SSH children and owned root now, but leave root privacy recovery
+	# and child application to the enabled installer after normalization.
+	python3 "${SCRIPT_DIR}/lifecycle/runtime-directory-permissions.py" exclusions "${WORKSPACE_DIR}" \
+		--defer-root .env.d/.ssh-server "${runtime_root_expectations[@]}" || policy_status=$?
+	printf '%s\0' "${policy_status}"
+)
+runtime_policy_status="${runtime_exclusions[-1]}"
+unset 'runtime_exclusions[-1]'
+if [ "${runtime_policy_status}" != 0 ]; then
+	echo "[setup:error] Runtime directory policy preflight failed; workspace normalization blocked." >&2
+	exit 1
+fi
 gitignore_prune_args=()
 build_gitignore_prune_args gitignore_prune_args
+for protected_path in "${runtime_exclusions[@]}"; do
+	# find -path uses patterns: quote metacharacters so exclusions stay exact.
+	protected_pattern="${protected_path//\\/\\\\}"
+	protected_pattern="${protected_pattern//\*/\\*}"
+	protected_pattern="${protected_pattern//\?/\\?}"
+	protected_pattern="${protected_pattern//\[/\\[}"
+	gitignore_prune_args+=(-path "${protected_pattern}" -prune -o)
+done
 sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-dereference "${UID}:${UID}" -- {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
-bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}"
+bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}" "${runtime_exclusions[@]}"
 
 # Copy the file tree under source_root into target_root, but only
 # for files that do NOT already exist at the target (so the user's
@@ -248,6 +275,11 @@ _ssh_installer="${SCRIPT_DIR}/install/available/4010-tool-ssh-server.sh"
 if install_script_is_enabled "${_ssh_installer}"; then
 	export -f seed_config_tree
 	WORKSPACE_DIR="${WORKSPACE_DIR}" DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"
+fi
+# Full-policy safety is checked even for excluded roots. Run general application
+# after installer-owned SSH privacy recovery, but before starting its service.
+python3 "${SCRIPT_DIR}/lifecycle/runtime-directory-permissions.py" apply "${WORKSPACE_DIR}" --exclude-root .env.d/.ssh-server
+if install_script_is_enabled "${_ssh_installer}"; then
 	if command -v start-sshd >/dev/null 2>&1; then
 		start-sshd
 	else

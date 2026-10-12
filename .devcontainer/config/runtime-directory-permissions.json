@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "root": "workspace",
+      "path": ".git/gentle-ai/review-mode/rar-authority",
+      "mode": "0700",
+      "missing": "skip"
+    },
+    {
+      "root": ".env.d/.ssh-server",
+      "path": "ssh",
+      "mode": "0700",
+      "missing": "create",
+      "when": {"enabled_installer": "4010-tool-ssh-server.sh"}
+    }
+  ]
+}

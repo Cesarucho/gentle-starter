@@ -11,15 +11,43 @@ run_ssh_runtime_installer() {
 		"${root}/.devcontainer/install/03-enabled" "${root}/.taskfiles/scripts"
 	cp "${REPO_ROOT}/.devcontainer/install/available/4010-tool-ssh-server.sh" "${root}/.devcontainer/install/available/"
 	cp "${REPO_ROOT}/.devcontainer/install/lib/common.sh" "${root}/.devcontainer/install/lib/"
+	cp "${REPO_ROOT}/.devcontainer/install/lib/activation.sh" "${root}/.devcontainer/install/lib/"
 	mkdir -p "${root}/.devcontainer/config/compose"
 	cp -R "${REPO_ROOT}/.devcontainer/config/ssh" "${root}/.devcontainer/config/"
 	cp "${REPO_ROOT}/.devcontainer/config/compose/docker-compose.ssh-server.yml" "${root}/.devcontainer/config/compose/"
 	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/"
-	ln -sf ../available/4010-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
+	if [ "${FIXTURE_SSH_DISABLED:-0}" != 1 ]; then
+		ln -sf ../available/4010-tool-ssh-server.sh "${root}/.devcontainer/install/03-enabled/29-server.sh"
+	fi
 	printf '%s\n' '{"service":"container-svc","dockerComposeFile":"config/compose/docker-compose.ssh-server.yml"}' >"${root}/.devcontainer/devcontainer.json"
 	local identity
 	identity="$(yq '.services."container-svc".volumes' "${root}/.devcontainer/config/compose/docker-compose.ssh-server.yml" |
 		PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/.devcontainer/test/unit/manifest-fixture.py" "${root}")"
+	# Simulate an applied target inside this isolated fixture, never a real bind.
+	mkdir -p "${root}/.devcontainer/lifecycle" "${root}/keys"
+	cp "${REPO_ROOT}/.devcontainer/lifecycle/runtime-directory-permissions.py" "${root}/.devcontainer/lifecycle/"
+	cp "${REPO_ROOT}/.devcontainer/config/runtime-directory-permissions.json" "${root}/.devcontainer/config/"
+	mkdir -p "${root}/.git/gentle-ai/review-mode/rar-authority"
+	chmod 0755 "${root}/.git/gentle-ai/review-mode/rar-authority"
+	cp "${REPO_ROOT}/.taskfiles/scripts/compose-manifest.py" "${root}/.taskfiles/scripts/compose-manifest-real.py"
+	cat >"${root}/.taskfiles/scripts/compose-manifest.py" <<'EOF'
+import importlib.util
+import os
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('real_manifest', Path(__file__).with_name('compose-manifest-real.py'))
+real = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(real)
+def load_manifest(workspace, runtime=False):
+    manifest = real.load_manifest(workspace, runtime=runtime)
+    # Remap only the validated fixture's SSH target; preserve actual integrity gates.
+    for volume in manifest['volumes']:
+        if volume['source'] == '.env.d/.ssh-server':
+            volume['target'] = str(workspace / 'keys')
+    return manifest
+if __name__ == '__main__':
+    real.main()
+EOF
 	cat >"${root}/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
 # No privilege escalation: allow only fixture destinations.
@@ -46,11 +74,102 @@ EOF
 	chmod +x "${root}/bin/ssh-keygen" "${root}/bin/sudo"
 	run env HOME="${root}/home" PATH="${root}/bin:/usr/bin:/bin" \
 		WORKSPACE_DIR="${root}" DEVCONTAINER_PHASE=runtime FIXTURE_ROOT="${root}" \
-		PYTHONDONTWRITEBYTECODE=1 DEVCONTAINER_BIND_MANIFEST_ID="${identity}" \
-		SSH_CONFIG_DIR="${root}/keys" SSH_START_WRAPPER_TARGET="${root}/target/start-sshd" \
+		PYTHONDONTWRITEBYTECODE=1 DEVCONTAINER_BIND_MANIFEST_ID="${FIXTURE_MANIFEST_ID:-${identity}}" \
+		SSH_CONFIG_DIR="${FIXTURE_SSH_CONFIG_DIR:-${root}/keys}" SSH_START_WRAPPER_TARGET="${root}/target/start-sshd" \
 		SSHD_CONFIG_TARGET="${root}/target/sshd_config.gentle-starter" \
 		bash -c 'seed_config_tree() { :; }; export -f seed_config_tree; exec bash "$1"' _ \
 		"${root}/.devcontainer/install/available/4010-tool-ssh-server.sh"
+}
+
+@test "SSH scoped policy replaces child provisioning before generating keys" {
+	local installer="${REPO_ROOT}/.devcontainer/install/available/4010-tool-ssh-server.sh"
+	grep -Fq -- '--root .env.d/.ssh-server' "${installer}"
+	! grep -Fq 'mkdir -p "${SSH_CONFIG_DIR}/ssh"' "${installer}"
+	local root="${BATS_TEST_TMPDIR}/scoped"
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ "$(stat -c '%a' "${root}/keys/ssh")" = 700 ]
+	[ "$(stat -c '%a' "${root}/keys")" = 700 ]
+	[ -f "${root}/keys/ssh/ssh_host_ed25519_key" ]
+	[ "$(stat -c '%a' "${root}/.git/gentle-ai/review-mode/rar-authority")" = 755 ]
+}
+
+@test "SSH validates unsafe child before specialized root privacy mutation" {
+	local root="${BATS_TEST_TMPDIR}/child-link"
+	mkdir -p "${root}/keys" "${root}/elsewhere"
+	chmod 0777 "${root}/keys"
+	ln -s ../elsewhere "${root}/keys/ssh"
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[ "$(stat -c '%a' "${root}/keys")" = 777 ]
+	[ ! -e "${root}/target/start-sshd" ]
+}
+
+@test "SSH rejects unsafe unselected authority before root chmod or provisioning" {
+	local root="${BATS_TEST_TMPDIR}/authority-link"
+	mkdir -p "${root}/keys" "${root}/authority-original" "${root}/.git/gentle-ai/review-mode"
+	chmod 0777 "${root}/keys"
+	ln -s "${root}/authority-original" "${root}/.git/gentle-ai/review-mode/rar-authority"
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[ "$(stat -c '%a' "${root}/keys")" = 777 ]
+	[ ! -e "${root}/keys/ssh" ]
+	[ ! -e "${root}/target/start-sshd" ]
+}
+
+@test "SSH rejects unbound overrides before any runtime mutation" {
+	local root="${BATS_TEST_TMPDIR}/unbound"
+	mkdir -p "${root}/keys"
+	chmod 0755 "${root}/keys"
+	FIXTURE_SSH_CONFIG_DIR="${root}/unbound" run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[[ "${output}" == *"Expected root must match"* ]]
+	[ ! -e "${root}/unbound" ]
+	[ ! -e "${root}/keys/ssh" ]
+	[ ! -e "${root}/target/start-sshd" ]
+	[ "$(stat -c '%a' "${root}/keys")" = 755 ]
+}
+
+@test "SSH disabled applied gate prevents scoped policy and root mutation" {
+	local root="${BATS_TEST_TMPDIR}/disabled"
+	mkdir -p "${root}/keys"
+	chmod 0755 "${root}/keys"
+	FIXTURE_SSH_DISABLED=1 run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[ ! -e "${root}/keys/ssh" ]
+	[ "$(stat -c '%a' "${root}/keys")" = 755 ]
+}
+
+@test "SSH unapplied identity prevents all runtime mutations" {
+	local root="${BATS_TEST_TMPDIR}/unapplied"
+	mkdir -p "${root}/keys"
+	chmod 0755 "${root}/keys"
+	FIXTURE_MANIFEST_ID=unapplied run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[ ! -e "${root}/keys/ssh" ]
+	[ ! -e "${root}/target/start-sshd" ]
+	[ "$(stat -c '%a' "${root}/keys")" = 755 ]
+}
+
+@test "SSH root privacy recovery remains separate from scoped child creation" {
+	local root="${BATS_TEST_TMPDIR}/root-recovery"
+	mkdir -p "${root}/keys"
+	chmod 0777 "${root}/keys"
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -eq 0 ]
+	[ "$(stat -c '%a' "${root}/keys")" = 700 ]
+	[ "$(stat -c '%a' "${root}/keys/ssh")" = 700 ]
+}
+
+@test "SSH refuses symlink roots before root privacy chmod" {
+	local root="${BATS_TEST_TMPDIR}/root-link"
+	mkdir -p "${root}/elsewhere"
+	chmod 0755 "${root}/elsewhere"
+	ln -s elsewhere "${root}/keys"
+	run_ssh_runtime_installer "${root}"
+	[ "${status}" -ne 0 ]
+	[ "$(stat -c '%a' "${root}/elsewhere")" = 755 ]
+	[ ! -e "${root}/elsewhere/ssh" ]
 }
 
 @test "image-owned direct binaries have exact architecture digests" {
@@ -101,12 +220,15 @@ EOF
 @test "setup prepares enabled SSH before starting and accepts arbitrary aliases" {
 	local setup="${REPO_ROOT}/.devcontainer/setup.sh"
 	grep -Fq 'install_script_is_enabled "${_ssh_installer}"' "${setup}"
-	local prepare_line start_line
+	local prepare_line apply_line start_line
 	prepare_line="$(grep -nF 'DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"' "${setup}" | cut -d: -f1)"
+	apply_line="$(grep -nF 'apply "${WORKSPACE_DIR}" --exclude-root .env.d/.ssh-server' "${setup}" | cut -d: -f1)"
 	start_line="$(grep -nF $'\t\tstart-sshd' "${setup}" | cut -d: -f1)"
 	[ -n "${prepare_line}" ]
 	[ -n "${start_line}" ]
 	[ "${prepare_line}" -lt "${start_line}" ]
+	[ "${prepare_line}" -lt "${apply_line}" ]
+	[ "${apply_line}" -lt "${start_line}" ]
 }
 
 @test "SSH runtime installs the startup wrapper as executable" {
