@@ -9,51 +9,39 @@ metadata:
 
 ## Activation Contract
 
-Use for repository-managed dev-tool additions/replacements, provider or mechanism changes, default activation, runtime provisioning, and persistent-state lifecycle integration. Exclude application dependencies, personal hooks, config-seed-only work, ordinary enable/disable, and mechanical version/digest bumps unless trust, provider, architecture, lifecycle, or updater semantics change.
+Use for managed-tool additions/replacements, provider/mechanism, default activation, runtime provisioning, and state lifecycle. Exclude app dependencies, personal hooks, config-seed-only, ordinary enable/disable, and mechanical version/digest bumps unless trust/provider/architecture/lifecycle/updater semantics change.
 
 ## Hard Rules
 
-- Run `scripts/inspect-install-tree.sh [repository]`; treat current files and closest real installer/tests as authoritative.
-- Select the execution group explicitly: OS/bootstrap in `01-foundation`, mandatory tool aliases in `02-core-tools`, optional aliases in `03-enabled`, personal hooks in `04-hooks`. Core changes require coordinated selective Dockerfile COPY inputs; enable/disable is optional-only.
-- Name catalog installers `BBPP-category-tool.sh`: related block `BB`, position `PP`, unique four-digit prefix; gaps are allowed. Generate aliases with the identical basename; preserve valid custom aliases and layer-first, filename-second order.
-- Declare real dependencies only in `dependencies.conf`. Enable the required transitive closure, reuse core, repair active consumers, and never autoactivate companions. Validate the whole projection under the shared enable/disable lock before mutation; roll back only operation-created links.
-- Keep installation, copy-on-first-run configuration, and mutable state separate. Classify state as none, passive, or installer-owned.
-- Preserve fail-closed architecture gates and host-prepared long-syntax binds with `create_host_path: false`; never repair bind-root ownership at runtime.
-- Obtain explicit approval before weakening trust or lifecycle controls.
-- Classify every tool by provider and intent strategy. Only `tools:update` may
-  resolve versions or integrity and modify the single policy file.
-- Never add installer-local version/checksum defaults or build-time discovery.
-- Keep Compose selection independent from installer activation; do not integrate
-  overrides into enable/disable. Require Task host preparation and applied
-  manifest identity before runtime state repair; IDEs attach only.
+- Treat current files and closest installers/tests as authoritative.
+- Follow architecture: groups/COPY, naming/order, locked closure, state separation, host preparation/applied identity, independent Compose; IDEs attach only.
+- Classify provider/intent; only `tools:update` resolves versions/integrity or mutates policy. No installer defaults/build discovery.
+- Route exact runtime directory modes/creation to `.devcontainer/config/runtime-directory-permissions.json`; never duplicate installer mkdir/chmod or repair bind-root ownership.
+- Fail closed on architecture; verify all supported architectures before direct publication. Require explicit approval to weaken trust/lifecycle controls.
 
 ## Decision Gates
 
 | Change class | Route |
 | --- | --- |
-| New tool | Inspect architecture; choose closest provider pattern and tests |
-| Mechanical version/digest | Use existing policy/updater/installer checks; do not invent RED |
-| Enable/disable only | Use install helper; validate alias, target, and order; stop |
-| Provider/mechanism/lifecycle | Characterize current behavior, then focused RED/GREEN |
-| Removal | Trace activation, policy, state, updater, tests, and docs before deletion |
-| Config/state only | Route to config seeding or state lifecycle; no installer by default |
-| App/personal dependency | Stop; use application package manager or personal hook |
+| New tool | Closest provider/tests |
+| Mechanical bump | Existing checks; no invented RED |
+| Enable/disable | Helper; verify alias/target/order; stop |
+| Provider/mechanism/lifecycle | Characterize; focused RED/GREEN |
+| Removal | Trace every surface before deletion |
+| Config/state | Seeding/lifecycle; no default installer |
+| Runtime directory | Policy create/skip; separate root/ownership/file/security owners |
+| App/personal | Stop; package manager/hook |
 
 ## Execution Steps
 
-1. Classify the change first; stop or reroute excluded work.
-2. Inspect the tree, then load only the relevant references.
-3. Select the closest real provider example and test; do not duplicate an implementation.
-4. Register the intent and every generated lock output exactly once
-   in the transactional updater; reject unsupported provider semantics.
-5. Apply proportional trust, rollback, state, architecture, updater, and verification controls.
-   Direct artifacts require all supported architectures before publication.
-6. Keep implementation, tests, and user-facing documentation in one work unit.
-7. Refresh the registry through its official mechanism only when metadata changed.
+1. Classify/reroute; run `scripts/inspect-install-tree.sh [repository]`.
+2. Load applicable references; reuse real implementations.
+3. Apply provider/updater, trust/rollback, state and verification contracts. Check runtime full applicable preflight, bound-root mapping, activation and creation-only ordering before tool use.
+4. Ship code/tests/docs together; refresh registry officially only for metadata changes.
 
 ## Output Contract
 
-Always return classification, changed files, validation, and residual risks. Include trust, architecture, state, updater, RED/GREEN, host-preparation, or review-burden evidence only when relevant. Never report RED retroactively.
+Return classification/files/validation/risks; relevant trust/architecture/state/updater, RED/GREEN, host-preparation/review-burden evidence. No retroactive RED. Runtime: rule/applicability/mapping/ordering/preservation evidence.
 
 ## References
 
@@ -61,3 +49,4 @@ Always return classification, changed files, validation, and residual risks. Inc
 - `references/decision-matrix.md`
 - `references/supply-chain.md`
 - `references/verification.md`
+- `references/runtime-directories.md`
