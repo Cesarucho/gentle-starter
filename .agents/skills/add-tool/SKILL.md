@@ -17,6 +17,7 @@ Use for managed-tool additions/replacements, provider/mechanism, default activat
 - Follow architecture: groups/COPY, naming/order, locked closure, state separation, host preparation/applied identity, independent Compose; IDEs attach only.
 - Classify provider/intent; only `tools:update` resolves versions/integrity or mutates policy. No installer defaults/build discovery.
 - Route exact runtime directory modes/creation to `.devcontainer/config/runtime-directory-permissions.json`; never duplicate installer mkdir/chmod or repair bind-root ownership.
+- For each added or changed tool, check its executable directory against `CONTAINER_BASE_PATH` in `.env.example`; update only when necessary, preserving directory order without duplicates and managed OpenCode PATH priority.
 - Fail closed on architecture; verify all supported architectures before direct publication. Require explicit approval to weaken trust/lifecycle controls.
 
 ## Decision Gates
