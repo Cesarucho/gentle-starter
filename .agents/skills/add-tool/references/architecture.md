@@ -30,8 +30,10 @@ Host Task preparation lets Docker Compose resolve the service and ordered files
 from JSONC. Keep full config in memory; atomically publish only the versioned
 volume projection with input/source fingerprints. Normalize managed sources to
 workspace-relative `.env.d` paths. Create only missing components as the host
-user with exact mode `0755`; preserve existing paths and descendants and reject
-symlinks, files, and foreign ownership. Never prepare external sockets as
+user with exact mode `0755`, except the private `.env.d/.ssh` source uses `0700`.
+Validate existing private-source modes without silently repairing them; preserve
+existing paths and descendants and reject symlinks, files, and foreign ownership.
+Never prepare external sockets as
 directories. Runtime requires fresh repository inputs and the creation-time
 manifest identity before any mutation; desired mounts alone are insufficient.
 Check producer completion before dispatch, not through unchecked process

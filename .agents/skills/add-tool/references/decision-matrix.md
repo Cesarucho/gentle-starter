@@ -12,7 +12,7 @@
 | PHP/Composer | `2300-php-lang.sh`, `2320-php-test.sh` |
 | SDK/provider manager | `2200-runtime-java.sh` |
 | Direct GitHub release archive/binary | `3000-ai-opencode.sh` (image-owned, checksum-verified), `3020-ai-gentle-ai.sh`, `5010-cli-gitleaks.sh` |
-| Runtime-only user install | `3010-ai-engram.sh` |
+| Image-owned binary with runtime state/integration preparation | `3010-ai-engram.sh` |
 
 Read the example and its focused unit/integration tests. Reuse `lib/common.sh`; do not copy a second framework into the skill.
 

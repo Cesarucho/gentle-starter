@@ -15,35 +15,95 @@ source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
 
 # Validate snapshot integrity AND the creation-time identity before any runtime mutation.
 python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null
+runtime_root_expectations=()
 if install_script_is_enabled "${SCRIPT_DIR}/install/available/4010-tool-ssh-server.sh"; then
 	python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" ssh-server "${WORKSPACE_DIR}" >/dev/null
+	runtime_root_expectations=(--expected-root ".env.d/.ssh-server=${SSH_CONFIG_DIR:-${HOME}/.ssh-server}")
 fi
 
 # sudo chown -R ${UID}:${UID} ${HOME}/.codex
 
 build_gitignore_prune_args() {
 	local -n prune_args_ref="$1"
-	local ignored_path
+	local ignored_path git_dir common_dir pattern status
+	local -a ignored_entries=() protected_entries=()
 
 	prune_args_ref=()
 
-	while IFS= read -r -d '' ignored_path; do
+	# Resolve both administrative trees before any mutation. External metadata
+	# stays outside find's workspace scope; the in-workspace .git entry is pruned.
+	git_dir="$(git -C "${WORKSPACE_DIR}" rev-parse --path-format=absolute --git-dir)" || return 1
+	common_dir="$(git -C "${WORKSPACE_DIR}" rev-parse --path-format=absolute --git-common-dir)" || return 1
+	[ -n "${git_dir}" ] && [ -n "${common_dir}" ] || return 1
+	protected_entries=("${WORKSPACE_DIR}/.git")
+	for ignored_path in "${git_dir}" "${common_dir}"; do
+		case "${ignored_path}" in
+		"${WORKSPACE_DIR}"/*) protected_entries+=("${ignored_path}") ;;
+		esac
+	done
+
+	# A trailing NUL-delimited status preserves failures from process substitution.
+	mapfile -d '' -t ignored_entries < <(
+		status=0
+		git -C "${WORKSPACE_DIR}" ls-files --others --ignored --exclude-standard --directory -z || status=$?
+		printf '%s\0' "${status}"
+	)
+	status="${ignored_entries[-1]}"
+	unset 'ignored_entries[-1]'
+	[ "${status}" = 0 ] || return 1
+	for ignored_path in "${ignored_entries[@]}"; do
 		ignored_path="${ignored_path%/}"
 		[ -n "${ignored_path}" ] || continue
-		[ -d "${WORKSPACE_DIR}/${ignored_path}" ] || continue
-
-		prune_args_ref+=(-path "${WORKSPACE_DIR}/${ignored_path}" -prune -o)
-	done < <(git -C "${WORKSPACE_DIR}" ls-files --others --ignored --exclude-standard --directory -z)
+		if [ -e "${WORKSPACE_DIR}/${ignored_path}" ] || [ -L "${WORKSPACE_DIR}/${ignored_path}" ]; then
+			protected_entries+=("${WORKSPACE_DIR}/${ignored_path}")
+		fi
+	done
+	for ignored_path in "${protected_entries[@]}"; do
+		# find -path is a glob, even when passed as a quoted argument.
+		pattern="${ignored_path//\\/\\\\}"
+		pattern="${pattern//\*/\\*}"
+		pattern="${pattern//\?/\\?}"
+		pattern="${pattern//\[/\\[}"
+		prune_args_ref+=(-path "${pattern}" -prune -o)
+	done
 }
 
-# Fix project file permissions to standard privileges, excluding ignored directories.
+# Normalize public project files, preserving ignored entries and Git administration.
+# Preflight and collect protected subtrees before ANY generic ownership/mode repair.
+# The trailing status record propagates process-substitution failure without a temp file.
+runtime_exclusions=()
+mapfile -d '' -t runtime_exclusions < <(
+	policy_status=0
+	# Validate SSH children and owned root now, but leave root privacy recovery
+	# and child application to the enabled installer after normalization.
+	python3 "${SCRIPT_DIR}/lifecycle/runtime-directory-permissions.py" exclusions "${WORKSPACE_DIR}" \
+		--defer-root .env.d/.ssh-server "${runtime_root_expectations[@]}" || policy_status=$?
+	printf '%s\0' "${policy_status}"
+)
+runtime_policy_status="${runtime_exclusions[-1]}"
+unset 'runtime_exclusions[-1]'
+if [ "${runtime_policy_status}" != 0 ]; then
+	echo "[setup:error] Runtime directory policy preflight failed; workspace normalization blocked." >&2
+	exit 1
+fi
 gitignore_prune_args=()
-build_gitignore_prune_args gitignore_prune_args
+if ! build_gitignore_prune_args gitignore_prune_args; then
+	echo "[setup:error] Git exclusions unavailable; workspace normalization blocked." >&2
+	exit 1
+fi
+for protected_path in "${runtime_exclusions[@]}"; do
+	# find -path uses patterns: quote metacharacters so exclusions stay exact.
+	protected_pattern="${protected_path//\\/\\\\}"
+	protected_pattern="${protected_pattern//\*/\\*}"
+	protected_pattern="${protected_pattern//\?/\\?}"
+	protected_pattern="${protected_pattern//\[/\\[}"
+	gitignore_prune_args+=(-path "${protected_pattern}" -prune -o)
+done
 sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-dereference "${UID}:${UID}" -- {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type d -exec chmod 755 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f ! -name "*.sh" -exec chmod 644 {} +
 sudo find "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -type f -name "*.sh" -exec chmod 755 {} +
-bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}"
+bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}" "${runtime_exclusions[@]}"
 
 # Copy the file tree under source_root into target_root, but only
 # for files that do NOT already exist at the target (so the user's
@@ -248,6 +308,11 @@ _ssh_installer="${SCRIPT_DIR}/install/available/4010-tool-ssh-server.sh"
 if install_script_is_enabled "${_ssh_installer}"; then
 	export -f seed_config_tree
 	WORKSPACE_DIR="${WORKSPACE_DIR}" DEVCONTAINER_PHASE=runtime bash "${_ssh_installer}"
+fi
+# Full-policy safety is checked even for excluded roots. Run general application
+# after installer-owned SSH privacy recovery, but before starting its service.
+python3 "${SCRIPT_DIR}/lifecycle/runtime-directory-permissions.py" apply "${WORKSPACE_DIR}" --exclude-root .env.d/.ssh-server
+if install_script_is_enabled "${_ssh_installer}"; then
 	if command -v start-sshd >/dev/null 2>&1; then
 		start-sshd
 	else
