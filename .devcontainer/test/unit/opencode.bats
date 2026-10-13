@@ -44,6 +44,7 @@ EOF
 
 prepare_setup_sandbox() {
 	mkdir -p "${SETUP_WORKSPACE}/.devcontainer/lifecycle" \
+		"${SETUP_WORKSPACE}/.git" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/available" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/03-enabled" \
 		"${SETUP_WORKSPACE}/.devcontainer/install/02-core-tools" \
@@ -227,29 +228,50 @@ exec /usr/bin/stat "$@"
 EOF
 	cat >"${BIN_DIR}/git" <<'EOF'
 #!/usr/bin/env bash
-if [[ " $* " == *" ls-files "* ]] && [[ " $* " == *" --ignored "* ]]; then
-	printf 'gitignore-prune\n' >>"${WORKSPACE_REPAIR_EVENTS_FILE}"
-	if [ -d "${SETUP_WORKSPACE}/.env.d" ]; then
-		printf '.env.d/\0'
-	fi
-	exit 0
+set -euo pipefail
+if [ "${1:-}" = -C ]; then
+	[ "${2:-}" = "${SETUP_WORKSPACE}" ] || exit 2
+	shift 2
+	case "$*" in
+	'rev-parse --path-format=absolute --git-dir'|'rev-parse --path-format=absolute --git-common-dir')
+		printf '%s\n' "${SETUP_WORKSPACE}/.git"
+		exit 0
+		;;
+	'ls-files --others --ignored --exclude-standard --directory -z')
+		printf 'gitignore-prune\n' >>"${WORKSPACE_REPAIR_EVENTS_FILE}"
+		if [ -d "${SETUP_WORKSPACE}/.env.d" ]; then
+			printf '.env.d/\0'
+		fi
+		exit 0
+		;;
+	'ls-files --stage -z')
+		if [ -f "${SETUP_WORKSPACE}/regression.bats" ]; then
+			printf '100755 %040d 0\tregression.bats\0' 0
+		fi
+		if [ -e "${SETUP_WORKSPACE}/module.sh" ]; then
+			printf '100644 %040d 0\tmodule.sh\0' 0
+		fi
+		if [ -e "${SETUP_WORKSPACE}/tracked-link.sh" ]; then
+			printf '100644 %040d 0\ttracked-link.sh\0' 0
+		fi
+		exit 0
+		;;
+	*) printf 'Unsupported fixture Git workspace invocation\n' >&2; exit 2 ;;
+	esac
 fi
-if [[ " $* " == *" ls-files "* ]] && [[ " $* " == *" --stage "* ]]; then
-	if [ -f "${SETUP_WORKSPACE}/regression.bats" ]; then
-		printf '100755 %040d 0\tregression.bats\0' 0
+case "$*" in
+'config --global --get-all safe.directory') exit 1 ;;
+"config --global --add safe.directory ${SETUP_WORKSPACE}") exit 0 ;;
+*)
+	if [ "$#" -eq 4 ] && [ "$1" = config ] && [ "$2" = --global ]; then
+		case "$3" in
+		alias.logline|alias.config-list) exit 0 ;;
+		esac
 	fi
-	if [ -e "${SETUP_WORKSPACE}/module.sh" ]; then
-		printf '100644 %040d 0\tmodule.sh\0' 0
-	fi
-	if [ -e "${SETUP_WORKSPACE}/tracked-link.sh" ]; then
-		printf '100644 %040d 0\ttracked-link.sh\0' 0
-	fi
-	exit 0
-fi
-if [[ " $* " == *" --get-all "* ]]; then
-	exit 1
-fi
-exit 0
+	printf 'Unsupported fixture Git config invocation\n' >&2
+	exit 2
+	;;
+esac
 EOF
 	cat >"${BIN_DIR}/jq" <<'EOF'
 #!/usr/bin/env bash
@@ -319,11 +341,13 @@ path_metadata() {
 	local ignored_sentinel="${ignored_share}/sentinel"
 	local symlink_target="${TEST_ROOT}/symlink-target"
 	local workspace_link="${SETUP_WORKSPACE}/tracked-link"
+	local git_sentinel="${SETUP_WORKSPACE}/.git/sentinel"
 	mkdir -p "${tracked_dir}" "${ignored_share}" "${symlink_target}"
 	printf '.env.d/\n' >"${SETUP_WORKSPACE}/.gitignore"
 	printf 'tracked payload\n' >"${tracked_file}"
 	printf 'ignored payload\n' >"${ignored_sentinel}"
 	printf 'target payload\n' >"${symlink_target}/sentinel"
+	printf 'Git metadata payload\n' >"${git_sentinel}"
 	ln -s "${symlink_target}" "${workspace_link}"
 	sudo chown -R 0:0 "${tracked_dir}" "${ignored_dir}" "${symlink_target}"
 	sudo chown -h 0:0 "${workspace_link}"
@@ -331,7 +355,11 @@ path_metadata() {
 	sudo chmod 0600 "${tracked_file}"
 	sudo chmod 0711 "${ignored_dir}" "${ignored_dir}/.opencode" "${ignored_share}" "${symlink_target}"
 	sudo chmod 0600 "${ignored_sentinel}" "${symlink_target}/sentinel"
-	local ignored_before target_before
+	sudo chown -R 0:0 "${SETUP_WORKSPACE}/.git"
+	sudo chmod 0700 "${SETUP_WORKSPACE}/.git"
+	sudo chmod 0600 "${git_sentinel}"
+	local ignored_before target_before git_before
+	git_before="$(path_metadata "${SETUP_WORKSPACE}/.git")|$(sudo stat -c '%u:%g:%a' "${git_sentinel}")|$(sudo sha256sum "${git_sentinel}")"
 	ignored_before="$(path_metadata "${ignored_dir}")|$(path_metadata "${ignored_dir}/.opencode")|$(path_metadata "${ignored_share}")|$(path_metadata "${ignored_sentinel}")|$(sudo cat "${ignored_sentinel}")"
 	target_before="$(path_metadata "${symlink_target}")|$(path_metadata "${symlink_target}/sentinel")|$(sudo cat "${symlink_target}/sentinel")"
 
@@ -343,12 +371,18 @@ path_metadata() {
 	[ "$(cat "${tracked_file}")" = "tracked payload" ]
 	[ "$(path_metadata "${ignored_dir}")|$(path_metadata "${ignored_dir}/.opencode")|$(path_metadata "${ignored_share}")|$(path_metadata "${ignored_sentinel}")|$(sudo cat "${ignored_sentinel}")" = "${ignored_before}" ]
 	[ "$(path_metadata "${symlink_target}")|$(path_metadata "${symlink_target}/sentinel")|$(sudo cat "${symlink_target}/sentinel")" = "${target_before}" ]
+	[ "$(path_metadata "${SETUP_WORKSPACE}/.git")|$(sudo stat -c '%u:%g:%a' "${git_sentinel}")|$(sudo sha256sum "${git_sentinel}")" = "${git_before}" ]
 	[ -L "${workspace_link}" ]
 	[ "$(readlink "${workspace_link}")" = "${symlink_target}" ]
 	[ "$(sed -n '1p' "${WORKSPACE_REPAIR_EVENTS_FILE}")" = "gitignore-prune" ]
 	[ "$(sed -n '2p' "${WORKSPACE_REPAIR_EVENTS_FILE}")" = "workspace-chown" ]
 	grep -Fq "${tracked_file}" "${CHOWN_LOG_FILE}"
 	! grep -Fq "${ignored_dir}" "${CHOWN_LOG_FILE}"
+	! awk -v git_path="${SETUP_WORKSPACE}/.git" '
+		{ for (i = 2; i <= NF; i++)
+			if ($i == git_path || index($i, git_path "/") == 1) found = 1 }
+		END { exit !found }
+	' "${CHOWN_LOG_FILE}"
 }
 
 @test "workspace repair restores mixed Git-index file modes without following symlinks" {
@@ -376,14 +410,17 @@ path_metadata() {
 }
 
 @test "workspace chown builds prune args first and uses no-follow semantics" {
-	local implementation build_line chown_line
-	implementation="$(sed -n '/^# Fix project file permissions/,/^# Copy the file tree/p' "${REPO_ROOT}/.devcontainer/setup.sh")"
+	local implementation build_line chown_line pass_count
+	implementation="$(<"${REPO_ROOT}/.devcontainer/setup.sh")"
 	build_line="$(grep -nF 'build_gitignore_prune_args gitignore_prune_args' <<<"${implementation}" | cut -d: -f1)"
 	chown_line="$(grep -nF 'sudo find -P "${WORKSPACE_DIR}" "${gitignore_prune_args[@]}" -exec chown --no-dereference "${UID}:${UID}" -- {} +' <<<"${implementation}" | cut -d: -f1)"
 
 	[ -n "${build_line}" ]
 	[ -n "${chown_line}" ]
 	[ "${build_line}" -lt "${chown_line}" ]
+	pass_count="$(grep -cE '^sudo find( -P)? "\$\{WORKSPACE_DIR\}" "\$\{gitignore_prune_args\[@\]\}" ' <<<"${implementation}")"
+	[ "${pass_count}" -eq 4 ]
+	! grep -Eq '^sudo find .* -(L|H)( |$)' <<<"${implementation}"
 	[[ "${implementation}" != *'sudo chown -R "${UID}:${UID}" "${WORKSPACE_DIR}"'* ]]
 }
 
@@ -510,8 +547,8 @@ PY
 
 	run_setup
 
-	[ "${status}" -ne 0 ]
-	[[ "${output}" == *"${HOME_DIR}/.local/share (owner 1234:2345, expected UID 1000 or root)"* ]]
+	[ "${status}" -eq 1 ]
+	[[ "${output}" == *"[setup:error] Refusing user-local parent with unexpected ownership: ${HOME_DIR}/.local/share (owner 1234:2345, expected UID 1000 or root)"* ]]
 	[ "$(path_metadata "${HOME_DIR}/.local/share")" = "${share_before}" ]
 	[ "$(path_metadata "${OPENCODE_SENTINEL}")|$(sha256sum "${OPENCODE_SENTINEL}")" = "${sentinel_before}" ]
 }
@@ -523,21 +560,31 @@ PY
 	printf 'protected\n' >"${protected}/sentinel"
 	rm -rf "${HOME_DIR}/.local"
 	ln -s "${protected}" "${HOME_DIR}/.local"
+	local protected_before link_before
+	protected_before="$(path_metadata "${protected}")|$(path_metadata "${protected}/sentinel")|$(sha256sum "${protected}/sentinel")"
+	link_before="$(path_metadata "${HOME_DIR}/.local")|$(readlink "${HOME_DIR}/.local")"
 
 	run_setup
 
-	[ "${status}" -ne 0 ]
+	[ "${status}" -eq 1 ]
+	[[ "${output}" == *"[setup:error] Refusing unsafe user-local parent: ${HOME_DIR}/.local"* ]]
 	[ "$(cat "${protected}/sentinel")" = protected ]
-	[ "$(path_metadata "${protected}")" = "$(id -u):$(id -g):755" ]
+	[ "$(path_metadata "${protected}")|$(path_metadata "${protected}/sentinel")|$(sha256sum "${protected}/sentinel")" = "${protected_before}" ]
+	[ -L "${HOME_DIR}/.local" ]
+	[ "$(path_metadata "${HOME_DIR}/.local")|$(readlink "${HOME_DIR}/.local")" = "${link_before}" ]
 }
 
 @test "setup rejects a non-directory share parent without changing it" {
 	prepare_setup_sandbox
 	rm -rf "${HOME_DIR}/.local/share"
 	printf 'collision\n' >"${HOME_DIR}/.local/share"
+	local share_before
+	share_before="$(path_metadata "${HOME_DIR}/.local/share")|$(sha256sum "${HOME_DIR}/.local/share")"
 
 	run_setup
 
-	[ "${status}" -ne 0 ]
+	[ "${status}" -eq 1 ]
+	[[ "${output}" == *"[setup:error] Refusing unsafe user-local parent: ${HOME_DIR}/.local/share"* ]]
 	[ "$(cat "${HOME_DIR}/.local/share")" = collision ]
+	[ "$(path_metadata "${HOME_DIR}/.local/share")|$(sha256sum "${HOME_DIR}/.local/share")" = "${share_before}" ]
 }

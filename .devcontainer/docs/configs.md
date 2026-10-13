@@ -13,6 +13,26 @@ OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 
+## Workspace normalization preserves private state
+
+Before seeding, CONTAINER `setup.sh` normalizes public workspace ownership and
+modes. It excludes every existing untracked ignored entry: files (including
+`.env`), directories and symlinks, without following symlinks. Names are literal,
+including spaces, newlines and glob metacharacters. Ignored entries retain their
+bytes, modes and ownership; exclusion does not make foreign-owned state trusted.
+
+The `.git` administrative file or directory and workspace-contained Git directory
+and common-directory trees are excluded from all generic ownership/mode passes.
+External Git metadata is never traversed. Git resolution or ignored-entry
+enumeration failure blocks normalization before mutation. Public tracked files
+still receive their index modes (`0644` or `0755`), even when an ignore pattern
+matches them. Untracked public shell files receive `0755`, other files `0644`, and
+public directories `0755`.
+
+These exclusions do not replace specialized runtime policy: existing RAR authority
+and SSH security checks and exact-directory rules remain active. Gitfile support
+for generic normalization does not extend the RAR policy's supported layout.
+
 ## Review and export runtime changes
 
 Runtime configuration can evolve after first-run seeding. For an interactive

@@ -25,20 +25,50 @@ fi
 
 build_gitignore_prune_args() {
 	local -n prune_args_ref="$1"
-	local ignored_path
+	local ignored_path git_dir common_dir pattern status
+	local -a ignored_entries=() protected_entries=()
 
 	prune_args_ref=()
 
-	while IFS= read -r -d '' ignored_path; do
+	# Resolve both administrative trees before any mutation. External metadata
+	# stays outside find's workspace scope; the in-workspace .git entry is pruned.
+	git_dir="$(git -C "${WORKSPACE_DIR}" rev-parse --path-format=absolute --git-dir)" || return 1
+	common_dir="$(git -C "${WORKSPACE_DIR}" rev-parse --path-format=absolute --git-common-dir)" || return 1
+	[ -n "${git_dir}" ] && [ -n "${common_dir}" ] || return 1
+	protected_entries=("${WORKSPACE_DIR}/.git")
+	for ignored_path in "${git_dir}" "${common_dir}"; do
+		case "${ignored_path}" in
+		"${WORKSPACE_DIR}"/*) protected_entries+=("${ignored_path}") ;;
+		esac
+	done
+
+	# A trailing NUL-delimited status preserves failures from process substitution.
+	mapfile -d '' -t ignored_entries < <(
+		status=0
+		git -C "${WORKSPACE_DIR}" ls-files --others --ignored --exclude-standard --directory -z || status=$?
+		printf '%s\0' "${status}"
+	)
+	status="${ignored_entries[-1]}"
+	unset 'ignored_entries[-1]'
+	[ "${status}" = 0 ] || return 1
+	for ignored_path in "${ignored_entries[@]}"; do
 		ignored_path="${ignored_path%/}"
 		[ -n "${ignored_path}" ] || continue
-		[ -d "${WORKSPACE_DIR}/${ignored_path}" ] || continue
-
-		prune_args_ref+=(-path "${WORKSPACE_DIR}/${ignored_path}" -prune -o)
-	done < <(git -C "${WORKSPACE_DIR}" ls-files --others --ignored --exclude-standard --directory -z)
+		if [ -e "${WORKSPACE_DIR}/${ignored_path}" ] || [ -L "${WORKSPACE_DIR}/${ignored_path}" ]; then
+			protected_entries+=("${WORKSPACE_DIR}/${ignored_path}")
+		fi
+	done
+	for ignored_path in "${protected_entries[@]}"; do
+		# find -path is a glob, even when passed as a quoted argument.
+		pattern="${ignored_path//\\/\\\\}"
+		pattern="${pattern//\*/\\*}"
+		pattern="${pattern//\?/\\?}"
+		pattern="${pattern//\[/\\[}"
+		prune_args_ref+=(-path "${pattern}" -prune -o)
+	done
 }
 
-# Fix project file permissions to standard privileges, excluding ignored directories.
+# Normalize public project files, preserving ignored entries and Git administration.
 # Preflight and collect protected subtrees before ANY generic ownership/mode repair.
 # The trailing status record propagates process-substitution failure without a temp file.
 runtime_exclusions=()
@@ -57,7 +87,10 @@ if [ "${runtime_policy_status}" != 0 ]; then
 	exit 1
 fi
 gitignore_prune_args=()
-build_gitignore_prune_args gitignore_prune_args
+if ! build_gitignore_prune_args gitignore_prune_args; then
+	echo "[setup:error] Git exclusions unavailable; workspace normalization blocked." >&2
+	exit 1
+fi
 for protected_path in "${runtime_exclusions[@]}"; do
 	# find -path uses patterns: quote metacharacters so exclusions stay exact.
 	protected_pattern="${protected_path//\\/\\\\}"

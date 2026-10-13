@@ -41,6 +41,9 @@ setup() {
 	run task --taskfile "${ROOT}/.maintainer/Taskfile.yml" --dry test:starter:lifecycle -- --daemon-visible-scratch /workspace
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *'.maintainer/test/lifecycle/starter-lifecycle.py --daemon-visible-scratch /workspace'* ]]
+	run task --taskfile "${ROOT}/.maintainer/Taskfile.yml" --dry test:starter:lifecycle -- --preflight --runtime-directories --allow-generated-dockerfile-read
+	[ "${status}" -eq 0 ]
+	[[ "${output}" == *'.maintainer/test/lifecycle/starter-lifecycle.py --preflight --runtime-directories --allow-generated-dockerfile-read'* ]]
 	run task --taskfile "${ROOT}/.maintainer/Taskfile.yml" --dry test:starter:clean
 	[ "${status}" -eq 0 ]
 	[[ "${output}" == *'.maintainer/test/lifecycle/starter-test-clean.py'* ]]

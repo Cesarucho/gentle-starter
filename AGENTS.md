@@ -135,14 +135,20 @@ Start with `.devcontainer/docs/extending.md`; use the linked deep dives for each
   lock tracked, not the installed copies. Local-only skills may be absent from
   the lock and are not restored by it.
 - Repository-authored `add-tool` lives in `.agents/skills/add-tool/` and is
-  tracked by Git, not by external lock metadata.
+  tracked by Git, not by external lock metadata. Load its `SKILL.md` for managed
+  tool installation, activation, provisioning or state-lifecycle changes.
+- Repository-authored `operational-verification` lives in
+  `.agents/skills/operational-verification/`; load its `SKILL.md` for operational
+  checks, lifecycle tests or environment verification. It is producer-only;
+  its local harness reference is excluded from consumer releases too.
 - Use the installed `skills` CLI: `skills add <source> --skill <name> --agent universal --copy -y`,
   `skills experimental_install -y` (experimental lock restore),
   `skills update --project -y`, and `skills list --json`.
 - Remove only by explicit name: `skills remove <name> -y`. NEVER run
-  `skills remove --skill '*'`: it deletes tracked `add-tool` too.
+  `skills remove --skill '*'`: it deletes tracked `add-tool` and
+  `operational-verification` too.
 - Review `git status` and `git diff` after CLI operations; restore a mistakenly
-  deleted `.agents/skills/add-tool/` from Git. Generated `.claude/` is ignored;
+  deleted authored skills from Git after owner review. Generated `.claude/` is ignored;
   do not delete personal `.claude/` files.
 
 ## Settled conventions
@@ -170,85 +176,27 @@ Start with `.devcontainer/docs/extending.md`; use the linked deep dives for each
 
 ## Verification
 
-For normal changes inside the devcontainer:
+Before operational commands, lifecycle/environment proof or test-resource recovery
+in this **producer repository**, MUST load both
+[operational-verification](.agents/skills/operational-verification/SKILL.md) and its
+[Starter harness reference](.agents/skills/operational-verification/references/starter-harness.md),
+then follow their linked authoritative human contracts. If either is unavailable,
+stop unsafe operational actions; do not substitute a missing-guard fallback.
+These producer-only instructions are not distributed consumer requirements.
 
-```bash
-task install:list
-task install:doctor
-task install:volumes
-task validate
-task --taskfile .maintainer/Taskfile.yml test:starter
-```
+Execution and cleanup require explicit consent for their destinations and effects;
+recipes are not permission. Stop on uncertain ownership, daemon identity or
+permissions; never escalate or globally prune Docker resources. Follow
+[Execution topology](#execution-topology): respect HOST skip guards and never use
+`FORCE_HOST_CONTEXT=1` in the primary checkout. Verification grants no review,
+commit or delivery approval.
 
-`task test` is application-owned and fails as not configured until the project
-owner replaces `tasks.test.cmds`. Starter editorial/distribution tests remain
-maintainer-only; derived applications need not satisfy them.
-The maintainer unit suite includes lifecycle/build fixtures: inspect and select
-safe tests when execution permissions are restricted. `validate` and
-`install:doctor` are not application test proof.
-
-`task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle` is a
-separate, explicitly authorized expensive base build/start/connect/recreate and
-managed-state/preservation proof. It generates a unique
-`/home/ubuntu/starter-test-<UUID>` scratch scope and proves exact bytes through
-a cached-image, local-Docker read-only bind probe before creating a candidate or
-building. The optional `-- --daemon-visible-scratch ABSOLUTE_PARENT` selects a
-different existing parent but requires the same probe. Missing parent, image,
-daemon visibility, or verified cleanup fails closed; no image pull or build is
-used for the probe. It is not a seventh test layer or included in
-`test:starter`/`validate`; it automates only those operational full-validation
-items. Optional Pi/SSH/audio/GUI integrations remain separate.
-Forecast downloads, build time, disk use, and deliberately retained shared cache before running.
-See `.maintainer/README-distribution.md#explicit-base-lifecycle-proof` for its
-deliberately reduced sandbox scenario.
-
-Explicitly set the external execution tool or supervisor timeout for network/build
-checks; do not rely on short defaults. Starting guidelines are 10 minutes per real
-`task tools:update` call and 30 minutes for a combined updater/build/verification
-flow, adjusted for cache, network, and download scope in the pre-launch forecast.
-These are not Task flags or enforced limits. Keep the outer hard deadline beyond
-the planned work/soft budget to allow graceful shutdown and cleanup; hard kills
-cannot guarantee cleanup. A timeout is incomplete proof, not automatically a
-provider, build, or functional bug: report stage, elapsed time, known outcomes,
-and cleanup status, preserving successful-step evidence. Inspect processes and
-registered resources before bounded continuation; never endlessly rerun or mark
-an interrupted run PASS. See
-[timeout guidance](.devcontainer/docs/extending.md#execution-timeouts-for-operational-checks).
-
-### Command decision guide
-
-| Need | Command | Effects, authorization, and evidence |
-| --- | --- | --- |
-| Application proof | `task test` | Application-owned; inspect the configured command and its effects first. |
-| Starter regression proof | `task --taskfile .maintainer/Taskfile.yml test:starter` | Unit + integration only; inspect fixtures before authorizing builds or lifecycle operations. |
-| Repository checks | `task validate` | Host preflight is partial; container runs diagnosis and strict quality. Neither is application or full runtime proof. |
-| Isolated operational proof | `task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle` | Separate explicit authorization and cost forecast; generated scratch requires exact-byte local daemon probe; reduced base coverage only. |
-| Recover registered test resources | `task --taskfile .maintainer/Taskfile.yml test:starter:clean` | Read-only preview by default; deletion requires explicit apply and one selected run. |
-| Work on the real environment | `task container:*` | Normal host workflow, not test cleanup; up/recreate can build, restart preserves the container. |
-
-After authorized sandbox work, successful runs clean up automatically; failed or
-interrupted runs retain private inventory, scratch, logs, and identified owned
-resources. The finalizer stops only verified running owned containers; a hard
-kill may bypass it. Treat retained logs as sensitive and do not share them without
-review and redaction. Preview recovery before explicitly applying selected-run
-deletion; `--forget` also requires verified absence. Recovery uses the same scoped
-engine for participating lifecycle and image-contract fixtures; it does not own
-arbitrary scripts or hook resources.
-Never use global Docker pruning as normal test recovery. Stop and report uncertain
-ownership, daemon mismatches, or permission failures rather than escalating cleanup.
-The helper is not a delivery gate or commit authorization. Human recovery examples
-and retention details live in
-`.maintainer/README-distribution.md#recovering-test-owned-resources`.
-
-Host-only `task container:*` commands should skip when run inside the active
-devcontainer. To verify a real host flow from inside a container, use a temporary
-repository copy under the mounted workspace and `FORCE_HOST_CONTEXT=1`; never
-mutate the primary worktree for destructive bootstrap tests.
-The current devcontainer is a simulated host for that fixture, not evidence of
-the consumer's optional inside-container Docker daemon. Report clone/build/up
-separately from nested-daemon checks. Consumer DinD Feature state volumes are
-retained, not owned or removed by the test; retention is not complete removal.
-See `.maintainer/README-distribution.md` for preview and recovery effects.
+Ordinary unit TDD does not require operational skill activation. Inspect fixtures
+before running them; operational effects or expensive checks trigger the routing
+above. `task test` is application-owned; Starter regression is maintainer-only.
+`task validate`/`install:doctor` are quality/diagnosis, not application or full
+runtime proof; HOST preflight is partial. Select commands and proof boundaries
+from the harness reference rather than treating quality as runtime evidence.
 
 ## Known issues
 

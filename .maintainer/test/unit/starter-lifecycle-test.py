@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Safe tests: no real Docker, Task lifecycle, installers, or Git commits."""
 
+import copy
 import importlib.util
+import itertools
+import io
 import json
 import os
 from pathlib import Path
@@ -10,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -18,6 +21,7 @@ SPEC = importlib.util.spec_from_file_location("lifecycle", ROOT / ".maintainer/t
 assert SPEC and SPEC.loader
 H = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(H)
+METADATA_QUERY = H.metadata_query
 
 
 class LifecycleTests(unittest.TestCase):
@@ -35,6 +39,10 @@ class LifecycleTests(unittest.TestCase):
         self.popen = patch.object(H.subprocess, "Popen", side_effect=AssertionError("unmocked process"))
         self.popen.start()
         self.addCleanup(self.popen.stop)
+        # Existing execution tests exercise post-readiness behavior only.
+        readiness = patch.object(H, "preflight", return_value={"readiness": "ready"})
+        readiness.start()
+        self.addCleanup(readiness.stop)
 
     def lifecycle(self):
         ownership = Mock(lease=3)
@@ -166,9 +174,9 @@ class LifecycleTests(unittest.TestCase):
     def test_default_missing_parent_fails_without_registering_run(self):
         with patch.object(sys, "argv", ["lifecycle"]), patch.object(H, "run", return_value=str(self.root)), \
              patch.object(H.Path, "cwd", return_value=self.root), patch.object(H.Path, "is_dir", return_value=False), \
-             patch.object(H, "Run") as run:
-            with self.assertRaisesRegex(SystemExit, "existing plain scratch parent"):
-                H.main()
+             patch.object(H, "Run") as run, patch.object(H, "preflight", return_value={"readiness": "not-ready"}), \
+             patch("builtins.print"):
+            self.assertEqual(H.main(), 1)
         run.create.assert_not_called()
 
     def test_retention_exception_persists_failed_probe_outcome_and_restores_environment(self):
@@ -226,6 +234,81 @@ class LifecycleTests(unittest.TestCase):
             errors = lifecycle.cleanup()
         lifecycle.ownership.cleanup.assert_called_once_with(apply=True)
         self.assertEqual(errors, ["unverifiable"])
+
+    def test_diagnostic_bounds_untrusted_stage_run_and_snapshot_values(self):
+        lifecycle = self.lifecycle()
+        lifecycle.verify_check = "candidate-unchanged"
+        lifecycle.snapshot_diagnostic = {"mode": "private-secret", "private-key": "private-secret"}
+        lifecycle.ownership.data.update(run="private-secret", stage="private-secret")
+        message = H.failure_message(lifecycle)
+        self.assertIn("run=none", message)
+        self.assertIn("stage=unknown", message)
+        self.assertIn("reason=candidate-unchanged", message)
+        self.assertNotIn("private-secret", message)
+        self.assertNotIn("private-key", message)
+
+    def test_execution_and_cleanup_exceptions_remain_distinct_and_never_escape(self):
+        owner = Mock()
+        owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root), "stage": "build"}
+        lifecycle = Mock(env={"PATH": os.environ["PATH"]}, before={}, source_status="", verify_check=None)
+        lifecycle.ownership = owner
+        lifecycle.execute.side_effect = RuntimeError("Authorization: secret-original")
+        lifecycle.retain.side_effect = ValueError("traceID=secret-cleanup")
+        with patch.object(sys, "argv", ["lifecycle"]), patch.object(H.Run, "create", return_value=owner), \
+                patch.object(H, "Lifecycle", return_value=lifecycle), patch.object(H.signal, "signal"), \
+                patch.object(H, "snapshot", return_value={}), patch.object(H, "run", return_value=""), \
+                patch.object(sys, "stdout", io.StringIO()), patch.object(sys, "stderr", io.StringIO()) as output:
+            self.assertEqual(H.main(), 1)
+        message = output.getvalue()
+        self.assertIn("stage=build", message)
+        self.assertIn("stage=cleanup", message)
+        self.assertNotIn("secret-original", message)
+        self.assertNotIn("secret-cleanup", message)
+        owner.finish.assert_called_once_with("failed")
+        owner.close.assert_called_once_with()
+
+    def test_cleanup_transport_and_each_exception_boundary_cannot_report_pass(self):
+        secret = 'Authorization: synthetic-secret traceID=private {"key":"private"}'
+        for boundary in ("constructor", "environment", "cleanup", "cleanup-result", "finish", "close"):
+            with self.subTest(boundary=boundary):
+                owner = Mock()
+                owner.data = {"run": "00000000-0000-4000-8000-000000000001", "scratch": str(self.root), "stage": "verify"}
+                lifecycle = Mock(env={"PATH": os.environ["PATH"]}, before={}, source_status="", verify_check=None)
+                lifecycle.ownership = owner
+                lifecycle.cleanup.return_value = []
+                if boundary == "environment":
+                    lifecycle.env = {"PATH": object()}
+                elif boundary == "cleanup-result":
+                    lifecycle.cleanup.return_value = [secret, {"key": secret}]
+                elif boundary in {"finish", "close"}:
+                    getattr(owner, boundary).side_effect = RuntimeError(secret)
+                elif boundary == "cleanup":
+                    lifecycle.cleanup.side_effect = RuntimeError(secret)
+                original_env = dict(os.environ)
+                with patch.object(sys, "argv", ["lifecycle"]), patch.object(H.Run, "create", return_value=owner), \
+                        patch.object(H, "Lifecycle", return_value=lifecycle,
+                                     side_effect=RuntimeError(secret) if boundary == "constructor" else None), \
+                        patch.object(H.signal, "signal"), patch.object(H, "snapshot", return_value={}), \
+                        patch.object(H, "run", return_value=""), patch.object(sys, "stdout", io.StringIO()) as public, \
+                        patch.object(sys, "stderr", io.StringIO()) as output:
+                    self.assertEqual(H.main(), 1)
+                self.assertNotIn(secret, public.getvalue() + output.getvalue())
+                self.assertNotIn("Primary preservation verified", public.getvalue())
+                self.assertIn("stage=" + ("environment" if boundary in {"constructor", "environment"} else "cleanup"), output.getvalue())
+                owner.close.assert_called_once_with()
+                self.assertEqual(dict(os.environ), original_env)
+
+    def test_normal_task_route_exports_candidate_identity_and_never_bypasses_task(self):
+        lifecycle = self.lifecycle()
+        lifecycle.env.update(APP_NAME=lifecycle.candidate.name, APP_PORT="3000", OPENCODE_PORT="3001")
+        lifecycle.task("up")
+        argv, candidate, environment, stage = lifecycle.ownership.produce.call_args.args
+        self.assertEqual(argv, ["task", "container:up"])
+        self.assertEqual(candidate, lifecycle.candidate)
+        self.assertEqual(environment["APP_NAME"], lifecycle.candidate.name)
+        self.assertEqual(environment["APP_PORT"], "3000")
+        self.assertEqual(environment["OPENCODE_PORT"], "3001")
+        self.assertEqual(stage, "up")
 
     def test_cleanup_reports_daemon_failure_and_still_checks_primary(self):
         lifecycle = self.lifecycle()
@@ -912,6 +995,394 @@ class LifecycleTests(unittest.TestCase):
         self.assertIs(lifecycle._generated_read_adapter, adapter)
         adapter.prepare.assert_called_once_with(lifecycle)
         self.assertEqual(adapter.validate_selection.call_args_list, [call(lifecycle.env)] * 3)
+
+
+class PreflightTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(dir="/tmp/opencode")
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.root = self.base / "source"
+        self.root.mkdir()
+        (self.root / ".git").mkdir(mode=0o755)
+        self.parent = self.base / "scratch-parent"
+        self.parent.mkdir()
+        self.store = self.root / ".git/starter-test-runs"
+        self.compose_version = "5.5.1"
+        self.cli_version = "0.89.0"
+        self.image = "sha256:" + "a" * 64
+        self.daemon = "synthetic-daemon"
+        self.query = Mock(side_effect=self.metadata)
+        self.scope = patch.object(H, "scope_preflight", return_value={"04-hooks": 1})
+        replacements = [(H, "metadata_query", self.query), (H.Path, "cwd", Mock(return_value=self.root)),
+                        (H.shutil, "which", Mock(return_value="available")),
+                        (H, "local_endpoint", Mock(return_value=True)),
+                        (H.subprocess, "run", Mock(side_effect=AssertionError("unmocked process"))),
+                        (H.subprocess, "check_output", Mock(side_effect=AssertionError("unmocked process"))),
+                        (H.subprocess, "Popen", Mock(side_effect=AssertionError("unmocked process")))]
+        for target, name, value in replacements:
+            replacement = patch.object(target, name, value)
+            replacement.start()
+            self.addCleanup(replacement.stop)
+        self.scope.start()
+        self.addCleanup(self.scope.stop)
+
+    def metadata(self, *args, **kwargs):
+        if args[0] == "git":
+            return str(self.root / ".git") if "--git-common-dir" in args else str(self.root)
+        if args[0] == "devcontainer":
+            return self.cli_version
+        if args[:3] != ("docker", "--host", H.ENDPOINT):
+            raise AssertionError("unselected endpoint or unexpected command")
+        if "info" in args:
+            return self.daemon
+        if "image" in args:
+            self.assertEqual(args[-1], "ubuntu:24.04")
+            return self.image
+        if "compose" in args:
+            return self.compose_version
+        if "buildx" in args:
+            return "github.com/docker/buildx v0.38.0 synthetic"
+        raise AssertionError("mutating or unexpected Docker command")
+
+    def options(self, *flags):
+        return H.parse_options([*flags, "--daemon-visible-scratch", str(self.parent)])
+
+    def report(self, *flags):
+        return H.preflight(self.options(*flags))
+
+    def assert_main_refuses(self, stage):
+        for explicit in (False, True):
+            with self.subTest(explicit=explicit), patch.object(sys, "argv", ["lifecycle", *(
+                    ["--preflight"] if explicit else []), "--daemon-visible-scratch", str(self.parent)]), \
+                    patch.object(H, "Run") as owner, patch.object(H, "Lifecycle") as lifecycle, \
+                    patch.object(H, "configure") as configure, patch("builtins.print") as output:
+                self.assertEqual(H.main(), 1)
+                report = json.loads(output.call_args.args[0])
+                self.assertEqual(report["stage"], stage)
+                self.assertEqual(report["readiness"], "not-ready")
+                self.assertIsNone(report["run"])
+                owner.create.assert_not_called()
+                lifecycle.assert_not_called()
+                configure.assert_not_called()
+                self.assertLess(len(json.dumps(report)), 4096)
+
+    def test_explicit_preflight_is_inert_and_reports_no_run(self):
+        report = {"schema": 1, "scenario": "base", "readiness": "ready", "checks": [],
+                  "stage": "complete", "reason": "metadata-ready", "next_step": "run-authorized-proof", "run": None}
+        with patch.object(sys, "argv", ["lifecycle", "--preflight"]), \
+                patch.object(H, "preflight", return_value=report), \
+                patch.object(H, "Run") as owner, patch.object(H, "Lifecycle") as lifecycle, \
+                patch("builtins.print") as output:
+            self.assertEqual(H.main(), 0)
+        owner.create.assert_not_called()
+        lifecycle.assert_not_called()
+        self.assertEqual(json.loads(output.call_args.args[0]), report)
+
+    def test_all_supported_selector_combinations_share_parser_and_preflight(self):
+        selectors = ["--consumer", "--attachment", "--runtime-directories", "--allow-generated-dockerfile-read"]
+        for bits in itertools.product((False, True), repeat=4):
+            flags = [flag for flag, selected in zip(selectors, bits) if selected]
+            consumer, attachment, runtime, generated = bits
+            valid = sum((consumer, attachment, runtime)) <= 1 and (not generated or not consumer and (attachment or runtime))
+            for explicit in (False, True):
+                args = [*flags, *(["--preflight"] if explicit else [])]
+                with self.subTest(args=args):
+                    if valid:
+                        options = self.options(*args)
+                        self.assertEqual(options["generated_read"], generated)
+                        self.assertEqual(options["preflight"], explicit)
+                        self.assertEqual(options["scenario"], "consumer" if consumer else "attachment" if attachment
+                                         else "runtime-directories" if runtime else "base")
+                    else:
+                        with self.assertRaises(SystemExit):
+                            self.options(*args)
+
+    def test_malformed_options_return_sanitized_json_without_any_query(self):
+        cases = [[flag, flag] for flag in ("--preflight", "--consumer", "--attachment", "--runtime-directories",
+                                          "--allow-generated-dockerfile-read")]
+        cases += [["--daemon-visible-scratch"], ["--daemon-visible-scratch", "/a", "--daemon-visible-scratch", "/b"],
+                  ["--unknown=private-secret"], ["private-secret"], ["--consumer", "--attachment"],
+                  ["--allow-generated-dockerfile-read"]]
+        for flags in cases:
+            with self.subTest(flags=flags), patch.object(sys, "argv", ["lifecycle", "--preflight", *flags]), \
+                    patch.object(H, "Run") as owner, patch("builtins.print") as output:
+                self.assertEqual(H.main(), 1)
+                self.assertEqual(json.loads(output.call_args.args[0]), H.preflight_report())
+                self.assertNotIn("private-secret", output.call_args.args[0])
+                owner.create.assert_not_called()
+        self.query.assert_not_called()
+
+    def test_ready_report_plans_missing_registry_without_creating_any_state(self):
+        before = dict(os.environ), sorted(str(path) for path in self.base.rglob("*"))
+        report = self.report()
+        self.assertEqual(report["readiness"], "ready")
+        self.assertIn({"stage": "registry", "reason": "registry-planned-0755"}, report["checks"])
+        self.assertEqual(report["checks"][4]["selected_scripts"], {"04-hooks": 1})
+        self.assertEqual(before, (dict(os.environ), sorted(str(path) for path in self.base.rglob("*"))))
+        self.assertFalse(self.store.exists())
+        self.assertEqual(report["reason"], "metadata-ready")
+
+    def test_existing_safe_legacy_registry_modes_are_preserved(self):
+        self.store.mkdir()
+        for mode in (0o700, 0o750, 0o755):
+            self.store.chmod(mode)
+            self.assertEqual(self.report()["readiness"], "ready")
+            self.assertEqual(self.store.stat().st_mode & 0o777, mode)
+            self.assertEqual(list(self.store.iterdir()), [])
+
+    def test_unsafe_registry_and_missing_registry_parent_refuse_without_repair(self):
+        self.store.mkdir(mode=0o777)
+        self.store.chmod(0o777)
+        self.assert_main_refuses("registry")
+        self.assertEqual(self.store.stat().st_mode & 0o777, 0o777)
+        with patch.object(H, "registry_directory", side_effect=H.Unsafe("private-secret")):
+            self.assert_main_refuses("registry")
+        self.assertEqual(list(self.store.iterdir()), [])
+
+    def test_symlinked_registry_or_scratch_is_rejected(self):
+        self.store.symlink_to(self.parent, target_is_directory=True)
+        self.assert_main_refuses("registry")
+        other = self.base / "scratch-link"
+        other.symlink_to(self.parent, target_is_directory=True)
+        report = H.preflight(H.parse_options(["--daemon-visible-scratch", str(other)]))
+        self.assertEqual(report["stage"], "scratch")
+        self.assertEqual(list(self.parent.iterdir()), [])
+
+    def test_missing_registry_creation_is_only_planned_under_a_safe_parent(self):
+        common = self.root / ".git"
+        common.chmod(0o777)
+        self.assert_main_refuses("registry")
+        self.assertFalse(self.store.exists())
+        self.assertEqual(common.stat().st_mode & 0o777, 0o777)
+        common.chmod(0o755)
+        with patch.object(H.os, "getuid", return_value=os.getuid() + 1):
+            self.assert_main_refuses("registry")
+        self.assertFalse(self.store.exists())
+
+    def test_tools_source_scratch_scope_endpoint_fail_before_registration(self):
+        cases = [(H.shutil, "which", None, "tools"), (H.os, "access", False, "scratch"),
+                 (H, "local_endpoint", False, "endpoint")]
+        for target, name, value, stage in cases:
+            with self.subTest(stage=stage), patch.object(target, name, return_value=value):
+                self.assert_main_refuses(stage)
+        with patch.object(H, "metadata_query", return_value="/different-source"):
+            self.assert_main_refuses("source")
+        with patch.object(H, "scope_preflight", side_effect=ValueError("private-secret")):
+            self.assert_main_refuses("scope")
+
+    def test_scratch_requires_absolute_existing_plain_external_parent(self):
+        for parent in (Path("relative"), self.base / "missing", self.root, self.root / ".git"):
+            with self.subTest(parent=parent):
+                options = self.options()
+                options["parent"] = parent
+                self.assertEqual(H.preflight(options)["stage"], "scratch")
+
+    def test_failed_or_invalid_daemon_and_cache_metadata_block_registration(self):
+        for attribute, values, stage in (("daemon", ("", "a" * 129), "daemon"),
+                                         ("image", ("", "private-secret", "sha256:" + "g" * 64), "image")):
+            original = getattr(self, attribute)
+            for value in values:
+                with self.subTest(stage=stage, value=value):
+                    setattr(self, attribute, value)
+                    self.assert_main_refuses(stage)
+            setattr(self, attribute, original)
+        for selected, stage in (("info", "daemon"), ("image", "image"), ("compose", "toolchain")):
+            def query(*args, **kwargs):
+                if selected in args:
+                    raise subprocess.TimeoutExpired(args, 10, output="private-secret")
+                return self.metadata(*args, **kwargs)
+            with patch.object(H, "metadata_query", side_effect=query):
+                self.assert_main_refuses(stage)
+
+    def test_toolchain_versions_are_exact_not_ranges_or_error_text_admission(self):
+        for version in ("5.5.1", "5.6.0"):
+            self.compose_version = version
+            self.assertEqual(self.report()["readiness"], "ready")
+        for version in ("5.6.1", "v5.6.0", "5.5.2", "5.6", "*", ">=5.5.1", "private-secret 5.5.1"):
+            self.compose_version = version
+            self.assert_main_refuses("toolchain")
+        self.compose_version = "5.5.1"
+        for version in ("0.89.1", "v0.89.0", "0.89.0 private-secret", "0.90.0"):
+            self.cli_version = version
+            self.assert_main_refuses("toolchain")
+
+    def test_consent_checks_fixed_native_capability_without_preparing_adapter(self):
+        adapter = Mock(COMPOSE_VERSIONS=("5.5.1", "5.6.0"), CLI_VERSION="0.89.0")
+        adapter.NativeSnapshot = MagicMock()
+        adapter.find_native.side_effect = [Path("/system/docker-compose"), Path("/system/docker-buildx")]
+        def query(*args, **kwargs):
+            if args[0] == "/system/docker-compose":
+                return "5.6.0"
+            if args[0] == "/system/docker-buildx":
+                return "synthetic Buildx version"
+            return self.metadata(*args, **kwargs)
+        with patch.object(H.importlib.util, "spec_from_file_location", return_value=Mock()), \
+                patch.object(H.importlib.util, "module_from_spec", return_value=adapter), \
+                patch.object(H, "metadata_query", side_effect=query):
+            self.assertEqual(self.report("--attachment", "--allow-generated-dockerfile-read")["readiness"], "ready")
+            self.assertEqual(adapter.find_native.call_args_list, [call("docker-compose"), call("docker-buildx")])
+            adapter.prepare.assert_not_called()
+            adapter.validate_selection.assert_not_called()
+            self.assertEqual(adapter.NativeSnapshot.call_args_list,
+                             [call(Path("/system/docker-compose")), call(Path("/system/docker-buildx"))])
+            self.assertEqual(adapter.NativeSnapshot.return_value.__enter__.return_value.recheck.call_count, 2)
+            adapter.find_native.side_effect = H.Unsafe("private-secret")
+            self.assertEqual(self.report("--runtime-directories", "--allow-generated-dockerfile-read")["stage"], "toolchain")
+
+    def test_metadata_queries_are_bounded_and_do_not_inherit_context_or_secrets(self):
+        with patch.dict(os.environ, {"DOCKER_HOST": "ssh://private-secret", "DOCKER_CONTEXT": "private-secret",
+                                     "DOCKER_CONFIG": "/private-secret", "TOKEN": "private-secret", "BASH_ENV": "/private-secret"}):
+            environment = H.preflight_environment()
+            self.assertEqual(environment["DOCKER_HOST"], H.ENDPOINT)
+            self.assertEqual(environment["DOCKER_CONFIG"], H.PREFLIGHT_HOME)
+            self.assertNotIn("private-secret", json.dumps(environment))
+            self.assertNotIn("DOCKER_CONTEXT", environment)
+        self.assertEqual(H.PREFLIGHT_TIMEOUT, 10)
+        self.assertLessEqual(H.PREFLIGHT_LIMIT, 262144)
+        result = Mock(returncode=0, stdout="synthetic\n")
+        with patch.object(H.subprocess, "run", return_value=result) as process:
+            self.assertEqual(METADATA_QUERY("docker", "--host", H.ENDPOINT, "info"), "synthetic")
+            kwargs = process.call_args.kwargs
+            self.assertEqual(kwargs["timeout"], 10)
+            self.assertEqual(kwargs["env"], H.preflight_environment())
+            self.assertEqual(kwargs["stderr"], subprocess.PIPE)
+            for result in (Mock(returncode=1, stdout="private-secret"),
+                           Mock(returncode=0, stdout="s" * (H.PREFLIGHT_LIMIT + 1))):
+                process.return_value = result
+                with self.assertRaisesRegex(H.Unsafe, "metadata query refused"):
+                    METADATA_QUERY("docker", "--host", H.ENDPOINT, "info")
+
+    def test_normal_execution_waits_for_every_preflight_check_before_registering(self):
+        with patch.object(sys, "argv", ["lifecycle", "--daemon-visible-scratch", str(self.parent)]), \
+                patch.object(H.Run, "create", side_effect=AssertionError("registration boundary")) as create, \
+                patch.object(sys, "stdout", io.StringIO()), patch.object(sys, "stderr", io.StringIO()) as output:
+            self.assertEqual(H.main(), 1)
+            self.assertIn("run=none stage=registration reason=unknown", output.getvalue())
+            self.assertNotIn("registration boundary", output.getvalue())
+        create.assert_called_once_with(self.root, self.parent)
+        self.assertEqual(self.query.call_args.args, ("docker", "--host", H.ENDPOINT, "buildx", "version"))
+        self.assertFalse(self.store.exists())
+
+    def scope_fixture(self):
+        self.scope.stop()
+        names = [".devcontainer/devcontainer.json", ".devcontainer/Dockerfile",
+                 ".taskfiles/scripts/yq-compatibility.sh", ".taskfiles/scripts/compose-manifest.py",
+                 ".devcontainer/docker-compose.yml", ".devcontainer/config/compose/docker-compose-core-tools.yml",
+                 ".devcontainer/config/compose/docker-compose.ssh-server.yml",
+                 ".devcontainer/config/compose/docker-compose.pi.yml", ".devcontainer/config/compose/docker-compose.gentle-shell.yml"]
+        for name in names:
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, target)
+        for group in ("01-foundation", "02-core-tools", "03-enabled", "04-hooks", "available"):
+            (self.root / ".devcontainer/install" / group).mkdir(parents=True)
+        available = self.root / ".devcontainer/install/available"
+        for name in ("4010-tool-ssh-server.sh", "3030-ai-pi-coding.sh", "3020-ai-gentle-ai.sh"):
+            (available / name).write_text("synthetic public script, never executed")
+            (available.parent / "03-enabled" / name).symlink_to("../available/" + name)
+        (available.parent / "04-hooks/10-project.sh").write_text("synthetic hook, never executed")
+        (self.root / ".maintainer").mkdir()
+        (self.root / ".maintainer/starter-tools.json").write_text('["3030-ai-pi-coding.sh"]')
+        self.fragments = [
+            {"services": {"container-svc": {"image": "${APP_NAME}-img:0.1", "container_name": "${APP_NAME}-run",
+                                          "build": {"context": ".", "dockerfile": "./Dockerfile"}, "env_file": ["../.env"]}}},
+            {"services": {"container-svc": {"volumes": [{"type": "bind", "source": "../.env.d/state", "target": "/state",
+                                                        "bind": {"create_host_path": False}}]}}},
+            {"services": {"container-svc": {"ports": ["${SSH_PORT}:22"], "volumes": [
+                {"type": "bind", "source": "../" + H.SSH_SOURCE, "target": H.SSH_TARGET,
+                 "bind": {"create_host_path": False}}]}}},
+        ]
+
+    def scope_report(self, *flags):
+        fragments = iter(self.fragments[:2] + ([
+            {"services": {"container-svc": {"volumes": [{"type": "bind", "source": "../.env.d/.pi", "target": "/pi",
+                                                        "bind": {"create_host_path": False}}]}}},
+            {"services": {"container-svc": {"volumes": [{"type": "bind", "source": "../.env.d/.gentle-shell", "target": "/gentle-shell",
+                                                        "bind": {"create_host_path": False}}]}}},
+        ] if "--consumer" in flags else self.fragments[2:]))
+        def query(*args, **kwargs):
+            if args[0] == "bash":
+                self.assertNotIn("private-secret", kwargs["payload"])
+                return json.dumps(next(fragments))
+            return self.metadata(*args, **kwargs)
+        with patch.object(H, "metadata_query", side_effect=query):
+            return self.report(*flags)
+
+    def test_selected_build_and_hook_scope_is_read_only_for_each_scenario(self):
+        self.scope_fixture()
+        before = [(str(path), path.lstat().st_mode, os.readlink(path) if path.is_symlink()
+                   else path.read_bytes() if path.is_file() else None) for path in self.base.rglob("*")]
+        for flags, enabled in (([], 1), (["--attachment"], 1), (["--runtime-directories"], 2), (["--consumer"], 1)):
+            with self.subTest(flags=flags):
+                report = self.scope_report(*flags)
+                self.assertEqual(report["readiness"], "ready", report)
+                scope = next(check for check in report["checks"] if check["stage"] == "scope")
+                self.assertEqual(scope["selected_scripts"]["03-enabled"], enabled)
+                self.assertEqual(scope["selected_scripts"]["04-hooks"], 1)
+        after = [(str(path), path.lstat().st_mode, os.readlink(path) if path.is_symlink()
+                  else path.read_bytes() if path.is_file() else None) for path in self.base.rglob("*")]
+        self.assertEqual(before, after)
+
+    def test_unsupported_build_bind_and_file_backed_inputs_fail_before_daemon_query(self):
+        self.scope_fixture()
+        original = copy.deepcopy(self.fragments)
+        changes = [(0, "env_file", ["/private-secret"]), (0, "secrets", ["private-secret"]),
+                   (0, "build", {"context": "/external", "dockerfile": "Dockerfile"}),
+                   (0, "build", {"context": ".", "dockerfile": "../elsewhere"}),
+                   (0, "build", {"context": ".", "ssh": ["default"]}),
+                   (1, "volumes", [{"type": "volume", "source": "external", "target": "/state"}]),
+                   (1, "volumes", [{"type": "bind", "source": "../.env.d/../external", "target": "/state",
+                                    "bind": {"create_host_path": False}}]),
+                   (1, "volumes", [{"type": "bind", "source": "../.env.d/state", "target": "relative",
+                                    "bind": {"create_host_path": False}}]), (1, "volumes", [])]
+        for index, key, value in changes:
+            with self.subTest(key=key, value=value):
+                self.fragments = copy.deepcopy(original)
+                self.fragments[index]["services"]["container-svc"][key] = value
+                report = self.scope_report()
+                self.assertEqual(report["stage"], "scope", report)
+                self.assertEqual(report["readiness"], "not-ready", report)
+                self.assertNotIn("private-secret", json.dumps(report))
+        self.fragments = original
+
+    def test_escaping_hooks_and_noncanonical_public_files_fail_closed(self):
+        self.scope_fixture()
+        hooks = self.root / ".devcontainer/install/04-hooks"
+        (hooks / "escape.sh").symlink_to("/private-secret")
+        self.assertEqual(self.scope_report()["stage"], "scope")
+        for name in (".env", ".git/secret", ".devcontainer/credential.pem"):
+            with self.assertRaises((H.Unsafe, OSError)):
+                H.public_input(self.root, name)
+        (self.root / "link").symlink_to("/private-secret")
+        with self.assertRaises((H.Unsafe, OSError)):
+            H.public_input(self.root, "link")
+
+    def test_unknown_consumer_feature_or_attachment_shape_fails_early(self):
+        self.scope_fixture()
+        path = self.root / ".devcontainer/devcontainer.json"
+        original = path.read_bytes()
+        # These exact replacements preserve JSONC parsing and isolate the gate.
+        for old, new in ((b"docker-in-docker:4", b"docker-in-docker:5"),
+                         (b"bash ${containerWorkspaceFolder}/.devcontainer/setup.sh", b"private-secret")):
+            with self.subTest(new=new):
+                path.write_bytes(original.replace(old, new))
+                report = self.scope_report("--consumer")
+                self.assertEqual(report["stage"], "scope")
+                self.assertNotIn("private-secret", json.dumps(report))
+
+    def test_public_input_read_has_a_size_bound_and_never_reads_excluded_state(self):
+        path = self.root / "public.txt"
+        path.write_text("synthetic")
+        self.assertEqual(H.public_input(self.root, "public.txt"), "synthetic")
+        path.write_bytes(b"s" * (H.PREFLIGHT_LIMIT + 1))
+        with self.assertRaises(H.Unsafe):
+            H.public_input(self.root, "public.txt")
+        excluded = self.root / ".env"
+        excluded.write_text("synthetic private-secret")
+        with patch.object(H.os, "open", side_effect=AssertionError("must not open excluded bytes")):
+            with self.assertRaises(H.Unsafe):
+                H.public_input(self.root, ".env")
 
 
 if __name__ == "__main__":

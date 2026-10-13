@@ -230,7 +230,7 @@ class ResourceTests(unittest.TestCase):
     def test_intent_is_private_outside_scratch_and_bound_to_worktree(self):
         self.assertFalse(self.owner.path.is_relative_to(self.scratch))
         self.assertEqual(self.owner.path.stat().st_mode & 0o777, 0o600)
-        self.assertEqual(self.store.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.store.stat().st_mode & 0o777, 0o755)
         self.assertEqual(R.read_record(self.owner.path, self.root)["run"], self.owner.data["run"])
         with self.assertRaises(R.Unsafe):
             R.read_record(self.owner.path, self.base)
@@ -245,6 +245,87 @@ class ResourceTests(unittest.TestCase):
         with patch.object(Path, "mkdir", mkdir):
             other = R.Run.create(self.root, self.base, self.store, self.docker)
         other.close()
+
+    def test_new_registry_mode_is_independent_of_umask(self):
+        store = self.store.parent / "new-registry"
+        previous = R.os.umask(0o077)
+        try:
+            other = R.Run.create(self.root, self.base, store, self.docker)
+        finally:
+            R.os.umask(previous)
+        self.addCleanup(other.close)
+        self.assertEqual(store.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(other.path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(other.path.with_suffix('.lock').stat().st_mode & 0o777, 0o600)
+        self.assertEqual(Path(other.data['scratch']).stat().st_mode & 0o777, 0o700)
+
+    def test_safe_legacy_registry_modes_are_not_migrated(self):
+        for mode in (0o700, 0o750, 0o755, 0o705):
+            with self.subTest(mode=oct(mode)):
+                self.store.chmod(mode)
+                before = self.store.stat()
+                R.read_record(self.owner.path, self.root)
+                self.assertEqual(self.store.stat(), before)
+                other = R.Run.create(self.root, self.base, self.store, self.docker)
+                other.close()
+                self.assertEqual(self.store.stat().st_mode & 0o777, mode)
+
+    def test_unsafe_registry_blocks_reads_and_publication(self):
+        before = self.owner.path.read_bytes()
+        for mode in (0o775, 0o757, 0o600, 0o500):
+            with self.subTest(mode=oct(mode)):
+                self.store.chmod(mode)
+                with self.assertRaises(R.Unsafe):
+                    R.read_record(self.owner.path, self.root)
+                with self.assertRaises(R.Unsafe):
+                    self.owner.save()
+                self.store.chmod(0o755)
+                self.assertEqual(self.owner.path.read_bytes(), before)
+        self.store.chmod(0o755)
+        with patch.object(R.os, 'getuid', return_value=R.os.getuid() + 1):
+            with self.assertRaises(R.Unsafe):
+                R.registry_directory(self.store)
+
+    def test_registry_symlinks_and_generic_public_atomic_parent_refuse(self):
+        link = self.base / 'registry-link'
+        link.symlink_to(self.store, target_is_directory=True)
+        with self.assertRaises(R.Unsafe):
+            R.registry_directory(link)
+        with self.assertRaises(R.Unsafe):
+            R.atomic(self.store / 'generic.json', {})
+        self.assertFalse((self.store / 'generic.json').exists())
+        private_parent = self.base / 'private-parent'
+        private_parent.mkdir(mode=0o700)
+        R.atomic(private_parent / 'generic.json', {'valid': True})
+        self.assertEqual(json.loads((private_parent / 'generic.json').read_text()), {'valid': True})
+
+    def test_new_registry_checks_owned_descriptor_before_mode_publication(self):
+        store = self.store.parent / 'foreign-registry'
+        original = R.os.fstat
+        def foreign(descriptor):
+            metadata = original(descriptor)
+            return Mock(st_mode=metadata.st_mode, st_uid=R.os.getuid() + 1,
+                        st_dev=metadata.st_dev, st_ino=metadata.st_ino)
+        with patch.object(R.os, 'fstat', side_effect=foreign), patch.object(R.os, 'fchmod') as chmod:
+            with self.assertRaises(R.Unsafe):
+                R.Run.create(self.root, self.base, store, self.docker)
+        chmod.assert_not_called()
+        self.assertEqual(store.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(list(store.iterdir()), [])
+
+    def test_symlinked_registry_parent_is_not_adopted(self):
+        alias = self.base / 'metadata-alias'
+        alias.symlink_to(self.store.parent, target_is_directory=True)
+        with self.assertRaises(R.Unsafe):
+            R.Run.create(self.root, self.base, alias / self.store.name, self.docker)
+
+    def test_public_scratch_refuses_cleanup_before_resource_mutation(self):
+        self.arm()
+        self.docker.add(self.owner)
+        self.scratch.chmod(0o755)
+        self.assertTrue(self.owner.cleanup(apply=True)['failed'])
+        self.assertEqual(self.docker.mutations, [])
+        self.assertTrue(self.scratch.exists())
 
     def test_preview_is_byte_for_byte_read_only(self):
         self.arm()
@@ -612,6 +693,16 @@ class ResourceTests(unittest.TestCase):
                 patch.object(cli, "registry_path", return_value=missing), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main([]), 0)
         self.assertFalse(missing.exists())
+
+    def test_readonly_cli_refuses_dangling_registry_symlink(self):
+        cli = load_script('starter-test-clean')
+        alias = self.base / 'dangling-registry'
+        alias.symlink_to(self.base / 'missing-store')
+        with patch.object(cli, 'command', return_value=str(self.root)), \
+                patch.object(cli, 'registry_path', return_value=alias), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(cli.main([]), 1)
+        self.assertTrue(alias.is_symlink())
+        self.assertFalse(alias.exists())
 
     def test_cli_requires_explicit_selection_and_apply_for_forget(self):
         cli = load_script("starter-test-clean")

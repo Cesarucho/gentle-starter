@@ -351,6 +351,56 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(self.frozen, [raw])
         self.assertEqual(self.docker.daemon.call_count, 2)
 
+    def test_public_failures_have_fixed_stage_codes_and_never_echo_secrets(self):
+        secret = 'Authorization: Bearer synthetic-secret; traceID=private; {"key":"private"}'
+        cases = (("binding", "binding"), ("active_run", "producer"),
+                 ("bake_input", "bakeinput"), ("compose_override", "composeshape"))
+        for operation, stage in cases:
+            with self.subTest(stage=stage), patch.object(G, operation, side_effect=R.Unsafe(secret)), \
+                    patch.object(sys, "argv", ["adapter", *self.args]), \
+                    patch.dict(os.environ, self.environment, clear=True), \
+                    patch.object(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(json.dumps(self.document).encode()))), \
+                    patch.object(sys, "stderr", io.StringIO()) as output:
+                self.assertEqual(G.main(), 1)
+                message = output.getvalue()
+                self.assertIn("stage=" + stage, message)
+                self.assertIn("reason=guard-refused", message)
+                self.assertIn("next_step=inspect-private-evidence", message)
+                self.assertNotIn(secret, message)
+                self.assertNotIn("secret payload", message)
+                self.exec.assert_not_called()
+
+    def test_preexec_and_native_errors_are_sanitized_without_retry(self):
+        for operation, stage in (("recheck", "preexec"),
+                                 ("execvpe", "nativeexecution")):
+            target = G.Inputs if operation == "recheck" else G.os
+            with self.subTest(stage=stage), patch.object(target, operation, side_effect=OSError("private-key")), \
+                    patch.object(sys, "argv", ["adapter", *self.args]), \
+                    patch.dict(os.environ, self.environment, clear=True), \
+                    patch.object(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(json.dumps(self.document).encode()))), \
+                    patch.object(sys, "stderr", io.StringIO()) as output:
+                self.assertEqual(G.main(), 1)
+                self.assertIn("stage=" + stage, output.getvalue())
+                self.assertNotIn("private-key", output.getvalue())
+                if operation == "execvpe":
+                    getattr(target, operation).assert_called_once()
+                    self.assertIn("reason=execution-unavailable", output.getvalue())
+                else:
+                    self.exec.assert_not_called()
+
+    def test_environment_guard_refuses_before_producer_or_stdin(self):
+        stream = Mock()
+        with patch.object(sys, "argv", ["adapter", *self.args]), \
+                patch.dict(os.environ, {**self.environment, "DOCKER_CONTEXT": "private-token"}, clear=True), \
+                patch.object(sys, "stdin", SimpleNamespace(buffer=stream)), \
+                patch.object(sys, "stderr", io.StringIO()) as output:
+            self.assertEqual(G.main(), 1)
+        self.assertIn("stage=environment reason=guard-refused", output.getvalue())
+        self.assertNotIn("private-token", output.getvalue())
+        stream.read.assert_not_called()
+        self.exec.assert_not_called()
+
+
     def test_runtime_compose_inputs_add_only_the_exact_generated_file_grant(self):
         for version in ("5.5.1", "5.6.0"):
             with self.subTest(version=version):
@@ -837,6 +887,51 @@ class AdapterTests(unittest.TestCase):
                 patch.object(sys, "stdin", SimpleNamespace(buffer=Mock())):
             namespace["bootstrap"]()
         self.assertEqual(self.exec.call_args.args[0], "synthetic frozen helper")
+
+    def test_bootstrap_freeze_and_load_failures_are_bounded_before_delegation(self):
+        helper, adapter = self.base / "helper.py", self.base / "adapter.py"
+        secret = "Authorization: synthetic-secret traceID=private"
+        for stage in ("modulefreeze", "moduleload", "environment"):
+            with self.subTest(stage=stage):
+                helper.write_bytes((f'raise RuntimeError({secret!r})\n' if stage == "moduleload"
+                                    else 'raise AssertionError("helper must not execute")\n').encode())
+                adapter.write_bytes(b"raise AssertionError('adapter must not execute')\n")
+                paths = {"helper": helper, "adapter": adapter}
+                inputs = G.Inputs()
+                for path in paths.values():
+                    inputs.read(path)
+                pins = {str(path): value for path, value in inputs.files.items()}
+                if stage == "modulefreeze":
+                    pins[str(adapter)][1] = "0" * 64
+                launcher = G.launcher_bytes(Path(self.environment["HGDR_BINDING"]), paths, pins)
+                environment = dict(self.environment)
+                if stage == "environment":
+                    environment["HGDR_BINDING"] = secret
+                compiled = []
+                original_compile = compile
+                def capture(payload, filename, mode, *args, **kwargs):
+                    if filename in {str(helper), str(adapter)}:
+                        compiled.append(filename)
+                    return original_compile(payload, filename, mode, *args, **kwargs)
+                with patch.dict(os.environ, environment, clear=True), \
+                        patch.object(sys, "stderr", io.StringIO()) as output, \
+                        patch("builtins.compile", side_effect=capture):
+                    with self.assertRaises(SystemExit) as stopped:
+                        exec(compile(launcher, "synthetic-launcher", "exec"), {"__name__": "__main__"})
+                self.assertEqual(stopped.exception.code, 1)
+                self.assertIn("run=none stage=" + stage, output.getvalue())
+                self.assertNotIn(secret, output.getvalue())
+                self.assertEqual(compiled, [str(helper)] if stage == "moduleload" else [])
+                self.exec.assert_not_called()
+
+    def test_unknown_binding_exception_never_fabricates_a_guard_cause(self):
+        with patch.object(G, "binding", side_effect=TypeError("private-key")), \
+                patch.object(sys, "argv", ["adapter"]), \
+                patch.object(sys, "stderr", io.StringIO()) as output:
+            self.assertEqual(G.main(), 1)
+        self.assertIn("run=none stage=binding reason=unknown", output.getvalue())
+        self.assertNotIn("private-key", output.getvalue())
+        self.exec.assert_not_called()
 
     def test_prepare_checks_marker_inode_and_held_lease_before_copy(self):
         marker = self.home.parent / R.MARKER

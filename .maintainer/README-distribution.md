@@ -225,6 +225,33 @@ Always capture current full IDs from the local helper; never reuse these example
 
 ## Explicit base lifecycle proof
 
+### Select the proof boundary
+
+These recipes describe evidence, **not authorization to execute**. Invoke from the
+**CONTAINER producer repository root**; Task simulates HOST operations only in the
+registered scratch candidate. The HOST owns the bind-mounted source checkout and
+the local daemon must see the exact scratch bytes. No host path or remote authority
+is inferred from this topology.
+
+| Proof | Selector | Evidence and deliberate exclusions |
+| --- | --- | --- |
+| Base persistence | default | Build/up/direct ubuntu exec/recreate, managed markers and source preservation; no Task attachment or nested daemon |
+| Task attachment | `--attachment` | Base plus Task/CLI payload identity, running drift and missing-token preservation, stopped/absent strict startup; no SSH login |
+| Runtime/SSH modes | `--runtime-directories` | Synthetic authority and managed SSH root/child/key modes and preservation, no published ports; no real authority repair or remote SSH |
+| Consumer nested DinD | `--consumer` | Filtered fixture release clone/build/up and separate inside-container daemon/hello-world; privileged Features, two state volumes retained |
+| Optional integrations | separately authorized recipes | Pi, SSH authentication/connectivity, audio, GUI and other integrations require their own prerequisites and scoped proof |
+
+Before execution require reviewed build inputs/hooks, installed tools, authorized
+local Docker, a cached probe image and canonical writable scratch parent. Read-only
+preflight is metadata readiness only. Forecast downloads, CPU/build time, disk and
+retained shared cache for the selected row. Set an **external** supervisor soft
+budget and a longer hard deadline allowing finalization; the runtime section below
+provides a concrete warm/cold forecast. A timeout is incomplete proof, not PASS.
+Success removes only verified run-owned resources. Failure/interruption retains
+private evidence; preview one selected run before separately authorized apply.
+Never globally prune, repair authority, retry a failed guard or switch proof modes
+to turn an error into success. See [recovery](#recovering-test-owned-resources).
+
 For an explicit **consumer release/DinD smoke** instead of the reduced base
 scenario, from the **CONTAINER producer repository root**, run
 `task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --consumer`
@@ -299,7 +326,8 @@ and user hooks remain trusted build inputs. Original selections are untouched.
 The candidate clone uses umask `022` for ordinary `0644` files and `0755`
 executables, while the source overlay preserves its existing modes; it does not
 apply umask `077` to the whole clone.
-The separate `.git/starter-test-runs/` inventory stays private at `0700`.
+The separate `.git/starter-test-runs/` registry is created at `0755`; its records
+and leases remain private at `0600`, with scratch directories at `0700`.
 
 Only synthetic environment files and a private empty host HOME are supplied:
 no inherited SSH keys, agent sockets, Pulse endpoints, Docker credentials, or
@@ -317,6 +345,129 @@ symlink targets, branch, HEAD, index, and primary status are checked; excluded s
 environment contents are never hashed. Source preservation is checked on failure
 as well as success. Mock regressions cover failure/interrupt cleanup; a successful
 live cycle does not itself inject every possible operational failure.
+
+### Read-only lifecycle preflight
+
+After authorization to inspect the fixed local daemon, from the **CONTAINER
+producer repository root** (the HOST shares this checkout):
+
+```bash
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --preflight
+# Inspect the separately consented runtime scenario without executing it:
+task --taskfile .maintainer/Taskfile.yml test:starter:lifecycle -- --preflight --runtime-directories --allow-generated-dockerfile-read
+```
+
+`--preflight` uses the existing lifecycle entry and argument forwarding, not a new
+test layer. It shares parsing and checks with normal execution. The latter must
+pass these checks **before `Run.create`**, then still register and pass the existing
+cached-image exact-byte bind probe before candidate creation or build. Task's
+normal candidate preparation and identity exports are unchanged.
+
+Preflight creates no registry, inventory, lock, scratch, private HOME, Docker
+configuration, candidate or probe container. It does not pull/build/start images,
+run hooks, resolve `.env` files, alter process settings, repair permissions or
+change native review mode. It reads public source inputs and filesystem metadata,
+plus narrowly selected local Docker/tool metadata. Every external query has a
+10-second timeout and rejects output larger than 256 KiB. No raw subprocess output,
+exception, daemon ID, image ID, path, environment value or hook name enters its
+public report. Separate operational invocation is authorization to query only
+`unix:///var/run/docker.sock`; inherited Docker hosts, contexts, configurations,
+SSH agents and credentials are not used or discovered. No ambient daemon fallback
+is attempted. Do not run even this read-only recipe without local-daemon authority.
+
+The checks cover available tools; repository root; an existing canonical writable
+scratch parent outside the source and repository metadata; a safe current-user
+registry (including safe legacy modes), or safe planned `0755` creation; selected
+public build/installer/hook inputs; the fixed local socket and daemon metadata;
+cached `ubuntu:24.04`; and exact Compose `5.5.1`/`5.6.0` and Dev Containers `0.89.0`
+metadata. Buildx must answer its version query. The read-consent option additionally
+checks fixed system native plugin discovery and admitted Compose metadata without
+preparing the adapter or changing any of its execution/freeze gates.
+
+Base/attachment exclude Pi and SSH activation; runtime adds only canonical SSH and
+the synthetic port reset. Consumer inspection uses the publisher's current Pi/
+Gentle Shell overrides and `starter-tools.json` selection, retaining the published
+Features and hooks. Unsupported file-backed integrations, external build contexts,
+escaping installer inputs or custom consumer attachment/Feature shapes fail early.
+The report counts selected scripts by install group, including hooks; it does not
+audit their behavior. **Inspect trusted hooks and Dockerfile and forecast costs
+before authorizing execution.** Metadata readiness is not proof of daemon-visible
+bytes, Compose reset behavior, a build, native delegation, cleanup or native review
+approval. Live adapter protocol and ownership checks remain mandatory.
+
+Exit status is `0` for metadata readiness and `1` for rejection. Both return one
+bounded JSON object with this stable schema; no run is registered:
+
+```json
+{
+  "schema": 1,
+  "scenario": "base",
+  "readiness": "ready",
+  "checks": [{"stage": "tools", "reason": "checked"}],
+  "stage": "complete",
+  "reason": "metadata-ready",
+  "next_step": "run-authorized-proof",
+  "run": null
+}
+```
+
+`scenario` is `base`, `consumer`, `attachment`, `runtime-directories`, or `invalid`
+for malformed options. `readiness` is `ready` or `not-ready`. `checks` is the ordered
+list of completed checks plus the failing check on rejection; generic success uses
+`checked`, registry success uses `registry-safe` or `registry-planned-0755`, and
+scope success uses `selected-build-inputs` with a `selected_scripts` group-count
+object. Unknown, duplicate and incompatible selectors are rejected by the shared
+parser. With `--preflight`, malformed options also return JSON without echoing argv.
+Normal malformed invocations retain the existing usage error.
+
+The first failing stage determines a fixed reason and operator next-step code:
+
+| Stage | Reason | `next_step` |
+| --- | --- | --- |
+| `options` | `invalid-options` | `select-supported-options` |
+| `tools` | `tools-unavailable` | `install-required-tools` |
+| `source` | `source-unavailable` | `use-repository-root` |
+| `scratch` | `scratch-unsafe` | `select-writable-scratch-parent` |
+| `registry` | `registry-unsafe` | `inspect-registry-safety` |
+| `scope` | `scope-unsupported` | `review-selected-build-inputs` |
+| `endpoint` | `local-endpoint-unavailable` | `provide-authorized-local-daemon` |
+| `daemon` | `daemon-metadata-unavailable` | `inspect-local-daemon` |
+| `image` | `cached-image-unavailable` | `prepare-cached-probe-image` |
+| `toolchain` | `toolchain-unsupported` | `use-reviewed-toolchain` |
+
+These codes recommend operator investigation; they never grant repair, permission
+changes, an image pull or execution. A ready report uses stage `complete`, reason
+`metadata-ready`, and next step `run-authorized-proof`, which still requires the
+separate execution authorization and forecast described below.
+
+### Sanitized execution diagnostics
+
+Execution and adapter failures use bounded `run`, `stage`, `reason`, `next_step`
+and `evidence` fields. A validated version-4 run UUID is shown when available;
+otherwise `run=none evidence=none`. `evidence=run-inventory:UUID` locates the private
+`UUID.json` record in the source's Git-common-directory `starter-test-runs/`
+registry; its scratch field locates retained logs. No supplied pathname is echoed.
+Preflight retains its existing JSON schema and fixed codes above.
+
+| Boundary | Fixed stage | Reason and next step |
+| --- | --- | --- |
+| Bootstrap environment and frozen modules | `environment`, `modulefreeze`, `moduleload` | `unknown`; `inspect-private-evidence` |
+| Adapter guards | `binding`, `environment`, `producer`, `bakeinput`, `composeshape`, `preexec` | `guard-refused` for an explicit refusal, otherwise `unknown`; `inspect-private-evidence` |
+| Native exec launch | `nativeexecution` | `execution-unavailable` for an OS launch failure, otherwise `unknown`; `inspect-private-evidence` |
+| Lifecycle | `registration`, `registered`, `environment`, `binding`, `probe`, `prepare`, `build`, `up`, `restart`, `recreate`, `verify` | Allowlisted verification check, `interrupted`, or `unknown`; `inspect-private-evidence` |
+| Finalization | `cleanup` | `retention-unverified`, `cleanup-unverified`, `outcome-unpersisted`, `primary-changed`, `primary-unverified`, `lease-unclosed`, or `unknown`; `preview-selected-run` |
+
+The stage identifies the failed boundary, not an inferred provider/root cause.
+Original failure and cleanup failures are reported separately; either prevents
+PASS. Messages never echo argv, environment, headers, trace IDs, input JSON,
+exception strings, keys or log dumps. Snapshot details admit only known bounded
+integer counts; cleanup transport is summarized without provider text or names.
+The native process retains its own stderr and exit contract after exec: the
+harness does not rewrite native transport bytes. Both modules are frozen before
+either executes; guard/recheck order, raw stdin and the single exact generated
+Dockerfile `fs.read` grant are unchanged. Codes propose investigation only, never
+repair, automatic retry, permission broadening or execution authority. Treat
+private retained logs as sensitive and redact before sharing.
 
 ### Synthetic runtime-directory scenario
 
@@ -609,13 +760,19 @@ or assertion fails. Other suites retain their own
 fixture cleanup; arbitrary commands, custom hook resources, unlabelled resources,
 and the real devcontainer are not automatically adopted by this helper.
 
-The private local store is `starter-test-runs/` beneath
+The local registry is `starter-test-runs/` beneath
 `git rev-parse --path-format=absolute --git-common-dir` (normally
 `.git/starter-test-runs/`). It is outside removable scratch, untracked Git metadata,
 and shared by linked worktrees; each record remains bound to its original canonical
 source worktree. No Git configuration or index changes are needed. The store is
-mode `0700`, records/leases are `0600`; imports and default preview do not create or
-repair records. An exclusive lease prevents concurrent recovery of a running test.
+created at `0755` independently of umask `077`. Existing safe modes, including
+`0700` and `0750`, are preserved without migration. Registry validation requires a
+canonical, non-symlink directory owned by the current user, owner read/write/search,
+and no group/other writes; it does not require directory privacy. Records/leases
+remain `0600`, scratch and private children `0700`, and frozen executable snapshots
+`0500`. Imports and default preview do not create or chmod the registry or records.
+An exclusive lease prevents concurrent recovery of a running test. Setup's generic
+normalization excludes Git administration, so it does not migrate an existing store.
 
 Before side effects, the engine records the run UUID, source binding, canonical
 scratch scope, local endpoint and actual daemon ID. It registers the sandbox

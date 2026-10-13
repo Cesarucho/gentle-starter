@@ -17,7 +17,7 @@ def lifecycle_module():
 
 
 class VerifyDiagnosticTests(unittest.TestCase):
-    def test_direct_ignored_files_normalize_but_ignored_directory_contents_do_not(self):
+    def test_direct_ignored_files_and_directory_contents_are_preserved(self):
         module = lifecycle_module()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -40,7 +40,7 @@ class VerifyDiagnosticTests(unittest.TestCase):
                           "files": {name: [mode, "file", name] for name, mode in modes.items()}}
             expected = module.expected_after_setup(root, configured)
             self.assertEqual({name: value[0] for name, value in expected["files"].items()}, {
-                "ignored.txt": 0o644, "ignored.sh": 0o755,
+                "ignored.txt": 0o600, "ignored.sh": 0o600,
                 "ignored/private.txt": 0o600, "ignored/private.sh": 0o700})
             self.assertEqual({name: value[0] for name, value in configured["files"].items()}, modes)
 
@@ -122,6 +122,7 @@ class VerifyDiagnosticTests(unittest.TestCase):
             "stage": lambda self, stage: None, "produce": lambda self, *args: None,
         })()
         lifecycle.task = lambda action: None
+        lifecycle.assert_locale = lambda container: None  # No real environment reads in this diagnostic fixture.
         lifecycle.container = iter(("first", "second")).__next__
         secret = "private-token-123"
         lifecycle.assert_state = lambda container, write=False: (

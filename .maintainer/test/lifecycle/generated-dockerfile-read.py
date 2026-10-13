@@ -18,6 +18,7 @@ from test_resources import Docker, ENDPOINT, LABEL, Run, Unsafe, private, proces
 
 LIMIT = 262144
 COMPOSE_VERSIONS = ("5.5.1", "5.6.0")
+CLI_VERSION = "0.89.0"
 NATIVE_DIRECTORIES = ("/usr/libexec/docker/cli-plugins", "/usr/lib/docker/cli-plugins")
 NATIVE_LIMIT = 134217728
 METADATA_DIRECTORY = Path("/tmp")
@@ -29,6 +30,26 @@ SUFFIX = (b'\n\nFROM $_DEV_CONTAINERS_BASE_IMAGE AS dev_containers_target_stage\
           b'\\"mounts\\":[\\"source=\\${localWorkspaceFolder},target=/home/ubuntu/\\${localEnv:APP_NAME},type=bind\\"],'
           b'\\"remoteUser\\":\\"ubuntu\\",\\"overrideCommand\\":true} \\\n'
           b']"\n')
+
+
+class Refusal(Unsafe):
+    """Public fields describe the failed gate, never an exception's payload."""
+
+    def __init__(self, stage, run, reason):
+        self.stage, self.run, self.reason = stage, run, reason
+        super().__init__(diagnostic(stage, run, reason))
+
+
+def diagnostic(stage, run=None, reason="unknown"):
+    stages = {"environment", "modulefreeze", "moduleload", "binding", "producer",
+              "bakeinput", "composeshape", "preexec", "nativeexecution"}
+    stage = stage if isinstance(stage, str) and stage in stages else "unknown"
+    reason = reason if isinstance(reason, str) and reason in {"guard-refused", "unknown", "execution-unavailable"} else "unknown"
+    token = run if isinstance(run, str) and re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", run) else "none"
+    evidence = "run-inventory:" + token if token != "none" else "none"
+    return (f"run={token} stage={stage} reason={reason} "
+            f"next_step=inspect-private-evidence evidence={evidence}")
 
 
 def require(condition, reason):
@@ -289,6 +310,7 @@ import hashlib, json, os, stat, sys, types
 from pathlib import Path
 sys.dont_write_bytecode = True
 STARTUP = json.loads(__STARTUP__)
+STAGE = "environment"
 
 def check(condition):
     if not condition:
@@ -341,11 +363,14 @@ def verified(path, pin):
             os.close(fd)
 
 def bootstrap():
+    global STAGE
     environment = dict(os.environ)
     check(environment.get("HGDR_BINDING", STARTUP["binding"]) == STARTUP["binding"])
     environment["HGDR_BINDING"] = STARTUP["binding"]
     # Freeze BOTH modules before executing either; never reread their pathnames.
+    STAGE = "modulefreeze"
     payloads = {name: verified(item[0], item[1]) for name, item in STARTUP["modules"].items()}
+    STAGE = "moduleload"
     previous = sys.modules.get("test_resources")
     try:
         modules = {}
@@ -357,7 +382,11 @@ def bootstrap():
             exec(compile(payloads[name], module.__file__, "exec"), module.__dict__)
             modules[name] = module
         adapter = modules["generated_read"]
-        adapter.delegate(sys.argv[1:], environment, sys.stdin.buffer)
+        try:
+            adapter.delegate(sys.argv[1:], environment, sys.stdin.buffer)
+        except adapter.Refusal as error:
+            print(adapter.diagnostic(error.stage, error.run, error.reason), file=sys.stderr)
+            raise SystemExit(1) from None
     finally:
         if previous is None:
             sys.modules.pop("test_resources", None)
@@ -368,7 +397,8 @@ if __name__ == "__main__":
     try:
         bootstrap()
     except Exception:
-        print("Private Buildx bootstrap refused unverifiable input", file=sys.stderr)
+        print("run=none stage=" + STAGE + " reason=unknown "
+              "next_step=inspect-private-evidence evidence=none", file=sys.stderr)
         sys.exit(1)
 '''
 
@@ -644,7 +674,7 @@ def producer_started_ns(anchor):
 def generated_directory(generated):
     root = generated_root()
     require(generated.is_absolute() and generated.parent.parent == root / "container-features"
-            and re.fullmatch(r"0\.89\.0-[0-9]+", generated.parent.name)
+            and re.fullmatch(re.escape(CLI_VERSION) + r"-[0-9]+", generated.parent.name)
             and generated.name == "Dockerfile-with-features", "foreign generated directory")
     for directory in (root, root / "container-features", generated.parent):
         metadata = directory.lstat()
@@ -705,24 +735,44 @@ def bake_input(inputs, data, payload, args):
 
 
 def delegate(argv, environment, stream):
+    state = {"stage": "binding", "run": None}
+    try:
+        _delegate(argv, environment, stream, state)
+    except Exception as error:
+        reason = ("guard-refused" if isinstance(error, Unsafe) else
+                  "execution-unavailable" if state["stage"] == "nativeexecution" and isinstance(error, OSError)
+                  else "unknown")
+        raise Refusal(state["stage"], state["run"], reason) from None
+
+
+def _delegate(argv, environment, stream, state):
     inputs = Inputs()
     value = binding(inputs, environment)
+    state["run"] = Path(value["record"]).stem  # Binding already verified the owned inventory.
     native = value["native"]["buildx"]
     args = argv[1:] if argv[:1] == ["buildx"] else argv
     if args[:1] != ["bake"]:
+        state["stage"] = "preexec"
         inputs.recheck()
+        state["stage"] = "nativeexecution"
         os.execvpe(native, [native, *argv], environment)
         return
+    state["stage"] = "environment"
     require(bool(environment.get("DOCKER_CLI_PLUGIN_ORIGINAL_CLI_COMMAND")) == (argv[:1] == ["buildx"]),
             "unsupported Buildx standalone/plugin prefix")
     require(environment.get("DOCKER_CONTEXT") in (None, "", "default")
             and not any(environment.get(key) for key in ("DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH")),
             "unsupported native endpoint override")
+    state["stage"] = "producer"
     data = active_run(inputs, value, environment)
+    state["run"] = data["run"]
     chain = ancestry(data)
+    state["stage"] = "bakeinput"
     payload = stream.read(LIMIT + 1)
     generated = bake_input(inputs, data, payload, args)
+    state["stage"] = "composeshape"
     parent_argv = compose_override(inputs, value, data, generated)
+    state["stage"] = "preexec"
     # TemporaryFile is an unlinked local descriptor; no native stdin/path reread.
     with tempfile.TemporaryFile() as frozen:
         frozen.write(payload)
@@ -735,14 +785,15 @@ def delegate(argv, environment, stream):
                 "producer or inventory changed immediately before exec")
         bake_argv(inputs, data, args)  # The native metadata output must still be absent.
         os.dup2(frozen.fileno(), 0)
+        state["stage"] = "nativeexecution"
         os.execvpe(native, [native, *argv, "--allow", "fs.read=" + str(generated)], environment)
 
 
 def main():
     try:
         delegate(sys.argv[1:], dict(os.environ), sys.stdin.buffer)
-    except (Unsafe, OSError, ValueError, TypeError, KeyError, UnicodeError) as error:
-        print("Generated Dockerfile adapter refused: " + (str(error) if isinstance(error, Unsafe) else "unverifiable input"), file=sys.stderr)
+    except Refusal as error:
+        print(diagnostic(error.stage, error.run, error.reason), file=sys.stderr)
         return 1
     return 0
 

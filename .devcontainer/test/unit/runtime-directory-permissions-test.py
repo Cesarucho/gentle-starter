@@ -8,6 +8,7 @@ from pathlib import Path
 import stat
 import subprocess
 import shutil
+import shlex
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -742,6 +743,8 @@ git() {
     printf '100644 hash 0\\tordinary.sh\\0'
     printf '100755 hash 0\\t.env.d/.gentle-ai/tracked.sh\\0'
     printf '100755 hash 0\\tabsent[tree]/tracked.sh\\0'
+  elif [[ "$*" == *--git-dir* || "$*" == *--git-common-dir* ]]; then
+    printf '%s\n' "$WORKSPACE_DIR/.git"
   else
     mkdir -p "$WORKSPACE_DIR/absent[tree]"
     printf preserved > "$WORKSPACE_DIR/absent[tree]/tracked.sh"
@@ -771,6 +774,141 @@ export -f git sudo chown
         self.assertIn('preflight failed', result.stderr)
         self.assertEqual(self.mode(ordinary), 0o600)
 
+
+
+class NormalizationTests(unittest.TestCase):
+    """Run only generic normalization in owned fixtures, with no privilege escalation."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / 'workspace'
+        self.root.mkdir()
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        scripts = self.root / '.devcontainer/lifecycle'
+        scripts.mkdir(parents=True)
+        shutil.copyfile(REPO / '.devcontainer/lifecycle/restore-tracked-modes.sh',
+                        scripts / 'restore-tracked-modes.sh')
+        (self.root / '.gitignore').write_text('.env\nignored.sh\nliteral*\nignored/\nlink\ntracked-ignored.sh\n')
+        for name in ('.env', 'ignored.sh', 'literal[*?]\\name\n.sh', 'ignored/private.sh'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'synthetic unchanged bytes')
+            path.chmod(0o600)
+        (self.root / 'ignored').chmod(0o711)
+        self.external = Path(self.temp.name) / 'external'
+        self.external.mkdir(mode=0o700)
+        (self.external / 'payload').write_bytes(b'synthetic target')
+        (self.root / 'link').symlink_to(self.external, target_is_directory=True)
+        for name in ('ordinary.sh', 'executable.txt', 'tracked-ignored.sh'):
+            (self.root / name).write_bytes(b'public')
+            (self.root / name).chmod(0o600)
+        self.source = (REPO / '.devcontainer/setup.sh').read_text()
+        self.bin = Path(self.temp.name) / 'bin'
+        self.bin.mkdir()
+        chown = self.bin / 'chown'
+        chown.write_text('#!/bin/bash\n'
+                         '# Simulate a foreign-owned ignored entry that cannot be repaired.\n'
+                         'for path in "$@"; do\n'
+                         '  [[ "$path" != "$WORKSPACE_DIR/.env" ]] || exit 17\n'
+                         'done\n'
+                         'printf "%s\\0" "$@" >> "$WORKSPACE_DIR/chown-calls"\n')
+        chown.chmod(0o755)
+
+    def run_normalization(self, failure='', gitfile=False, git_dirs=None):
+        function = self.source[self.source.index('build_gitignore_prune_args()'):
+                               self.source.index('# Preflight and collect protected subtrees')]
+        passes = self.source[self.source.index('gitignore_prune_args=()'):
+                             self.source.index('# Copy the file tree')]
+        preamble = '''set -euo pipefail
+WORKSPACE_DIR="$1"
+SCRIPT_DIR="$1/.devcontainer"
+runtime_exclusions=("$WORKSPACE_DIR/missing-policy-root")
+sudo() { command "$@"; }
+git() {
+  case "$*" in
+    *--stage*) printf '100644 hash 0\\tordinary.sh\\0';
+               printf '100755 hash 0\\texecutable.txt\\0';
+               printf '100644 hash 0\\ttracked-ignored.sh\\0' ;;
+    *--git-common-dir*)
+      if [[ "$FAILURE" == resolution ]]; then return 17; fi
+      printf '%s\\n' "$COMMON" ;;
+    *--git-dir*)
+      if [[ "$FAILURE" == resolution ]]; then return 17; fi
+      printf '%s\\n' "$METADATA" ;;
+    *--ignored*)
+      if [[ "$FAILURE" == enumeration ]]; then return 17; fi
+      if [[ "$GITFILE" == yes ]]; then printf '.env\\0'; return 0; fi
+      # Synthetic index supplies tracked-ignored.sh without staging any file.
+      command git "$@" -- ':!:tracked-ignored.sh' ;;
+    *) return 99 ;;
+  esac
+}
+export -f sudo git
+export WORKSPACE_DIR
+'''
+        metadata = self.external if gitfile else self.root / '.git'
+        metadata, common = git_dirs or (metadata, metadata)
+        preamble += 'FAILURE=' + shlex.quote(failure) + '\n'
+        preamble += 'METADATA=' + shlex.quote(str(metadata)) + '\n'
+        preamble += 'COMMON=' + shlex.quote(str(common)) + '\n'
+        preamble += 'GITFILE=' + ('yes' if gitfile else 'no') + '\n'
+        preamble += 'export PATH=' + shlex.quote(str(self.bin)) + ':"$PATH"\n'
+        return subprocess.run(['bash', '-c', preamble + function + passes, '_', str(self.root)],
+                              capture_output=True, text=True)
+
+    def test_ignored_literals_and_git_metadata_preserve_modes_bytes_and_owners(self):
+        protected = [self.root / name for name in
+                     ('.env', 'ignored.sh', 'literal[*?]\\name\n.sh', 'ignored',
+                      'ignored/private.sh', 'link', '.git', '.git/config')]
+        before = {path: (path.lstat(), None if path.is_dir() or path.is_symlink() else path.read_bytes())
+                  for path in protected}
+        result = self.run_normalization()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for path, (metadata, contents) in before.items():
+            after = path.lstat()
+            self.assertEqual((after.st_mode, after.st_uid, after.st_gid),
+                             (metadata.st_mode, metadata.st_uid, metadata.st_gid))
+            if contents is not None:
+                self.assertEqual(path.read_bytes(), contents)
+        calls = (self.root / 'chown-calls').read_bytes().split(b'\0')
+        self.assertTrue(all(os.fsencode(path) not in calls for path in protected))
+        for name, mode in (('ordinary.sh', 0o644), ('executable.txt', 0o755), ('tracked-ignored.sh', 0o644)):
+            self.assertEqual(stat.S_IMODE((self.root / name).stat().st_mode), mode)
+
+    def test_git_failures_block_every_normalization_pass(self):
+        for failure in ('resolution', 'enumeration'):
+            with self.subTest(failure=failure):
+                result = self.run_normalization(failure)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((self.root / 'chown-calls').exists())
+                self.assertEqual(stat.S_IMODE((self.root / 'ordinary.sh').stat().st_mode), 0o600)
+
+    def test_gitfile_and_external_metadata_are_not_normalized(self):
+        shutil.rmtree(self.root / '.git')
+        (self.root / '.git').write_text('gitdir: ' + str(self.external) + '\n')
+        (self.root / '.git').chmod(0o600)
+        before = self.external.stat(), (self.external / 'payload').stat()
+        # Mock enumeration: the external tree is not a Git repository.
+        result = self.run_normalization(gitfile=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(stat.S_IMODE((self.root / '.git').stat().st_mode), 0o600)
+        self.assertEqual((self.external.stat(), (self.external / 'payload').stat()), before)
+
+    def test_contained_git_directory_and_common_directory_are_both_pruned(self):
+        directories = [self.root / name for name in ('admin/worktree', 'admin/common')]
+        for directory in directories:
+            directory.mkdir(parents=True, mode=0o700)
+            (directory / 'private.sh').write_bytes(b'synthetic metadata')
+            (directory / 'private.sh').chmod(0o600)
+        result = self.run_normalization(git_dirs=directories)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = (self.root / 'chown-calls').read_bytes().split(b'\0')
+        for directory in directories:
+            self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE((directory / 'private.sh').stat().st_mode), 0o600)
+            self.assertNotIn(os.fsencode(directory), calls)
+            self.assertNotIn(os.fsencode(directory / 'private.sh'), calls)
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import uuid
 
-from test_resources import Run, Unsafe, command, private, registry_path
+from test_resources import Run, Unsafe, command, registry_directory, registry_path
 
 
 def main(argv=None):
@@ -20,10 +20,10 @@ def main(argv=None):
     try:
         root = Path(command("git", "rev-parse", "--show-toplevel")).resolve()
         store = registry_path(root)
-        if not store.exists():
+        if not store.exists() and not store.is_symlink():
             print("No registered test runs. No changes made.")
             return 0
-        private(store, directory=True)
+        registry_directory(store)
         if args.run:
             if str(uuid.UUID(args.run)) != args.run:
                 raise Unsafe("invalid run UUID")

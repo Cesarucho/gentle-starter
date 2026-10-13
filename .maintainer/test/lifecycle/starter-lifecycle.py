@@ -7,6 +7,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import signal
@@ -17,7 +18,7 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from test_resources import LABEL, Run, Unsafe
+from test_resources import ENDPOINT, LABEL, Run, Unsafe, registry_directory
 
 VERIFY_CHECKS = frozenset({"container-replaced", "managed-state", "candidate-unchanged", "locale-timezone", "runtime-directories"})
 TEST_LOCALE = "en_GB.UTF-8"
@@ -30,11 +31,36 @@ PORT_RESET = "services:\n  container-svc:\n    ports: !reset []\n"
 
 def failure_message(lifecycle):
     check = getattr(lifecycle, "verify_check", None)
+    check = check if isinstance(check, str) and check in VERIFY_CHECKS else None
     detail = f"; verify check: {check}" if check in VERIFY_CHECKS else ""
     if check == "candidate-unchanged" and hasattr(lifecycle, "snapshot_diagnostic"):
         detail += "; snapshot difference: " + ", ".join(
-            f"{key}={value}" for key, value in lifecycle.snapshot_diagnostic.items())
-    return "Sandbox failed" + detail + "; stage/exit are retained in the run inventory; private output withheld"
+            f"{key}={value}" for key, value in lifecycle.snapshot_diagnostic.items()
+            if key in {"added", "removed", "mode", "kind", "hash-or-link", "identity"}
+            and type(value) is int and 0 <= value <= 1000000)
+    owner = getattr(lifecycle, "ownership", None)
+    data = getattr(owner, "data", {})
+    stage = getattr(lifecycle, "diagnostic_stage", None)
+    if not isinstance(stage, str):
+        stage = data.get("stage") if isinstance(data, dict) else None
+    return lifecycle_diagnostic(owner, stage, check if check in VERIFY_CHECKS else "unknown") + detail
+
+
+def lifecycle_diagnostic(owner, stage, reason="unknown"):
+    """Reuse preflight's fixed code vocabulary; inventory paths are never echoed."""
+    stages = {"registration", "registered", "environment", "binding", "prepare", "probe",
+              "build", "up", "restart", "recreate", "verify", "cleanup"}
+    reasons = VERIFY_CHECKS | {"unknown", "interrupted", "retention-unverified", "cleanup-unverified",
+                              "outcome-unpersisted", "primary-changed", "primary-unverified", "lease-unclosed"}
+    stage = stage if isinstance(stage, str) and stage in stages else "unknown"
+    reason = reason if isinstance(reason, str) and reason in reasons else "unknown"
+    data = getattr(owner, "data", {})
+    run = data.get("run") if isinstance(data, dict) else None
+    token = run if isinstance(run, str) and re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", run) else "none"
+    evidence = "run-inventory:" + token if token != "none" else "none"
+    next_step = "preview-selected-run" if stage == "cleanup" else "inspect-private-evidence"
+    return f"run={token} stage={stage} reason={reason} next_step={next_step} evidence={evidence}"
 
 
 def snapshot_difference(before, after):
@@ -118,6 +144,7 @@ def expected_after_setup(root, configured):
     ignored = run("git", "ls-files", "--others", "--ignored", "--exclude-standard",
                   "--directory", "-z", cwd=root).split("\0")
     ignored_dirs = tuple(path.rstrip("/") + "/" for path in ignored if path.endswith("/"))
+    ignored_entries = {path.rstrip("/") for path in ignored if path}
     tracked = {}
     for entry in configured["index"].split("\0"):
         if entry:
@@ -125,7 +152,7 @@ def expected_after_setup(root, configured):
             tracked[path] = mode.split(" ", 1)[0]
     files = {}
     for name, value in configured["files"].items():
-        if value is None or value[1] != "file" or name.startswith(ignored_dirs):
+        if value is None or value[1] != "file" or name in ignored_entries or name.startswith(ignored_dirs):
             files[name] = value
             continue
         mode = {"100644": 0o644, "100755": 0o755}.get(tracked.get(name, ""))
@@ -237,13 +264,16 @@ class Lifecycle:
         """Opt-in guard only; never require an active producer or current desired core."""
         if not getattr(self, "allow_generated_dockerfile_read", False):
             return
+        self.diagnostic_stage = "binding"
         adapter = getattr(self, "_generated_read_adapter", None)
         if adapter is None:
             raise Unsafe("Private plugin selection has not been prepared")
         adapter.validate_selection(self.env)
 
     def task(self, action):
+        self.verify_check = None
         self.validate_private_selection()
+        self.diagnostic_stage = action
         self.ownership.produce(["task", f"container:{action}"], self.candidate,
                                {**self.env, "FORCE_HOST_CONTEXT": "1"}, action)
 
@@ -349,8 +379,11 @@ class Lifecycle:
             raise RuntimeError("Container timezone link differs from candidate fixture")
 
     def execute(self):
+        self.diagnostic_stage = "registration"
         self.ownership.arm()
+        self.diagnostic_stage = "probe"
         self.ownership.probe_bind()
+        self.diagnostic_stage = "prepare"
         self.ownership.stage("prepare")
         self.ownership.produce(["bash", str(HERE / "create-candidate.sh"), str(self.root), str(self.candidate)],
                                self.root, self.env, "prepare")
@@ -386,6 +419,7 @@ class Lifecycle:
             self.assert_runtime_seed()
         self.task("up")
         first = self.container()
+        self.diagnostic_stage = "verify"
         if runtime_directories:
             self.verify_check = "runtime-directories"
             self.assert_runtime_directories(first, first=True)
@@ -395,6 +429,7 @@ class Lifecycle:
         self.task("recreate")
         second = self.container()
         self.ownership.stage("verify")
+        self.diagnostic_stage = "verify"
         self.verify_check = "container-replaced"
         if first == second:
             raise RuntimeError("Recreate did not replace the service container")
@@ -607,8 +642,10 @@ class Lifecycle:
     def cleanup(self):
         result = self.ownership.cleanup(apply=True)
         errors = list(result["failed"])
-        for message in result["removed"] + result["retained"]:
-            print(f"[starter-lifecycle:cleanup] {message}")
+        # Shared-engine transport can contain paths or provider exceptions. Keep
+        # only bounded counts public; private inventory is the recovery evidence.
+        print("[starter-lifecycle:cleanup] " + lifecycle_diagnostic(self.ownership, "cleanup") +
+              f" removed_count={len(result['removed'])} retained_count={len(result['retained'])}")
         features = result.get("feature_volumes", set())
         expected_retention = ["shared build cache (no dedicated builder)"] + [
             "feature state volume " + name for name in sorted(features)]
@@ -620,10 +657,10 @@ class Lifecycle:
             errors.append("base cleanup retained unexpected resources; inspect the recovery preview")
         try:
             if snapshot(self.root) != self.before or run("git", "status", "--porcelain=v1", "--untracked-files=all", cwd=self.root) != self.source_status:
-                errors.append("primary branch, HEAD, index, public files, modes, links, or status changed")
+                errors.append("primary-changed")
                 self.ownership.finish("failed")
         except (OSError, ValueError, Unsafe, subprocess.CalledProcessError):
-            errors.append("could not verify primary preservation")
+            errors.append("primary-unverified")
         return errors
 
     def retain(self):
@@ -777,8 +814,11 @@ class ConsumerLifecycle(Lifecycle):
         self.docker(*nested, "run", "--rm", "hello-world")
 
     def execute(self):
+        self.diagnostic_stage = "registration"
         self.ownership.arm()
+        self.diagnostic_stage = "probe"
         self.ownership.probe_bind()
+        self.diagnostic_stage = "prepare"
         source = self.scratch / "fixture-source"
         self.ownership.produce(["bash", str(HERE / "create-candidate.sh"), str(self.root), str(source)],
                                self.root, self.env, "prepare")
@@ -832,115 +872,416 @@ class ConsumerLifecycle(Lifecycle):
         self.task("up")
         container = self.container()
         self.ownership.stage("verify")
+        self.diagnostic_stage = "verify"
         self.assert_nested_docker(container)
         if snapshot(self.candidate) != configured:
             raise RuntimeError("Consumer clone public files changed during startup")
 
-def main():
-    consumer = "--consumer" in sys.argv[1:]
-    attachment = "--attachment" in sys.argv[1:]
-    generated_read = "--allow-generated-dockerfile-read" in sys.argv[1:]
-    runtime_directories = "--runtime-directories" in sys.argv[1:]
+
+def parse_options(argv):
+    """One selector contract for inspection and execution; no I/O."""
+    consumer = "--consumer" in argv
+    attachment = "--attachment" in argv
+    generated_read = "--allow-generated-dockerfile-read" in argv
+    runtime_directories = "--runtime-directories" in argv
     if runtime_directories and (consumer or attachment):
         raise SystemExit("Runtime directories forbids consumer and attachment")
     if consumer and attachment:
         raise SystemExit("Select consumer or attachment, not both")
     if generated_read and (consumer or not (attachment or runtime_directories)):
         raise SystemExit("Generated Dockerfile read requires --attachment or --runtime-directories and forbids --consumer")
-    selectors = {"--consumer", "--attachment", "--allow-generated-dockerfile-read", "--runtime-directories"}
-    if any(sys.argv[1:].count(flag) > 1 for flag in selectors):
+    selectors = {"--consumer", "--attachment", "--allow-generated-dockerfile-read", "--runtime-directories", "--preflight"}
+    if any(argv.count(flag) > 1 for flag in selectors):
         raise SystemExit("Duplicate lifecycle selector")
-    args = [arg for arg in sys.argv[1:] if arg not in selectors]
+    args = [arg for arg in argv if arg not in selectors]
     if not args:
         parent = Path("/home/ubuntu")
     elif len(args) == 2 and args[0] == "--daemon-visible-scratch":
         parent = Path(args[1])
     else:
-        raise SystemExit("Usage: task test:starter:lifecycle [-- --consumer | --attachment | --runtime-directories] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
+        raise SystemExit("Usage: task test:starter:lifecycle [-- --preflight] [--consumer | --attachment | --runtime-directories] [--daemon-visible-scratch ABSOLUTE_PARENT]\n"
                          "[--allow-generated-dockerfile-read only with --attachment or --runtime-directories]\n"
                          "Explicit expensive build/start/recreate; the local Docker daemon must pass an exact-byte bind probe first.")
-    root = Path(run("git", "rev-parse", "--show-toplevel")).resolve()
-    if Path.cwd() != root or not parent.is_absolute() or not parent.is_dir() or parent.resolve() != parent or parent == root or parent.is_relative_to(root):
-        raise SystemExit("Run from repository root with an existing plain scratch parent outside the repository")
-    commands = ("docker", "devcontainer", "task", "git", "rsync", "yq") + (("timeout",) if attachment else ())
-    for command in commands:
-        if not shutil.which(command):
-            raise SystemExit(f"Required command unavailable: {command}")
+    return {"consumer": consumer, "attachment": attachment, "generated_read": generated_read,
+            "runtime_directories": runtime_directories, "preflight": "--preflight" in argv,
+            "parent": parent, "scenario": "consumer" if consumer else "runtime-directories" if runtime_directories
+            else "attachment" if attachment else "base"}
+
+
+PREFLIGHT_LIMIT = 262144
+PREFLIGHT_TIMEOUT = 10
+# A nonexistent Linux fd name prevents config/session discovery without creating HOME.
+PREFLIGHT_HOME = "/proc/self/fd/-1"
+PREFLIGHT_STEPS = {
+    "options": ("invalid-options", "select-supported-options"),
+    "tools": ("tools-unavailable", "install-required-tools"),
+    "source": ("source-unavailable", "use-repository-root"),
+    "scratch": ("scratch-unsafe", "select-writable-scratch-parent"),
+    "registry": ("registry-unsafe", "inspect-registry-safety"),
+    "scope": ("scope-unsupported", "review-selected-build-inputs"),
+    "endpoint": ("local-endpoint-unavailable", "provide-authorized-local-daemon"),
+    "daemon": ("daemon-metadata-unavailable", "inspect-local-daemon"),
+    "image": ("cached-image-unavailable", "prepare-cached-probe-image"),
+    "toolchain": ("toolchain-unsupported", "use-reviewed-toolchain"),
+}
+
+
+def preflight_report(scenario="invalid"):
+    return {"schema": 1, "scenario": scenario, "readiness": "not-ready", "checks": [],
+            "stage": "options", "reason": "invalid-options", "next_step": "select-supported-options", "run": None}
+
+
+def preflight_environment():
+    return {"PATH": os.environ.get("PATH", ""), "HOME": PREFLIGHT_HOME, "LANG": "C.UTF-8",
+            "DOCKER_CONFIG": PREFLIGHT_HOME, "DOCKER_HOST": ENDPOINT,
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_OPTIONAL_LOCKS": "0",
+            "PYTHONDONTWRITEBYTECODE": "1"}
+
+
+def metadata_query(*args, cwd=None, payload=None):
+    """Read-only callers only; timeout and output never escape as public exceptions."""
+    result = subprocess.run(args, cwd=cwd, env=preflight_environment(), input=payload,
+                            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            timeout=PREFLIGHT_TIMEOUT, check=False)
+    if result.returncode or len(result.stdout) > PREFLIGHT_LIMIT:
+        raise Unsafe("metadata query refused")
+    return result.stdout.strip()
+
+
+def public_input(root, name):
+    path = root / name
+    metadata = path.lstat()
+    if (not public_path(name) or path.resolve() != path or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_size > PREFLIGHT_LIMIT):
+        raise Unsafe("unsupported public input")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino)):
+            raise Unsafe("public input replaced")
+        payload = stream.read(PREFLIGHT_LIMIT + 1)
+        final = os.fstat(stream.fileno())
+        if (len(payload) > PREFLIGHT_LIMIT or (final.st_size, final.st_mtime_ns, final.st_ctime_ns)
+                != (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)):
+            raise Unsafe("public input changed or exceeds bound")
+    return payload.decode()
+
+
+def local_endpoint():
+    return stat.S_ISSOCK(Path(ENDPOINT.removeprefix("unix://")).lstat().st_mode)
+
+
+def scope_preflight(root, options):
+    """Inspect the future reduced selection, never resolve environment or create it."""
+    config = public_input(root, ".devcontainer/devcontainer.json")
+    config = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*[\s\S]*?\*/',
+                    lambda match: match[0] if match[0].startswith('"') else " ", config)
+    config = re.sub(r'("(?:\\.|[^"\\])*")|,\s*(?=[}\]])', lambda match: match[1] or "", config)
+    config = json.loads(config)
+    files = config.get("dockerComposeFile")
+    files = [files] if isinstance(files, str) else files
+    if (config.get("service") != "container-svc" or not isinstance(files, list) or not files
+            or files[0] not in {"docker-compose.yml", "./docker-compose.yml"}):
+        raise Unsafe("unsupported base selection")
+    helper = root / ".taskfiles/scripts/yq-compatibility.sh"
+    public_input(root, str(helper.relative_to(root)))
+
+    def fragment(name):
+        payload = public_input(root, ".devcontainer/" + name)
+        return json.loads(metadata_query("bash", "-c", 'source "$1"; yq_compatibility_json . /dev/stdin',
+                                        "preflight-input", str(helper), payload=payload))
+
+    base = fragment("docker-compose.yml")
+    core = fragment("config/compose/docker-compose-core-tools.yml")
+    if (set(base) != {"services"} or set(base["services"]) != {"container-svc"}
+            or set(core) != {"services"} or set(core["services"]) != {"container-svc"}
+            or set(core["services"]["container-svc"]) - {"volumes", "ports"}):
+        raise Unsafe("unsupported base resources")
+    selections = [base["services"]["container-svc"], core["services"]["container-svc"]]
+    consumer_tools = None
+    if options["consumer"]:
+        # The current publisher normalizes these exact overrides and tool aliases;
+        # it preserves Features, hooks, Dockerfile and attachment configuration.
+        if (config.get("features") != {"ghcr.io/devcontainers/features/docker-in-docker:4": {},
+                                      "ghcr.io/devcontainers/features/github-cli:1": {}}
+                or config.get("runArgs") != ["--privileged"]
+                or config.get("postCreateCommand") != "bash ${containerWorkspaceFolder}/.devcontainer/setup.sh"
+                or config.get("mounts") != ["source=${localWorkspaceFolder},target=/home/ubuntu/${localEnv:APP_NAME},type=bind"]):
+            raise Unsafe("unsupported consumer configuration")
+        for name in ("config/compose/docker-compose.pi.yml", "config/compose/docker-compose.gentle-shell.yml"):
+            override = fragment(name)
+            if (set(override) != {"services"} or set(override["services"]) != {"container-svc"}
+                    or set(override["services"]["container-svc"]) != {"volumes"}):
+                raise Unsafe("unsupported consumer override")
+            selections.append(override["services"]["container-svc"])
+        consumer_tools = json.loads(public_input(root, ".maintainer/starter-tools.json"))
+        if (not isinstance(consumer_tools, list) or len(consumer_tools) > 256
+                or not all(isinstance(name, str) and re.fullmatch(r"[0-9]{4}-[a-z0-9-]+\.sh", name) for name in consumer_tools)
+                or len(consumer_tools) != len(set(consumer_tools))):
+            raise Unsafe("unsupported consumer tool selection")
+    service = base["services"]["container-svc"]
+    build = service.get("build", {})
+    if (service.get("env_file") != ["../.env"]
+            or set(service) & {"extends", "secrets", "configs", "devices", "volumes_from", "network_mode", "depends_on"}
+            or build.get("context") != "." or build.get("dockerfile", "Dockerfile") not in {"Dockerfile", "./Dockerfile"}
+            or set(build) - {"context", "dockerfile", "args", "target"}
+            or service.get("container_name") != "${APP_NAME}-run" or service.get("image") != "${APP_NAME}-img:0.1"):
+        raise Unsafe("unsupported base build")
+    volumes = []
+    for selected in selections:
+        for volume in selected.get("volumes", []):
+            if (not isinstance(volume, dict) or volume.get("type") != "bind"
+                    or not isinstance(volume.get("source"), str) or not volume["source"].startswith("../.env.d/")
+                    or volume["source"] != "../" + Path(volume["source"][3:]).as_posix()
+                    or ".." in Path(volume["source"]).parts[1:] or volume.get("read_only", False) is not False
+                    or volume.get("bind") != {"create_host_path": False}):
+                raise Unsafe("unsupported base bind")
+            volumes.append({**volume, "source": str(root / volume["source"][3:])})
+    # Pure projection shares canonical-path, duplicate-target and bind-option gates;
+    # it does not run Compose, read interpolation files or inspect the real .env.d.
+    public_input(root, ".taskfiles/scripts/compose-manifest.py")
+    module = resolver(root)
+    paths = [root / ".devcontainer/docker-compose.yml",
+             root / ".devcontainer/config/compose/docker-compose-core-tools.yml"]
+    module.project_manifest(root, "container-svc", paths, {"volumes": volumes}, "starter-preflight")
+    public_input(root, ".devcontainer/Dockerfile")
+    counts = {}
+    for group in ("01-foundation", "02-core-tools", "03-enabled", "04-hooks"):
+        directory = root / ".devcontainer/install" / group
+        if directory.resolve() != directory or not directory.is_dir():
+            raise Unsafe("unsupported installer group")
+        scripts = ([root / ".devcontainer/install/available" / name for name in consumer_tools]
+                   if group == "03-enabled" and consumer_tools is not None
+                   else [path for path in directory.iterdir() if path.name.endswith(".sh")])
+        if len(scripts) > 256:
+            raise Unsafe("installer selection exceeds bound")
+        count = 0
+        for path in scripts:
+            if (not options["consumer"] and group == "03-enabled" and path.is_symlink()
+                    and path.resolve().name in {"3030-ai-pi-coding.sh", "4010-tool-ssh-server.sh"}):
+                continue  # configure removes these before build; runtime adds canonical SSH below.
+            target = path.resolve()
+            if not target.is_relative_to(root / ".devcontainer/install"):
+                raise Unsafe("escaping installer selection")
+            public_input(root, str(target.relative_to(root)))
+            count += 1
+        counts[group] = count
+    if options["runtime_directories"]:
+        public_input(root, ".devcontainer/install/available/4010-tool-ssh-server.sh")
+        ssh = fragment("config/compose/docker-compose.ssh-server.yml")
+        if ssh != {"services": {"container-svc": {"ports": ["${SSH_PORT}:22"], "volumes": [
+                {"type": "bind", "source": "../" + SSH_SOURCE, "target": SSH_TARGET,
+                 "bind": {"create_host_path": False}}]}}}:
+            raise Unsafe("unsupported runtime selection")
+        counts["03-enabled"] += 1
+    return counts
+
+
+def preflight(options):
+    """Fail before registration; readiness is metadata, not daemon-visible byte proof."""
+    report = preflight_report(options["scenario"])
+
+    def check(stage, operation, reason="checked"):
+        report.update(stage=stage, reason=PREFLIGHT_STEPS[stage][0], next_step=PREFLIGHT_STEPS[stage][1])
+        value = operation()
+        item = {"stage": stage, "reason": reason}
+        if isinstance(value, dict):
+            item["selected_scripts"] = value
+        report["checks"].append(item)
+        return value
+
+    def require(condition):
+        if not condition:
+            raise Unsafe("preflight check refused")
+
+    try:
+        commands = ("bash", "docker", "devcontainer", "task", "git", "rsync", "yq")
+        if options["attachment"]:
+            commands += ("timeout",)
+        check("tools", lambda: require(all(shutil.which(command) for command in commands)))
+        root = Path.cwd()
+        check("source", lambda: require(root.resolve() == root and root == Path(
+            metadata_query("git", "rev-parse", "--show-toplevel", cwd=root))))
+        parent = options["parent"]
+        check("scratch", lambda: require(parent.is_absolute() and parent.resolve() == parent
+              and parent.is_dir() and parent != root and not parent.is_relative_to(root)
+              and os.access(parent, os.W_OK | os.X_OK)))
+
+        def registry():
+            common = Path(metadata_query("git", "rev-parse", "--path-format=absolute", "--git-common-dir", cwd=root))
+            store = common / "starter-test-runs"
+            require(common.is_absolute() and common.resolve() == common and common.is_dir()
+                    and store.resolve() == store and not parent.is_relative_to(common))
+            if os.path.lexists(store):
+                registry_directory(store)
+                require(os.access(store, os.W_OK | os.X_OK))
+            else:
+                registry_directory(common)
+                require(os.access(common, os.W_OK | os.X_OK))
+            return "registry-safe" if os.path.lexists(store) else "registry-planned-0755"
+
+        registry_reason = check("registry", registry)
+        report["checks"][-1]["reason"] = registry_reason
+        check("scope", lambda: scope_preflight(root, options), "selected-build-inputs")
+        check("endpoint", lambda: require(local_endpoint()))
+
+        def daemon():
+            value = metadata_query("docker", "--host", ENDPOINT, "info", "--format", "{{.ID}}")
+            require(bool(value) and len(value) <= 128)
+
+        check("daemon", daemon)
+
+        def image():
+            value = metadata_query("docker", "--host", ENDPOINT, "image", "inspect",
+                                   "--format", "{{.Id}}", "ubuntu:24.04")
+            require(re.fullmatch(r"sha256:[0-9a-f]{64}", value) is not None)
+
+        check("image", image)
+
+        def toolchain():
+            spec = importlib.util.spec_from_file_location("generated_read_capability", HERE / "generated-dockerfile-read.py")
+            assert spec and spec.loader
+            adapter = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(adapter)
+            compose = metadata_query("docker", "--host", ENDPOINT, "compose", "version", "--short")
+            cli = metadata_query("devcontainer", "--version")
+            require(compose in adapter.COMPOSE_VERSIONS and cli == adapter.CLI_VERSION)
+            require(bool(metadata_query("docker", "--host", ENDPOINT, "buildx", "version")))
+            if options["generated_read"]:
+                # Discovery is fixed system paths only, not user plugin config or contexts.
+                compose_path = adapter.find_native("docker-compose")
+                buildx_path = adapter.find_native("docker-buildx")
+                # Reuse the adapter's read-only origin safety/size boundary. No
+                # private publication, binding, launcher or native grant is created.
+                with adapter.NativeSnapshot(compose_path) as compose_source, \
+                        adapter.NativeSnapshot(buildx_path) as buildx_source:
+                    require(metadata_query(str(compose_path), "version", "--short") in adapter.COMPOSE_VERSIONS)
+                    require(bool(metadata_query(str(buildx_path), "version")))
+                    compose_source.recheck()
+                    buildx_source.recheck()
+
+        check("toolchain", toolchain)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError, subprocess.SubprocessError):
+        report["checks"].append({"stage": report["stage"], "reason": report["reason"]})
+        return report
+    report.update(readiness="ready", stage="complete", reason="metadata-ready", next_step="run-authorized-proof")
+    return report
+
+
+def main():
+    try:
+        options = parse_options(sys.argv[1:])
+    except SystemExit:
+        if "--preflight" not in sys.argv[1:]:
+            raise
+        print(json.dumps(preflight_report(), sort_keys=True))
+        return 1
+    report = preflight(options)
+    if options["preflight"] or report["readiness"] != "ready":
+        print(json.dumps(report, sort_keys=True))
+        return 0 if report["readiness"] == "ready" else 1
+    root, parent = Path.cwd(), options["parent"]
+    consumer, attachment = options["consumer"], options["attachment"]
+    runtime_directories, generated_read = options["runtime_directories"], options["generated_read"]
     print("[starter-lifecycle] Explicit " + ("consumer release/DinD" if consumer else
           "base lifecycle + synthetic runtime directories (no published ports)" if runtime_directories else
           "base lifecycle + Task attachment" if attachment else "base lifecycle") + " scenario. "
           "Expect downloads, minutes of CPU/build time and substantial disk use; startup may build. "
            "Shared build cache is retained; owned images are removed only when exclusive ownership is verified. "
            "Local daemon only; no initialization or optional socket proof.", flush=True)
-    ownership = Run.create(root, parent, variant="consumer") if consumer else Run.create(root, parent)
-    scratch = Path(ownership.data["scratch"])
-    print(f"[starter-lifecycle] Recovery run: {ownership.data['run']}; inventory: {ownership.path}", flush=True)
     try:
+        ownership = Run.create(root, parent, variant="consumer") if consumer else Run.create(root, parent)
+    except Exception:
+        print(lifecycle_diagnostic(None, "registration"), file=sys.stderr)
+        return 1
+    try:
+        scratch = Path(ownership.data["scratch"])
+        print("[starter-lifecycle] " + lifecycle_diagnostic(ownership, "prepare"), flush=True)
         lifecycle_class = ConsumerLifecycle if consumer else RuntimeDirectoriesLifecycle if runtime_directories else Lifecycle
         lifecycle = lifecycle_class(root, scratch, ownership)
         if attachment:
             lifecycle.attachment_scenario = True
         lifecycle.allow_generated_dockerfile_read = generated_read
-    except BaseException:
+    except (Exception, KeyboardInterrupt):
+        print(lifecycle_diagnostic(ownership, "environment"), file=sys.stderr)
         try:
-            try:
-                ownership.finish("failed")
-                ownership.retain()
-            except (OSError, Unsafe):
-                print("[starter-lifecycle:error] Constructor failed; retained scope could not be verified", file=sys.stderr)
+            ownership.finish("failed")
+        except Exception:
+            print(lifecycle_diagnostic(ownership, "cleanup", "outcome-unpersisted"), file=sys.stderr)
+        try:
+            ownership.retain()
+        except Exception:
+            print(lifecycle_diagnostic(ownership, "cleanup", "retention-unverified"), file=sys.stderr)
         finally:
-            ownership.close()
-        raise
+            try:
+                ownership.close()
+            except Exception:
+                print(lifecycle_diagnostic(ownership, "cleanup", "lease-unclosed"), file=sys.stderr)
+        return 1
     original_env = dict(os.environ)
-    os.environ.clear()
-    os.environ.update(lifecycle.env)
     failure = None
+    errors = []
+    phase = "environment"
     was_interrupted = False
     def interrupted(signum, _frame):
         nonlocal was_interrupted
         was_interrupted = True
         raise RuntimeError(f"Interrupted by signal {signum}")
-    signal.signal(signal.SIGTERM, interrupted)
-    signal.signal(signal.SIGINT, interrupted)
     try:
+        os.environ.clear()
+        os.environ.update(lifecycle.env)
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGINT, interrupted)
+        phase = None
         lifecycle.execute()
-    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt):
-        failure = failure_message(lifecycle)
+    except (Exception, KeyboardInterrupt):
         was_interrupted |= isinstance(sys.exc_info()[1], KeyboardInterrupt)
+        failure = (lifecycle_diagnostic(ownership, phase) if phase else failure_message(lifecycle))
+        if was_interrupted:
+            failure = lifecycle_diagnostic(ownership, ownership.data.get("stage"), "interrupted")
     finally:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+        except Exception:
+            errors.append("cleanup-unverified")
         try:
             cleanup_failed = True
-            errors = []
             try:
                 if failure or was_interrupted:
                     try:
                         lifecycle.retain()
-                    except (OSError, Unsafe):
-                        errors.append("could not verify or stop retained owned resources; inspect recovery inventory")
+                    except Exception:
+                        errors.append("retention-unverified")
                     try:
                         if snapshot(root) != lifecycle.before or run("git", "status", "--porcelain=v1", "--untracked-files=all", cwd=root) != lifecycle.source_status:
-                            errors.append("primary branch, HEAD, index, public files, modes, links, or status changed")
-                    except (OSError, ValueError, Unsafe, subprocess.CalledProcessError):
-                        errors.append("could not verify primary preservation")
+                            errors.append("primary-changed")
+                    except Exception:
+                        errors.append("primary-unverified")
                 else:
-                    errors = lifecycle.cleanup()
+                    errors.extend(lifecycle.cleanup())
                 cleanup_failed = False
+            except Exception:
+                errors.append("cleanup-unverified")
             finally:
                 try:
                     ownership.finish("interrupted" if was_interrupted else "failed" if cleanup_failed or failure or errors else "passed")
-                except (OSError, Unsafe):
-                    if not cleanup_failed:
-                        errors.append("could not persist test outcome")
+                except Exception:
+                    errors.append("outcome-unpersisted")
         finally:
-            ownership.close()
+            try:
+                ownership.close()
+            except Exception:
+                errors.append("lease-unclosed")
             os.environ.clear()
             os.environ.update(original_env)
     if failure:
         print(f"[starter-lifecycle:error] {failure}", file=sys.stderr)
     for error in errors:
-        print(f"[starter-lifecycle:cleanup] {error}", file=sys.stderr)
+        reason = error if isinstance(error, str) and error in {"retention-unverified", "primary-changed", "primary-unverified",
+                                   "cleanup-unverified", "outcome-unpersisted", "lease-unclosed"} else "unknown"
+        print("[starter-lifecycle:cleanup] " + lifecycle_diagnostic(ownership, "cleanup", reason), file=sys.stderr)
     if failure or errors:
         return 1
     print(("Fixture release clone/build/start and nested Docker verified. Exactly two verified feature state volumes retained; "

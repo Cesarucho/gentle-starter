@@ -11,6 +11,7 @@ setup() {
   git -C "${REPO}" config user.name "Distribution Test"
   git -C "${REPO}" config user.email "distribution@example.test"
   mkdir -p "${REPO}/.agents/skills/add-tool" "${REPO}/.agents/skills/external" \
+    "${REPO}/.agents/skills/operational-verification/references" \
     "${REPO}/.devcontainer/docs" "${REPO}/.devcontainer/test/unit" \
     "${REPO}/.github" "${REPO}/odd" "${REPO}/openspec" "${REPO}/docs" "${REPO}/.maintainer"
   printf 'license\n' > "${REPO}/LICENSE"
@@ -20,6 +21,8 @@ setup() {
   printf 'shared\n' > "${REPO}/.devcontainer/test/unit/shared.bats"
   printf 'authored\n' > "${REPO}/.agents/skills/add-tool/SKILL.md"
   printf 'external\n' > "${REPO}/.agents/skills/external/SKILL.md"
+  printf 'producer-only\n' > "${REPO}/.agents/skills/operational-verification/SKILL.md"
+  printf 'harness reference\n' > "${REPO}/.agents/skills/operational-verification/references/starter-harness.md"
   printf '%s\n' '{' '  "dockerComposeFile": [' \
     '    "./docker-compose.yml"' \
     '    , "./config/compose/docker-compose-core-tools.yml"' \
@@ -871,7 +874,8 @@ def git(*args, data=None):
 git('read-tree', 'dev')
 excluded = ['README.md', 'AGENTS.md', 'AGENTS.md.TEMPLATE', 'AGENTS.md.TEMPLATE.EXAMPLE',
             'CHANGELOG.md', 'docs', '.github', 'odd', 'openspec', '.maintainer',
-            'skills-lock.json', '.agents/skills/external']
+            'skills-lock.json', '.agents/skills/external',
+            '.agents/skills/operational-verification']
 paths = git('ls-files', '-z', '--', *excluded)
 git('update-index', '--force-remove', '-z', '--stdin', data=paths)
 skills = {'version': 1, 'skills': {'external': {'source': 'example/repo', 'skillPath': 'skills/external/SKILL.md'}}}
@@ -1355,6 +1359,8 @@ Starter-Compose-Policy: 2")"
   absent git -C "${REPO}" cat-file -e starter-rc:README.md
   absent git -C "${REPO}" cat-file -e starter-rc:skills-lock.json
   absent git -C "${REPO}" cat-file -e starter-rc:.agents/skills/external/SKILL.md
+  absent git -C "${REPO}" cat-file -e starter-rc:.agents/skills/operational-verification/SKILL.md
+  absent git -C "${REPO}" cat-file -e starter-rc:.agents/skills/operational-verification/references/starter-harness.md
   [ "$(git -C "${REPO}" show starter-rc:.agents/skills/add-tool/SKILL.md)" = authored ]
   for path in AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE CHANGELOG.md \
     .github odd openspec docs .maintainer; do
@@ -1453,7 +1459,9 @@ PY
   [ "$(git -C "${REPO}" show starter:.agents/skills/add-tool/SKILL.md)" = authored ]
   for path in README.md AGENTS.md AGENTS.md.TEMPLATE AGENTS.md.TEMPLATE.EXAMPLE \
     CHANGELOG.md .github odd openspec docs .maintainer skills-lock.json \
-    .agents/skills/external/SKILL.md; do
+    .agents/skills/external/SKILL.md \
+    .agents/skills/operational-verification/SKILL.md \
+    .agents/skills/operational-verification/references/starter-harness.md; do
     absent git -C "${REPO}" cat-file -e "starter:${path}"
   done
   run python3 - "${REPO}" << 'PY'

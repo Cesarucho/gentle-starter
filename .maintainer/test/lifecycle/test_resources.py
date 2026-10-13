@@ -95,8 +95,20 @@ def private(path, directory=False):
         raise Unsafe("inventory path is not private and owned by the current user")
 
 
-def atomic(path, data):
-    private(path.parent, directory=True)
+def registry_directory(path):
+    """Validate registry integrity without requiring privacy or changing its mode."""
+    metadata = path.lstat()
+    if (not plain(path) or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.getuid() or metadata.st_mode & 0o022
+            or metadata.st_mode & 0o700 != 0o700):
+        raise Unsafe("registry is not canonical, current-user owned and safely writable")
+
+
+def atomic(path, data, *, registry=False):
+    if registry:
+        registry_directory(path.parent)
+    else:
+        private(path.parent, directory=True)
     fd, name = tempfile.mkstemp(prefix=".record-", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as stream:
@@ -116,6 +128,7 @@ def atomic(path, data):
 
 
 def read_record(path, root):
+    registry_directory(path.parent)
     private(path)
     if path.stat().st_size > 131072:
         raise Unsafe("inventory exceeds the bounded record size")
@@ -288,9 +301,22 @@ class Run:
         for protected in (root, store.parent):
             if scratch.is_relative_to(protected) or protected.is_relative_to(scratch):
                 raise Unsafe("scratch overlaps source or repository metadata")
-        if not store.exists():
+        if not plain(store):
+            raise Unsafe("registry path is symlinked or noncanonical")
+        if not store.exists() and not store.is_symlink():
             store.mkdir(mode=0o700)
-        private(store, directory=True)
+            directory = os.open(store, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                metadata = os.fstat(directory)
+                current = store.lstat()
+                if (not plain(store) or metadata.st_uid != os.getuid()
+                        or not stat.S_ISDIR(metadata.st_mode)
+                        or (metadata.st_dev, metadata.st_ino) != (current.st_dev, current.st_ino)):
+                    raise Unsafe("new registry directory identity differs")
+                os.fchmod(directory, 0o755)
+            finally:
+                os.close(directory)
+        registry_directory(store)
         docker = docker or Docker(scratch / "home")
         daemon = docker.daemon()
         path = store / (token + ".json")
@@ -346,7 +372,7 @@ class Run:
         validate_record(self.data, self.path, Path(self.data["source"]))
         if len(json.dumps(self.data).encode()) > 131072:
             raise Unsafe("inventory exceeds the bounded record size")
-        atomic(self.path, self.data)
+        atomic(self.path, self.data, registry=True)
 
     def stage(self, name, status=None):
         self.data.update(stage=name, exit=status)
@@ -541,6 +567,7 @@ class Run:
         metadata = path.lstat()
         if [metadata.st_dev, metadata.st_ino] != self.data["inode"] or not path.is_dir():
             raise Unsafe("scratch filesystem identity differs from the recorded execution")
+        private(path, directory=True)
         marker = path / MARKER
         private(marker)
         if marker.stat().st_size > 64 or marker.read_text() != self.data["run"]:
