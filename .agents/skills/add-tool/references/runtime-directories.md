@@ -37,6 +37,8 @@ authority-state creation permission and contents are never read by the helper.
   Existing directories receive only their exact selected mode, not recursive
   descendant repair. `skip` leaves absence alone; `create` is not implicit
   `mkdir -p`. Every absent intermediate must have an applicable create rule.
+- A declared parent's final mode cannot be group/other writable when a child
+  rule exists. Preserve this schema rule separately from existing runtime modes.
 - For optional managed roots, use exact `when.enabled_installer` with a real
   canonical catalog basename. Valid canonical aliases, including custom names,
   determine activation; Compose selection does not. Disabled rules are not
@@ -47,9 +49,10 @@ authority-state creation permission and contents are never read by the helper.
 ## Preserve safety and execution order
 
 Require existing roots and target directories to belong to the runtime user.
-Reject symlink components, wrong types, unexpected owners, unsafe writable
-ancestors and permission errors; only `ENOENT` means absence. Absolute system
-ancestors may be root-owned, with the helper's sticky-system-directory exception.
+Reject symlink components, wrong types, unexpected owners and permission errors;
+only `ENOENT` means absence. Existing ancestor modes such as `0775` and `0777`
+alone are accepted subject to the remaining guards, broadening runtime trust.
+Absolute system ancestors may be root-owned without a sticky-bit exception.
 Do not open inaccessible parents by changing permissions or escalate privileges.
 
 The helper pins no-follow directory descriptors and preflights **all applicable
@@ -61,7 +64,7 @@ Unselected exact modes remain unchanged; full safety validation is metadata-only
 
 Creation starts privately at `0700` under a restrictive umask; all children are
 constructed before exact modes are finalized deepest-first, including `0000`.
-Pinned identities, ownership and ancestor safety are rechecked before mutation.
+Pinned identities, ownership and directory types are rechecked before mutation.
 Concurrent collisions/replacements fail rather than being adopted. Do not promise
 transactions, rollback or complete race immunity: failures can leave private new
 directories or already-applied modes behind.
@@ -72,6 +75,9 @@ directory created later waits until the next setup invocation. This is not
 continuous enforcement. Setup obtains validated exclusions before generic
 normalization and tracked-mode restoration, protecting complete policy subtrees,
 first absent components, managed sources and workspace-contained mount targets.
+Generic normalization outside those protected subtrees remains unchanged;
+ancestor-mode acceptance does not exempt paths from normalization. Selected exact
+policy modes are still enforced, while unselected modes remain unchanged.
 
 Keep specialized root privacy recovery exceptional and installer-owned. Current
 SSH sequencing is dry preflight before normalization, then SSH preparation
@@ -79,8 +85,10 @@ SSH sequencing is dry preflight before normalization, then SSH preparation
 apply excluding that root, then service startup. Its installer repeats dry
 validation with the expected mapping before any mutation.
 `--defer-root` is validation-only (`validate`/`exclusions`), never `apply` or
-workspace: it defers only that owned managed root's privacy check, not owner,
-type, child or other ancestor checks. Do not generalize it into root repair.
+workspace: it remains a validation-only sequencing marker for installer-owned
+root privacy recovery, not a bypass of owner, type or identity checks. Existing
+ancestor modes no longer have a runtime privacy rejection to defer. Do not
+generalize it into root repair.
 
 ## Return contract evidence
 

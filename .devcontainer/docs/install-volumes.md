@@ -204,9 +204,11 @@ Each rule selects one literal directory path: no glob expansion, recursive mode
 changes, or file-mode management. For example, `gen-*.json` would name a literal
 directory, not matching files; file modes remain the file producer's responsibility.
 Declare each directory separately; grouped declarations are unsupported.
-Nested rules still require safe existing ancestors during full preflight. An
-unsafe ancestor fails closed before any mode changes, even if another rule would
-make that ancestor private; the policy is not ancestor recovery.
+Nested rules still require valid ancestor owners, directory types and pinned
+identities during full preflight. Existing group/other-writable modes such as
+`0775` and `0777` alone do not cause rejection, even before a selected ancestor's
+exact mode is applied. This broadens runtime trust in existing writable paths;
+it does not repair unselected ancestors or bypass the remaining guards.
 
 A disabled installer makes its conditional rule **not applicable**, independently
 of Compose selection. An enabled installer requires its writable managed root in
@@ -221,9 +223,10 @@ target**, not its host path. The manifest must pass snapshot integrity and the
 container's `DEVCONTAINER_BIND_MANIFEST_ID` applied-identity gate. Read-only,
 external and file mounts are not repair roots. Duplicate JSON keys, duplicate
 source mappings, cross-root aliases and crossings into other mounts fail closed.
-Parent-child rules within one root are allowed, but a configured parent cannot
-be group/world writable. Every missing intermediate needed by `create` must
-have its own `missing: "create"` rule; there is no implicit `mkdir -p`.
+Parent-child rules within one root are allowed, but a declared parent's final
+mode cannot be group/other writable; this schema restriction remains unchanged.
+Every missing intermediate needed by `create` must have its own
+`missing: "create"` rule; there is no implicit `mkdir -p`.
 Workspace rules cannot bypass mount restrictions through `.env.d` source paths.
 
 For example, creating both `private-cache` and its `index` child requires two
@@ -240,14 +243,14 @@ rules (their order does not matter):
 ```
 
 The helper traverses pinned directory descriptors with `O_NOFOLLOW` and
-`O_DIRECTORY`, verifies owner and ancestor safety, validates the entire plan,
-then creates missing declared nodes relative to pinned parents with a restrictive
+`O_DIRECTORY`, verifies directory owners, types and identities, validates the
+entire plan, then creates missing declared nodes relative to pinned parents with a restrictive
 umask and initial mode `0700`. It retains their descriptors and finalizes exact
 modes deepest-first after all children are constructed, including `0000` parents
 and children. Existing directories receive only the selected exact mode; no
 descendant permissions are recursively repaired. Target directories must belong
-to the runtime user. Ancestors cannot be group/world writable; absolute system
-ancestors may belong to root, including root-owned sticky temporary parents.
+to the runtime user. Existing ancestor modes are not a rejection gate; absolute
+system ancestors may belong to root without requiring a sticky-bit exception.
 Symlink components, wrong types, unexpected owners and permission-denied errors
 are failures, not missing-path skips. A file-based `.git` worktree is explicitly
 unsupported for the default rule; external Git metadata is never modified.
@@ -256,7 +259,7 @@ an already-correct `0000` leaf is a metadata-only no-op.
 Existing inaccessible parents are not temporarily opened up for traversal or
 creation. `validate` and `exclusions` never create directories or change modes.
 
-The helper rechecks ownership, ancestor safety and pinned inode identities before
+The helper rechecks ownership, directory types and pinned inode identities before
 mutation. Concurrent creation collisions are errors, not entries to adopt;
 detected replacements and symlinks fail closed. This is **not a transaction or
 full race immunity**: a later error can leave newly created private directories
@@ -300,26 +303,27 @@ Runtime `SSH_CONFIG_DIR` must exactly match the validated applied target; an
 unbound override fails before root chmod, directory creation, keys or configuration
 writes. Root ownership, type and ancestors are checked without following symlinks;
 the installer separately retains its root privacy `chmod 0700` recovery. Setup
-uses validation-only `--defer-root .env.d/.ssh-server` to validate that owned root
-and its children before normalization without requiring root privacy already be
-recovered. No other ancestor checks are relaxed; workspace privacy cannot be
-deferred. General application excludes this root with `--exclude-root`, leaving
-recovery and child application to SSH preparation. The installer repeats dry-run
+uses validation-only `--defer-root .env.d/.ssh-server` as a sequencing marker for
+that installer-owned recovery. Existing ancestor modes no longer have a runtime
+privacy rejection to defer; owner, type and identity checks remain mandatory.
+The marker is not allowed for workspace rules. General application excludes
+this root with `--exclude-root`, leaving recovery and child application to SSH
+preparation. The installer repeats dry-run
 validation with `--expected-root SOURCE=TARGET` before any mutation and applies
 only its selected root after recovery; unrelated authority rules are not reapplied.
 `--defer-root` is refused for `apply`. Cross-root mapping and boundary validation
 and filesystem validation still cover all applicable declarations before subset
-selection. Unselected symlinks, wrong types, owners and unsafe ancestors block
-SSH preparation before root recovery. Full-policy descriptors remain metadata-only
+selection. Unselected symlinks, wrong types, unexpected owners and replaced
+ancestors block SSH preparation before root recovery. Full-policy descriptors remain metadata-only
 and pinned for a safety recheck before selected application; unselected exact modes
 are never applied. General setup application follows specialized SSH recovery so
-it can validate every root strictly, before service startup. The
+it can validate every root's owner, type and identity before service startup. The
 scoped helper never changes bind roots. `~/.ssh` authorization preparation,
 local-parent ownership recovery, host bind provisioning and build installation
 remain separate. There is no legacy unbound-override fallback.
 
 The general policy is not host bind provisioning, recursive repair or
-ownership recovery. Correct unsafe ancestors or unsupported layout deliberately
+ownership recovery. Correct invalid owners, types or unsupported layout deliberately
 as the owner; do not use `sudo` or full setup merely to silence a policy failure.
 
 ## Adding a new stateful volume (worked example)
