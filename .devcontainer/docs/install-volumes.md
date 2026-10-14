@@ -153,9 +153,10 @@ itself. `lifecycle/setup-volumes.sh` is the dispatch; the scripts are the work.
 
 Use [runtime-directory-permissions.json](../config/runtime-directory-permissions.json)
 for directories that must retain a specific mode after mounts are available.
-The default rule repairs only the workspace's
-`.git/gentle-ai/review-mode/rar-authority` directory to `0700`, if it exists.
-It never creates authority state or reads its contents. The same policy also
+The default rules select three exact workspace directories at `0700`, each with
+`missing: "skip"`: `.git/gentle-ai/review-mode/rar-authority`, its `v1` child,
+and its `v1/rdd-mode` child. Absent directories are never created, and authority
+contents are never read. The same policy also
 declares SSH child creation, explicitly conditional on installer activation:
 
 ```json
@@ -165,6 +166,18 @@ declares SSH child creation, explicitly conditional on installer activation:
     {
       "root": "workspace",
       "path": ".git/gentle-ai/review-mode/rar-authority",
+      "mode": "0700",
+      "missing": "skip"
+    },
+    {
+      "root": "workspace",
+      "path": ".git/gentle-ai/review-mode/rar-authority/v1",
+      "mode": "0700",
+      "missing": "skip"
+    },
+    {
+      "root": "workspace",
+      "path": ".git/gentle-ai/review-mode/rar-authority/v1/rdd-mode",
       "mode": "0700",
       "missing": "skip"
     },
@@ -186,6 +199,14 @@ declares SSH child creation, explicitly conditional on installer activation:
 | `mode` | Four-character ordinary octal text, `0000` through `0777`; no special bits |
 | `missing` | `skip` leaves absent paths alone; `create` provisions only explicitly declared directories. Only `ENOENT` is treated as absence. |
 | `when` | Optional exact object `{"enabled_installer": "4010-tool-ssh-server.sh"}` for managed roots. Names must identify a real canonical catalog installer; activation uses valid canonical aliases, including custom names. Unknown names or condition fields are errors even when disabled. |
+
+Each rule selects one literal directory path: no glob expansion, recursive mode
+changes, or file-mode management. For example, `gen-*.json` would name a literal
+directory, not matching files; file modes remain the file producer's responsibility.
+Declare each directory separately; grouped declarations are unsupported.
+Nested rules still require safe existing ancestors during full preflight. An
+unsafe ancestor fails closed before any mode changes, even if another rule would
+make that ancestor private; the policy is not ancestor recovery.
 
 A disabled installer makes its conditional rule **not applicable**, independently
 of Compose selection. An enabled installer requires its writable managed root in

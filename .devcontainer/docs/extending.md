@@ -36,6 +36,12 @@ existing state or `missing: "create"` for explicit provisioning. Every missing
 intermediate requires its own create rule; children are constructed privately
 before exact final modes are applied. Dry-run validation never provisions state.
 Skipped directories created later remain untouched until the next setup invocation.
+Declare each exact directory separately; grouped declarations and glob expansion
+are unsupported. Mode changes are nonrecursive and directory-only; file modes
+remain the file producer's responsibility. The workspace authority directory,
+its `v1` child and its `v1/rdd-mode` child each have an explicit `0700`/`skip` rule.
+Nested rules do not recover unsafe ancestors: full preflight fails closed before
+any mode changes, even when an ancestor also has a private-mode rule.
 Optional SSH uses an explicit `when.enabled_installer` condition in this same
 policy. Disabled rules are not applicable; enabled rules require their writable
 managed root in the applied manifest. Invalid conditions and unconditional unknown

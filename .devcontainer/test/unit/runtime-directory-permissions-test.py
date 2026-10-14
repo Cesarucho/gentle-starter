@@ -125,12 +125,85 @@ class PolicyTests(unittest.TestCase):
         return install, dict(self.rule, root='.env.d/.ssh-server', path='ssh', missing='create',
                              when={'enabled_installer': '4010-tool-ssh-server.sh'})
 
-    def test_single_policy_contains_explicit_conditional_ssh_creation(self):
-        policy = json.loads((REPO / '.devcontainer/config/runtime-directory-permissions.json').read_text())
+    def assert_valid_policy_text(self, text):
+        policy = json.loads(text, object_pairs_hook=permissions.unique_object)
         rules = permissions.validate_policy(policy)
-        self.assertIn(self.rule, rules)
-        self.assertIn({'root': '.env.d/.ssh-server', 'path': 'ssh', 'mode': '0700',
-                       'missing': 'create', 'when': {'enabled_installer': '4010-tool-ssh-server.sh'}}, rules)
+        self.assertEqual(rules, policy['rules'])
+
+    def test_shipped_policy_has_valid_schema(self):
+        self.assert_valid_policy_text(
+            (REPO / '.devcontainer/config/runtime-directory-permissions.json').read_text())
+
+    def test_shipped_policy_validation_accepts_configurable_directory_rules(self):
+        base = dict(self.rule, path='fixture-directory')
+        added = dict(base, path='another-directory.json', mode='0750', missing='create')
+        variants = {
+            'baseline': [base],
+            'added': [base, added],
+            'removed': [],
+            'changed': [dict(base, path='renamed-directory', mode='0710', missing='create')],
+        }
+        for change, rules in variants.items():
+            with self.subTest(change=change):
+                policy = {'version': 1, 'rules': rules}
+                # Prove these are valid inputs before exercising the shipped-policy check.
+                self.assertEqual(permissions.validate_policy(policy), rules)
+                self.assert_valid_policy_text(json.dumps(policy))
+
+    def test_regular_file_target_rejected_before_any_mode_changes(self):
+        payload = self.workspace / 'generation.json'
+        payload.write_text('fixture payload')
+        before = (self.target.stat(), payload.stat())
+        for missing in ['skip', 'create']:
+            with self.subTest(missing=missing):
+                rules = self.rules(self.rule, dict(self.rule, path=payload.name,
+                                                  mode='0600', missing=missing))
+                with self.assertRaises(NotADirectoryError) as rejected:
+                    self.apply(rules)
+                self.assertEqual(rejected.exception.errno, errno.ENOTDIR)
+                self.assertEqual((self.target.stat(), payload.stat()), before)
+                self.assertEqual(payload.read_text(), 'fixture payload')
+
+    def test_json_named_directory_is_a_valid_directory_target(self):
+        directory = self.workspace / 'directory.json'
+        directory.mkdir(mode=0o755)
+        self.apply(self.rules(dict(self.rule, path=directory.name)))
+        self.assertEqual(self.mode(directory), 0o700)
+
+    def authority_rules(self):
+        return self.rules(*(dict(self.rule, path=self.rule['path'] + suffix)
+                            for suffix in ['', '/v1', '/v1/rdd-mode']))
+
+    def test_nested_authority_skip_never_creates_missing_directories(self):
+        rules = self.authority_rules()
+        for existing_count in range(4):
+            with self.subTest(existing_count=existing_count):
+                workspace = Path(self.temp.name) / f'nested-{existing_count}'
+                (workspace / '.git/gentle-ai/review-mode').mkdir(parents=True)
+                directories = [workspace / rule['path'] for rule in rules]
+                for directory in directories[:existing_count]:
+                    directory.mkdir(mode=0o755)
+                for _ in range(2):
+                    with permissions.Plan(workspace, rules, []) as plan:
+                        for directory in directories:
+                            self.assertIn(str(directory), plan.exclusions)
+                        self.assertEqual(plan.creations, [])
+                        plan.apply()
+                    for directory in directories[:existing_count]:
+                        self.assertEqual(self.mode(directory), 0o700)
+                    for directory in directories[existing_count:]:
+                        self.assertFalse(directory.exists())
+
+    def test_nested_authority_unsafe_ancestor_blocks_all_mode_changes(self):
+        version = self.target / 'v1'
+        version.mkdir(mode=0o755)
+        nested = version / 'rdd-mode'
+        nested.mkdir(mode=0o755)
+        version.chmod(0o777)
+        before = [self.mode(directory) for directory in [self.target, version, nested]]
+        with self.assertRaisesRegex(ValueError, 'ancestor'):
+            self.apply(self.authority_rules())
+        self.assertEqual([self.mode(directory) for directory in [self.target, version, nested]], before)
 
     def test_conditional_rule_uses_canonical_alias_not_mount_selection(self):
         install, rule = self.conditional_fixture()
