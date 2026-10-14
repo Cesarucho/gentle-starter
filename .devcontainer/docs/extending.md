@@ -36,6 +36,16 @@ existing state or `missing: "create"` for explicit provisioning. Every missing
 intermediate requires its own create rule; children are constructed privately
 before exact final modes are applied. Dry-run validation never provisions state.
 Skipped directories created later remain untouched until the next setup invocation.
+Declare each exact directory separately; grouped declarations and glob expansion
+are unsupported. Mode changes are nonrecursive and directory-only; file modes
+remain the file producer's responsibility. The workspace authority directory,
+its `v1` child and its `v1/rdd-mode` child each have an explicit `0700`/`skip` rule.
+Existing ancestor modes such as `0775` and `0777` alone do not fail preflight;
+owner/type, no-follow and pinned-identity checks still apply to every applicable
+path. Selected exact modes remain enforced; unselected modes remain unchanged.
+A declared parent's final mode must still not be group/other writable when a
+child rule exists. Generic normalization outside protected policy subtrees is
+unchanged; accepting a writable ancestor does not exempt it from those passes.
 Optional SSH uses an explicit `when.enabled_installer` condition in this same
 policy. Disabled rules are not applicable; enabled rules require their writable
 managed root in the applied manifest. Invalid conditions and unconditional unknown

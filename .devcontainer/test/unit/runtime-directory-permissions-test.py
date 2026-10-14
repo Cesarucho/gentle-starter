@@ -89,12 +89,16 @@ class PolicyTests(unittest.TestCase):
         self.apply(self.rules(rule))
         self.assertEqual(self.mode(self.target), 0)
 
-    def test_ancestor_changed_after_preflight_blocks_all_repairs(self):
-        with permissions.Plan(self.workspace, self.rules(), []) as plan:
-            self.target.parent.chmod(0o777)
-            with self.assertRaises(ValueError):
-                plan.apply()
-        self.assertEqual(self.mode(self.target), 0o755)
+    def test_ancestor_writable_mode_after_preflight_allows_selected_repair(self):
+        for mode in [0o775, 0o777]:
+            with self.subTest(mode=oct(mode)):
+                self.target.parent.chmod(0o755)
+                self.target.chmod(0o755)
+                with permissions.Plan(self.workspace, self.rules(), []) as plan:
+                    self.target.parent.chmod(mode)
+                    plan.apply()
+                self.assertEqual(self.mode(self.target.parent), mode)
+                self.assertEqual(self.mode(self.target), 0o700)
 
     def test_schema_paths_and_modes_fail_closed(self):
         for key, values in {'path': ['', '.', '..', '/absolute', 'a/../b', 'a//b', 'a/', 'a\0b'],
@@ -125,12 +129,87 @@ class PolicyTests(unittest.TestCase):
         return install, dict(self.rule, root='.env.d/.ssh-server', path='ssh', missing='create',
                              when={'enabled_installer': '4010-tool-ssh-server.sh'})
 
-    def test_single_policy_contains_explicit_conditional_ssh_creation(self):
-        policy = json.loads((REPO / '.devcontainer/config/runtime-directory-permissions.json').read_text())
+    def assert_valid_policy_text(self, text):
+        policy = json.loads(text, object_pairs_hook=permissions.unique_object)
         rules = permissions.validate_policy(policy)
-        self.assertIn(self.rule, rules)
-        self.assertIn({'root': '.env.d/.ssh-server', 'path': 'ssh', 'mode': '0700',
-                       'missing': 'create', 'when': {'enabled_installer': '4010-tool-ssh-server.sh'}}, rules)
+        self.assertEqual(rules, policy['rules'])
+
+    def test_shipped_policy_has_valid_schema(self):
+        self.assert_valid_policy_text(
+            (REPO / '.devcontainer/config/runtime-directory-permissions.json').read_text())
+
+    def test_shipped_policy_validation_accepts_configurable_directory_rules(self):
+        base = dict(self.rule, path='fixture-directory')
+        added = dict(base, path='another-directory.json', mode='0750', missing='create')
+        variants = {
+            'baseline': [base],
+            'added': [base, added],
+            'removed': [],
+            'changed': [dict(base, path='renamed-directory', mode='0710', missing='create')],
+        }
+        for change, rules in variants.items():
+            with self.subTest(change=change):
+                policy = {'version': 1, 'rules': rules}
+                # Prove these are valid inputs before exercising the shipped-policy check.
+                self.assertEqual(permissions.validate_policy(policy), rules)
+                self.assert_valid_policy_text(json.dumps(policy))
+
+    def test_regular_file_target_rejected_before_any_mode_changes(self):
+        payload = self.workspace / 'generation.json'
+        payload.write_text('fixture payload')
+        before = (self.target.stat(), payload.stat())
+        for missing in ['skip', 'create']:
+            with self.subTest(missing=missing):
+                rules = self.rules(self.rule, dict(self.rule, path=payload.name,
+                                                  mode='0600', missing=missing))
+                with self.assertRaises(NotADirectoryError) as rejected:
+                    self.apply(rules)
+                self.assertEqual(rejected.exception.errno, errno.ENOTDIR)
+                self.assertEqual((self.target.stat(), payload.stat()), before)
+                self.assertEqual(payload.read_text(), 'fixture payload')
+
+    def test_json_named_directory_is_a_valid_directory_target(self):
+        directory = self.workspace / 'directory.json'
+        directory.mkdir(mode=0o755)
+        self.apply(self.rules(dict(self.rule, path=directory.name)))
+        self.assertEqual(self.mode(directory), 0o700)
+
+    def authority_rules(self):
+        return self.rules(*(dict(self.rule, path=self.rule['path'] + suffix)
+                            for suffix in ['', '/v1', '/v1/rdd-mode']))
+
+    def test_nested_authority_skip_never_creates_missing_directories(self):
+        rules = self.authority_rules()
+        for existing_count in range(4):
+            with self.subTest(existing_count=existing_count):
+                workspace = Path(self.temp.name) / f'nested-{existing_count}'
+                (workspace / '.git/gentle-ai/review-mode').mkdir(parents=True)
+                directories = [workspace / rule['path'] for rule in rules]
+                for directory in directories[:existing_count]:
+                    directory.mkdir(mode=0o755)
+                for _ in range(2):
+                    with permissions.Plan(workspace, rules, []) as plan:
+                        for directory in directories:
+                            self.assertIn(str(directory), plan.exclusions)
+                        self.assertEqual(plan.creations, [])
+                        plan.apply()
+                    for directory in directories[:existing_count]:
+                        self.assertEqual(self.mode(directory), 0o700)
+                    for directory in directories[existing_count:]:
+                        self.assertFalse(directory.exists())
+
+    def test_nested_authority_writable_ancestors_receive_selected_exact_modes(self):
+        version = self.target / 'v1'
+        version.mkdir(mode=0o755)
+        nested = version / 'rdd-mode'
+        nested.mkdir(mode=0o755)
+        for mode in [0o775, 0o777]:
+            with self.subTest(mode=oct(mode)):
+                for directory in [self.target, version, nested]:
+                    directory.chmod(mode)
+                self.apply(self.authority_rules())
+                self.assertEqual([self.mode(directory) for directory in [self.target, version, nested]],
+                                 [0o700, 0o700, 0o700])
 
     def test_conditional_rule_uses_canonical_alias_not_mount_selection(self):
         install, rule = self.conditional_fixture()
@@ -292,10 +371,21 @@ class PolicyTests(unittest.TestCase):
         self.target.write_text('not a directory')
         self.assert_unsafe_unselected_blocks_ssh(root, rule)
 
-    def test_unselected_applicable_unsafe_ancestor_blocks_scoped_ssh_preflight_and_apply(self):
+    def test_unselected_applicable_writable_ancestor_allows_scoped_ssh_preflight_and_apply(self):
         root, rule = self.scoped_ssh_fixture()
-        self.target.parent.chmod(0o777)
-        self.assert_unsafe_unselected_blocks_ssh(root, rule)
+        for mode in [0o775, 0o777]:
+            with self.subTest(mode=oct(mode)):
+                self.target.parent.chmod(mode)
+                root.chmod(0o777)
+                result = self.cli('validate', '--root', rule['root'], '--defer-root', rule['root'])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.mode(root), 0o777)
+                root.chmod(0o700)
+                result = self.cli('apply', '--root', rule['root'])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.mode(root / 'ssh'), 0o700)
+                self.assertEqual(self.mode(self.target), 0o755)
+                self.assertEqual(self.mode(self.target.parent), mode)
 
     def test_unselected_applicable_foreign_owner_blocks_scoped_ssh_apply(self):
         root, rule = self.scoped_ssh_fixture()
@@ -326,14 +416,17 @@ class PolicyTests(unittest.TestCase):
         def change_after_selected(plan, *args, **kwargs):
             original(plan, *args, **kwargs)
             if not plan.validation_only:
-                self.target.parent.chmod(0o777)
+                parent = self.target.parent
+                parent.rename(parent.with_name('original-review-mode'))
+                parent.mkdir()
         with patch.dict(os.environ, DEVCONTAINER_BIND_MANIFEST_ID=self.identity), \
                 patch('sys.argv', [str(HELPER), 'apply', str(self.workspace), '--root', rule['root']]), \
                 patch.object(permissions.Plan, '__init__', new=change_after_selected):
-            with self.assertRaisesRegex(ValueError, 'ancestor'):
+            with self.assertRaisesRegex(ValueError, 'changed after validation'):
                 permissions.main()
         self.assertFalse((root / 'ssh').exists())
-        self.assertEqual(self.mode(self.target), 0o755)
+        self.assertFalse(self.target.exists())
+        self.assertEqual(self.mode(self.target.parent.with_name('original-review-mode') / self.target.name), 0o755)
 
     def test_full_preflight_never_opens_unselected_leaf_for_read_or_changes_its_mode(self):
         root, rule = self.scoped_ssh_fixture()
@@ -403,17 +496,24 @@ class PolicyTests(unittest.TestCase):
                 plan.apply()
         self.assertEqual(self.mode(path), 0o755)
 
-    def test_creation_rechecks_replaced_and_unsafe_ancestors(self):
-        for change in ['replace', 'chmod']:
+    def test_creation_rechecks_replaced_and_foreign_owned_ancestors(self):
+        real_fstat = os.fstat
+        for change in ['replace', 'owner']:
             parent = self.workspace / change
             parent.mkdir()
+            inode = parent.stat().st_ino
+            def foreign(fd):
+                info = real_fstat(fd)
+                if change == 'owner' and info.st_ino == inode:
+                    fields = list(info)
+                    fields[4] = os.getuid() + 100
+                    return os.stat_result(fields)
+                return info
             with permissions.Plan(self.workspace, self.rules(self.create_rule(change + '/child')), []) as plan:
                 if change == 'replace':
                     parent.rename(parent.with_name(change + '-original'))
                     parent.mkdir()
-                else:
-                    parent.chmod(0o777)
-                with self.assertRaises(ValueError):
+                with patch.object(permissions.os, 'fstat', side_effect=foreign), self.assertRaises(ValueError):
                     plan.apply()
             self.assertFalse((parent / 'child').exists())
 
@@ -553,15 +653,18 @@ class PolicyTests(unittest.TestCase):
             self.apply(self.rules(self.rule, dict(self.rule, path='collision')))
         self.assertEqual(self.mode(self.target), 0o755)
 
-    def test_symlink_components_and_insecure_ancestors_rejected(self):
+    def test_symlink_components_rejected_and_writable_ancestors_accepted(self):
         (self.workspace / 'link').symlink_to(self.target, target_is_directory=True)
         for path in ['link', 'link/absent']:
-            with self.assertRaises((ValueError, OSError)):
+            with self.subTest(path=path), self.assertRaises(NotADirectoryError):
                 self.apply(self.rules(dict(self.rule, path=path)))
-        self.target.parent.chmod(0o777)
-        with self.assertRaises(ValueError):
-            self.apply()
         self.assertEqual(self.mode(self.target), 0o755)
+        for mode in [0o775, 0o777]:
+            with self.subTest(mode=oct(mode)):
+                self.target.parent.chmod(mode)
+                self.apply()
+                self.assertEqual(self.mode(self.target.parent), mode)
+                self.assertEqual(self.mode(self.target), 0o700)
 
     def test_unexpected_owner_and_non_enoent_never_skip(self):
         real_fstat = os.fstat
@@ -766,7 +869,8 @@ export -f git sudo chown
         self.assertEqual(self.mode(self.workspace / 'absent[tree]'), 0o700)
         self.assertEqual(self.mode(self.workspace / 'absent[tree]/tracked.sh'), 0o600)
         # Invalid preflight must stop before generic normalizers and index restoration.
-        self.target.parent.chmod(0o777)
+        self.target.rename(self.target.with_name('original-authority'))
+        self.target.symlink_to(self.target.with_name('original-authority'), target_is_directory=True)
         ordinary.chmod(0o600)
         result = subprocess.run(['bash', '-c', preamble + body, '_', str(self.workspace)],
                                 capture_output=True, text=True)

@@ -207,14 +207,11 @@ class Plan:
         return fd
 
     def check(self, fd, label, ancestor=True, system=False):
+        # Retain the traversal call contract; ancestor modes no longer gate validation.
         info = os.fstat(fd)
         owners = {os.getuid(), 0} if system else {os.getuid()}
         if not stat.S_ISDIR(info.st_mode) or info.st_uid not in owners:
             raise ValueError(f'Unexpected directory owner or type: {label}')
-        # Root-owned sticky system directories (e.g. /tmp) protect owned entries.
-        sticky_system = system and info.st_uid == 0 and info.st_mode & stat.S_ISVTX
-        if ancestor and info.st_mode & 0o022 and not sticky_system:
-            raise ValueError(f'Insecure writable ancestor: {label}')
 
     def open_root(self, root, root_ancestor=True):
         fd = self.open_dir('/')
