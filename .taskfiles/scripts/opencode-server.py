@@ -9,6 +9,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import stat
 import subprocess
@@ -19,13 +20,14 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = "http://127.0.0.1:4096"
+WORKSPACE = Path(__file__).resolve().parents[2]
 START_TIMEOUT = 20
 LOCK_TIMEOUT = 25
 STOP_TIMEOUT = 3
 POLL_INTERVAL = 0.1
 STARTUP_GUIDANCE = (
-    "Run `opencode serve` manually in the same container and workspace "
-    "to inspect startup diagnostics."
+    "Run `opencode serve --hostname 0.0.0.0 --port 4096` manually in the same container and workspace "
+    "with the same OPENCODE_PASSWORD to inspect startup diagnostics."
 )
 
 
@@ -65,13 +67,29 @@ def health_deadline():
         signal.signal(signal.SIGALRM, previous)
 
 
-def healthy():
-    request = urllib.request.Request(ENDPOINT + "/global/health")
-    password = os.environ.get("OPENCODE_SERVER_PASSWORD", "")
-    if password:
-        username = os.environ.get("OPENCODE_SERVER_USERNAME") or "opencode"
-        token = base64.b64encode(f"{username}:{password}".encode()).decode()
-        request.add_header("Authorization", "Basic " + token)
+def project_name():
+    """Reuse directory-name normalization, never APP_NAME's numeric suffix or caller cwd."""
+    try:
+        result = subprocess.run(
+            ["bash", str(WORKSPACE / ".taskfiles/scripts/project-identity.sh"), "--output", "name"],
+            cwd=WORKSPACE, capture_output=True, text=True, timeout=5, check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError("Cannot derive the project password; configure OPENCODE_PASSWORD explicitly.") from None
+    name = result.stdout.strip()
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
+        raise RuntimeError("Project directory has no usable normalized name; configure OPENCODE_PASSWORD explicitly.")
+    return name
+
+
+def server_password():
+    return os.environ.get("OPENCODE_PASSWORD") or os.environ.get("OPENCODE_SERVER_PASSWORD") or project_name()
+
+
+def healthy(password=None):
+    request = urllib.request.Request(ENDPOINT + "/api/info")
+    token = base64.b64encode(f"opencode:{password if password is not None else server_password()}".encode()).decode()
+    request.add_header("Authorization", "Basic " + token)
     # Never send local credentials through a proxy or follow a redirect.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -83,11 +101,15 @@ def healthy():
             body = json.loads(response.read(65536))
             if (
                 response.status == 200 and isinstance(body, dict)
-                and body.get("healthy") is True
-                and isinstance(body.get("version"), str) and body["version"]
+                and isinstance(body.get("version"), str) and re.fullmatch(r"2\.[0-9]+\.[0-9]+", body["version"])
+                and type(body.get("pid")) is int and body["pid"] >= 0
+                and isinstance(body.get("urls"), list) and all(isinstance(url, str) for url in body["urls"])
+                and isinstance(body.get("paths"), dict) and isinstance(body["paths"].get("tmp"), str)
             ):
                 return True
     except urllib.error.HTTPError as error:
+        if error.code == 503:
+            raise TransientHealthError("OpenCode server is not ready (HTTP 503).") from None
         if error.code in (401, 403):
             raise RuntimeError("Endpoint rejected health check authentication (HTTP 401/403).") from None
         raise RuntimeError(f"Endpoint rejected the health check (HTTP {error.code}).") from None
@@ -170,11 +192,12 @@ class Session:
 
     def start(self):
         self.check_signal()
-        if healthy():
+        if healthy(self.environment["OPENCODE_PASSWORD"]):
             return
         self.check_signal()
         self.server = subprocess.Popen(
-            ["opencode", "serve"], stdin=subprocess.DEVNULL,
+            ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"],
+            env=self.environment, stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
         )
         deadline = time.monotonic() + START_TIMEOUT
@@ -189,7 +212,7 @@ class Session:
                 )
             if owns_listener(self.server.pid):
                 try:
-                    if healthy():
+                    if healthy(self.environment["OPENCODE_PASSWORD"]):
                         return
                     last_failure = "OpenCode health connection refused."
                 except TransientHealthError as error:
@@ -198,7 +221,7 @@ class Session:
             if remaining > 0:
                 time.sleep(min(POLL_INTERVAL, remaining))
         raise RuntimeError(
-            "OpenCode did not become ready at 127.0.0.1:4096; check global server configuration. "
+            "OpenCode did not become ready at 127.0.0.1:4096; check server startup and authentication. "
             + last_failure + " " + STARTUP_GUIDANCE
         )
 
@@ -209,7 +232,7 @@ class Session:
                 raise RuntimeError("Owned OpenCode listener disappeared before attachment.")
         # Inherit the terminal; /exit (not an in-TUI Ctrl+C) ends the client.
         print_browser_address()
-        self.client = subprocess.Popen(["opencode", "attach", ENDPOINT, "--continue"])
+        self.client = subprocess.Popen(["opencode", "--server", ENDPOINT, "--continue"], env=self.environment)
         while self.client.poll() is None:
             self.check_signal()
             if self.server is not None and self.server.poll() is not None:
@@ -220,6 +243,7 @@ class Session:
         return code if code >= 0 else 128 - code
 
     def run(self):
+        self.environment = dict(os.environ, OPENCODE_PASSWORD=server_password())
         handlers = {sig: signal.signal(sig, self.interrupted)
                     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         descriptor = None

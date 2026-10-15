@@ -1,80 +1,58 @@
-/**
- * model-variants
- * Exports per-model variant (effort level) data for gentle-ai.
- *
- * On OpenCode startup, fetches the provider list via the in-process SDK client,
- * extracts variant keys per model, and writes a minimal JSON cache to
- * ~/.gentle-ai/cache/model-variants.json. gentle-ai reads this file
- * to populate the effort level picker without needing a live API connection.
- */
+// gentle-ai:managed model-variants/v2
+import { Plugin } from "@opencode/plugin"
+import { mkdir, writeFile, rename, rm } from "node:fs/promises"
+import { createHash, randomBytes } from "node:crypto"
+import { homedir } from "node:os"
+import path from "node:path"
 
-import type { Plugin } from "@opencode-ai/plugin"
-import { writeFile, mkdir, rename, rm } from "fs/promises"
-import { randomBytes } from "crypto"
-import { homedir } from "os"
-import path from "path"
-
-const MODEL_VARIANTS_CACHE_FILE = "model-variants.json"
-
-function isIgnorableFileRace(err: unknown) {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "ENOENT"
-}
-
-async function removeOwnTempFile(tmpPath: string) {
-  try {
-    await rm(tmpPath, { force: true })
-  } catch (err) {
-    if (!isIgnorableFileRace(err)) {
-      console.error("[model-variants] temp cleanup failed:", err)
-    }
-  }
-}
-
-export const ModelVariantsPlugin: Plugin = async (input) => {
-  async function refreshVariantsCache() {
-    let tmpPath: string | undefined
-    try {
-      const result = await input.client.provider.list()
-      const data = (result as any).data ?? result
-      const providerList: any[] = data?.all ?? data?.providers ?? (Array.isArray(data) ? data : [])
-
-      const variants: Record<string, Record<string, string[]>> = {}
-      for (const prov of providerList) {
-        for (const [modelId, model] of Object.entries(prov.models ?? {})) {
-          const m = model as any
-          if (m.variants && Object.keys(m.variants).length > 0) {
-            variants[prov.id] = variants[prov.id] || {}
-            variants[prov.id][modelId] = Object.keys(m.variants).sort()
-          }
+export default Plugin.define({
+  id: "gentle-ai.model-variants",
+  setup(ctx) {
+    const abort = new AbortController()
+    // V2 locations cannot overwrite the V1 global catalog or each other.
+    const key = createHash("sha256").update(JSON.stringify([ctx.location.directory, ctx.location.workspaceID ?? ""])).digest("hex")
+    const directory = path.join(homedir(), ".gentle-ai", "cache", "opencode-v2")
+    const destination = path.join(directory, `${key}.json`)
+    const refresh = async () => {
+      let temporary: string | undefined
+      try {
+        const result = await ctx.model.list()
+        if (abort.signal.aborted || result.location.directory !== ctx.location.directory) return
+        const variants: Record<string, Record<string, string[]>> = Object.create(null)
+        for (const model of result.data) {
+          if (!model.variants?.length) continue
+          const provider = variants[model.providerID] ??= Object.create(null)
+          provider[model.id] = model.variants.map(variant => variant.id).sort()
         }
-      }
-
-      const cacheDir = path.join(homedir(), ".gentle-ai", "cache")
-      await mkdir(cacheDir, { recursive: true })
-
-      // Always write through a per-invocation tmp file before renaming, so
-      // readers never see partial JSON and concurrent plugin loads do not
-      // race over the same tmp path. See issues #766 and #786.
-      const finalPath = path.join(cacheDir, MODEL_VARIANTS_CACHE_FILE)
-      tmpPath = path.join(cacheDir, `${MODEL_VARIANTS_CACHE_FILE}.${randomBytes(3).toString("hex")}.tmp`)
-      await writeFile(tmpPath, JSON.stringify(variants, null, 2))
-      await rename(tmpPath, finalPath)
-      tmpPath = undefined
-    } catch (err) {
-      console.error("[model-variants] cache refresh failed:", err)
-    } finally {
-      if (tmpPath) {
-        await removeOwnTempFile(tmpPath)
-      }
+        await mkdir(directory, { recursive: true })
+        temporary = `${destination}.${randomBytes(6).toString("hex")}.tmp`
+        await writeFile(temporary, JSON.stringify(variants), { mode: 0o600 })
+        if (!abort.signal.aborted) await rename(temporary, destination)
+      } catch { /* Catalog failure is unavailable coverage, never startup failure. */ }
+      finally { if (temporary) await rm(temporary, { force: true }).catch(() => {}) }
     }
-  }
-
-  // Don't await — server isn't ready during plugin init. Fire and forget.
-  refreshVariantsCache().catch((err) => {
-    console.error("[model-variants] unexpected refresh error:", err)
-  })
-
-  return {}
-}
-
-export default ModelVariantsPlugin
+    // Subscribe before initial snapshot so startup/reload updates cannot be lost.
+    const events = ctx.event.subscribe({ signal: abort.signal })[Symbol.asyncIterator]()
+    // SharedEvents starts only on next(), not subscribe(). Handle rejection now
+    // so a failed stream cannot become unhandled while the snapshot is pending.
+    const next = () => events.next().then(value => ({ value }), error => ({ error }))
+    const running = (async () => {
+      try {
+        let pending = next()
+        await refresh()
+        while (!abort.signal.aborted) {
+          const result = await pending
+          if ("error" in result || result.value.done) break
+          const event = result.value.value
+          pending = next()
+          if (abort.signal.aborted) break
+          if ((event.type === "model.updated" || event.type === "provider.updated")
+            && event.location?.directory === ctx.location.directory
+            && event.location?.workspaceID === ctx.location.workspaceID) await refresh()
+        }
+      } catch { /* No retry loop or global fallback cache. */ }
+      finally { await events.return?.() }
+    })()
+    return async () => { abort.abort(); await running }
+  },
+})

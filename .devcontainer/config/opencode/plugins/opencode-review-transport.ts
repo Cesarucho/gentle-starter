@@ -1,29 +1,10 @@
-import type { Plugin } from "@opencode-ai/plugin"
+// gentle-ai:managed opencode-review-transport/v2
+// Thin wire adapter: Go owns binding, materialization, admission, and capture.
+import { Plugin } from "@opencode/plugin"
 import { spawn } from "node:child_process"
-
+const RELAY_CONTRACT = "gentle-ai.opencode-relay/v2-staged"
+const RELAY_CONTRACT_ENV = "GENTLE_AI_OPENCODE_RELAY_CONTRACT"
 const REVIEW_AGENTS = new Set(["review-risk", "review-resilience", "review-readability", "review-reliability", "review-refuter", "review-validator"])
-// OpenCode emits session.created before prompting the review agent. Replace
-// the child session's inherited system with one nonempty transport boundary so
-// only the Go-materialized prompt reaches the provider; Go owns the contract.
-const TRANSPORT_ISOLATION_SYSTEM = "Transport isolation: follow only the Go-materialized user prompt."
-
-// OpenCode v1.18.10's published event type omits `agent`, but the runtime
-// emits it for Task child sessions. Decode either shape; fall back to the
-// `title` suffix the official child title carries.
-function decodeReviewSessionID(info: unknown): string | undefined {
-  if (info === null || typeof info !== "object" || Array.isArray(info)) return
-  const id = Reflect.get(info, "id")
-  if (typeof id !== "string") return
-  const agent = Reflect.get(info, "agent")
-  if (agent !== undefined) return typeof agent === "string" && REVIEW_AGENTS.has(agent) ? id : undefined
-  const title = Reflect.get(info, "title")
-  if (typeof title !== "string") return
-  for (const reviewAgent of REVIEW_AGENTS) {
-    const suffix = ` (@${reviewAgent} subagent)`
-    if (title.endsWith(suffix) && title.length > suffix.length) return id
-  }
-}
-
 const TRANSPORT = {
   Command: "gentle-ai",
   Schema: "gentle-ai.provider-transport/v1",
@@ -31,7 +12,59 @@ const TRANSPORT = {
   Prompt: "prompt",
   Complete: "complete",
   Result: "result",
+  Refused: "refused",
 } as const
+
+// Bounded refusal reasons. Go names one in its refused frame; the plugin only
+// forwards an exact member, so relay text, paths, or child bytes never reach
+// the parent. dispatch_refused is the plugin's own pre-relay refusal.
+const REFUSAL_REASON = {
+  CapabilityUnavailable: "capability_unavailable",
+  EnvelopeInvalid: "envelope_invalid",
+  AgentMismatch: "agent_mismatch",
+  BindingMismatch: "binding_mismatch",
+  StaleAuthority: "stale_authority",
+  OutputRefused: "output_refused",
+  ProviderFailed: "provider_failed",
+  RelayUnavailable: "relay_unavailable",
+  DispatchRefused: "dispatch_refused",
+} as const
+type RefusalReason = (typeof REFUSAL_REASON)[keyof typeof REFUSAL_REASON]
+const REFUSAL_REASONS: ReadonlySet<string> = new Set(Object.values(REFUSAL_REASON))
+
+// Bounded refusal causes. Go may name one beside the reason; the plugin only
+// forwards an exact member, so admission prose, paths, or child bytes never
+// reach the parent. An absent or unknown cause keeps the reason-only refusal.
+const REFUSAL_CAUSES: ReadonlySet<string> = new Set([
+  "reviewer_result_not_admissible",
+  "validator_result_not_admissible",
+  "targeted_validation_inconclusive",
+  "role_capture_failed",
+  "inspection_coverage",
+  "invalid_finding_location",
+  "evidence_path_out_of_scope",
+  "proof_path_out_of_scope",
+  "candidate_causality_unclaimed_id",
+  "candidate_causality_evidence_degraded",
+])
+
+class RelayRefusal extends Error {
+  readonly reason: RefusalReason
+  readonly refusalCause: string | undefined
+  constructor(reason: RefusalReason, refusalCause?: string) {
+    super("Go review relay refused the Task")
+    this.reason = reason
+    this.refusalCause = refusalCause
+  }
+}
+
+function refusalReason(cause: unknown): RefusalReason {
+  return cause instanceof RelayRefusal ? cause.reason : REFUSAL_REASON.RelayUnavailable
+}
+
+function refusalCause(cause: unknown): string | undefined {
+  return cause instanceof RelayRefusal ? cause.refusalCause : undefined
+}
 
 interface TransportFrame {
   schema: string
@@ -41,6 +74,7 @@ interface TransportFrame {
   agent?: string
   output?: string
   error?: string
+  cause?: string
 }
 
 interface Relay {
@@ -55,140 +89,6 @@ interface RelayRegistration {
   completing: boolean
 }
 
-// The relay registry is process-global so duplicate plugin instances (global
-// + project config) share a single view of live review relays.
-//
-// Owner invariant: each registration belongs to exactly one plugin instance
-// (the owner of the before hook that spawned it); only that owner may complete
-// or close it. An instance that observes an already-registered key at before
-// time defers; a completion for a key it neither owns nor deferred refuses
-// loudly instead of silently dropping.
-const RELAY_REGISTRY_KEY = "__gentleAiOpenCodeReviewTransportRelays" as const
-
-function reviewRelayRegistry(): Map<string, RelayRegistration> {
-  const runtime = globalThis as typeof globalThis & { [RELAY_REGISTRY_KEY]?: Map<string, RelayRegistration> }
-  if (runtime[RELAY_REGISTRY_KEY] === undefined) runtime[RELAY_REGISTRY_KEY] = new Map<string, RelayRegistration>()
-  return runtime[RELAY_REGISTRY_KEY]
-}
-
-function taskKey(sessionID: string, callID: string, subagentType: string): string {
-  // The agent type is part of the host Task identity; retain it so different
-  // 4R lenses are not treated as duplicates across grouped Task responses.
-  return `${sessionID}:${callID}:${subagentType}`
-}
-
-// A refused relay must fail the Task loudly even if the host swallows the
-// before hook's throw: the child receives only the refusal prompt, and the
-// after hook replaces raw output with a typed refusal so an unbound child
-// can never masquerade as a captured reviewer result.
-const RELAY_REFUSED_CODE = "opencode_review_transport_relay_refused"
-
-// Binary handshake (issue #3049): a stale PATH `gentle-ai` can answer the
-// relay for a newer binary's authority without knowing the provider-transport/v1
-// capability. Probe `--version` via PATH before the relay spawn and refuse on
-// skew or ENOENT; the OS resolves the binary so no manual PATH walk is needed.
-const BINARY_SKEW_CODE = "opencode_review_transport_binary_skew"
-const BINARY_UNAVAILABLE_CODE = "opencode_review_transport_binary_unavailable"
-
-// Minimum semver a PATH `gentle-ai` must report to serve the relay; older
-// versions predate the provider-transport/v1 capability baked into this
-// plugin and are refused with BINARY_SKEW_CODE before the relay spawn.
-const MIN_GENTLE_AI_VERSION = "2.0.0"
-
-function relayRefusedReason(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
-}
-
-function relayRefusedPrompt(reason: string): string {
-  return (
-    `${RELAY_REFUSED_CODE}: the Go review relay refused this Task before launch: ${reason}\n` +
-    `You have no review binding and no frozen candidate evidence. Do not inspect anything, ` +
-    `do not fabricate findings, and do not return a review result. ` +
-    `Reply with exactly: ${RELAY_REFUSED_CODE}`
-  )
-}
-
-function relayRefusedOutput(reason: string): string {
-  return `${RELAY_REFUSED_CODE}: ${reason}`
-}
-
-// Parse `gentle-ai <semver>\n` from `--version` stdout. Anything else is
-// treated as a probe failure so a binary that does not implement the
-// version command cannot be mistaken for a healthy handshake.
-function parseGentleAiVersion(stdout: string): string | undefined {
-  const match = /^gentle-ai\s+(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\s*$/m.exec(stdout)
-  return match?.[1]
-}
-
-// Compare two dot-separated semvers segment by segment; numeric as integers,
-// non-numeric lexicographically. Narrower than full semver ordering because
-// the contract is "PATH version >= the version that shipped provider-transport/v1";
-// build-metadata and pre-release edge cases are out of scope for refusal.
-function compareSemver(pathVersion: string, minVersion: string): number {
-  const parts = (version: string) => version.split(/[.-]/).map((segment) => /^\d+$/.test(segment) ? Number(segment) : segment)
-  const [left, right] = [parts(pathVersion), parts(minVersion)]
-  const length = Math.max(left.length, right.length)
-  for (let index = 0; index < length; index++) {
-    const a = left[index] ?? 0
-    const b = right[index] ?? 0
-    if (typeof a === "number" && typeof b === "number") {
-      if (a !== b) return a < b ? -1 : 1
-      continue
-    }
-    const sa = String(a)
-    const sb = String(b)
-    if (sa !== sb) return sa < sb ? -1 : 1
-  }
-  return 0
-}
-
-function runGentleAiVersion(): Promise<{ code: number | null; stdout: string } | null> {
-  return new Promise((settle) => {
-    const child = spawn("gentle-ai", ["--version"], { stdio: ["ignore", "pipe", "pipe"] })
-    let stdout = ""
-    let done = false
-    const finish = (value: { code: number | null; stdout: string } | null) => {
-      if (done) return
-      done = true
-      settle(value)
-    }
-    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8") })
-    child.on("error", () => finish(null))
-    child.on("close", (code) => finish({ code, stdout }))
-  })
-}
-
-async function probeGentleAiBinary(): Promise<{ version: string } | null> {
-  const probe = await runGentleAiVersion()
-  if (probe === null || probe.code !== 0) return null
-  const version = parseGentleAiVersion(probe.stdout)
-  if (version === undefined) return null
-  return { version }
-}
-
-function binarySkewReason(pathVersion: string): string {
-  return (
-    `${BINARY_SKEW_CODE}: PATH gentle-ai reports version ${pathVersion}, ` +
-    `which is older than the minimum ${MIN_GENTLE_AI_VERSION} this plugin requires. ` +
-    `Inspect the path with: which -a gentle-ai`
-  )
-}
-
-function binaryUnavailableReason(): string {
-  return (
-    `${BINARY_UNAVAILABLE_CODE}: gentle-ai --version could not be spawned (ENOENT or spawn error); ` +
-    `the relay child cannot start. See issue #2971 for the install-side fix.`
-  )
-}
-
-async function runBinaryHandshake(): Promise<void> {
-  const result = await probeGentleAiBinary()
-  if (result === null) throw new Error(binaryUnavailableReason())
-  if (compareSemver(result.version, MIN_GENTLE_AI_VERSION) < 0) {
-    throw new Error(binarySkewReason(result.version))
-  }
-}
-
 function decodeTransportFrame(line: string): TransportFrame {
   const frame = JSON.parse(line) as unknown
   if (!frame || typeof frame !== "object" || Array.isArray(frame)) throw new Error("invalid Go transport response")
@@ -198,7 +98,7 @@ function decodeTransportFrame(line: string): TransportFrame {
 // The dispatched host agent travels with the prompt so Go can bind it to the
 // Task role; the prompt alone never selects the admitted role.
 function startRelay(cwd: string, prompt: string, agent: string): Relay {
-  const child = spawn(TRANSPORT.Command, ["review", "opencode-transport"], { cwd, stdio: ["pipe", "pipe", "pipe"] })
+  const child = spawn(TRANSPORT.Command, ["review", "opencode-transport"], { cwd, env: { ...process.env, [RELAY_CONTRACT_ENV]: RELAY_CONTRACT }, stdio: ["pipe", "pipe", "pipe"] })
   let buffered = ""
   let closed = false
   const stderr: Buffer[] = []
@@ -235,6 +135,12 @@ function startRelay(cwd: string, prompt: string, agent: string): Relay {
           resolveResult(frame.output)
           continue
         }
+        if (frame.operation === TRANSPORT.Refused) {
+          const reason = typeof frame.error === "string" && REFUSAL_REASONS.has(frame.error) ? frame.error as RefusalReason : REFUSAL_REASON.RelayUnavailable
+          const detail = typeof frame.cause === "string" && REFUSAL_CAUSES.has(frame.cause) ? frame.cause : undefined
+          fail(new RelayRefusal(reason, detail))
+          continue
+        }
         throw new Error("invalid Go relay frame")
       } catch (cause) {
         fail(cause)
@@ -261,137 +167,126 @@ function startRelay(cwd: string, prompt: string, agent: string): Relay {
       return resultFrame
     },
     close: () => {
-      if (!closed) closed = true
+      fail(new Error("Go review relay disposed"))
       if (!child.killed) child.kill()
     },
   }
 }
 
-const OpenCodeReviewTransportPlugin: Plugin = async ({ directory, worktree }) => {
-  const owner = Symbol("gentle-ai-opencode-review-transport")
-  const relays = reviewRelayRegistry()
-  // Child sessions inherit the live agent, project, and skill system blocks
-  // unless this pre-provider transform strips them. This is per plugin
-  // instance, like relay ownership; duplicate instances safely converge on the
-  // same one-element system array.
-  const reviewSessions = new Set<string>()
-  // Keys this instance observed at before time whose registration another
-  // instance owns. The owning instance's after hook delivers the completion,
-  // so this instance's after hook passes those tasks through untouched. This
-  // deferral is the only tolerated silent completion path; every other
-  // unmatched completion refuses loudly.
-  const deferred = new Map<string, RelayRegistration>()
-  // Keys whose relay start this instance refused. Their Tasks must never
-  // deliver child output as a completion, even if the host runtime swallowed
-  // the before hook's thrown refusal and launched the Task anyway.
-  const refused = new Map<string, string>()
-  const cwd = () => worktree || directory
-  const clearOwned = (key: string) => {
-    const registration = relays.get(key)
-    if (!registration || registration.owner !== owner) return
-    relays.delete(key)
-    registration.relay.close()
-  }
-  const clearSession = (prefix: string) => {
-    // Owner-scoped on purpose: every live instance receives session.deleted
-    // and clears its own registrations, so the session empties collectively
-    // without one instance closing relays it does not own. A disposed
-    // instance's registrations are cleared by its dispose hook instead.
-    for (const [key, registration] of relays) {
-      if (!key.startsWith(prefix) || registration.owner !== owner) continue
+
+const REGISTRY = "__gentleAiOpenCodeV2ReviewRelays"
+function registry(): Map<string, RelayRegistration> {
+  const runtime = globalThis as typeof globalThis & { [REGISTRY]?: Map<string, RelayRegistration> }
+  return runtime[REGISTRY] ??= new Map()
+}
+const REFUSED = "opencode_review_transport_relay_refused"
+const refusalText = (reason: RefusalReason, cause?: string) => `${REFUSED} (reason: ${reason}${cause === undefined ? "" : `, cause: ${cause}`})`
+const refusal = (reason: RefusalReason, cause?: string) => Object.assign(new Error(refusalText(reason, cause)), { code: REFUSED, reason }, cause === undefined ? {} : { cause })
+
+export default Plugin.define({
+  id: "gentle-ai.opencode-review-transport",
+  async setup(ctx) {
+    const owner = Symbol("review-relay")
+    const relays = registry()
+    const deferred = new Map<string, RelayRegistration>()
+    const refused = new Map<string, RefusalReason>()
+    const registrations: Array<{ dispose(): Promise<void> }> = []
+    const abort = new AbortController()
+    const location = [ctx.location.directory, ctx.location.workspaceID ?? ""]
+    const prefix = JSON.stringify(location)
+    const keyFor = (call: { sessionID: string; id: string }, agent: string) => JSON.stringify([prefix, call.sessionID, call.id, agent])
+    const reviewInput = (call: { tool: string; input: unknown }): Record<string, unknown> | undefined => {
+      if (call.tool !== "subagent" || !call.input || typeof call.input !== "object") return
+      const input = call.input as Record<string, unknown>
+      if (typeof input.agent === "string" && REVIEW_AGENTS.has(input.agent)) return input
+    }
+    const clearOwned = (key: string) => {
+      const registration = relays.get(key)
+      if (registration?.owner !== owner) return
       relays.delete(key)
       registration.relay.close()
     }
-    for (const key of deferred.keys()) if (key.startsWith(prefix)) deferred.delete(key)
-    for (const key of refused.keys()) if (key.startsWith(prefix)) refused.delete(key)
-  }
-  return {
-    dispose: async () => {
-      reviewSessions.clear()
+    let disposed = false
+    const cleanup = async () => {
+      disposed = true
+      abort.abort()
+      for (const [key, registration] of relays) if (registration.owner === owner) clearOwned(key)
       deferred.clear()
       refused.clear()
-      for (const [key, registration] of relays) if (registration.owner === owner) clearOwned(key)
-    },
-    event: async ({ event }) => {
-      if (event.type === "session.created") {
-        const sessionID = decodeReviewSessionID(event.properties?.info)
-        if (sessionID !== undefined) reviewSessions.add(sessionID)
-        return
-      }
-      if (event.type !== "session.deleted") return
-      reviewSessions.delete(event.properties.info.id)
-      const prefix = `${event.properties.info.id}:`
-      clearSession(prefix)
-    },
-    "experimental.chat.system.transform": async (input, output) => {
-      if (typeof input.sessionID !== "string" || !reviewSessions.has(input.sessionID)) return
-      // OpenCode restores its fallback system prompt for an empty array, so
-      // replace in place with one nonempty transport instruction instead.
-      output.system.splice(0, output.system.length, TRANSPORT_ISOLATION_SYSTEM)
-    },
-    "tool.execute.before": async (input, output) => {
-      if (input.tool !== "task" || typeof output.args?.subagent_type !== "string" || !REVIEW_AGENTS.has(output.args.subagent_type)) return
-      if (typeof output.args.prompt !== "string") throw new Error("review task prompt is unavailable for Go relay materialization")
-      const key = taskKey(input.sessionID, input.callID, output.args.subagent_type)
-      const existing = relays.get(key)
-      if (existing) {
-        // Another instance already owns this task's relay: defer completion
-        // to that owner and pass this instance's hooks through untouched. A
-        // re-fired before hook for a registration this instance already owns
-        // keeps the live registration and defers nothing.
-        if (existing.owner !== owner) deferred.set(key, existing)
-        return
-      }
-      try {
-        await runBinaryHandshake()
-        const relay = startRelay(cwd(), output.args.prompt, output.args.subagent_type)
-        relays.set(key, { owner, relay, completing: false })
-        output.args.prompt = (await relay.prompt).prompt
-      } catch (cause) {
-        const registration = relays.get(key)
-        if (registration !== undefined && registration.owner === owner) {
-          clearOwned(key)
+      await Promise.all(registrations.map(registration => registration.dispose()))
+    }
+    try {
+      registrations.push(await ctx.tool.hook("execute.before", async call => {
+        const input = reviewInput(call)
+        if (!input) return
+        const key = keyFor(call, input.agent as string)
+        const refuse = (reason: RefusalReason) => { refused.set(key, reason); input.prompt = REFUSED; throw refusal(reason) }
+        if (disposed) return refuse(REFUSAL_REASON.RelayUnavailable)
+        if (typeof input.prompt !== "string" || input.prompt === "" || input.background === true || input.sessionID !== undefined) return refuse(REFUSAL_REASON.DispatchRefused)
+        const existing = relays.get(key)
+        if (existing) {
+          if (existing.owner !== owner) deferred.set(key, existing)
+          // Concurrent duplicate instances must also wait for Go's materialization.
+          try { input.prompt = (await existing.relay.prompt).prompt } catch (cause) { return refuse(refusalReason(cause)) }
+          return
         }
-        const reason = relayRefusedReason(cause)
-        refused.set(key, reason)
-        output.args.prompt = relayRefusedPrompt(reason)
-        throw cause
-      }
-    },
-    "tool.execute.after": async (input, output) => {
-      if (input.tool !== "task" || typeof input.args?.subagent_type !== "string" || !REVIEW_AGENTS.has(input.args.subagent_type)) return
-      const key = taskKey(input.sessionID, input.callID, input.args.subagent_type)
-      const refusal = refused.get(key)
-      if (refusal !== undefined) {
-        refused.delete(key)
-        output.output = relayRefusedOutput(refusal)
-        throw new Error(relayRefusedOutput(refusal))
-      }
-      // Owner-scoped dedup tolerance: this instance saw the before hook for
-      // this task but another instance owns the relay, so that owner's after
-      // hook delivers the completion and this one passes through untouched.
-      // The pass-through holds only while that exact owning registration is
-      // still live or has delivered its own completion; a deferred key whose
-      // owner vanished without completing falls through to the loud orphan
-      // refusal below instead of returning raw reviewer output as success.
-      const deferredTo = deferred.get(key)
-      if (deferredTo !== undefined) {
-        deferred.delete(key)
-        if (relays.get(key) === deferredTo || deferredTo.completing) return
-      }
-      const registration = relays.get(key)
-      if (!registration) throw new Error("review Task relay completion has no matching live before hook")
-      if (registration.owner !== owner) throw new Error("review Task relay completion is owned by another plugin instance")
-      if (registration.completing) throw new Error("review Task relay completion is already in flight for this task")
-      registration.completing = true
-      try {
-        output.output = await registration.relay.complete(output.output)
-      } finally {
-        if (relays.get(key) === registration) relays.delete(key)
-        registration.relay.close()
-      }
-    },
-  }
-}
-
-export default OpenCodeReviewTransportPlugin
+        try {
+          const relay = startRelay(ctx.location.directory, input.prompt, input.agent as string)
+          relays.set(key, { owner, relay, completing: false })
+          input.prompt = (await relay.prompt).prompt
+        } catch (cause) {
+          clearOwned(key)
+          return refuse(refusalReason(cause))
+        }
+      }))
+      registrations.push(await ctx.tool.hook("execute.after", async call => {
+        const input = reviewInput(call)
+        if (!input) return
+        const key = keyFor(call, input.agent as string)
+        const refuse = (reason: RefusalReason, cause?: string) => {
+          if (call.status === "completed") call.result = { output: { status: "unavailable", code: REFUSED, reason, ...(cause === undefined ? {} : { cause }) }, content: refusalText(reason, cause) }
+          throw refusal(reason, cause)
+        }
+        const earlier = refused.get(key)
+        if (earlier !== undefined) {
+          refused.delete(key)
+          return refuse(earlier)
+        }
+        if (disposed) return refuse(REFUSAL_REASON.RelayUnavailable)
+        const deferredTo = deferred.get(key)
+        if (deferredTo) {
+          deferred.delete(key)
+          if (relays.get(key) === deferredTo || deferredTo.completing) return
+        }
+        const registration = relays.get(key)
+        if (!registration || registration.owner !== owner || registration.completing) return refuse(REFUSAL_REASON.RelayUnavailable)
+        registration.completing = true
+        try {
+          // Hook completion alone may acknowledge a running background child.
+          const output = call.status === "completed" ? call.result.output : undefined
+          const child = output && typeof output === "object" ? output as Record<string, unknown> : undefined
+          const raw = child?.status === "completed" && typeof child.sessionID === "string" && child.sessionID !== "" && typeof child.output === "string" ? child.output : undefined
+          const result = await registration.relay.complete(raw)
+          if (call.status === "completed") call.result = { ...call.result, output: { ...child, output: result }, content: result }
+        } catch (cause) { return refuse(refusalReason(cause), refusalCause(cause)) }
+        finally { clearOwned(key) }
+      }))
+      registrations.push(await ctx.shell.hook("create.before", invocation => {
+        invocation.env[RELAY_CONTRACT_ENV] = RELAY_CONTRACT
+      }))
+      void (async () => {
+        try {
+          for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
+            if (event.type !== "session.deleted" || event.location?.directory !== location[0] || (event.location?.workspaceID ?? "") !== location[1]) continue
+            const sessionPrefix = JSON.stringify([prefix, event.data.sessionID]).slice(0, -1) + ","
+            for (const key of relays.keys()) if (key.startsWith(sessionPrefix)) clearOwned(key)
+            for (const key of deferred.keys()) if (key.startsWith(sessionPrefix)) deferred.delete(key)
+            for (const key of refused.keys()) if (key.startsWith(sessionPrefix)) refused.delete(key)
+          }
+        } catch { /* Disposal also aborts the subscription. */ }
+        finally { for (const [key, registration] of relays) if (registration.owner === owner) clearOwned(key) }
+      })()
+    } catch (cause) { await cleanup(); throw cause }
+    return cleanup
+  },
+})

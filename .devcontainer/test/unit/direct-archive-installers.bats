@@ -7,9 +7,11 @@ setup() {
 	INSTALL_DIR="${TEST_ROOT}/install"
 	POLICY="${TEST_ROOT}/policy"
 	ARCHIVE="${TEST_ROOT}/fixture.tar.gz"
+	export DOWNLOAD_CALLS="${TEST_ROOT}/downloads"
 	mkdir -p "${BIN_DIR}" "${INSTALL_DIR}" "${TEST_ROOT}/tmp"
 	cat >"${BIN_DIR}/curl" <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >>"${DOWNLOAD_CALLS}"
 while [ "$#" -gt 0 ]; do
 	case "$1" in -o) output="$2"; shift 2 ;; *) shift ;; esac
 done
@@ -238,6 +240,24 @@ run_direct_installer() {
 		run_direct_installer opencode "${machine}" 1.2.3
 		[ "${status}" -eq 0 ]
 		[ "$(${INSTALL_DIR}/opencode --version)" = "opencode version 1.2.3" ]
+		assert_installer_temp_is_empty
+	done
+}
+
+@test "OpenCode v2 uses the pinned official standalone URL and skips exact installed versions" {
+	local machine asset_arch
+	for machine in x86_64 aarch64; do
+		asset_arch=x64
+		[ "${machine}" != aarch64 ] || asset_arch=arm64
+		rm -f "${INSTALL_DIR}/opencode" "${DOWNLOAD_CALLS}"
+		write_binary_archive opencode 2.0.29
+		run_direct_installer opencode "${machine}" 2.0.29
+		[ "${status}" -eq 0 ]
+		grep -q "https://opencode.ai/files/bin/2.0.29/opencode-linux-${asset_arch}.tar.gz" "${DOWNLOAD_CALLS}"
+		[ "$(wc -l <"${DOWNLOAD_CALLS}")" -eq 1 ]
+		run_direct_installer opencode "${machine}" 2.0.29
+		[ "${status}" -eq 0 ]
+		[ "$(wc -l <"${DOWNLOAD_CALLS}")" -eq 1 ]
 		assert_installer_temp_is_empty
 	done
 }

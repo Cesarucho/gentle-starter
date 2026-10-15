@@ -13,6 +13,69 @@ OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 
+## Select a seed profile with a symlink
+
+Any source directory passed to `seed_config_tree` (including through
+`seed_config_with_dependencies`) may be a symlink to a directory. For example:
+
+```text
+.devcontainer/config/
+├── example-tool-personal/
+├── example-tool-team/
+└── example-tool -> example-tool-personal
+```
+
+Use a relative link to keep the selection portable. The helper copies regular
+files from the selected directory into the mapped runtime destination; it does
+not create runtime symlinks or follow symlinks inside the selected tree. A broken
+selector or a selector pointing to a non-directory stops setup with an error.
+An absent optional source directory remains a no-op.
+Trailing slashes on source paths are normalized before validation and copying,
+without turning the filesystem root `/` into an empty path.
+
+Selection is generic: future tools reuse the same helper without a profile
+catalog. Each tool still explicitly registers its source/runtime mapping and
+activation condition; directories are not discovered automatically.
+
+Create or change the selector before recreating the container. With the shipped
+Compose configuration, OpenCode's `~/.config/opencode/` is not persisted, so the
+new container receives the selected seed. HOST: `task container:rebuild` removes
+the container and builds the image; follow it with `task container:up` to create
+the container and run CONTAINER `setup.sh`. These commands must run on the host,
+not inside the container. Restarting the same container or rerunning setup does
+not replace existing runtime files. For other tools or custom mounts, whether a
+recreation clears runtime configuration depends on that destination's persistence.
+This selector support concerns seeding, not profile-aware `config:diff` or
+`config:export` support.
+
+## Install configuration dependencies after seeding
+
+Enabled config mappings use `seed_config_with_dependencies`: it first preserves
+existing runtime files through `seed_config_tree`, then checks for `package.json`
+directly under that mapping's seed root. Without a seed manifest, nothing runs.
+There is no recursive discovery or installation for disabled tools.
+
+When present, setup runs
+`npm install --global=false --prefix <runtime-directory> --ignore-scripts --no-audit --no-fund`
+in the mapped **runtime directory**, as the container user, never with sudo or in
+the versioned seed. The existing runtime manifest is authoritative, including
+user customizations. The target must be a writable, user-owned directory inside
+HOME; linked targets/manifests and invalid JSON objects are rejected.
+Explicit local mode and prefix override inherited npm global/prefix settings.
+
+Installation runs on every setup invocation, even if `node_modules` exists.
+Failures stop setup with a target-specific diagnostic; no successful-install
+marker is written. npm may create/update the runtime lockfile and modules;
+installation is not transactional. Scripts are disabled, so dependencies requiring
+build/postinstall scripts may need a separately reviewed workflow. Without a
+lockfile dependency resolution is not reproducible. No real network installation
+is part of the unit tests.
+
+To add a tool, register its enabled source/runtime mapping explicitly and call
+`seed_config_with_dependencies` rather than scanning all config directories.
+System-wide configuration can still use `seed_config_tree` alone; this npm helper
+does not install dependencies into privileged locations.
+
 ## Workspace normalization preserves private state
 
 Before seeding, CONTAINER `setup.sh` normalizes public workspace ownership and

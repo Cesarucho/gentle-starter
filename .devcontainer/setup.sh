@@ -12,6 +12,8 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # stateful volume.
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/lifecycle/config-dependencies.sh"
 
 # Validate snapshot integrity AND the creation-time identity before any runtime mutation.
 python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null
@@ -119,10 +121,22 @@ bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}" "${ru
 #
 # This is the building block for the versioned config contract:
 #   .devcontainer/config/<name>/<ruta>/archivo  ->  <target>/<ruta>/archivo
+# The source root may be a profile selector symlink to a directory. Follow
+# that root only; symlinks found inside the selected tree remain unseeded.
 # See .devcontainer/README.md for the convention.
 seed_config_tree() {
 	local source_root="$1"
 	local target_root="$2"
+
+	# Inspect the selector itself, even when callers supply a directory suffix.
+	while [ "${source_root}" != / ] && [[ "${source_root}" == */ ]]; do
+		source_root="${source_root%/}"
+	done
+
+	if [ -L "${source_root}" ] && [ ! -d "${source_root}" ]; then
+		printf '[setup:error] Invalid config seed directory: %s\n' "${source_root}" >&2
+		return 1
+	fi
 
 	if [ ! -d "${source_root}" ]; then
 		return 0
@@ -154,10 +168,10 @@ seed_config_tree() {
 		fi
 
 		# shellcheck disable=SC2086
-		${mkdir_cmd} "$(dirname "${target}")"
+		${mkdir_cmd} "$(dirname "${target}")" || return "$?"
 		# shellcheck disable=SC2086
-		${cp_cmd} "${source}" "${target}"
-	done < <(find "${source_root}" -type f)
+		${cp_cmd} "${source}" "${target}" || return "$?"
+	done < <(find -H "${source_root}" -type f)
 }
 
 repair_user_local_parents() {
@@ -200,14 +214,14 @@ repair_user_local_parents() {
 # See .devcontainer/README.md for the full convention.
 setup_versioned_configs() {
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3040-ai-gentle-shell.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell"
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell" || return "$?"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai" || return "$?"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent" || return "$?"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3000-ai-opencode.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/opencode" "${HOME}/.config/opencode"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/opencode" "${HOME}/.config/opencode" || return "$?"
 	fi
 
 	# Add additional tool configs here, one line per source root:
