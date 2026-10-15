@@ -116,7 +116,8 @@ from pathlib import Path
 source = Path(sys.argv[1]).read_text()
 functions = [re.search(r'^' + name + r'\(\) \{.*?^\}', source, re.M | re.S).group()
              for name in ('seed_config_tree', 'setup_versioned_configs')]
-Path(sys.argv[2]).write_text('\n'.join(functions))
+helper = Path(sys.argv[1]).parent / 'lifecycle/config-dependencies.sh'
+Path(sys.argv[2]).write_text(helper.read_text() + '\n' + '\n'.join(functions))
 PY
 	# An absent baseline must be synthetic: the producer now ships Shell config.
 	export WORKSPACE_DIR="${TEST_ROOT}/workspace" SCRIPT_DIR="${TEST_ROOT}/workspace/.devcontainer"

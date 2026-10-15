@@ -131,7 +131,7 @@ require_selected_providers() {
 			;;
 		esac
 		case "${name}" in
-		bats | engram | opencode | gentle-ai | gga | c4-plantuml | archify | gitleaks | pulumi | opentofu | terragrunt | plantuml | delve)
+		bats | engram | gentle-ai | gga | c4-plantuml | archify | gitleaks | pulumi | opentofu | terragrunt | plantuml | delve)
 			require_command "${SLEEP_BIN}"
 			require_command sha256sum
 			;;
@@ -153,7 +153,7 @@ require_selected_providers() {
 		require_command unzip
 	fi
 	# Strategy names do not identify the transport (Go and Terraform aren't GitHub).
-	for name in bats engram opencode gentle-ai gga c4-plantuml archify gitleaks pulumi opentofu terragrunt plantuml delve; do
+	for name in bats engram gentle-ai gga c4-plantuml archify gitleaks pulumi opentofu terragrunt plantuml delve; do
 		if [ -n "${SELECTED_TOOLS[${name}]:-}" ]; then
 			resolve_github_api_token
 			break
@@ -283,8 +283,8 @@ strategy_for_key() {
 	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION | TOOL_OPENSPEC_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
-	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_OPENCODE_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
-	TOOL_GRAPHIFY_VERSION) printf semver ;;
+	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;
+	TOOL_GRAPHIFY_VERSION | TOOL_OPENCODE_VERSION) printf semver ;;
 	TOOL_PNPM_VERSION | TOOL_PI_CODING_AGENT_VERSION | TOOL_SKILLS_VERSION | TOOL_MARKDOWNLINT_CLI2_VERSION | TOOL_MERMAID_CLI_VERSION | TOOL_PLAYWRIGHT_VERSION | TOOL_PLAYWRIGHT_CLI_VERSION | TOOL_DEVCONTAINER_CLI_VERSION | TOOL_VITEST_VERSION | TOOL_SPECTRAL_VERSION | TOOL_REDOCLY_VERSION | TOOL_ASYNCAPI_VERSION) printf npm ;;
 	*) fail "unknown tool strategy for $1" ;;
 	esac
@@ -731,6 +731,34 @@ discover_gga_source() {
 	[[ "${CANDIDATES[LOCK_GGA_SHA256]}" =~ ^[0-9a-f]{64}$ ]] || fail "GGA source archive has an invalid SHA-256"
 }
 
+discover_opencode_standalone() {
+	local metadata version intent architecture asset_arch asset_name digest
+	metadata="$(fetch_url https://opencode.ai/update/api/latest/cli/opencode)"
+	version="$(printf '%s' "${metadata}" | "${JQ_BIN}" -er '
+		if .channel == "latest" and .name == "cli" and .distribution == "opencode"
+		and .active == true then .version else error("invalid standalone identity") end
+	')" || fail "OpenCode standalone metadata has an invalid identity or inactive channel"
+	require_stable_semver OpenCode "${version}"
+	[[ "${version}" =~ ^2[.][0-9]+[.][0-9]+$ ]] || fail "OpenCode standalone requires a v2 stable version"
+	intent="$(policy_value TOOL_OPENCODE_VERSION)"
+	intent_accepts_version "${intent}" "${version}" semver ||
+		fail "OpenCode standalone latest does not match intent ${intent}; historical metadata is unavailable; keep the existing locks or choose a matching intent"
+	for architecture in amd64 arm64; do
+		asset_arch=arm64
+		[ "${architecture}" != amd64 ] || asset_arch=x64
+		asset_name="opencode-linux-${asset_arch}.tar.gz"
+		# jq owns the variables below; only canonical, version-bound URLs are accepted.
+		# shellcheck disable=SC2016
+		digest="$(printf '%s' "${metadata}" | "${JQ_BIN}" -er --arg name "${asset_name}" \
+			--arg url "https://opencode.ai/files/bin/${version}/${asset_name}" '
+			.metadata.files[$name] | if .url == $url then .sha256 else error("invalid archive URL") end
+		')" || fail "OpenCode standalone metadata omits a canonical ${architecture} archive"
+		[[ "${digest}" =~ ^[0-9a-f]{64}$ ]] || fail "OpenCode ${architecture} archive has an invalid SHA-256"
+		CANDIDATES["LOCK_OPENCODE_SHA256_${architecture^^}"]="${digest}"
+	done
+	CANDIDATES[LOCK_OPENCODE_VERSION]="${version}"
+}
+
 discover_github_binary_release() {
 	local key="$1" repository="$2" version="$3" asset_template="$4"
 	local release_json architecture asset_arch asset_name digest
@@ -742,7 +770,6 @@ discover_github_binary_release() {
 		fail "${repository} release metadata is not one exact stable release"
 	for architecture in amd64 arm64; do
 		asset_arch="${architecture}"
-		[ "${key}" != LOCK_OPENCODE ] || { [ "${architecture}" = amd64 ] && asset_arch=x64 || asset_arch=arm64; }
 		asset_name="${asset_template//\{version\}/${version}}"
 		asset_name="${asset_name//\{arch\}/${asset_arch}}"
 		# shellcheck disable=SC2016
@@ -850,13 +877,10 @@ discover_candidates() {
 		CANDIDATES[LOCK_ENGRAM_VERSION]="$(latest_github_release 'Gentleman-Programming/engram' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_ENGRAM_VERSION)")"
 	fi
 	if key_is_selected LOCK_OPENCODE_VERSION; then
-		CANDIDATES[LOCK_OPENCODE_VERSION]="$(latest_github_release 'anomalyco/opencode' '^v[0-9]+\.[0-9]+\.[0-9]+$' no "$(policy_value TOOL_OPENCODE_VERSION)")"
+		discover_opencode_standalone
 	fi
 	if key_is_selected LOCK_ENGRAM_VERSION; then
 		discover_github_binary_release LOCK_ENGRAM Gentleman-Programming/engram "${CANDIDATES[LOCK_ENGRAM_VERSION]}" 'engram_{version}_linux_{arch}.tar.gz'
-	fi
-	if key_is_selected LOCK_OPENCODE_VERSION; then
-		discover_github_binary_release LOCK_OPENCODE anomalyco/opencode "${CANDIDATES[LOCK_OPENCODE_VERSION]}" 'opencode-linux-{arch}.tar.gz'
 	fi
 
 	if key_is_selected LOCK_GO_VERSION; then
@@ -976,7 +1000,8 @@ validate_policy() {
 }
 
 publish_policy() {
-	local key
+	local key old_value change
+	local -a tool_changes=() lock_changes=()
 	CANDIDATE_FILE="$(mktemp "$(dirname "${POLICY_FILE}")/.tool-versions.conf.XXXXXX")"
 	cp "${POLICY_FILE}" "${CANDIDATE_FILE}"
 
@@ -993,23 +1018,43 @@ publish_policy() {
 	POLICY_FILE="${CANDIDATE_FILE}" validate_inventory
 	validate_scope "${POLICY_FILE}" "${CANDIDATE_FILE}" "${1:-}"
 
-	printf '\nVersion policy updates:\n'
 	for key in "${UPDATE_KEYS[@]}"; do
-		local old_value
 		old_value="$(sed -nE "s/^${key}=\"([^\"]+)\"$/\1/p" "${POLICY_FILE}")"
 		if [ "${old_value}" != "${CANDIDATES[${key}]}" ]; then
-			printf '  %s: %s -> %s\n' "${key}" "${old_value}" "${CANDIDATES[${key}]}"
+			printf -v change '  %s: %s -> %s' "${key}" "${old_value}" "${CANDIDATES[${key}]}"
+			case "${key}" in
+			TOOL_*) tool_changes+=("${change}") ;;
+			LOCK_*) lock_changes+=("${change}") ;;
+			esac
 		fi
 	done
 
 	if cmp -s "${POLICY_FILE}" "${CANDIDATE_FILE}"; then
 		rm -f "${CANDIDATE_FILE}"
 		CANDIDATE_FILE=""
-		printf '  No changes.\n'
+		printf '\nVersion policy updates:\n  No changes.\n'
+		return
+	fi
+	chmod --reference="${POLICY_FILE}" "${CANDIDATE_FILE}"
+	mv "${CANDIDATE_FILE}" "${POLICY_FILE}"
+	CANDIDATE_FILE=""
+
+	# Announce changes only after atomic publication succeeds; visibility is presentation-only.
+	printf '\nVersion policy updates:\n\nTOOL_*\n'
+	if [ "${#tool_changes[@]}" -gt 0 ]; then
+		printf '%s\n' "${tool_changes[@]}"
 	else
-		chmod --reference="${POLICY_FILE}" "${CANDIDATE_FILE}"
-		mv "${CANDIDATE_FILE}" "${POLICY_FILE}"
-		CANDIDATE_FILE=""
+		printf '  No TOOL_* changes.\n'
+	fi
+	if [ "${TOOLS_UPDATE_SHOW_LOCKS:-0}" = 1 ]; then
+		printf '\nLOCK_*\n'
+		if [ "${#lock_changes[@]}" -gt 0 ]; then
+			printf '%s\n' "${lock_changes[@]}"
+		else
+			printf '  No LOCK_* changes.\n'
+		fi
+	elif [ "${#lock_changes[@]}" -gt 0 ]; then
+		printf '\nGenerated lock changes hidden: %d. Set TOOLS_UPDATE_SHOW_LOCKS=1 to show.\n' "${#lock_changes[@]}"
 	fi
 }
 
@@ -1069,6 +1114,10 @@ PY
 
 main() {
 	parse_arguments "$@"
+	case "${TOOLS_UPDATE_SHOW_LOCKS:-}" in
+	'' | 0 | 1) ;;
+	*) fail "TOOLS_UPDATE_SHOW_LOCKS must be unset, empty, 0, or 1" ;;
+	esac
 	[ -f "${POLICY_FILE}" ] || fail "policy file not found: ${POLICY_FILE}"
 	[ -f "${COMMON_SH}" ] || fail "common installer library not found: ${COMMON_SH}"
 	if [ "${SELECTIVE}" = true ]; then

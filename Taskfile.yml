@@ -62,6 +62,7 @@ tasks:
           PROJECT=/absolute/path task project:check-existing  Read-only existing-project preflight
           task validate                   Host preflight (partial) or container diagnosis and strict quality
           task tools:update               Update managed TOOL_* intent and LOCK_* versions/checksums
+                                          TOOL_* summary by default; TOOLS_UPDATE_SHOW_LOCKS=1 also shows LOCK_*
           task tools:update -- --only engram,opencode  Update selected canonical tools only
                                           Does not update installed tools; apply later with container:rebuild then container:up
                                           Optional GitHub CLI auth: TOOLS_UPDATE_USE_GH_AUTH=1 task tools:update

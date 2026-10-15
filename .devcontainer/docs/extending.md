@@ -375,6 +375,24 @@ Use `--only LIST` once, with comma-separated canonical lowercase names and no
 spaces. Without the filter, `task tools:update` updates the full inventory as
 before. Selection follows the existing provider order, not the list order.
 
+The summary groups changed editable `TOOL_*` values first. Generated `LOCK_*`
+details are hidden by default; a count reports hidden lock changes. To show both
+groups, set the variable for the command **inside the container**:
+
+```bash
+TOOLS_UPDATE_SHOW_LOCKS=1 task tools:update
+TOOLS_UPDATE_SHOW_LOCKS=1 task tools:update -- --only engram,opencode
+```
+
+Unset, empty or `0` hides lock details; `1` shows them. Other values fail before
+provider queries or authentication. This variable changes output only: locks are
+still discovered, validated and written in every mode, with the same policy bytes.
+Order within each group is preserved. A lock-only update reports `No TOOL_* changes.`
+and either the hidden count or lock details; an unchanged policy retains the global
+`No changes.` message.
+The summary appears only after successful publication. Export the variable in the
+invoking shell or prefix the command; `tools:update` does not directly load `.env`.
+
 | Managed tools | Canonical names |
 | --- | --- |
 | Runtimes and package tooling | `java`, `node`, `go`, `pnpm`, `php`, `phpunit` |
@@ -413,6 +431,76 @@ Legacy modes remain available: `--update-engram [exact-version]`,
 The legacy OpenSpec mode remains public-registry-only and lock-only; generic
 `--only openspec` uses normal npm discovery and eligible baseline advancement.
 `--validate` checks the full existing inventory offline without provider tooling.
+
+### OpenCode v2 binaries and supervised server
+
+OpenCode remains image-owned: builds download a versioned standalone archive,
+verify its repository-pinned SHA-256, validate its layout and executable version,
+then replace the binary. Runtime setup does not install or update it. No npm
+installation is involved.
+
+The updater obtains both Linux architecture digests from the official
+[standalone metadata](https://opencode.ai/update/api/latest/cli/opencode).
+Downloads use `https://opencode.ai/files/bin/<version>/opencode-linux-<arch>.tar.gz`
+(`x64` or `arm64`), not GitHub Releases. Metadata must identify the active `latest`
+CLI standalone distribution and canonical version-bound URLs for both archives.
+An OpenCode-only update does not use GitHub authentication or npm tooling.
+
+The official metadata API exposes only the current version, not historical
+version selection. `latest`, bare baselines, lanes and exact pins are checked
+against that candidate. If it does not satisfy the declared intent, the updater
+fails without changing policy; it never substitutes another version. Existing
+locks remain usable by builds after upstream moves to a newer release. To update
+an older exact pin, first choose an intent matching the currently published v2
+candidate. These publisher-boundary checksums are not independent attestations.
+
+**CONTAINER:** the existing OpenCode supervisor starts a foreground
+`opencode serve --hostname 0.0.0.0 --port 4096`, checks authenticated `/api/info`,
+and connects the terminal using `opencode --server http://127.0.0.1:4096 --continue`.
+V2 ignores the old `opencode.json` `server` setting; the supervisor supplies the
+binding explicitly. No additional host ports are published. It reuses an already
+ready, authenticated v2 server without taking ownership and stops only children
+that it started. An authentication failure never authorizes replacing a listener.
+
+V2 requires authentication with username **`opencode`**. The supervisor chooses
+the password in this order:
+
+1. Nonempty `OPENCODE_PASSWORD`.
+2. Nonempty legacy `OPENCODE_SERVER_PASSWORD`.
+3. The repository directory name normalized by
+   `.taskfiles/scripts/project-identity.sh --output name`, without the generated
+   numeric identity code. For example, `Gentle-Starter` becomes `gentle-starter`.
+
+To choose or change a persistent password, edit the ignored **root `.env`**:
+
+```dotenv
+OPENCODE_PASSWORD='replace-with-a-strong-private-password'
+```
+
+Identity synchronization preserves this user-selected value: it does not
+regenerate, reset or replace it with the project name. Do not edit generated
+`.devcontainer/.env`. The directory-name fallback is used only when neither
+password variable has a nonempty value; removing both overrides restores it.
+
+**HOST:** after saving `.env`, run `task container:recreate` to reload the container
+environment. Restarting the same container does not reload `.env`; an image
+rebuild is unnecessary. This recipe is not authorization to recreate a container.
+
+The same password is passed to the supervised server and terminal through their
+process environments and to readiness requests through an HTTP header, never a
+command argument or diagnostic. It is not written into project configuration.
+`OPENCODE_SERVER_USERNAME` does not override v2's fixed username. Running
+`opencode serve` manually bypasses this supervisor default; supply the same
+password explicitly when starting a server intended for reuse.
+
+**Security:** a directory name is predictable, not a strong secret. The default
+is for a trusted development environment only. Set a strong explicit password
+and review host port exposure before allowing access from an untrusted network.
+Use the same username/password in the browser at the displayed host address.
+
+Plugin migration is separate. Existing v1-only plugins are not made compatible
+by changing the binary; remove or replace them before relying on the v2 setup.
+Source seed changes do not overwrite already seeded user configuration.
 
 ### Retire obsolete generated locks offline
 

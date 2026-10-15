@@ -12,6 +12,8 @@ WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # stateful volume.
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lifecycle/setup-volumes.sh"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/lifecycle/config-dependencies.sh"
 
 # Validate snapshot integrity AND the creation-time identity before any runtime mutation.
 python3 "${WORKSPACE_DIR}/.taskfiles/scripts/compose-manifest.py" runtime "${WORKSPACE_DIR}" >/dev/null
@@ -154,9 +156,9 @@ seed_config_tree() {
 		fi
 
 		# shellcheck disable=SC2086
-		${mkdir_cmd} "$(dirname "${target}")"
+		${mkdir_cmd} "$(dirname "${target}")" || return "$?"
 		# shellcheck disable=SC2086
-		${cp_cmd} "${source}" "${target}"
+		${cp_cmd} "${source}" "${target}" || return "$?"
 	done < <(find "${source_root}" -type f)
 }
 
@@ -200,14 +202,14 @@ repair_user_local_parents() {
 # See .devcontainer/README.md for the full convention.
 setup_versioned_configs() {
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3040-ai-gentle-shell.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell"
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell" || return "$?"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai" || return "$?"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3030-ai-pi-coding.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/pi/agent" "${HOME}/.pi/agent" || return "$?"
 	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3000-ai-opencode.sh"; then
-		seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/opencode" "${HOME}/.config/opencode"
+		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/opencode" "${HOME}/.config/opencode" || return "$?"
 	fi
 
 	# Add additional tool configs here, one line per source root:

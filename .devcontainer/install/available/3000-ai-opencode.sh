@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 3000-ai-opencode.sh — install a verified OpenCode release into the image.
+# 3000-ai-opencode.sh — install a verified OpenCode standalone archive into the image.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -71,7 +71,7 @@ install_opencode() {
 	trap cleanup_opencode_install EXIT
 	trap abort_opencode_install HUP INT TERM
 	archive="${tmp_dir}/opencode.tar.gz"
-	archive_url="https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${asset_arch}.tar.gz"
+	archive_url="https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-linux-${asset_arch}.tar.gz"
 	devcontainer_fetch "${archive_url}" "${archive}"
 	printf '%s  %s\n' "${digest}" "${archive}" | sha256sum -c -
 	mkdir "${tmp_dir}/extract"

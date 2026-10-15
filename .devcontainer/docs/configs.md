@@ -13,6 +13,34 @@ OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 
+## Install configuration dependencies after seeding
+
+Enabled config mappings use `seed_config_with_dependencies`: it first preserves
+existing runtime files through `seed_config_tree`, then checks for `package.json`
+directly under that mapping's seed root. Without a seed manifest, nothing runs.
+There is no recursive discovery or installation for disabled tools.
+
+When present, setup runs
+`npm install --global=false --prefix <runtime-directory> --ignore-scripts --no-audit --no-fund`
+in the mapped **runtime directory**, as the container user, never with sudo or in
+the versioned seed. The existing runtime manifest is authoritative, including
+user customizations. The target must be a writable, user-owned directory inside
+HOME; linked targets/manifests and invalid JSON objects are rejected.
+Explicit local mode and prefix override inherited npm global/prefix settings.
+
+Installation runs on every setup invocation, even if `node_modules` exists.
+Failures stop setup with a target-specific diagnostic; no successful-install
+marker is written. npm may create/update the runtime lockfile and modules;
+installation is not transactional. Scripts are disabled, so dependencies requiring
+build/postinstall scripts may need a separately reviewed workflow. Without a
+lockfile dependency resolution is not reproducible. No real network installation
+is part of the unit tests.
+
+To add a tool, register its enabled source/runtime mapping explicitly and call
+`seed_config_with_dependencies` rather than scanning all config directories.
+System-wide configuration can still use `seed_config_tree` alone; this npm helper
+does not install dependencies into privileged locations.
+
 ## Workspace normalization preserves private state
 
 Before seeding, CONTAINER `setup.sh` normalizes public workspace ownership and

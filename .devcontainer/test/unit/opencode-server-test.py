@@ -6,6 +6,7 @@ from email.message import Message
 import http.client
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import signal
@@ -23,6 +24,8 @@ assert SPEC is not None and SPEC.loader is not None
 supervisor = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(supervisor)
 REAL_HEALTHY = supervisor.healthy
+INFO = {"version": "2.0.29", "pid": 41000, "urls": ["http://127.0.0.1:4096"],
+        "paths": {"tmp": "/tmp/fixture"}}
 PEER_MARKER = b"PRIVATE-PEER-TEXT"
 BROKEN_HTTP = (
     (b"", http.client.RemoteDisconnected, True),
@@ -71,6 +74,9 @@ class Lifecycle(unittest.TestCase):
         self.replace("tempfile.gettempdir", return_value=self.directory.name)
         self.replace("time.sleep", side_effect=self.advance)
         self.replace("time.monotonic", side_effect=lambda: self.clock)
+        context = patch.object(supervisor, "project_name", return_value="fixture-project", create=True)
+        context.start()
+        self.addCleanup(context.stop)
 
     def replace(self, name, **kwargs):
         owner = supervisor
@@ -105,14 +111,15 @@ class Lifecycle(unittest.TestCase):
                     else:
                         self.assertEqual(self.session.run(), outcome)
                     self.assertEqual(self.spawn.call_args.args[0],
-                                     ["opencode", "attach", "http://127.0.0.1:4096", "--continue"])
-                    self.assertEqual(self.spawn.call_args.kwargs, {})
+                                     ["opencode", "--server", "http://127.0.0.1:4096", "--continue"])
+                    self.assertTrue(self.spawn.call_args.kwargs["env"]["OPENCODE_PASSWORD"])
                     self.assertEqual(self.spawn.call_count, 1 if reused else 2)
                     if reused:
                         self.server.terminate.assert_not_called()
                     else:
                         serve = self.spawn.call_args_list[0]
-                        self.assertEqual(serve.args[0], ["opencode", "serve"])
+                        self.assertEqual(serve.args[0], ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"])
+                        self.assertEqual(serve.kwargs["env"], self.spawn.call_args.kwargs["env"])
                         self.assertTrue(serve.kwargs["start_new_session"])
                         self.server.terminate.assert_called_once()
 
@@ -128,7 +135,7 @@ class Lifecycle(unittest.TestCase):
                         self.session.run()
                 message = str(failure.exception)
                 self.assertIn(reason, message)
-                self.assertIn("`opencode serve`", message)
+                self.assertIn("`opencode serve --hostname 0.0.0.0 --port 4096`", message)
                 self.assertIn("same container and workspace", message)
                 self.assertNotIn("private-test-password", message)
                 self.assertEqual(self.spawn.call_args.kwargs["stdout"], subprocess.DEVNULL)
@@ -141,6 +148,24 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(self.health.call_count, 4)
         self.server.terminate.assert_called_once()
 
+    def test_owned_v2_info_503_retries_until_ready(self):
+        self.health.side_effect = REAL_HEALTHY
+        replies = iter([ConnectionRefusedError(errno.ECONNREFUSED, "refused"),
+                        urllib.error.HTTPError(supervisor.ENDPOINT, 503, "starting", Message(), io.BytesIO()),
+                        INFO])
+
+        def response(*args, **kwargs):
+            reply = next(replies)
+            if isinstance(reply, Exception):
+                raise reply
+            return parsed_response(b"HTTP/1.1 200 OK\r\n\r\n" + json.dumps(reply).encode())
+
+        with patch.object(supervisor.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = response
+            self.assertEqual(self.session.run(), 0)
+            self.assertEqual(opener.return_value.open.call_count, 3)
+        self.server.terminate.assert_called_once()
+
     def test_readiness_exhaustion_is_bounded_and_cleans_without_attach(self):
         for transient in (False, True):
             with self.subTest(transient=transient):
@@ -150,7 +175,7 @@ class Lifecycle(unittest.TestCase):
                 self.spawn.reset_mock(side_effect=True)
                 self.spawn.side_effect = [self.server]
 
-                def check():
+                def check(*args):
                     if transient and self.session.server is not None:
                         self.advance(2)
                         raise supervisor.TransientHealthError("timed out")
@@ -159,7 +184,7 @@ class Lifecycle(unittest.TestCase):
                 self.health.side_effect = check
                 with self.assertRaisesRegex(RuntimeError, "did not become ready") as failure:
                     self.session.run()
-                self.assertIn("`opencode serve`", str(failure.exception))
+                self.assertIn("`opencode serve --hostname 0.0.0.0 --port 4096`", str(failure.exception))
                 self.assertLessEqual(self.clock, supervisor.START_TIMEOUT + 2)
                 self.server.terminate.assert_called_once()
                 self.assertEqual(self.spawn.call_count, 1)
@@ -208,12 +233,12 @@ class Lifecycle(unittest.TestCase):
                 self.assertNotIn("private", str(rejected.exception))
                 transient = isinstance(failure, (TimeoutError, ConnectionResetError, urllib.error.URLError))
                 if isinstance(failure, urllib.error.HTTPError):
-                    transient = False
+                    transient = failure.code == 503
                 self.assertEqual(isinstance(rejected.exception, supervisor.TransientHealthError), transient)
                 self.spawn.assert_not_called()
 
     def test_owned_http_parser_failures_retry_only_transient(self):
-        valid = b'HTTP/1.1 200 OK\r\n\r\n{"healthy":true,"version":"test"}'
+        valid = b'HTTP/1.1 200 OK\r\n\r\n' + json.dumps(INFO).encode()
         for payload, exception, transient in BROKEN_HTTP:
             with self.subTest(exception=exception.__name__):
                 self.session = supervisor.Session()
@@ -349,6 +374,24 @@ class Lifecycle(unittest.TestCase):
         self.assertLess(self.clock, supervisor.LOCK_TIMEOUT + 1)
         self.spawn.assert_not_called()
 
+    def test_project_name_password_default_and_explicit_precedence_reach_both_children(self):
+        for supplied, expected in (({}, "fixture-project"),
+                                   ({"OPENCODE_SERVER_PASSWORD": "legacy-secret"}, "legacy-secret"),
+                                   ({"OPENCODE_PASSWORD": "explicit-secret", "OPENCODE_SERVER_PASSWORD": "legacy-secret"}, "explicit-secret")):
+            with self.subTest(supplied=list(supplied)), patch.dict(os.environ, supplied, clear=True):
+                before = dict(os.environ)
+                self.session = supervisor.Session()
+                self.server = child(41000)
+                self.spawn.side_effect = [self.server, self.client]
+                self.spawn.reset_mock()
+                self.ready()
+                self.assertEqual(self.session.run(), 0)
+                for call in self.spawn.call_args_list:
+                    self.assertEqual(call.kwargs["env"]["OPENCODE_PASSWORD"], expected)
+                    self.assertNotIn(expected, call.args[0])
+                self.assertNotIn(expected, self.output.getvalue())
+                self.assertEqual(dict(os.environ), before)
+
     def test_waiting_invocation_reuses_server_after_real_lock_release(self):
         lock = Path(self.directory.name) / f"gentle-opencode-server-{os.getuid()}.lock"
         descriptor = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
@@ -431,15 +474,44 @@ class Protocol(unittest.TestCase):
         self.assertEqual(signal.getitimer(signal.ITIMER_REAL), (0.0, 0.0))
 
     def test_auth_is_a_header_not_a_command_argument(self):
-        with patch.dict(os.environ, OPENCODE_SERVER_PASSWORD="secret", OPENCODE_SERVER_USERNAME="user"):
+        with patch.dict(os.environ, OPENCODE_PASSWORD="secret", OPENCODE_SERVER_PASSWORD="legacy", OPENCODE_SERVER_USERNAME="user"):
             with patch.object(supervisor.urllib.request, "build_opener") as opener:
                 opener.return_value.open.side_effect = urllib.error.URLError(ConnectionRefusedError(errno.ECONNREFUSED, "refused"))
                 self.assertFalse(supervisor.healthy())
                 request = opener.return_value.open.call_args.args[0]
-                self.assertEqual(request.get_header("Authorization"), "Basic dXNlcjpzZWNyZXQ=")
+                self.assertEqual(request.full_url, supervisor.ENDPOINT + "/api/info")
+                self.assertEqual(request.get_header("Authorization"), "Basic b3BlbmNvZGU6c2VjcmV0")
                 handlers = opener.call_args.args
                 self.assertEqual(handlers[0].proxies, {})
                 self.assertIsNone(handlers[1].redirect_request(None, None, 302, None, None, "http://other"))
+
+    def test_v2_info_schema_is_required(self):
+        invalid = [{"healthy": True, "version": "1.19.0"},
+                   dict(INFO, pid=True), dict(INFO, pid=-1), dict(INFO, urls="http://other"),
+                   dict(INFO, paths={}), dict(INFO, version="1.19.0")]
+        for body in [INFO] + invalid:
+            with self.subTest(body=body), patch.object(supervisor.urllib.request, "build_opener") as opener:
+                opener.return_value.open.side_effect = lambda *a, **kw: parsed_response(
+                    b"HTTP/1.1 200 OK\r\n\r\n" + json.dumps(body).encode())
+                if body == INFO:
+                    self.assertTrue(supervisor.healthy("fixture-password"))
+                else:
+                    with self.assertRaisesRegex(RuntimeError, "schema"):
+                        supervisor.healthy("fixture-password")
+
+    def test_default_password_uses_identity_name_not_numeric_app_identity_or_caller_directory(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, APP_NAME="wrong-12345"):
+            result = subprocess.run(
+                [sys.executable, "-c", "import runpy; m=runpy.run_path(__import__('sys').argv[1]); print(m['project_name']())",
+                 str(ROOT / ".taskfiles/scripts/opencode-server.py")],
+                cwd=directory, capture_output=True, text=True, timeout=10,
+            )
+        expected = subprocess.run(
+            ["bash", str(ROOT / ".taskfiles/scripts/project-identity.sh"), "--output", "name"],
+            cwd=ROOT, capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), expected)
 
     def test_listener_requires_child_socket_not_just_port(self):
         descriptor = Mock()

@@ -27,6 +27,7 @@ setup() {
 	export DEPS_UPDATE_COMMON_SH="${REPO_ROOT}/.devcontainer/install/lib/common.sh"
 	unset GH_TOKEN
 	unset TOOLS_UPDATE_USE_GH_AUTH
+	unset TOOLS_UPDATE_SHOW_LOCKS
 	GENTLE_FIXTURE_VERSION="1.2.3"
 	GENTLE_FIXTURE_NEW_VERSION="1.2.4"
 	GENTLE_FIXTURE_SHA256_AMD64="$(printf 'a%.0s' {1..64})"
@@ -64,6 +65,99 @@ EOF
 	chmod +x "${BIN_DIR}/curl"
 }
 
+@test "summary defaults to TOOL changes with hidden LOCK count and identical policy for all visibility modes" {
+	sed -i -e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' \
+		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/original"
+	local visibility
+	for visibility in unset '' 0 1; do
+		cp -p "${TEST_ROOT}/original" "${POLICY_FILE}"
+		if [ "${visibility}" = unset ]; then
+			unset TOOLS_UPDATE_SHOW_LOCKS
+		else
+			export TOOLS_UPDATE_SHOW_LOCKS="${visibility}"
+		fi
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+		[ "$status" -eq 0 ]
+		[[ "$output" == *$'\nTOOL_*\n  TOOL_VITEST_VERSION: 9.9.8 -> 9.9.9'* ]]
+		if [ "${visibility}" = 1 ]; then
+			[[ "$output" == *$'\nLOCK_*\n  LOCK_VITEST_VERSION: 9.9.8 -> 9.9.9'* ]]
+			[[ "$output" != *'changes hidden'* ]]
+		else
+			[[ "$output" != *'LOCK_VITEST_VERSION:'* ]]
+			[[ "$output" != *$'\nLOCK_*\n'* ]]
+			[[ "$output" == *'Generated lock changes hidden: 1. Set TOOLS_UPDATE_SHOW_LOCKS=1 to show.'* ]]
+		fi
+		[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+		if [ "${visibility}" = unset ]; then
+			cp "${POLICY_FILE}" "${TEST_ROOT}/expected"
+		else
+			cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+		fi
+	done
+}
+
+@test "summary displays TOOL before LOCK and preserves the existing order within each group" {
+	sed -i -e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' \
+		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.8"/' \
+		-e 's/^TOOL_PLAYWRIGHT_VERSION=.*/TOOL_PLAYWRIGHT_VERSION="9.9.8"/' \
+		-e 's/^LOCK_PLAYWRIGHT_VERSION=.*/LOCK_PLAYWRIGHT_VERSION="9.9.8"/' \
+		-e 's/^TOOL_PLAYWRIGHT_CLI_VERSION=.*/TOOL_PLAYWRIGHT_CLI_VERSION="9.9.8"/' \
+		-e 's/^LOCK_PLAYWRIGHT_CLI_VERSION=.*/LOCK_PLAYWRIGHT_CLI_VERSION="9.9.8"/' "${POLICY_FILE}"
+	run env TOOLS_UPDATE_SHOW_LOCKS=1 "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest,playwright
+	[ "$status" -eq 0 ]
+	local expected=$'\nTOOL_*\n  TOOL_PLAYWRIGHT_CLI_VERSION: 9.9.8 -> 9.9.9\n  TOOL_VITEST_VERSION: 9.9.8 -> 9.9.9\n  TOOL_PLAYWRIGHT_VERSION: 9.9.8 -> 9.9.9\n\nLOCK_*\n  LOCK_PLAYWRIGHT_CLI_VERSION: 9.9.8 -> 9.9.9\n  LOCK_VITEST_VERSION: 9.9.8 -> 9.9.9\n  LOCK_PLAYWRIGHT_VERSION: 9.9.8 -> 9.9.9'
+	[[ "$output" == *"${expected}" ]]
+}
+
+@test "summary distinguishes lock-only updates from an unchanged policy" {
+	sed -i -e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="latest"/' \
+		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'\nTOOL_*\n  No TOOL_* changes.'* ]]
+	[[ "$output" == *'Generated lock changes hidden: 1.'* ]]
+	[[ "$output" != *$'\n  No changes.'* ]]
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/expected"
+	run env TOOLS_UPDATE_SHOW_LOCKS=1 "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'\nVersion policy updates:\n  No changes.' ]]
+	[[ "$output" != *$'\nTOOL_*\n'* ]]
+	[[ "$output" != *$'\nLOCK_*\n'* ]]
+	cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+}
+
+@test "summary rejects invalid visibility before providers authentication or temporary files" {
+	local visibility
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/expected"
+	export TOOLS_UPDATE_USE_GH_AUTH=1
+	write_forbidden_stub mktemp
+	for visibility in true false 2 yes ' 1' '1 '; do
+		run env TOOLS_UPDATE_SHOW_LOCKS="${visibility}" "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+		[ "$status" -eq 1 ]
+		[ "$output" = 'tools:update: TOOLS_UPDATE_SHOW_LOCKS must be unset, empty, 0, or 1' ]
+		[ ! -s "${CALLS_FILE}" ]
+		cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+	done
+}
+
+@test "summary is not announced when atomic publication fails" {
+	cat >"${BIN_DIR}/mv" <<'SH'
+#!/usr/bin/env bash
+[ "${2:-}" != "$DEPS_UPDATE_POLICY_FILE" ] || exit 71
+exec /usr/bin/mv "$@"
+SH
+	chmod +x "${BIN_DIR}/mv"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/expected"
+	run env TOOLS_UPDATE_SHOW_LOCKS=1 "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
+	[ "$status" -ne 0 ]
+	[[ "$output" != *'Version policy updates:'* ]]
+	[[ "$output" != *'TOOL_VITEST_VERSION:'* ]]
+	[[ "$output" != *'LOCK_VITEST_VERSION:'* ]]
+	cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+}
+
 @test "only mixed selection preserves unrelated bytes mode and provider order" {
 	sed -i 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
 	chmod 0640 "${POLICY_FILE}"
@@ -82,6 +176,54 @@ EOF
 	[ "$(sed -n '1p' "${CALLS_FILE}")" = 'pnpm view vitest versions --json' ]
 	[ "$(grep -c '^curl ' "${CALLS_FILE}")" -eq 2 ]
 	! grep -Eq 'gh |archify|anomalyco|gentle-ai|go.dev|pypi|packagist' "${CALLS_FILE}"
+}
+
+@test "OpenCode standalone discovery couples both digests without GitHub or npm installation" {
+	export TOOLS_UPDATE_USE_GH_AUTH=invalid DEPS_UPDATE_SLEEP=/absent DEPS_UPDATE_GH=/absent
+	sed -i 's/^TOOL_OPENCODE_VERSION=.*/TOOL_OPENCODE_VERSION="2.0.0"/' "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only opencode
+	[ "$status" -eq 0 ]
+	grep -q '^TOOL_OPENCODE_VERSION="2.0.29"$' "${POLICY_FILE}"
+	grep -q '^LOCK_OPENCODE_VERSION="2.0.29"$' "${POLICY_FILE}"
+	grep -q '^LOCK_OPENCODE_SHA256_AMD64="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"$' "${POLICY_FILE}"
+	grep -q '^LOCK_OPENCODE_SHA256_ARM64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"$' "${POLICY_FILE}"
+	diff <(grep -Ev '^(TOOL|LOCK)_OPENCODE_' "${TEST_ROOT}/before") <(grep -Ev '^(TOOL|LOCK)_OPENCODE_' "${POLICY_FILE}")
+	[ "$(cat "${CALLS_FILE}")" = 'curl -fsSL https://opencode.ai/update/api/latest/cli/opencode' ]
+}
+
+@test "OpenCode standalone discovery honors matching intents and refuses unavailable historical pins atomically" {
+	local intent
+	for intent in latest 2 2.0 =2.0.29; do
+		sed -i "s/^TOOL_OPENCODE_VERSION=.*/TOOL_OPENCODE_VERSION=\"${intent}\"/" "${POLICY_FILE}"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only opencode
+		[ "$status" -eq 0 ]
+		grep -q "^TOOL_OPENCODE_VERSION=\"${intent}\"$" "${POLICY_FILE}"
+	done
+	for intent in =2.0.28 2.1 3; do
+		sed -i "s/^TOOL_OPENCODE_VERSION=.*/TOOL_OPENCODE_VERSION=\"${intent}\"/" "${POLICY_FILE}"
+		chmod 0640 "${POLICY_FILE}"
+		cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only opencode
+		[ "$status" -ne 0 ]
+		[[ "$output" == *'OpenCode standalone latest does not match intent'* ]]
+		cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+		[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	done
+}
+
+@test "OpenCode standalone metadata failures preserve policy bytes and mode" {
+	local mode
+	chmod 0640 "${POLICY_FILE}"
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/before"
+	for mode in opencode_inactive opencode_identity opencode_missing opencode_digest opencode_url opencode_prerelease; do
+		write_curl_stub "${mode}"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only opencode
+		[ "$status" -ne 0 ]
+		[[ "$output" == *'OpenCode'* ]]
+		cmp "${TEST_ROOT}/before" "${POLICY_FILE}"
+		[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
+	done
 }
 
 @test "only local selection needs no network authentication or unrelated prerequisites" {
@@ -214,7 +356,7 @@ packages = {
 urls = {
     'java': (), 'node': (), 'php': (), 'go': ('https://go.dev/dl/',),
     'bats': ('/bats-core/bats-core/',), 'engram': ('/Gentleman-Programming/engram/',),
-    'opencode': ('/anomalyco/opencode/',), 'gentle-ai': ('/Gentleman-Programming/gentle-ai/',),
+    'opencode': ('https://opencode.ai/update/api/latest/cli/opencode',), 'gentle-ai': ('/Gentleman-Programming/gentle-ai/',),
     'gentle-shell': ('https://registry.npmjs.org/gentle-pi/',),
     'gga': ('/Gentleman-Programming/gentleman-guardian-angel/',),
     'c4-plantuml': ('/plantuml-stdlib/C4-PlantUML/',), 'archify': ('/tt-a1i/archify/',),
@@ -733,10 +875,16 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  dlv_1.99.0_lin
     body="{\"tag_name\":\"v1.99.0\",\"draft\":false,\"prerelease\":\${engram_prerelease},\"assets\":[{\"name\":\"engram_1.99.0_linux_amd64.tar.gz\",\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"\${engram_arm64_name}\",\"digest\":\"\${engram_arm64_digest}\"}]}" ;;
   *api.github.com/repos/Gentleman-Programming/engram/releases*)
     body='[{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
-  *api.github.com/repos/anomalyco/opencode/releases/tags/*)
-    body='{"tag_name":"v1.99.0","draft":false,"prerelease":false,"assets":[{"name":"opencode-linux-x64.tar.gz","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"name":"opencode-linux-arm64.tar.gz","digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}' ;;
-  *api.github.com/repos/anomalyco/opencode/releases*)
-    body='[{"tag_name":"v1.99.0","draft":false,"prerelease":false}]' ;;
+  https://opencode.ai/update/api/latest/cli/opencode)
+    body='{"channel":"latest","name":"cli","distribution":"opencode","active":true,"version":"2.0.29","metadata":{"files":{"opencode-linux-x64.tar.gz":{"url":"https://opencode.ai/files/bin/2.0.29/opencode-linux-x64.tar.gz","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"opencode-linux-arm64.tar.gz":{"url":"https://opencode.ai/files/bin/2.0.29/opencode-linux-arm64.tar.gz","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}}}'
+    case "${mode}" in
+      opencode_inactive) body="\$(printf '%s' "\${body}" | jq '.active = false')" ;;
+      opencode_identity) body="\$(printf '%s' "\${body}" | jq '.distribution = "npm"')" ;;
+      opencode_missing) body="\$(printf '%s' "\${body}" | jq 'del(.metadata.files["opencode-linux-arm64.tar.gz"])')" ;;
+      opencode_digest) body="\$(printf '%s' "\${body}" | jq '.metadata.files["opencode-linux-arm64.tar.gz"].sha256 = "invalid"')" ;;
+      opencode_url) body="\$(printf '%s' "\${body}" | jq '.metadata.files["opencode-linux-x64.tar.gz"].url = "https://example.com/binary"')" ;;
+      opencode_prerelease) body="\$(printf '%s' "\${body}" | jq '.version = "2.0.30-beta.1"')" ;;
+    esac ;;
   *api.github.com/repos/Gentleman-Programming/gentle-ai/releases\?*)
     body='[{"tag_name":"v${configured_gentle_version}","draft":false,"prerelease":false}]' ;;
   *api.github.com/repos/Gentleman-Programming/gentleman-guardian-angel/releases\?*)
@@ -949,7 +1097,7 @@ EOF
 	seed_gentle_fixture
 	write_curl_stub success
 
-	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	run env TOOLS_UPDATE_SHOW_LOCKS=1 "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 0 ]
 	grep -q "^LOCK_GENTLE_AI_VERSION=\"${GENTLE_FIXTURE_VERSION}\"$" "${POLICY_FILE}"
