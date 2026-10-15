@@ -1,6 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "agent": {
+    "explore": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "low"
+    },
+    "general": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "low"
+    }
   },
   "default_agent": "gentle-orchestrator",
   "mcp": {
@@ -9,16 +17,9 @@
       "type": "remote",
       "url": "https://mcp.context7.com/mcp"
     },
-    "engram": {
-      "command": [
-        "/usr/local/bin/engram",
-        "mcp",
-        "--tools=agent"
-      ],
-      "type": "local"
-    },
     "servers": {
       "codegraph": {
+        "codemode": false,
         "command": [
           "codegraph",
           "serve",
@@ -30,8 +31,16 @@
           "CODEGRAPH_NO_UPDATE_CHECK": "1",
           "CODEGRAPH_TELEMETRY": "0"
         },
-        "type": "local",
-        "codemode": false
+        "type": "local"
+      },
+      "engram": {
+        "command": [
+          "/usr/local/bin/engram",
+          "mcp",
+          "--tools=agent"
+        ],
+        "enabled": true,
+        "type": "local"
       }
     }
   },

@@ -121,10 +121,22 @@ bash "${SCRIPT_DIR}/lifecycle/restore-tracked-modes.sh" "${WORKSPACE_DIR}" "${ru
 #
 # This is the building block for the versioned config contract:
 #   .devcontainer/config/<name>/<ruta>/archivo  ->  <target>/<ruta>/archivo
+# The source root may be a profile selector symlink to a directory. Follow
+# that root only; symlinks found inside the selected tree remain unseeded.
 # See .devcontainer/README.md for the convention.
 seed_config_tree() {
 	local source_root="$1"
 	local target_root="$2"
+
+	# Inspect the selector itself, even when callers supply a directory suffix.
+	while [ "${source_root}" != / ] && [[ "${source_root}" == */ ]]; do
+		source_root="${source_root%/}"
+	done
+
+	if [ -L "${source_root}" ] && [ ! -d "${source_root}" ]; then
+		printf '[setup:error] Invalid config seed directory: %s\n' "${source_root}" >&2
+		return 1
+	fi
 
 	if [ ! -d "${source_root}" ]; then
 		return 0
@@ -159,7 +171,7 @@ seed_config_tree() {
 		${mkdir_cmd} "$(dirname "${target}")" || return "$?"
 		# shellcheck disable=SC2086
 		${cp_cmd} "${source}" "${target}" || return "$?"
-	done < <(find "${source_root}" -type f)
+	done < <(find -H "${source_root}" -type f)
 }
 
 repair_user_local_parents() {
