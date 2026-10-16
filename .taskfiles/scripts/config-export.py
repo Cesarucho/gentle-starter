@@ -7,11 +7,13 @@ import argparse
 import importlib.util
 import json
 import os
+import shlex
 import stat
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass, field
+from collections import deque
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Iterator
 
@@ -37,6 +39,7 @@ class Tree:
     managed: tuple[str, ...]
     excluded: tuple[str, ...]
     owner: str | None = None
+    git_paths: tuple[Path, ...] = ()
 
 
 @dataclass
@@ -127,6 +130,57 @@ def validate_root(path: Path, anchor: Path, label: str) -> bool:
     if not stat.S_ISDIR(mode):
         raise ConfigError(f"{label} is not a directory: {path}")
     return True
+
+
+def resolve_seed(tree: Tree, repo: Path) -> Tree:
+    """Resolve seed selectors only, retaining their Git paths for export guards."""
+    anchor = repo / ".devcontainer/config"
+    current = repo
+    pending = deque(tree.seed.relative_to(repo).parts)
+    paths = [tree.seed]
+    seen_states: set[tuple[Path, tuple[str, ...]]] = set()
+    while pending:
+        part = pending.popleft()
+        if part == "..":
+            current = current.parent
+            if not current.is_relative_to(anchor):
+                raise ConfigError(f"seed selector escapes .devcontainer/config: {tree.seed}")
+            continue
+        current /= part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            current = current.joinpath(*pending)
+            break
+        if not stat.S_ISLNK(mode):
+            continue
+        if current == anchor or not current.is_relative_to(anchor):
+            raise ConfigError(f"symlink is not allowed in {tree.name} seed root: {current}")
+        # Revisiting a selector with a different suffix can still terminate.
+        state = (current, tuple(pending))
+        if state in seen_states:
+            raise ConfigError(f"invalid seed selector: {current}")
+        seen_states.add(state)
+        paths.append(current)
+        try:
+            resolved = current.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise ConfigError(f"invalid seed selector: {current}: {error}") from error
+        if not resolved.is_relative_to(anchor):
+            raise ConfigError(f"seed selector escapes .devcontainer/config: {current}")
+        if not resolved.is_dir():
+            raise ConfigError(f"seed selector is not a directory: {current}")
+        target = Path(os.readlink(current))
+        if target.is_absolute():
+            if not target.is_relative_to(anchor):
+                raise ConfigError(f"seed selector escapes .devcontainer/config: {current}")
+            current = anchor
+            pending.extendleft(reversed(target.relative_to(anchor).parts))
+        else:
+            current = current.parent
+            pending.extendleft(reversed(target.parts))
+    paths.append(current)
+    return replace(tree, seed=current, git_paths=tuple(dict.fromkeys(paths)))
 
 
 def walk_tree(root: Path, tree: Tree, report: Report, side: str) -> Iterator[tuple[str, Path, str]]:
@@ -330,7 +384,10 @@ def participating_trees(trees: list[Tree], repo: Path) -> list[Tree]:
 def seed_is_dirty(repo: Path, trees: list[Tree]) -> bool:
     if not trees:
         return False
-    paths = [str(tree.seed.relative_to(repo)) for tree in trees]
+    paths = list(dict.fromkeys(
+        str(path.relative_to(repo))
+        for tree in trees for path in (tree.git_paths or (tree.seed,))
+    ))
     try:
         result = subprocess.run(
             ["git", "-C", str(repo), "status", "--porcelain=v1", "-z", "--", *paths],
@@ -407,7 +464,10 @@ def print_report(reports: list[Report]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=(
+        "Compare or export managed runtime configuration. "
+        "Seed directory selectors must stay within .devcontainer/config/."
+    ))
     parser.add_argument("command", choices=("diff", "export"))
     parser.add_argument("--repo", type=Path)
     parser.add_argument("--home", type=Path)
@@ -419,6 +479,7 @@ def main() -> int:
 
     try:
         trees = participating_trees(parse_manifest(manifest, home, repo), repo)
+        trees = [resolve_seed(tree, repo) for tree in trees]
         if arguments.command == "export" and seed_is_dirty(repo, trees):
             raise ConfigError("export refused: a seed tree has pending Git worktree or index changes")
         inspected = [inspect_tree(tree, home, repo) for tree in trees]
@@ -432,7 +493,7 @@ def main() -> int:
         for copy in copies:
             atomic_copy(copy.source, copy.destination)
         print(f"Exported: files={len(copies)}")
-        print("Review: git diff -- " + " ".join(str(tree.seed.relative_to(repo)) for tree in trees))
+        print("Review: git diff -- " + " ".join(shlex.quote(str(tree.seed.relative_to(repo))) for tree in trees))
         return 0
     except ConfigError as error:
         print(f"config-export: error: {error}", file=sys.stderr)

@@ -666,7 +666,248 @@ PY
   commit_fixture "redirected seed ancestor"
   run_helper export
   [ "$status" -eq 2 ]
-  [[ "$output" == *"symlink is not allowed"* ]]
+  [[ "$output" == *"seed selector escapes .devcontainer/config"* ]]
   [ "$(<"${REPO_FIXTURE}/.devcontainer/config/opencode/opencode.json")" = old ]
   [ ! -e "${FIXTURE}/outside/agent/settings.json" ]
+}
+
+select_profile_fixture() {
+  local config="${REPO_FIXTURE}/.devcontainer/config"
+  mv "${config}/opencode" "${config}/selected profile"
+  ln -s "selected profile" "${config}/opencode"
+  mkdir -p "${config}/inactive-profile"
+  printf inactive >"${config}/inactive-profile/opencode.json"
+}
+
+@test "both tasks use the selected profile and preserve selectors runtime and inactive profiles" {
+  local config="${REPO_FIXTURE}/.devcontainer/config"
+  select_profile_fixture
+  printf old >"${config}/selected profile/opencode.json"
+  chmod 0600 "${config}/selected profile/opencode.json"
+  printf 'runtime\r\n' >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  commit_fixture "profile selector"
+  local before action
+  before="$(sha256sum "${HOME_FIXTURE}/.config/opencode/opencode.json" "${config}/inactive-profile/opencode.json")"
+  for action in diff export; do
+    run task --exit-code --dir "${REPOSITORY_ROOT}" "config:${action}" -- \
+      --repo "${REPO_FIXTURE}" --home "${HOME_FIXTURE}"
+    if [ "${action}" = diff ]; then
+      [ "$status" -eq 1 ]
+      [[ "$output" == *"modified: OpenCode: opencode.json"* ]]
+      [ "$(cat "${config}/selected profile/opencode.json")" = old ]
+    else
+      [ "$status" -eq 0 ]
+      [[ "$output" == *"Exported: files=1"* ]]
+      [[ "$output" == *"Review: git diff -- '.devcontainer/config/selected profile'"* ]]
+      cmp "${HOME_FIXTURE}/.config/opencode/opencode.json" "${config}/selected profile/opencode.json"
+      [ "$(stat -c %a "${config}/selected profile/opencode.json")" = 600 ]
+    fi
+    [ -L "${config}/opencode" ]
+    [ "$(readlink "${config}/opencode")" = 'selected profile' ]
+    [ "$(sha256sum "${HOME_FIXTURE}/.config/opencode/opencode.json" "${config}/inactive-profile/opencode.json")" = "${before}" ]
+  done
+}
+
+@test "selected profile tracked staged and untracked changes block export before runtime inspection" {
+  local config="${REPO_FIXTURE}/.devcontainer/config" state
+  select_profile_fixture
+  printf old >"${config}/selected profile/opencode.json"
+  commit_fixture "selected profile baseline"
+  ln -s "${FIXTURE}/must-not-read" "${HOME_FIXTURE}/.config/opencode/unsafe"
+  for state in tracked staged untracked; do
+    printf dirty >"${config}/selected profile/opencode.json"
+    if [ "${state}" = staged ]; then
+      git -C "${REPO_FIXTURE}" add '.devcontainer/config/selected profile/opencode.json'
+    elif [ "${state}" = untracked ]; then
+      git -C "${REPO_FIXTURE}" checkout -q -- '.devcontainer/config/selected profile/opencode.json'
+      printf new >"${config}/selected profile/new.txt"
+    fi
+    run_helper export
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"pending Git worktree or index changes"* ]]
+    [[ "$output" != *"symlink is not allowed"* ]]
+    git -C "${REPO_FIXTURE}" reset -q --hard HEAD
+  done
+}
+
+@test "changed root and intermediate selectors block export but inactive profile edits do not" {
+  local config="${REPO_FIXTURE}/.devcontainer/config" selector
+  select_profile_fixture
+  rm "${config}/opencode"
+  ln -s 'selected profile' "${config}/intermediate"
+  ln -s intermediate "${config}/opencode"
+  commit_fixture "selector chain"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  for selector in opencode intermediate; do
+    rm "${config}/${selector}"
+    ln -s inactive-profile "${config}/${selector}"
+    run_helper export
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"pending Git worktree or index changes"* ]]
+    [ ! -e "${config}/selected profile/opencode.json" ]
+    git -C "${REPO_FIXTURE}" checkout -q -- ".devcontainer/config/${selector}"
+  done
+  printf unrelated >"${config}/inactive-profile/opencode.json"
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(cat "${config}/selected profile/opencode.json")" = new ]
+  [ "$(cat "${config}/inactive-profile/opencode.json")" = unrelated ]
+}
+
+@test "ancestor selectors resolve active subtrees and protect ancestor selection changes" {
+  local config="${REPO_FIXTURE}/.devcontainer/config"
+  mv "${config}/pi" "${config}/pi-profile"
+  ln -s pi-profile "${config}/pi"
+  mkdir -p "${config}/pi-profile/agent"
+  printf old >"${config}/pi-profile/agent/settings.json"
+  printf new >"${HOME_FIXTURE}/.pi/agent/settings.json"
+  commit_fixture "ancestor selector"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"modified: Pi Coding: settings.json"* ]]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(cat "${config}/pi-profile/agent/settings.json")" = new ]
+  commit_fixture "export active subtree"
+  mkdir -p "${config}/other-pi/agent"
+  rm "${config}/pi"
+  ln -s other-pi "${config}/pi"
+  run_helper export
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"pending Git worktree or index changes"* ]]
+  [ ! -e "${config}/other-pi/agent/settings.json" ]
+}
+
+@test "invalid root selectors refuse both tasks without changing any destinations" {
+  local config="${REPO_FIXTURE}/.devcontainer/config" target action
+  printf old >"${config}/pi/keep"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  printf file >"${config}/plain-file"
+  mkdir -p "${FIXTURE}/outside" "${REPO_FIXTURE}/outside-config"
+  printf external >"${FIXTURE}/outside/opencode.json"
+  rmdir "${config}/opencode"
+  for target in missing plain-file "${FIXTURE}/outside" ../../outside-config opencode; do
+    ln -s "${target}" "${config}/opencode"
+    commit_fixture "invalid selector ${target}"
+    local before
+    before="$(sha256sum "${config}/pi/keep" "${FIXTURE}/outside/opencode.json" "${HOME_FIXTURE}/.config/opencode/opencode.json")"
+    for action in diff export; do
+      run_helper "${action}"
+      [ "$status" -eq 2 ]
+      [[ "$output" == *"seed selector"* ]]
+      [ "$(sha256sum "${config}/pi/keep" "${FIXTURE}/outside/opencode.json" "${HOME_FIXTURE}/.config/opencode/opencode.json")" = "${before}" ]
+      [ -L "${config}/opencode" ]
+    done
+    rm "${config}/opencode"
+  done
+}
+
+@test "selected profiles still reject internal and runtime links before any export" {
+  local config="${REPO_FIXTURE}/.devcontainer/config" side action root
+  select_profile_fixture
+  printf old >"${config}/selected profile/opencode.json"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  for side in seed runtime; do
+    root="${config}/selected profile"
+    [ "${side}" = seed ] || root="${HOME_FIXTURE}/.config/opencode"
+    ln -s "${FIXTURE}/must-not-read" "${root}/linked"
+    commit_fixture "internal link ${side}"
+    for action in diff export; do
+      run_helper "${action}"
+      [ "$status" -eq 2 ]
+      [[ "$output" == *"symlink is not allowed"* ]]
+      [ "$(cat "${config}/selected profile/opencode.json")" = old ]
+    done
+    rm "${root}/linked"
+  done
+}
+
+@test "generic selector destinations collide before export creates files" {
+  local config="${REPO_FIXTURE}/.devcontainer/config"
+  mkdir -p "${config}/shared-profile"
+  ln -s shared-profile "${config}/example-tool"
+  ln -s "${config}/shared-profile" "${config}/future-tool"
+  python3 - "${REPO_FIXTURE}/.devcontainer/config-export.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+trees = [
+    {"name": name, "seed": f".devcontainer/config/{name}", "runtime": runtime,
+     "managed": ["settings.json"], "excluded": []}
+    for name, runtime in (("example-tool", ".config/opencode"), ("future-tool", ".pi/agent"))
+]
+Path(sys.argv[1]).write_text(json.dumps({"version": 1, "trees": trees}))
+PY
+  printf first >"${HOME_FIXTURE}/.config/opencode/settings.json"
+  printf second >"${HOME_FIXTURE}/.pi/agent/settings.json"
+  commit_fixture "generic profile aliases"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"new: example-tool: settings.json"* ]]
+  [[ "$output" == *"new: future-tool: settings.json"* ]]
+  run_helper export
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"destination collision"* ]]
+  [ ! -e "${config}/shared-profile/settings.json" ]
+  [ "$(cat "${HOME_FIXTURE}/.config/opencode/settings.json")" = first ]
+  [ "$(cat "${HOME_FIXTURE}/.pi/agent/settings.json")" = second ]
+}
+
+@test "disabled ancestor selectors are skipped and active profile subtrees can be created" {
+  local config="${REPO_FIXTURE}/.devcontainer/config"
+  rm "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  rmdir "${config}/pi"
+  ln -s "${FIXTURE}/must-not-read" "${config}/pi"
+  select_profile_fixture
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  commit_fixture "disabled selector"
+  run_helper export
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"skipped: Pi Coding"* ]]
+  [ "$(cat "${config}/selected profile/opencode.json")" = new ]
+  [ -L "${config}/pi" ]
+  commit_fixture "export selected profile"
+  rm "${config}/pi"
+  mkdir -p "${config}/pi-profile"
+  ln -s pi-profile "${config}/pi"
+  ln -s ../available/3030-ai-pi-coding.sh "${INSTALL_FIXTURE}/03-enabled/7100-custom-coding.sh"
+  printf agent >"${HOME_FIXTURE}/.pi/agent/settings.json"
+  commit_fixture "enabled selector with missing subtree"
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(cat "${config}/pi-profile/agent/settings.json")" = agent ]
+  [ "$(stat -c %a "${config}/pi-profile/agent/settings.json")" = 644 ]
+  [ -L "${config}/pi" ]
+}
+
+@test "finite ancestor selector chain may revisit a selector without looping" {
+  local config="${REPO_FIXTURE}/.devcontainer/config"
+  rmdir "${config}/opencode"
+  mkdir -p "${config}/active/subdir"
+  ln -s active "${config}/opencode"
+  ln -s ../opencode/subdir "${config}/active/agent"
+  printf old >"${config}/active/subdir/opencode.json"
+  printf new >"${HOME_FIXTURE}/.config/opencode/opencode.json"
+  python3 - "${REPO_FIXTURE}/.devcontainer/config-export.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["trees"][0]["seed"] = ".devcontainer/config/opencode/agent"
+path.write_text(json.dumps(data))
+PY
+  commit_fixture "finite selector chain"
+  run_helper diff
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"modified: OpenCode: opencode.json"* ]]
+  [ "$(cat "${config}/active/subdir/opencode.json")" = old ]
+  run_helper export
+  [ "$status" -eq 0 ]
+  [ "$(cat "${config}/active/subdir/opencode.json")" = new ]
+  [ "$(readlink "${config}/opencode")" = active ]
+  [ "$(readlink "${config}/active/agent")" = ../opencode/subdir ]
+  [[ "$output" == *"Review: git diff -- .devcontainer/config/active/subdir "* ]]
 }

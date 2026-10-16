@@ -45,8 +45,19 @@ the container and run CONTAINER `setup.sh`. These commands must run on the host,
 not inside the container. Restarting the same container or rerunning setup does
 not replace existing runtime files. For other tools or custom mounts, whether a
 recreation clears runtime configuration depends on that destination's persistence.
-This selector support concerns seeding, not profile-aware `config:diff` or
-`config:export` support.
+`config:diff` and `config:export` also use the selected profile. Unlike seeding,
+these tasks require selectors and their directory targets to remain inside
+`.devcontainer/config/`. Relative and absolute links, selector chains, and
+selectors above a mapped subtree (for example `config/pi -> pi-personal` with
+an `agent/` mapping) are supported. The `.devcontainer/` and `config/` ancestors
+must remain real directories. Broken links, loops, non-directory targets and
+links that escape the configuration tree are errors, not skipped mappings.
+
+Diff reads the effective profile. Export writes regular files into that profile,
+preserving the selector and inactive profiles. Nonexcluded links inside a profile
+or runtime tree are still rejected. Disabled tools remain skipped before their
+selectors or runtime trees are inspected. If active mappings resolve to the same
+planned file destination, export refuses before copying any files.
 
 ## Install configuration dependencies after seeding
 
@@ -135,8 +146,13 @@ export after the seed deletion has been committed, unless explicitly excluded.
 The retired baseline paths listed in the manifest are excluded to prevent that.
 
 Before inspecting runtime roots, export refuses if a participating seed area has
-tracked, staged, or untracked changes. Disabled Pi areas and unrelated repository
-changes do not block it. All participating roots and planned destinations are
+tracked, staged, or untracked changes. For a selected profile, this check covers
+the logical seed path, every selector used to reach it, and the resolved mapped
+profile subtree. Commit the intended selector and profile baseline before export;
+diff does not require a clean Git state. The printed `Review: git diff -- ...`
+command points to the effective profile paths and quotes paths containing spaces.
+Disabled Pi areas, inactive profiles and unrelated repository changes do not
+block export. All participating roots and planned destinations are
 checked before any copies. Replacement is atomic **per file**, not across the
 batch: a later I/O failure can leave earlier copies applied. Existing destination
 modes are preserved; new files receive mode `0644`.
