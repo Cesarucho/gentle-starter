@@ -1,0 +1,12 @@
+# Checklist example only. Register the intent, strategy, and lock outputs in
+# tools-update.sh before use. Users edit only TOOL_*_VERSION values.
+
+TOOL_EXAMPLE_VERSION="1.2"
+
+# Place every generated field in the final generated lock section.
+LOCK_EXAMPLE_VERSION="1.2.3"
+LOCK_EXAMPLE_SHA256_AMD64="GENERATED_64_LOWERCASE_HEX"
+LOCK_EXAMPLE_SHA256_ARM64="GENERATED_64_LOWERCASE_HEX"
+
+# Provider-delegated package-manager integrity has no SHA256 field. Document
+# that boundary explicitly instead of inventing an unstable artifact identity.

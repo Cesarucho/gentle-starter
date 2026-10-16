@@ -1,0 +1,280 @@
+version: "3"
+
+vars:
+  WORKSPACE: .
+
+tasks:
+  help:
+    desc: Show container workflow examples
+    silent: true
+    cmds:
+      - |
+        cat <<'EOF'
+        Container tasks (all require the host, not inside the container)
+
+          task container:rebuild    Remove container and build; does not start
+          task container:restart    Restart the same existing container
+          task container:recreate   Remove and start devcontainer
+          task container:build      Build devcontainer
+          task container:up         Start devcontainer
+          task container:connect    Open bash inside devcontainer
+          task container:opencode   Continue the direct OpenCode TUI
+          task container:opencode:server  Attach; stop only the task-owned server on exit
+          task container:pi         Open pi inside devcontainer
+          task container:gentle-shell  Continue the native Gentle Shell TUI
+          task container:engram     Open Engram TUI inside devcontainer
+          task container:rm         Force-remove devcontainer container
+        EOF
+
+  ensure-identity-env:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          exit 0
+        fi
+        locale="$(python3 .taskfiles/scripts/locale-env.py .env LOCALE)" || exit 1
+        timezone="$(python3 .taskfiles/scripts/locale-env.py .env TZ)" || exit 1
+        app_name="$(bash .taskfiles/scripts/project-identity.sh -o name)"
+        app_port="$(bash .taskfiles/scripts/project-identity.sh -o code)"
+        opencode_port="$((app_port + 1))"
+        ssh_port="$((app_port + 2))"
+        host_uid="$(id -u)"
+
+        for env_file in ".devcontainer/.env" ".env"; do
+          mkdir -p "$(dirname "$env_file")"
+          touch "$env_file"
+
+          tmp_file="$(mktemp)"
+          if [ "$env_file" = ".devcontainer/.env" ]; then
+            awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT|HOST_UID|LOCALE|TZ)=/' "$env_file" > "$tmp_file"
+          else
+            awk '!/^(APP_NAME|APP_PORT|OPENCODE_PORT|SSH_PORT|HOST_UID)=/' "$env_file" > "$tmp_file"
+          fi
+          {
+            cat "$tmp_file"
+            printf 'APP_NAME=%s\n' "$app_name"
+            printf 'APP_PORT=%s\n' "$app_port"
+            printf 'OPENCODE_PORT=%s\n' "$opencode_port"
+            printf 'SSH_PORT=%s\n' "$ssh_port"
+            printf 'HOST_UID=%s\n' "$host_uid"
+            if [ "$env_file" = ".devcontainer/.env" ]; then
+              printf 'LOCALE=%s\nTZ=%s\n' "$locale" "$timezone"
+            fi
+          } > "$env_file"
+          rm -f "$tmp_file"
+        done
+
+  run-devcontainer:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if [ ! -f .devcontainer/.env ]; then
+          echo "Generated configuration is missing. Run task container:up on the HOST." >&2
+          exit 1
+        fi
+        set -a
+        . .devcontainer/.env || exit 1
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        devcontainer {{.ARGS}}
+
+  resolve-container-name:
+    silent: true
+    cmds:
+      - |
+        set -a
+        . .devcontainer/.env
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        python3 .taskfiles/scripts/compose-manifest.py name "{{.WORKSPACE}}"
+
+  ensure-running:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container entrypoints must be run on the host." >&2
+          exit 0
+        fi
+        if [ ! -f .devcontainer/.env ]; then
+          echo "Generated configuration is missing. Run task container:up on the HOST." >&2
+          exit 1
+        fi
+        set -a
+        . .devcontainer/.env || exit 1
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        state="$(python3 .taskfiles/scripts/compose-manifest.py attachment "{{.WORKSPACE}}")" || exit 1
+        case "$state" in
+          running) exit 0 ;;
+          stopped|absent) task container:up ;;
+          *) echo "Invalid attachment state; startup blocked." >&2; exit 1 ;;
+        esac
+
+  # Guards: most container tasks must run on the host.
+  # They check for /.dockerenv which only exists inside the container.
+  # connect/opencode/opencode:server/pi/gentle-shell/engram use the Dev Container CLI.
+
+  rm:
+    desc: Force-remove the devcontainer service container
+    silent: true
+    cmds:
+      - task: ensure-identity-env
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:rm must be run on the host." >&2
+          exit 0
+        fi
+        container="$(task --silent container:resolve-container-name)" || exit 1
+        container_id="$(docker ps --all --filter "name=^/${container}$" --quiet)" || exit 1
+        if [ -n "$container_id" ]; then
+          docker rm -f "$container_id"
+        fi
+
+  build:
+    desc: Build devcontainer
+    cmds:
+      - task: ensure-identity-env
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:build must be run on the host." >&2
+          exit 0
+        fi
+        set -a
+        . .devcontainer/.env
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        devcontainer build --workspace-folder {{.WORKSPACE}}
+
+  up:
+    desc: Start devcontainer
+    interactive: true
+    cmds:
+      - task: ensure-identity-env
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:up must be run on the host." >&2
+          exit 0
+        fi
+        set -a
+        . .devcontainer/.env
+        set +a
+        COMPOSE_PROJECT_NAME="$(python3 .taskfiles/scripts/compose-manifest.py project-name "{{.WORKSPACE}}")" || exit 1
+        export COMPOSE_PROJECT_NAME
+        DEVCONTAINER_BIND_MANIFEST_ID="$(bash .taskfiles/scripts/prepare-bind-mounts.sh "{{.WORKSPACE}}")" || exit 1
+        export DEVCONTAINER_BIND_MANIFEST_ID
+        devcontainer up --workspace-folder {{.WORKSPACE}}
+
+  rebuild:
+    desc: Remove container and build without starting
+    cmds:
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:rebuild must be run on the host." >&2
+          exit 0
+        fi
+        task container:rm || exit 1
+        task container:build
+
+  restart:
+    desc: Restart the same existing container (running or stopped)
+    cmds:
+      - task: ensure-identity-env
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:restart must be run on the host." >&2
+          exit 0
+        fi
+        container="$(task --silent container:resolve-container-name)" || exit 1
+        container_id="$(docker ps --all --filter "name=^/${container}$" --quiet)" || exit 1
+        if [ -z "$container_id" ]; then
+          echo "Devcontainer does not exist. Run task container:up first." >&2
+          exit 1
+        fi
+        docker restart "$container_id"
+
+  recreate:
+    desc: Remove and start devcontainer to apply configuration changes
+    cmds:
+      - |
+        if [ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]; then
+          echo "[skip] container:recreate must be run on the host." >&2
+          exit 0
+        fi
+        task container:rm || exit 1
+        task container:up
+
+  connect:
+    desc: Open bash inside devcontainer
+    interactive: true
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} bash --rcfile .taskfiles/scripts/container-connect.bash -i
+
+  opencode:
+    desc: Continue the direct OpenCode TUI inside devcontainer
+    interactive: true
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} opencode --continue
+
+  opencode:server:
+    desc: Attach to OpenCode, stopping only the server started by this task
+    interactive: true
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} bash .taskfiles/scripts/opencode-server.sh
+
+  pi:
+    desc: Connect to Pi inside devcontainer
+    interactive: true
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} pi --continue
+
+  gentle-shell:
+    desc: Continue the native Gentle Shell TUI inside devcontainer
+    interactive: true
+    # Skip the whole entrypoint: ensure-running alone does not stop later tasks.
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} gentle-shell --continue
+
+  engram:
+    desc: Connect to Engram TUI inside devcontainer
+    interactive: true
+    status:
+      - '[ -f /.dockerenv ] && [ "${FORCE_HOST_CONTEXT:-}" != "1" ]'
+    cmds:
+      - task: ensure-running
+      - task: run-devcontainer
+        vars:
+          ARGS: exec --workspace-folder {{.WORKSPACE}} engram tui

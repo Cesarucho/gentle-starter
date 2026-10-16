@@ -1,0 +1,24 @@
+# Local Pi runtime state
+.atl/
+.pi/
+
+# Starter files
+.devcontainer/.env
+.env.d/
+.env
+.vscode/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
+
+# Commons
+.claude/
+
+# Installed external skills; keep repository-authored skills tracked
+.agents/skills/*
+!.agents/skills/add-tool/
+!.agents/skills/operational-verification/
+
+# Playwright CLI runtime artifacts
+.playwright-cli/

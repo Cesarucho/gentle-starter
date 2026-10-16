@@ -1,0 +1,9 @@
+{
+  "provisioned": {
+    "/home/ubuntu/.gentle-shell/agent": {
+      "gentleAi": "4.0.0",
+      "gentlePi": "4.0.0",
+      "at": "2026-10-03T06:48:37.095Z"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "explore": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "low"
+    },
+    "general": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "low"
+    }
+  },
+  "default_agent": "gentle-orchestrator",
+  "mcp": {
+    "context7": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "servers": {
+      "codegraph": {
+        "codemode": false,
+        "command": [
+          "codegraph",
+          "serve",
+          "--mcp"
+        ],
+        "disabled": false,
+        "environment": {
+          "CODEGRAPH_NO_DOWNLOAD": "1",
+          "CODEGRAPH_NO_UPDATE_CHECK": "1",
+          "CODEGRAPH_TELEMETRY": "0"
+        },
+        "type": "local"
+      },
+      "engram": {
+        "command": [
+          "/usr/local/bin/engram",
+          "mcp",
+          "--tools=agent"
+        ],
+        "enabled": true,
+        "type": "local"
+      }
+    }
+  },
+  "permissions": [
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+    { "action": "external_directory", "resource": "/home/ubuntu/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "/tmp/**", "effect": "allow" },
+
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "edit", "resource": "*", "effect": "allow" },
+
+    { "action": "read", "resource": "*.env", "effect": "ask" },
+    { "action": "read", "resource": "*.env.*", "effect": "ask" },
+    { "action": "edit", "resource": "*.env", "effect": "ask" },
+    { "action": "edit", "resource": "*.env.*", "effect": "ask" },
+
+    { "action": "read", "resource": "*.git-credentials", "effect": "deny" },
+    { "action": "read", "resource": "*auth.json", "effect": "deny" },
+    { "action": "edit", "resource": "*.git-credentials", "effect": "deny" },
+    { "action": "edit", "resource": "*auth.json", "effect": "deny" },
+
+    { "action": "read", "resource": ".devcontainer/.env", "effect": "allow" },
+    { "action": "edit", "resource": ".devcontainer/.env", "effect": "allow" }
+  ],
+  "plugins": [
+    "@mohak34/opencode-notifier@latest"
+  ],
+  "share": "disabled"
+}

@@ -1,0 +1,8 @@
+services:
+  container-svc:
+    # Passive, per-clone index. Never run indexing or ownership repair at startup.
+    volumes:
+      - type: bind
+        source: ../.env.d/.codegraph
+        target: /home/ubuntu/${APP_NAME}/.codegraph
+        bind: { create_host_path: false }

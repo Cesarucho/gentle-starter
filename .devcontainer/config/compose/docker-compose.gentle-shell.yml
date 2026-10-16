@@ -1,0 +1,7 @@
+services:
+  container-svc:
+    volumes:
+      - type: bind
+        source: ../.env.d/.gentle-shell
+        target: /home/ubuntu/.gentle-shell
+        bind: { create_host_path: false }

@@ -1,0 +1,9 @@
+services:
+  container-svc:
+    ports:
+      - "${SSH_PORT}:22"
+    volumes:
+      - type: bind
+        source: ../.env.d/.ssh-server
+        target: /home/ubuntu/.ssh-server
+        bind: { create_host_path: false }

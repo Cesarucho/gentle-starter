@@ -1,0 +1,12 @@
+version: "3"
+
+tasks:
+  diff:
+    desc: Compare runtime config (use `task --exit-code config:diff` to preserve exit codes)
+    cmds:
+      - python3 .taskfiles/scripts/config-export.py diff {{.CLI_ARGS}}
+
+  export:
+    desc: Export managed runtime configuration into the versioned seed
+    cmds:
+      - python3 .taskfiles/scripts/config-export.py export {{.CLI_ARGS}}

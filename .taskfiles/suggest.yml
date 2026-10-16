@@ -1,0 +1,15 @@
+version: "3"
+
+tasks:
+  skills:
+    desc: Select optional skills from the published starter catalog
+    cmds:
+      - '{{if .CLI_ARGS}}printf "%s\n" "Use bash .taskfiles/scripts/skills-suggest.sh NAME... for explicit batch names; Task arguments are not accepted." >&2; exit 2{{else}}bash ./.taskfiles/scripts/suggest.sh skills{{end}}'
+  tools:
+    desc: Select optional tools for future builds
+    cmds:
+      - '{{if .CLI_ARGS}}printf "%s\n" "Task arguments are not accepted." >&2; exit 2{{else}}bash ./.taskfiles/scripts/suggest.sh tools{{end}}'
+  all:
+    desc: Select optional skills and tools with one confirmation
+    cmds:
+      - '{{if .CLI_ARGS}}printf "%s\n" "Task arguments are not accepted." >&2; exit 2{{else}}bash ./.taskfiles/scripts/suggest.sh all{{end}}'

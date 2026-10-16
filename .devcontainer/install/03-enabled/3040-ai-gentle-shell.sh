@@ -1,0 +1,1 @@
+../available/3040-ai-gentle-shell.sh
