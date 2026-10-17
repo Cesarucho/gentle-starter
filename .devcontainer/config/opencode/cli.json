@@ -2,5 +2,31 @@
   "plugins": [
     "*",
     "-opencode.notifications"
-  ]
+  ],
+  "theme": {
+    "mode": "system",
+    "name": "opencode"
+  },
+  "animations": true,
+  "session": {
+    "scrollbar": true,
+    "verbosity": "low",
+    "image_preview": true
+  },
+  "prompt": {
+    "image_preview": true
+  },
+  "attention": {
+    "sound": true,
+    "notifications": true
+  },
+  "terminal": {
+    "copy": "select",
+    "title": true
+  },
+  "debug": {
+    "devtools": true,
+    "turn_tokens": "verbose",
+    "timing": false
+  }
 }
