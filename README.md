@@ -101,6 +101,7 @@ Run `task install:list` for the current catalog and activation state.
 | [Context7](https://github.com/upstash/context7) | Retrieve current library documentation through MCP requests |
 | [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2) | Check Markdown style and formatting in documentation |
 | [Glow](https://github.com/charmbracelet/glow) | Read and preview Markdown directly in a terminal |
+| [LikeC4 CLI](https://likec4.dev/) | Validate architecture models and generate architecture documentation |
 | [Spectral CLI](https://www.npmjs.com/package/@stoplight/spectral-cli) | Lint API descriptions against reusable quality rules |
 | [Redocly CLI](https://www.npmjs.com/package/@redocly/cli) | Validate, bundle, and preview OpenAPI descriptions |
 | [AsyncAPI CLI](https://www.npmjs.com/package/@asyncapi/cli) | Validate and work with event-driven API descriptions |

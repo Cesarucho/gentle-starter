@@ -65,6 +65,26 @@ EOF
 	chmod +x "${BIN_DIR}/curl"
 }
 
+@test "LikeC4 exact metadata rejects identity drift atomically" {
+	sed -i 's/^TOOL_LIKEC4_VERSION=.*/TOOL_LIKEC4_VERSION="=1.60.0"/' "${POLICY_FILE}"
+	local metadata before
+	before="$(sha256sum "${POLICY_FILE}")"
+	for metadata in '' '{}' \
+		'{"name":"other","version":"1.60.0"}' \
+		'{"name":"likec4","version":"1.59.0"}' \
+		'{"name":"likec4","version":"1.60.0-beta.1"}'; do
+		write_openspec_metadata "${metadata}"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only likec4
+		[ "$status" -eq 1 ]
+		[[ "$output" == *'npm package likec4@1.60.0 identity validation failed'* ]]
+		[ "$(sha256sum "${POLICY_FILE}")" = "${before}" ]
+	done
+	write_openspec_metadata '{"name":"likec4","version":"1.60.0"}'
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only likec4
+	[ "$status" -eq 0 ]
+	[ "$(sha256sum "${POLICY_FILE}")" = "${before}" ]
+}
+
 @test "summary defaults to TOOL changes with hidden LOCK count and identical policy for all visibility modes" {
 	sed -i -e 's/^TOOL_VITEST_VERSION=.*/TOOL_VITEST_VERSION="9.9.8"/' \
 		-e 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
@@ -326,7 +346,7 @@ SH
 	[ "$status" -eq 0 ]
 	cp "${POLICY_FILE}" "${TEST_ROOT}/full"
 	local name
-	for name in java node go pnpm bats engram opencode gentle-ai pi-coding-agent gentle-shell skills codegraph openspec gga c4-plantuml markdownlint-cli2 mermaid-cli archify graphify playwright devcontainer-cli vitest php phpunit terraform gitleaks pulumi opentofu terragrunt kubectl plantuml delve spectral redocly asyncapi; do
+	for name in java node go pnpm bats engram opencode gentle-ai pi-coding-agent gentle-shell skills codegraph openspec likec4 gga c4-plantuml markdownlint-cli2 mermaid-cli archify graphify playwright devcontainer-cli vitest php phpunit terraform gitleaks pulumi opentofu terragrunt kubectl plantuml delve spectral redocly asyncapi; do
 		cp -p "${TEST_ROOT}/original" "${POLICY_FILE}"
 		: >"${CALLS_FILE}"
 		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only "${name}"
@@ -347,7 +367,7 @@ assert re.search(rb'^LOCK_' + identity + rb'_', after, re.M)
 packages = {
     'pnpm': 'pnpm', 'pi-coding-agent': '@earendil-works/pi-coding-agent',
     'skills': 'skills', 'codegraph': '@colbymchenry/codegraph',
-    'openspec': '@fission-ai/openspec', 'markdownlint-cli2': 'markdownlint-cli2',
+    'openspec': '@fission-ai/openspec', 'likec4': 'likec4', 'markdownlint-cli2': 'markdownlint-cli2',
     'mermaid-cli': '@mermaid-js/mermaid-cli', 'playwright': 'playwright',
     'devcontainer-cli': '@devcontainers/cli', 'vitest': 'vitest',
     'spectral': '@stoplight/spectral-cli', 'redocly': '@redocly/cli',

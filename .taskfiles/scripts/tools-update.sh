@@ -27,6 +27,7 @@ PACKAGE_SPECS=(
 	"LOCK_ASYNCAPI_VERSION|@asyncapi/cli"
 	"LOCK_CODEGRAPH_VERSION|@colbymchenry/codegraph"
 	"LOCK_OPENSPEC_VERSION|@fission-ai/openspec"
+	"LOCK_LIKEC4_VERSION|likec4"
 )
 
 GENTLE_SHELL_KEYS=(LOCK_GENTLE_SHELL_VERSION LOCK_GENTLE_SHELL_INTEGRITY)
@@ -44,6 +45,7 @@ MANAGED_KEYS=(
 	LOCK_SPECTRAL_VERSION LOCK_REDOCLY_VERSION LOCK_ASYNCAPI_VERSION LOCK_ARCHIFY_VERSION LOCK_ARCHIFY_SHA256
 	LOCK_CODEGRAPH_VERSION
 	LOCK_OPENSPEC_VERSION
+	LOCK_LIKEC4_VERSION
 	LOCK_GGA_VERSION LOCK_GGA_COMMIT LOCK_GGA_SHA256
 )
 
@@ -51,7 +53,7 @@ MANAGED_KEYS=(
 # owns both component intents; other grouped installers remain independent.
 TOOL_NAMES=(
 	java node go pnpm bats engram opencode gentle-ai pi-coding-agent gentle-shell
-	skills codegraph openspec gga c4-plantuml markdownlint-cli2 mermaid-cli archify
+	skills codegraph openspec likec4 gga c4-plantuml markdownlint-cli2 mermaid-cli archify
 	graphify playwright devcontainer-cli vitest php phpunit terraform gitleaks
 	pulumi opentofu terragrunt kubectl plantuml delve spectral redocly asyncapi
 )
@@ -122,7 +124,7 @@ require_selected_providers() {
 	for name in "${!SELECTED_TOOLS[@]}"; do
 		case "${name}" in
 		java | node | php) ;;
-		pnpm | pi-coding-agent | skills | codegraph | openspec | markdownlint-cli2 | mermaid-cli | playwright | devcontainer-cli | vitest | spectral | redocly | asyncapi)
+		pnpm | pi-coding-agent | skills | codegraph | openspec | likec4 | markdownlint-cli2 | mermaid-cli | playwright | devcontainer-cli | vitest | spectral | redocly | asyncapi)
 			require_command "${JQ_BIN}"
 			;;
 		*)
@@ -163,7 +165,7 @@ require_selected_providers() {
 
 # Only newly introduced locks explicitly registered here may be bootstrapped.
 # Other missing locks remain errors; selection never expands this registry.
-INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION LOCK_OPENSPEC_VERSION "${GENTLE_SHELL_KEYS[@]}")
+INITIAL_LOCK_KEYS=(LOCK_CODEGRAPH_VERSION LOCK_OPENSPEC_VERSION LOCK_LIKEC4_VERSION "${GENTLE_SHELL_KEYS[@]}")
 
 declare -A CANDIDATES=()
 UPDATE_KEYS=()
@@ -280,7 +282,7 @@ select_newest_stable_candidate() {
 
 strategy_for_key() {
 	case "$1" in
-	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION | TOOL_OPENSPEC_VERSION) printf npm ;;
+	TOOL_CODEGRAPH_VERSION | TOOL_GENTLE_SHELL_VERSION | TOOL_OPENSPEC_VERSION | TOOL_LIKEC4_VERSION) printf npm ;;
 	TOOL_PLANTUML_VERSION) printf plantuml ;; TOOL_KUBECTL_VERSION) printf kubectl ;; TOOL_DELVE_VERSION) printf github-v ;;
 	TOOL_PHP_VERSION) printf php ;; TOOL_JAVA_VERSION) printf sdkman ;; TOOL_NODE_VERSION) printf node ;; TOOL_PHPUNIT_VERSION) printf composer ;;
 	TOOL_GO_VERSION | TOOL_C4_PLANTUML_VERSION | TOOL_GENTLE_AI_VERSION | TOOL_GGA_VERSION | TOOL_ENGRAM_VERSION | TOOL_ARCHIFY_VERSION | TOOL_TERRAFORM_VERSION | TOOL_GITLEAKS_VERSION | TOOL_PULUMI_VERSION | TOOL_OPENTOFU_VERSION | TOOL_TERRAGRUNT_VERSION | TOOL_BATS_VERSION) printf github-v ;;

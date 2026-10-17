@@ -5,6 +5,9 @@
 # Local CodeGraph index
 /.codegraph/
 
+# Local Graphify generated output
+/graphify-out/
+
 # Starter files
 .devcontainer/.env
 .env.d/
