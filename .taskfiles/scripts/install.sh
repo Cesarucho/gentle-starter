@@ -38,6 +38,7 @@ Commands:
   list                  List foundation, mandatory core tools, optional tools, hooks
                         and available/ scripts not enabled.
   enable NAME           Activate NAME and required dependencies; reuse mandatory core
+                        CodeGraph also creates codegraph.json if absent
   disable NAME          Remove the optional 03-enabled/ symlink for NAME.sh
   doctor                Verify the install/ layout integrity
   versions-validate     Validate .devcontainer/tool-versions.conf
