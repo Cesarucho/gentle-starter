@@ -103,17 +103,37 @@ or the centralized version policy for pnpm itself.
 
 ### `03-enabled/` — optional tools
 
-OpenSpec is available as `3080-ai-openspec.sh` but is not enabled by default.
+OpenSpec is available as `3080-ai-openspec.sh`, without default activation.
 It installs `@fission-ai/openspec` globally through npm at the generated exact lock,
 requires core Node/npm (Node >=20.19.0), and keeps no managed persistent state.
 `TOOL_OPENSPEC_VERSION="1"` selects stable 1.x releases, excluding prereleases and
 2.x. Run `task tools:update -- --update-openspec` to refresh only its lock from
 public npm metadata without changing unrelated policy bytes or downloading tools.
-To use it in a future image, enable `3080-ai-openspec` through `install:enable`,
-then follow the normal HOST rebuild workflow. Runtime repair does not install it.
+For a consumer selection where it is disabled, enable `3080-ai-openspec` through
+`install:enable`, then follow the normal HOST rebuild workflow.
+Runtime repair does not install it.
 Project initialization (`openspec init`) and configuration remain manual; the
 installer only verifies `openspec --version`. npm lifecycle scripts retain their
 normal behavior; this catalog addition does not establish actual-install proof.
+
+LikeC4 (`2090-node-likec4.sh`), the contract CLIs (`2040-node-contracts.sh`:
+Spectral, Redocly, AsyncAPI), and Graphify (`2400-python-graphify.sh`) are also
+available without default activation. Together with OpenSpec and Mermaid, they
+appear in `task suggest:tools`; selecting them enables future image builds, not
+installation into the running container. Existing CodeGraph activation is unchanged.
+LikeC4 installs the exact npm lock with lifecycle scripts disabled and requires
+Node >=22.22.3. Registry integrity is provider-delegated, not a repository-pinned
+tarball digest. Refresh only its lock with `task tools:update -- --only likec4`.
+All commands use existing PATH directories; no new managed state is introduced.
+CLI installation does not initialize projects, register MCP servers, or install
+Graphify agent integrations. Browser-backed LikeC4 exports need separate setup
+and verification; the CLI installation does not promise image export support.
+
+Mermaid remains available as `2050-node-mermaid.sh` but activation is deferred:
+the existing wrapper disables Chromium's sandbox. Decide and verify the browser
+configuration before enabling it. No Graphviz, PlantUML, or C4-PlantUML activation
+is included in this selection. Changes to enabled aliases take effect only after
+the normal HOST rebuild, not in the already-running CONTAINER.
 
 This group runs after all core tools. The active selection is defined by its
 symlinks, not a fixed inventory in this guide. Run `task install:list` to inspect

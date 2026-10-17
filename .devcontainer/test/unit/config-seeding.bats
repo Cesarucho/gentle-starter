@@ -12,6 +12,61 @@ seed() {
 		"${REPO_ROOT}/.devcontainer/setup.sh" "$1" "$2"
 }
 
+seed_asyncapi_defaults() {
+	run env ASYNCAPI_ENABLED="$1" bash -c '
+		set -euo pipefail
+		SCRIPT_DIR="$1/.devcontainer"
+		WORKSPACE_DIR="$1"
+		eval "$(sed -n "/^seed_config_tree() {/,/^}/p" "$SCRIPT_DIR/setup.sh")"
+		eval "$(sed -n "/^setup_versioned_configs() {/,/^}/p" "$SCRIPT_DIR/setup.sh")"
+		install_script_is_enabled() {
+			[ "$ASYNCAPI_ENABLED" = true ] && [[ "$1" == */2040-node-contracts.sh ]]
+		}
+		setup_versioned_configs
+	' _ "${REPO_ROOT}"
+}
+
+@test "AsyncAPI default disables analytics without a shared user identifier" {
+	seed_asyncapi_defaults true
+	[ "$status" -eq 0 ]
+	run python3 - "${HOME}/.asyncapi-analytics" <<'PY'
+import json, sys
+from pathlib import Path
+settings = json.loads(Path(sys.argv[1]).read_text())
+assert settings == {"analyticsEnabled": "false", "infoMessageShown": "true"}
+PY
+	[ "$status" -eq 0 ]
+	[ ! -L "${HOME}/.asyncapi-analytics" ]
+	before="$(sha256sum "${HOME}/.asyncapi-analytics")"
+	seed_asyncapi_defaults true
+	[ "$status" -eq 0 ]
+	[ "$(sha256sum "${HOME}/.asyncapi-analytics")" = "$before" ]
+}
+
+@test "AsyncAPI default preserves existing enabled and disabled preferences byte for byte" {
+	for enabled in true false; do
+		printf '{"analyticsEnabled":"%s","userID":"local-fixture-id","custom":42}\n' "$enabled" >"${HOME}/.asyncapi-analytics"
+		before="$(sha256sum "${HOME}/.asyncapi-analytics")"
+		seed_asyncapi_defaults true
+		[ "$status" -eq 0 ]
+		[ "$(sha256sum "${HOME}/.asyncapi-analytics")" = "$before" ]
+	done
+}
+
+@test "AsyncAPI default is absent when the contract installer is disabled" {
+	seed_asyncapi_defaults false
+	[ "$status" -eq 0 ]
+	[ ! -e "${HOME}/.asyncapi-analytics" ]
+}
+
+@test "AsyncAPI default does not follow an existing dangling configuration link" {
+	ln -s "${HOME}/external-settings" "${HOME}/.asyncapi-analytics"
+	seed_asyncapi_defaults true
+	[ "$status" -eq 0 ]
+	[ -L "${HOME}/.asyncapi-analytics" ]
+	[ ! -e "${HOME}/external-settings" ]
+}
+
 @test "config seeding supports arbitrary directory and linked roots without overwriting runtime files" {
 	local tool mode source target profile
 	for tool in example-tool future-tool; do

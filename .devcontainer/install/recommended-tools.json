@@ -16,6 +16,7 @@
     "4100-tool-pulseaudio-utils.sh",
     "4000-tool-ssh-client.sh",
     "5000-cli-glow.sh",
-    "3080-ai-openspec.sh"
+    "3080-ai-openspec.sh",
+    "2090-node-likec4.sh"
   ]
 }

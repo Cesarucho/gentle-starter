@@ -398,7 +398,7 @@ invoking shell or prefix the command; `tools:update` does not directly load `.en
 | Runtimes and package tooling | `java`, `node`, `go`, `pnpm`, `php`, `phpunit` |
 | AI and code tooling | `engram`, `opencode`, `gentle-ai`, `pi-coding-agent`, `gentle-shell`, `skills`, `codegraph`, `openspec`, `gga`, `archify`, `graphify` |
 | Testing and containers | `bats`, `playwright`, `vitest`, `devcontainer-cli` |
-| Docs and contracts | `c4-plantuml`, `markdownlint-cli2`, `mermaid-cli`, `plantuml`, `spectral`, `redocly`, `asyncapi` |
+| Docs and contracts | `c4-plantuml`, `markdownlint-cli2`, `likec4`, `mermaid-cli`, `plantuml`, `spectral`, `redocly`, `asyncapi` |
 | Infrastructure and debugging | `terraform`, `gitleaks`, `pulumi`, `opentofu`, `terragrunt`, `kubectl`, `delve` |
 
 `playwright` selects both library and CLI locks, honoring their separate intents
