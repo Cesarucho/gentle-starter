@@ -213,6 +213,13 @@ repair_user_local_parents() {
 #   2. Add a seed_config_tree call below with the absolute target.
 # See .devcontainer/README.md for the full convention.
 setup_versioned_configs() {
+	if install_script_is_enabled "${SCRIPT_DIR}/install/available/2040-node-contracts.sh"; then
+		# Seed a default, not an enforced preference. Preserve existing files and
+		# links (including dangling links) without following or rewriting them.
+		if [ ! -e "${HOME}/.asyncapi-analytics" ] && [ ! -L "${HOME}/.asyncapi-analytics" ]; then
+			seed_config_tree "${WORKSPACE_DIR}/.devcontainer/config/asyncapi" "${HOME}" || return "$?"
+		fi
+	fi
 	if install_script_is_enabled "${SCRIPT_DIR}/install/available/3040-ai-gentle-shell.sh"; then
 		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/gentle-shell" "${HOME}/.gentle-shell" || return "$?"
 		seed_config_with_dependencies "${WORKSPACE_DIR}/.devcontainer/config/pi/gentle-ai" "${HOME}/.pi/gentle-ai" || return "$?"

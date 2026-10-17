@@ -28,5 +28,12 @@
     "devtools": true,
     "turn_tokens": "verbose",
     "timing": false
+  },
+  "diffs": {
+    "tree": true,
+    "view": "auto",
+    "single": true,
+    "wrap": "word",
+    "fullscreen": true
   }
 }

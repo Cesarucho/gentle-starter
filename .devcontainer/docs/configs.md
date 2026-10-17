@@ -13,6 +13,26 @@ OpenCode configuration is seeded when enabled, to
 `~/.config/opencode/`. Activation uses any valid enabled symlink that
 canonically resolves to the corresponding available installer.
 
+## AsyncAPI analytics default
+
+When `2040-node-contracts.sh` is enabled, CONTAINER `setup.sh` copies
+`config/asyncapi/.asyncapi-analytics` to `~/.asyncapi-analytics` only when that
+destination is absent. The baseline disables analytics and contains no shared
+user identifier. No CLI command, telemetry request, or dependency installation
+is needed to apply this file-only default.
+
+Existing files and links are preserved, including an explicit user choice to
+enable analytics. This is a default, not an enforcement or migration policy.
+An explicit `ASYNCAPI_METRICS_CONFIG_PATH` selects another configuration file;
+this baseline does not override that choice. No new persistent mount is added.
+On recreation, an absent configuration receives the default again; an existing
+persisted configuration remains untouched. Restart alone does not run seeding.
+
+Verify the current setting with `CI=true asyncapi config analytics --status`.
+To change an existing preference explicitly, run
+`CI=true asyncapi config analytics --disable`. `CI=true` suppresses metrics for
+these commands without setting a global CI environment variable.
+
 ## Select a seed profile with a symlink
 
 Any source directory passed to `seed_config_tree` (including through
