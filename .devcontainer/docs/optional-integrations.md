@@ -90,6 +90,10 @@ repeat the manual check to verify persisted trust. Startup never runs SSH,
 ## Optional CodeGraph
 
 1. Run `task install:enable -- 3060-ai-codegraph`.
+   This also creates `codegraph.json` at the workspace root if absent, excluding
+   `.taskfiles/`, `.devcontainer/`, and `.agents/` from indexing. Existing paths
+   are preserved unchanged. Repeating enable restores a missing configuration;
+   disabling the tool leaves it in place. This does not initialize the index.
 2. Uncomment `./config/compose/docker-compose.codegraph.yml` in
    `.devcontainer/devcontainer.json` for dedicated per-clone state.
 3. On the host, run `task container:rebuild && task container:up` (or `task container:recreate` if the

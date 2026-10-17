@@ -2,6 +2,9 @@
 .atl/
 .pi/
 
+# Local CodeGraph index
+/.codegraph/
+
 # Starter files
 .devcontainer/.env
 .env.d/

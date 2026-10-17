@@ -231,7 +231,27 @@ def validate_executable_closure(roots, catalog, graph):
         pending.extend(reversed(graph[name]))
 
 
-def apply_enable(install, plan, catalog, graph):
+def seed_codegraph_config(install):
+    config = install.parent.parent / "codegraph.json"
+    try:
+        stream = config.open("x", encoding="utf-8")
+    except FileExistsError:
+        return
+    identity = os.fstat(stream.fileno())
+    try:
+        with stream:
+            stream.write('{\n  "exclude": [\n    ".taskfiles/",\n    ".devcontainer/",\n    ".agents/"\n  ]\n}\n')
+    except BaseException:
+        try:
+            current = config.lstat()
+            if (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino):
+                config.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def apply_enable(install, plan, catalog, graph, seed_codegraph=False):
     created = []
     try:
         for alias, name in plan:
@@ -247,6 +267,8 @@ def apply_enable(install, plan, catalog, graph):
             finally:
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         validate_order(read_selection(install, catalog), graph)
+        if seed_codegraph:
+            seed_codegraph_config(install)
     except BaseException:
         for link, target, device, inode in reversed(created):
             try:
@@ -290,7 +312,7 @@ def change_selection(install, operation, wanted):
     require(not selection.get(name, "").startswith("02-core-tools/"), f"{name} belongs to mandatory 02-core-tools")
     if operation == "enable":
         plan = plan_enable(name, selection, graph)
-        apply_enable(install, plan, catalog, graph)
+        apply_enable(install, plan, catalog, graph, seed_codegraph=name == "3060-ai-codegraph.sh")
         if not plan:
             print(f"{name} is already enabled")
     else:
