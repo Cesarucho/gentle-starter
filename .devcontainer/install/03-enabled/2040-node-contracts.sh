@@ -1,1 +1,0 @@
-../available/2040-node-contracts.sh

@@ -121,7 +121,7 @@ assert document == {'version': 1, 'tools': [
     '6020-cli-opentofu.sh', '5020-cli-graphviz.sh', '5010-cli-gitleaks.sh',
     '2100-runtime-go.sh', '2400-python-graphify.sh', '2200-runtime-java.sh',
     '4100-tool-pulseaudio-utils.sh', '4000-tool-ssh-client.sh', '5000-cli-glow.sh',
-    '3080-ai-openspec.sh']}
+    '3080-ai-openspec.sh', '2090-node-likec4.sh']}
 PY
 	[ "$status" -eq 0 ]
 }

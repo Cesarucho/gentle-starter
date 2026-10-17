@@ -1,1 +1,0 @@
-../available/2090-node-likec4.sh

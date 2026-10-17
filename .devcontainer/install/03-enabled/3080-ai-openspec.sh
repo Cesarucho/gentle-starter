@@ -1,1 +1,0 @@
-../available/3080-ai-openspec.sh

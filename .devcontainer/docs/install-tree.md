@@ -103,7 +103,7 @@ or the centralized version policy for pnpm itself.
 
 ### `03-enabled/` — optional tools
 
-OpenSpec is enabled as `3080-ai-openspec.sh` in the current producer selection.
+OpenSpec is available as `3080-ai-openspec.sh`, without default activation.
 It installs `@fission-ai/openspec` globally through npm at the generated exact lock,
 requires core Node/npm (Node >=20.19.0), and keeps no managed persistent state.
 `TOOL_OPENSPEC_VERSION="1"` selects stable 1.x releases, excluding prereleases and
@@ -116,9 +116,11 @@ Project initialization (`openspec init`) and configuration remain manual; the
 installer only verifies `openspec --version`. npm lifecycle scripts retain their
 normal behavior; this catalog addition does not establish actual-install proof.
 
-The current producer selection also enables LikeC4 (`2090-node-likec4.sh`), the
-contract CLIs (`2040-node-contracts.sh`: Spectral, Redocly, AsyncAPI), and Graphify
-(`2400-python-graphify.sh`). Existing CodeGraph activation is unchanged.
+LikeC4 (`2090-node-likec4.sh`), the contract CLIs (`2040-node-contracts.sh`:
+Spectral, Redocly, AsyncAPI), and Graphify (`2400-python-graphify.sh`) are also
+available without default activation. Together with OpenSpec and Mermaid, they
+appear in `task suggest:tools`; selecting them enables future image builds, not
+installation into the running container. Existing CodeGraph activation is unchanged.
 LikeC4 installs the exact npm lock with lifecycle scripts disabled and requires
 Node >=22.22.3. Registry integrity is provider-delegated, not a repository-pinned
 tarball digest. Refresh only its lock with `task tools:update -- --only likec4`.
