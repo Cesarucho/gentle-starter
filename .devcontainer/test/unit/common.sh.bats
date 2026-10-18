@@ -528,7 +528,7 @@ EOF
 }
 
 @test "Phase 3B installer environment overrides win over central values" {
-    local policy_file="${SCRIPT_DIR}/tool-versions.conf"
+    local policy_file="${BATS_TEST_TMPDIR}/phase-3b-override.conf"
     local case_entry script_name environment_name override_version
     local -a cases=(
         '6040-cli-terraform.sh|TERRAFORM_VERSION|8.8.1'
@@ -542,6 +542,21 @@ EOF
         '3020-ai-gentle-ai.sh|GENTLE_AI_VERSION|8.8.9'
     )
 
+    cat >"${policy_file}" <<'EOF'
+LOCK_TERRAFORM_VERSION="9.9.1"
+LOCK_GITLEAKS_VERSION="9.9.2"
+LOCK_PULUMI_VERSION="9.9.3"
+LOCK_OPENTOFU_VERSION="9.9.4"
+LOCK_TERRAGRUNT_VERSION="9.9.5"
+LOCK_KUBECTL_VERSION="9.9.6"
+LOCK_PLANTUML_VERSION="9.9.7"
+LOCK_PLANTUML_SHA256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+LOCK_DELVE_VERSION="v9.9.8"
+LOCK_GENTLE_AI_VERSION="9.9.9"
+LOCK_GENTLE_AI_SHA256_AMD64="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+LOCK_GENTLE_AI_SHA256_ARM64="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+EOF
+
     for case_entry in "${cases[@]}"; do
         IFS='|' read -r script_name environment_name override_version <<<"${case_entry}"
         run env \
@@ -551,7 +566,7 @@ EOF
 
         [ "$status" -eq 0 ]
 		if [ "${script_name}" = "2210-cli-plantuml.sh" ]; then
-			[ "$output" = "${environment_name}=${override_version}"$'\n''PLANTUML_SHA256=0f77e5f769836b3dee340e207fe497c3e4c43e973d559e3c306915da9c32e34c' ]
+			[ "$output" = "${environment_name}=${override_version}"$'\n''PLANTUML_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ]
 		else
         [ "$output" = "${environment_name}=${override_version}" ]
 		fi
