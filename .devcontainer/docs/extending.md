@@ -395,6 +395,8 @@ Order within each group is preserved. A lock-only update first announces
 It then reports `No TOOL_* changes.`
 and either the hidden count or lock details; an unchanged policy retains the global
 `No changes.` message.
+The rebuild/up reminder for a full update appears only after policy changes are
+successfully published, including lock-only changes; an unchanged policy omits it.
 The summary appears only after successful publication. Export the variable in the
 invoking shell or prefix the command; `tools:update` does not directly load `.env`.
 

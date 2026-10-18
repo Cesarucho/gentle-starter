@@ -1061,6 +1061,9 @@ publish_policy() {
 	elif [ "${#lock_changes[@]}" -gt 0 ]; then
 		printf '\nGenerated lock changes hidden: %d. Set TOOLS_UPDATE_SHOW_LOCKS=1 to show.\n' "${#lock_changes[@]}"
 	fi
+	if [ -z "${1:-}" ]; then
+		printf "\nRun 'task container:rebuild && task container:up' to apply these versions.\n"
+	fi
 }
 
 validate_generated_section() {
@@ -1227,7 +1230,6 @@ main() {
 	apply_intent_contract
 	prepare_baseline_updates
 	publish_policy
-	printf "\nRun 'task container:rebuild && task container:up' to apply these versions.\n"
 }
 
 main "$@"
