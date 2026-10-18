@@ -138,6 +138,7 @@ EOF
 	[ "$status" -eq 0 ]
 	[[ "$output" == *$'\nTOOL_*\n  No TOOL_* changes.'* ]]
 	[[ "$output" == *'Generated lock changes hidden: 1.'* ]]
+	[[ "$output" == *'Updates applied: generated LOCK_* values changed; TOOL_* settings are unchanged.'* ]]
 	[[ "$output" != *$'\n  No changes.'* ]]
 	cp -p "${POLICY_FILE}" "${TEST_ROOT}/expected"
 	run env TOOLS_UPDATE_SHOW_LOCKS=1 "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest

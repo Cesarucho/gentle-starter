@@ -1042,6 +1042,9 @@ publish_policy() {
 	CANDIDATE_FILE=""
 
 	# Announce changes only after atomic publication succeeds; visibility is presentation-only.
+	if [ "${#tool_changes[@]}" -eq 0 ] && [ "${#lock_changes[@]}" -gt 0 ]; then
+		printf '\nUpdates applied: generated LOCK_* values changed; TOOL_* settings are unchanged.\n'
+	fi
 	printf '\nVersion policy updates:\n\nTOOL_*\n'
 	if [ "${#tool_changes[@]}" -gt 0 ]; then
 		printf '%s\n' "${tool_changes[@]}"

@@ -387,7 +387,9 @@ TOOLS_UPDATE_SHOW_LOCKS=1 task tools:update -- --only engram,opencode
 Unset, empty or `0` hides lock details; `1` shows them. Other values fail before
 provider queries or authentication. This variable changes output only: locks are
 still discovered, validated and written in every mode, with the same policy bytes.
-Order within each group is preserved. A lock-only update reports `No TOOL_* changes.`
+Order within each group is preserved. A lock-only update first announces
+`Updates applied: generated LOCK_* values changed; TOOL_* settings are unchanged.`
+It then reports `No TOOL_* changes.`
 and either the hidden count or lock details; an unchanged policy retains the global
 `No changes.` message.
 The summary appears only after successful publication. Export the variable in the
