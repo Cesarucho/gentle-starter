@@ -135,7 +135,13 @@ def print_browser_address():
 def owns_listener(pid):
     """Do not mistake an unrelated racing listener for our successfully started child."""
     try:
-        sockets = {entry.readlink().name for entry in Path(f"/proc/{pid}/fd").iterdir()}
+        sockets = set()
+        for entry in Path(f"/proc/{pid}/fd").iterdir():
+            try:
+                sockets.add(entry.readlink().name)
+            except FileNotFoundError:
+                # Unrelated descriptors can close while the process still listens.
+                continue
         for table, addresses in (
             ("tcp", {"00000000:1000", "0100007F:1000"}),
             ("tcp6", {"00000000000000000000000000000000:1000"}),

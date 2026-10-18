@@ -523,6 +523,29 @@ class Protocol(unittest.TestCase):
                 descriptor.readlink.return_value = Path("socket:[999]")
                 self.assertFalse(supervisor.owns_listener(41000))
 
+    def test_listener_probe_tolerates_unrelated_descriptor_disappearing(self):
+        listener = Mock()
+        listener.readlink.return_value = Path("socket:[123]")
+        vanished = Mock()
+        vanished.readlink.side_effect = FileNotFoundError(errno.ENOENT, "Descriptor closed")
+        table = "header\n0: 00000000:1000 00000000:0000 0A 0 0 0 0 0 123\n"
+        for descriptors in ([vanished, listener], [listener, vanished]):
+            with self.subTest(descriptors=descriptors):
+                with patch.object(Path, "iterdir", return_value=descriptors):
+                    with patch.object(Path, "read_text", return_value=table):
+                        self.assertTrue(supervisor.owns_listener(41000))
+                        listener.readlink.return_value = Path("socket:[999]")
+                        self.assertFalse(supervisor.owns_listener(41000))
+                        listener.readlink.return_value = Path("socket:[123]")
+
+    def test_listener_probe_fails_closed_on_access_errors(self):
+        descriptor = Mock()
+        descriptor.readlink.side_effect = PermissionError(errno.EACCES, "Access denied")
+        with patch.object(Path, "iterdir", return_value=[descriptor]):
+            self.assertFalse(supervisor.owns_listener(41000))
+        with patch.object(Path, "iterdir", side_effect=FileNotFoundError):
+            self.assertFalse(supervisor.owns_listener(41000))
+
     def test_cleanup_escalates_only_owned_child(self):
         process = child(41000)
         process.wait.side_effect = [subprocess.TimeoutExpired("opencode", 3), 0]
