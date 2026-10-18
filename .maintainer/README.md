@@ -748,15 +748,14 @@ task --taskfile .maintainer/Taskfile.yml test:starter:clean -- --apply --run RUN
 ```
 
 `RUN_UUID` is printed by the participating test or recovery preview. The
-explicit lifecycle and image-contract builds, and recovery, are not invoked by
+explicit lifecycle builds and recovery are not invoked by
 `task test`, the maintainer `test:starter` suite, or `task validate`.
 Normal unit execution does include
 mock tests of the cleaner, not an invocation of live recovery.
 
-**Scope:** the base lifecycle harness and the Docker image-contract fixture in
-`.maintainer/test/operational/image-contract.bats` register their resources.
-The latter has a unique run tag and retains failure evidence even when a build
-or assertion fails. Other suites retain their own
+**Scope:** the base lifecycle harness registers its resources.
+The former Docker ARG-to-ENV image-contract fixture has been retired with the
+Engram, Node, and Playwright library version overrides. Other suites retain their own
 fixture cleanup; arbitrary commands, custom hook resources, unlabelled resources,
 and the real devcontainer are not automatically adopted by this helper.
 

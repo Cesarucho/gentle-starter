@@ -5,15 +5,15 @@ The Dockerfile separates shared setup from project-specific installation:
 1. `foundation` copies and runs `01-foundation` with `common.sh` and the runner.
 2. `core-tools` derives from `foundation`, copies the central version policy,
    required archive helper, selective core installer sources, and `02-core-tools`
-   aliases, then installs the mandatory tools. ENGRAM_VERSION and NODE_MAJOR
-   overrides enter here.
+   aliases, then installs the mandatory tools.
 3. `devcontainer` derives from `core-tools`. Only here do APP_NAME,
-   PLAYWRIGHT_VERSION, optional sources/selectors, and `04-hooks` enter the build.
+   optional sources/selectors, and `04-hooks` enter the build.
 
-An independent `devcontainer-version-contract` test target derives directly
-from the configured base image. It applies the same three tool-version overrides
-without building `foundation` or installing tools, keeping focused contract
-tests inexpensive. Static tests prevent that duplicated contract from drifting.
+Engram, Node, and the Playwright library take their versions exclusively from
+the generated locks in `tool-versions.conf`. Their former Docker build arguments
+and environment overrides, and the override-only test target, have been removed.
+Edit the corresponding `TOOL_*` intent and run `task tools:update` to update
+these versions before rebuilding. Playwright CLI remains a separate contract.
 
 Because tool-specific inputs appear only after `foundation`, changing them does
 not invalidate the foundation layer. Optional installer sources, aliases, hooks,

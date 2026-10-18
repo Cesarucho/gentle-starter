@@ -193,12 +193,12 @@ if "--skills" in sys.argv:
         self.assertIn("existing canonical home", result.stdout + result.stderr)
         self.assertFalse(self.calls.exists())
 
-    def test_explicit_version_overrides_reach_package_operations(self):
+    def test_library_uses_policy_while_cli_override_reaches_package_operations(self):
         self.assert_success(self.install(PLAYWRIGHT_VERSION="9.8.7", PLAYWRIGHT_CLI_VERSION="6.5.4"))
         calls = self.calls.read_text()
-        self.assertIn("npm:root:install -g playwright@9.8.7", calls)
+        self.assertIn(f"npm:root:install -g playwright@{LOCKS['PLAYWRIGHT_VERSION']}", calls)
         self.assertIn("npm:root:install -g @playwright/cli@6.5.4", calls)
-        self.assertIn("npx:root:-y playwright@9.8.7 install chromium --with-deps", calls)
+        self.assertIn(f"npx:root:-y playwright@{LOCKS['PLAYWRIGHT_VERSION']} install chromium --with-deps", calls)
 
     def test_git_home_is_not_modified_by_upstream(self):
         (self.home / ".git").mkdir()

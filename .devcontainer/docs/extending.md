@@ -18,8 +18,11 @@ The four extension surfaces are:
    editable `TOOL_*_VERSION` intent and final generated `LOCK_*` values
    in `.devcontainer/tool-versions.conf`.
    Installers retain URLs, architecture, permissions, idempotency, integrity
-   verification, and version checks. Approved environment variables may
-   override generated locks; otherwise installers require `LOCK_*` values and
+   verification, and version checks. Engram, Node, and the Playwright library
+   always use their generated locks; `ENGRAM_VERSION`, `NODE_MAJOR`, and
+   `PLAYWRIGHT_VERSION` are not supported overrides. Other approved environment
+   variables (including `PLAYWRIGHT_CLI_VERSION`) may override generated locks;
+   otherwise installers require `LOCK_*` values and
    fail closed. They never resolve editable intent or carry local
    version/checksum defaults.
 

@@ -731,20 +731,6 @@ class ResourceTests(unittest.TestCase):
         self.assertFalse(self.owner.path.exists())
         self.assertFalse(self.scratch.exists())
 
-    def test_image_fixture_assertion_failure_retains_evidence(self):
-        fixture = load_script("image-contract")
-        owner = Mock()
-        owner.data = self.owner.data
-        owner.docker.return_value = "wrong-assertion"
-        owner.cleanup.return_value = {"removed": [], "retained": ["shared cache"], "failed": []}
-        with patch.object(fixture.Run, "create", return_value=owner), patch.object(fixture.signal, "signal"), \
-                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(fixture.main(self.root, self.base), 1)
-        owner.retain.assert_called_once_with()
-        owner.cleanup.assert_not_called()
-        owner.finish.assert_called_once_with("failed")
-        owner.close.assert_called_once()
-
     def test_adapter_uses_full_ids_minimal_inspection_and_no_environment_dump(self):
         docker = R.Docker(self.base / "home")
         identity = "a" * 64

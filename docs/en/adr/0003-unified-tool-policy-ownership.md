@@ -25,6 +25,13 @@ Builds, installers, setup, postCreate, doctor, and validators are read-only
 consumers. `latest` is resolved only by `tools:update`. Installers consume the
 generated resolutions and never carry local version or checksum defaults.
 
+Engram, Node, and the Playwright library require `LOCK_ENGRAM_VERSION`,
+`LOCK_NODE_MAJOR`, and `LOCK_PLAYWRIGHT_VERSION` respectively, regardless of
+inherited `ENGRAM_VERSION`, `NODE_MAJOR`, or `PLAYWRIGHT_VERSION` values. Their
+Docker build arguments and environment override interfaces are retired. Change
+their editable intent and run `task tools:update` instead. Other approved
+installer overrides, including the separate Playwright CLI version, are unchanged.
+
 Go Task is the narrow existing external APT-managed core bootstrap exception.
 It is installed in `01-core` because the Task runner is required before
 the repository can expose its managed workflows. It deliberately remains

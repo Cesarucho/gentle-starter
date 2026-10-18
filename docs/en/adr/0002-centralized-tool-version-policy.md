@@ -53,6 +53,10 @@ The loader rejects malformed assignments, commands, functions, `export`, foreign
 
 ### Precedence
 
+**Superseded for Engram, Node, and the Playwright library:** ADR 0003 now
+requires their generated `LOCK_*` values and retires their environment and
+Docker version overrides. The precedence below records the original decision.
+
 Installers resolve values in this order:
 
 1. an existing installer environment variable, including Docker `ARG`/`ENV` overrides;

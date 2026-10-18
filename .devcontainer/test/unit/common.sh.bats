@@ -343,35 +343,26 @@ EOF
     [ "$output" = "2" ]
 }
 
-@test "approved environment override wins over generated lock" {
+@test "policy-only installer values take precedence over environment" {
     file="${BATS_TEST_TMPDIR}/precedence.conf"
 	printf '%s\n' 'LOCK_ENGRAM_VERSION="1.17.0"' >"${file}"
-	run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && ENGRAM_VERSION='9.9.9' && : \"\${ENGRAM_VERSION:=\${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
+	run env ENGRAM_VERSION=9.9.9 DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" bash "${SCRIPT_DIR}/install/available/3010-ai-engram.sh" --print-version-policy
     [ "$status" -eq 0 ]
-    [ "$output" = "9.9.9" ]
+    [ "$output" = "ENGRAM_VERSION=1.17.0" ]
 }
 
 @test "generated lock supplies the installer value" {
     file="${BATS_TEST_TMPDIR}/central.conf"
 	printf '%s\n' 'LOCK_ENGRAM_VERSION="1.17.0"' >"${file}"
-	run bash -c "source '${COMMON_SH}' && devcontainer_load_tool_versions '${file}' && : \"\${ENGRAM_VERSION:=\${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}}\" && printf '%s' \"\${ENGRAM_VERSION}\""
+	run env -u ENGRAM_VERSION DEVCONTAINER_TOOL_VERSIONS_FILE="${file}" bash "${SCRIPT_DIR}/install/available/3010-ai-engram.sh" --print-version-policy
     [ "$status" -eq 0 ]
-    [ "$output" = "1.17.0" ]
+    [ "$output" = "ENGRAM_VERSION=1.17.0" ]
 }
 
-@test "Dockerfile preserves existing Engram, Node, and Playwright ARG and ENV overrides" {
-    run grep -F 'ARG ENGRAM_VERSION=' "${SCRIPT_DIR}/Dockerfile"
-    [ "$status" -eq 0 ]
-    run grep -F 'ENV ENGRAM_VERSION=${ENGRAM_VERSION}' "${SCRIPT_DIR}/Dockerfile"
-    [ "$status" -eq 0 ]
-    run grep -F 'ARG NODE_MAJOR=' "${SCRIPT_DIR}/Dockerfile"
-    [ "$status" -eq 0 ]
-    run grep -F 'ENV NODE_MAJOR=${NODE_MAJOR}' "${SCRIPT_DIR}/Dockerfile"
-    [ "$status" -eq 0 ]
-    run grep -F 'ARG PLAYWRIGHT_VERSION=' "${SCRIPT_DIR}/Dockerfile"
-    [ "$status" -eq 0 ]
-    run grep -F 'ENV PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}' "${SCRIPT_DIR}/Dockerfile"
-    [ "$status" -eq 0 ]
+@test "Dockerfile does not expose Engram Node or Playwright version overrides" {
+    run grep -E '^(ARG|ENV) (ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=' "${SCRIPT_DIR}/Dockerfile"
+    [ "$status" -eq 1 ]
+    [ -z "$output" ]
 }
 
 @test "Java installer resolves central install and observable requirement locks" {
@@ -418,7 +409,7 @@ EOF
     [ "$output" = "ENGRAM_VERSION=1.17.0" ]
 }
 
-@test "Docker-style Engram environment override wins in the installer" {
+@test "Engram installer requires its lock despite an environment override" {
     file="${BATS_TEST_TMPDIR}/engram-override.conf"
     printf '%s\n' 'TOOL_ENGRAM_VERSION="1.17.0"' >"${file}"
 
@@ -427,8 +418,8 @@ EOF
         ENGRAM_VERSION="9.9.9" \
         bash "${SCRIPT_DIR}/install/available/3010-ai-engram.sh" --print-version-policy
 
-    [ "$status" -eq 0 ]
-    [ "$output" = "ENGRAM_VERSION=9.9.9" ]
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"missing LOCK_ENGRAM_VERSION"* ]]
 }
 
 @test "Phase 3A installers resolve central exact values" {
@@ -477,7 +468,6 @@ EOF
         '2020-node-markdownlint.sh|MARKDOWNLINT_CLI2_VERSION'
         '2050-node-mermaid.sh|MERMAID_CLI_VERSION'
         '2400-python-graphify.sh|GRAPHIFY_VERSION'
-        '2080-browser-playwright.sh|PLAYWRIGHT_VERSION'
     )
 
     for case_entry in "${cases[@]}"; do
@@ -488,12 +478,7 @@ EOF
             bash "${SCRIPT_DIR}/install/available/${script_name}" --print-version-policy
 
         [ "$status" -eq 0 ]
-        if [ "${script_name}" = "2080-browser-playwright.sh" ]; then
-			expected_cli="$(sed -n 's/^LOCK_PLAYWRIGHT_CLI_VERSION="\([^"]*\)"$/\1/p' "${policy_file}")"
-			[ "$output" = "${environment_name}=9.9.9"$'\n'"PLAYWRIGHT_CLI_VERSION=${expected_cli}" ]
-        else
-            [ "$output" = "${environment_name}=9.9.9" ]
-        fi
+        [ "$output" = "${environment_name}=9.9.9" ]
     done
 }
 
@@ -619,7 +604,6 @@ EOF
     local case_entry script_name environment_name override_value playwright_version
 	playwright_version="$(awk -F '="' '$1 == "LOCK_PLAYWRIGHT_VERSION" { sub(/"$/, "", $2); print $2 }' "${policy_file}")"
     local -a cases=(
-        '2000-runtime-node.sh|NODE_MAJOR|88'
         '2100-runtime-go.sh|GO_VERSION|go8.8.1'
         '2010-runtime-pnpm.sh|PNPM_VERSION|8.8.2'
         '2060-node-test.sh|VITEST_VERSION|8.8.3'

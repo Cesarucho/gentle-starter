@@ -56,12 +56,36 @@ teardown() { rm -rf "${TEST_ROOT}"; }
 	grep -q 'LOCK_EXAMPLE_VERSION' "${REPO_ROOT}/.devcontainer/install/templates/install-script.sh"
 }
 
-@test "installer fails closed when required lock data is missing" {
+@test "policy-only installers ignore external version overrides" {
+	printf '%s\n' 'LOCK_ENGRAM_VERSION="1.17.0"' 'LOCK_NODE_MAJOR="26"' \
+		'LOCK_PLAYWRIGHT_VERSION="1.64.1"' 'LOCK_PLAYWRIGHT_CLI_VERSION="0.1.22"' >"${TEST_ROOT}/policy"
+	local entry script variable expected
+	for entry in '3010-ai-engram.sh|ENGRAM_VERSION|1.17.0' \
+		'2000-runtime-node.sh|NODE_MAJOR|26' '2080-browser-playwright.sh|PLAYWRIGHT_VERSION|1.64.1'; do
+		IFS='|' read -r script variable expected <<<"${entry}"
+		run env -u PLAYWRIGHT_CLI_VERSION DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/policy" \
+			"${variable}=9.9.9" bash "${REPO_ROOT}/.devcontainer/install/available/${script}" --print-version-policy
+		[ "$status" -eq 0 ]
+		if [ "${variable}" = PLAYWRIGHT_VERSION ]; then
+			[ "$output" = "${variable}=${expected}"$'\n''PLAYWRIGHT_CLI_VERSION=0.1.22' ]
+		else
+			[ "$output" = "${variable}=${expected}" ]
+		fi
+	done
+}
+
+@test "policy-only installers reject missing locks despite external overrides" {
 	printf '%s\n' 'LOCK_PLAYWRIGHT_CLI_VERSION="0.1.19"' >"${TEST_ROOT}/policy"
-	run env -u PLAYWRIGHT_VERSION -u PLAYWRIGHT_CLI_VERSION DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/policy" \
-		bash "${REPO_ROOT}/.devcontainer/install/available/2080-browser-playwright.sh" --print-version-policy
-	[ "${status}" -ne 0 ]
-	[[ "${output}" == *"missing LOCK_PLAYWRIGHT_VERSION"* ]]
+	local entry script variable lock
+	for entry in '3010-ai-engram.sh|ENGRAM_VERSION|LOCK_ENGRAM_VERSION' \
+		'2000-runtime-node.sh|NODE_MAJOR|LOCK_NODE_MAJOR' \
+		'2080-browser-playwright.sh|PLAYWRIGHT_VERSION|LOCK_PLAYWRIGHT_VERSION'; do
+		IFS='|' read -r script variable lock <<<"${entry}"
+		run env DEVCONTAINER_TOOL_VERSIONS_FILE="${TEST_ROOT}/policy" \
+			"${variable}=9.9.9" bash "${REPO_ROOT}/.devcontainer/install/available/${script}" --print-version-policy
+		[ "$status" -ne 0 ]
+		[[ "$output" == *"missing ${lock}"* ]]
+	done
 }
 
 @test "only tools-update owns policy replacement" {
