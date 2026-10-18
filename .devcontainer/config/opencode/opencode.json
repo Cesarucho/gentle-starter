@@ -421,6 +421,11 @@
       "action": "*",
       "effect": "allow",
       "resource": "/tmp/**"
+    },
+    {
+      "action": "shell",
+      "resource": "*",
+      "effect": "allow"
     }
   ],
   "plugins": [
