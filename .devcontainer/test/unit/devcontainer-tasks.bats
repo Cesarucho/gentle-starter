@@ -288,7 +288,6 @@ docker restart same-container-id' ]
 	cd "${REPO_ROOT}"
 	downstream="$(awk '/^FROM foundation AS core-tools$/{capture=1} capture' .devcontainer/Dockerfile)"
 
-	[[ "${downstream}" == *"ARG ENGRAM_VERSION="* ]]
 	[[ "${downstream}" == *"COPY tool-versions.conf"* ]]
 	[[ "${downstream}" == *"COPY install/available/"* ]]
 	[[ "${downstream}" == *"COPY install/02-core-tools/"* ]]
@@ -296,16 +295,10 @@ docker restart same-container-id' ]
 	[[ "${downstream}" == *"COPY install/04-hooks/"* ]]
 }
 
-@test "Dockerfile keeps the cheap version contract independent and synchronized" {
+@test "Dockerfile retires the override-only version contract target" {
 	cd "${REPO_ROOT}"
-	contract="$(awk '/^FROM \$\{IMAGE\} AS devcontainer-version-contract$/{capture=1; next} capture && /^FROM /{exit} capture' .devcontainer/Dockerfile)"
-	devcontainer="$(awk '/^FROM foundation AS core-tools$/{capture=1; next} capture' .devcontainer/Dockerfile)"
-	contract_variables="$(awk '$1 == "ARG" || ($1 == "ENV" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/) {print}' <<<"${contract}")"
-	devcontainer_variables="$(awk '$1 == "ARG" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/ || ($1 == "ENV" && $2 ~ /^(ENGRAM_VERSION|NODE_MAJOR|PLAYWRIGHT_VERSION)=/) {print}' <<<"${devcontainer}")"
-
-	[ "$(sort <<<"${contract_variables}")" = "$(sort <<<"${devcontainer_variables}")" ]
-	[[ "${contract}" != *"COPY "* ]]
-	[[ "${contract}" != *"RUN "* ]]
+	run grep -F 'devcontainer-version-contract' .devcontainer/Dockerfile
+	[ "$status" -eq 1 ]
 }
 
 @test "core cache inputs match canonical aliases and exclude project and optional inputs" {
@@ -323,7 +316,7 @@ final = dockerfile.split("FROM core-tools AS devcontainer\n", 1)[1]
 foundation = dockerfile.split("AS foundation\n", 1)[1].split("\nFROM ", 1)[0]
 assert "APP_NAME" not in foundation + core
 assert "PLAYWRIGHT_VERSION" not in foundation + core
-assert "ARG APP_NAME=" in final and "ARG PLAYWRIGHT_VERSION=" in final
+assert "ARG APP_NAME=" in final and "PLAYWRIGHT_VERSION" not in final
 assert "install/03-enabled" not in core and "install/04-hooks" not in core
 copies = [shlex.split(line)[1:-1] for line in core.splitlines() if line.startswith("COPY ")]
 sources = {source for instruction in copies for source in instruction}

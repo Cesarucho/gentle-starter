@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/../lib/tar-archive.sh"
 
 devcontainer_load_tool_versions
 
-: "${ENGRAM_VERSION:=${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}}"
+ENGRAM_VERSION="${LOCK_ENGRAM_VERSION:?missing LOCK_ENGRAM_VERSION}"
 : "${ENGRAM_INSTALL_DIR:=/usr/local/bin}"
 : "${ENGRAM_DATA_DIR:=${HOME}/.engram}"
 : "${ENGRAM_PROFILE_FILE:=${HOME}/.bashrc}"

@@ -138,6 +138,7 @@ EOF
 	[ "$status" -eq 0 ]
 	[[ "$output" == *$'\nTOOL_*\n  No TOOL_* changes.'* ]]
 	[[ "$output" == *'Generated lock changes hidden: 1.'* ]]
+	[[ "$output" == *'Updates applied: generated LOCK_* values changed; TOOL_* settings are unchanged.'* ]]
 	[[ "$output" != *$'\n  No changes.'* ]]
 	cp -p "${POLICY_FILE}" "${TEST_ROOT}/expected"
 	run env TOOLS_UPDATE_SHOW_LOCKS=1 "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" --only vitest
@@ -146,6 +147,53 @@ EOF
 	[[ "$output" != *$'\nTOOL_*\n'* ]]
 	[[ "$output" != *$'\nLOCK_*\n'* ]]
 	cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+}
+
+@test "full update rebuild guidance requires published policy changes" {
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"Run 'task container:rebuild && task container:up' to apply these versions."* ]]
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/expected"
+	local mode
+	mode="$(stat -c %a "${POLICY_FILE}")"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *$'\nVersion policy updates:\n  No changes.' ]]
+	[[ "$output" != *'to apply these versions.'* ]]
+	cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+	[ "$(stat -c %a "${POLICY_FILE}")" = "${mode}" ]
+	sed -i 's/^LOCK_VITEST_VERSION=.*/LOCK_VITEST_VERSION="9.9.8"/' "${POLICY_FILE}"
+	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'Updates applied: generated LOCK_* values changed; TOOL_* settings are unchanged.'* ]]
+	[[ "$output" == *"Run 'task container:rebuild && task container:up' to apply these versions."* ]]
+	cmp "${TEST_ROOT}/expected" "${POLICY_FILE}"
+}
+
+@test "public scoped publishers never emit rebuild guidance" {
+	local selector
+	local -a args
+	cp -p "${POLICY_FILE}" "${TEST_ROOT}/scoped-original"
+	for selector in only engram pi openspec; do
+		cp -p "${TEST_ROOT}/scoped-original" "${POLICY_FILE}"
+		case "${selector}" in
+		only) args=(--only vitest) ;;
+		engram) args=(--update-engram) ;;
+		pi) args=(--update-pi 9.9.9) ;;
+		openspec)
+			write_openspec_metadata '{"name":"@fission-ai/openspec","versions":{"9.9.9":{}}}'
+			args=(--update-openspec)
+			;;
+		esac
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${args[@]}"
+		[ "$status" -eq 0 ]
+		[[ "$output" != *'to apply these versions.'* ]]
+		cp -p "${POLICY_FILE}" "${TEST_ROOT}/scoped-expected"
+		run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh" "${args[@]}"
+		[ "$status" -eq 0 ]
+		[[ "$output" != *'to apply these versions.'* ]]
+		cmp "${TEST_ROOT}/scoped-expected" "${POLICY_FILE}"
+	done
 }
 
 @test "summary rejects invalid visibility before providers authentication or temporary files" {
@@ -1745,6 +1793,7 @@ EOF
 	run "${REPO_ROOT}/.taskfiles/scripts/tools-update.sh"
 
 	[ "${status}" -eq 73 ]
+	[[ "$output" != *'to apply these versions.'* ]]
 	cmp -s "${TEST_ROOT}/before" "${POLICY_FILE}"
 	[ "$(stat -c %a "${POLICY_FILE}")" = 640 ]
 	[ -z "$(find "${TEST_ROOT}" -maxdepth 1 -name '.tool-versions.conf.*' -print)" ]

@@ -45,25 +45,191 @@
     }
   },
   "permissions": [
-    { "action": "external_directory", "resource": "*", "effect": "ask" },
-    { "action": "external_directory", "resource": "/home/ubuntu/**", "effect": "allow" },
-    { "action": "external_directory", "resource": "/tmp/**", "effect": "allow" },
-
-    { "action": "read", "resource": "*", "effect": "allow" },
-    { "action": "edit", "resource": "*", "effect": "allow" },
-
-    { "action": "read", "resource": "*.env", "effect": "ask" },
-    { "action": "read", "resource": "*.env.*", "effect": "ask" },
-    { "action": "edit", "resource": "*.env", "effect": "ask" },
-    { "action": "edit", "resource": "*.env.*", "effect": "ask" },
-
-    { "action": "read", "resource": "*.git-credentials", "effect": "deny" },
-    { "action": "read", "resource": "*auth.json", "effect": "deny" },
-    { "action": "edit", "resource": "*.git-credentials", "effect": "deny" },
-    { "action": "edit", "resource": "*auth.json", "effect": "deny" },
-
-    { "action": "read", "resource": ".devcontainer/.env", "effect": "allow" },
-    { "action": "edit", "resource": ".devcontainer/.env", "effect": "allow" }
+    {
+      "action": "external_directory",
+      "effect": "ask",
+      "resource": "*"
+    },
+    {
+      "action": "external_directory",
+      "effect": "allow",
+      "resource": "/home/ubuntu/**"
+    },
+    {
+      "action": "read",
+      "effect": "allow",
+      "resource": "*"
+    },
+    {
+      "action": "edit",
+      "effect": "allow",
+      "resource": "*"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "*.env"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "*.env.*"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": ".env.d/**"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": ".env.d"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.engram"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gentle-ai"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gitconfig-volume"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gentle-shell"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.config/opencode"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.local/share/opencode"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.pi"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.ssh"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.ssh-server"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.engram/**"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gentle-ai/**"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gitconfig-volume/**"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gitconfig"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.gentle-shell/**"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": ".codegraph/**"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": ".codegraph"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "*/.codegraph"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "*/.codegraph/**"
+    },
+    {
+      "action": "edit",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.config/opencode/**"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.local/share/opencode/**"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.pi/**"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.ssh/**"
+    },
+    {
+      "action": "*",
+      "effect": "ask",
+      "resource": "/home/ubuntu/.ssh-server/**"
+    },
+    {
+      "action": "read",
+      "effect": "allow",
+      "resource": ".devcontainer/.env"
+    },
+    {
+      "action": "edit",
+      "effect": "allow",
+      "resource": ".devcontainer/.env"
+    },
+    {
+      "action": "*",
+      "effect": "deny",
+      "resource": "*.git-credentials"
+    },
+    {
+      "action": "*",
+      "effect": "deny",
+      "resource": "*auth.json"
+    },
+    {
+      "action": "*",
+      "effect": "allow",
+      "resource": "/tmp/**"
+    },
+    {
+      "action": "shell",
+      "resource": "*",
+      "effect": "allow"
+    }
   ],
   "plugins": [
     "@mohak34/opencode-notifier@latest"

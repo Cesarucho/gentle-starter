@@ -18,8 +18,11 @@ The four extension surfaces are:
    editable `TOOL_*_VERSION` intent and final generated `LOCK_*` values
    in `.devcontainer/tool-versions.conf`.
    Installers retain URLs, architecture, permissions, idempotency, integrity
-   verification, and version checks. Approved environment variables may
-   override generated locks; otherwise installers require `LOCK_*` values and
+   verification, and version checks. Engram, Node, and the Playwright library
+   always use their generated locks; `ENGRAM_VERSION`, `NODE_MAJOR`, and
+   `PLAYWRIGHT_VERSION` are not supported overrides. Other approved environment
+   variables (including `PLAYWRIGHT_CLI_VERSION`) may override generated locks;
+   otherwise installers require `LOCK_*` values and
    fail closed. They never resolve editable intent or carry local
    version/checksum defaults.
 
@@ -387,9 +390,13 @@ TOOLS_UPDATE_SHOW_LOCKS=1 task tools:update -- --only engram,opencode
 Unset, empty or `0` hides lock details; `1` shows them. Other values fail before
 provider queries or authentication. This variable changes output only: locks are
 still discovered, validated and written in every mode, with the same policy bytes.
-Order within each group is preserved. A lock-only update reports `No TOOL_* changes.`
+Order within each group is preserved. A lock-only update first announces
+`Updates applied: generated LOCK_* values changed; TOOL_* settings are unchanged.`
+It then reports `No TOOL_* changes.`
 and either the hidden count or lock details; an unchanged policy retains the global
 `No changes.` message.
+The rebuild/up reminder for a full update appears only after policy changes are
+successfully published, including lock-only changes; an unchanged policy omits it.
 The summary appears only after successful publication. Export the variable in the
 invoking shell or prefix the command; `tools:update` does not directly load `.env`.
 
