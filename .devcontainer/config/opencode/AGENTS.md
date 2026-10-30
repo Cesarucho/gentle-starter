@@ -134,11 +134,14 @@ Format for `mem_save`:
 - **scope**: `project` (default) | `personal`
 - **topic_key** (recommended for evolving topics): stable key like `architecture/auth-model`
 - **capture_prompt**: optional; default `true`. Do not set this for normal human/proactive saves. Set `false` only for automated artifacts such as task-document mirrors, testing-capabilities caches, onboarding/state artifacts, or skill-registry output.
-- **content**:
-  - **What**: One sentence — what was done
-  - **Why**: What motivated it (user request, bug, performance, etc.)
-  - **Where**: Files or paths affected
-  - **Learned**: Gotchas, edge cases, things that surprised you (omit if none)
+- **content** (required, single JSON string): A concise, self-contained summary. Recommended structure inside the string:
+  ```
+  What: One sentence — what was done
+  Why: What motivated it (user request, bug, performance, etc.)
+  Where: Files or paths affected
+  Learned: Gotchas, edge cases, things that surprised you (omit if none)
+  ```
+  Example: `"What: Fixed N+1 query in UserList. Why: N+1 caused 200ms overhead. Where: internal/repo/user_list.go. Learned: preload() avoids the N+1."`
 
 Prompt capture behavior (Engram v1.15.3+):
 - `mem_save` captures the user prompt best-effort when the MCP process already has prompt context for the same `project + session_id`.
@@ -224,7 +227,7 @@ When answering structural or codebase questions, use CodeGraph before broad file
 
 CodeGraph-aware worktree placement:
 
-- Create Git worktrees that may need CodeGraph under the user's home directory, preferably as a sibling such as `<repo-parent>/<repo-name>-worktrees/<worktree-name>`. Never place a CodeGraph-dependent worktree under `/tmp`, `/var/tmp`, or `/tmp/opencode`; generic temporary-work guidance does not override this rule.
+- Create Git worktrees that may need CodeGraph under the user's home directory. For a repository rooted there, place them as a sibling of the repository root at `<repo-parent>/<repo-name>-worktrees/<worktree-name>`, where `<repo-parent>` is the immediate parent directory of the repository root (repo `~/Projects/Rust/foo` → `~/Projects/Rust/foo-worktrees/<worktree-name>`). Never place a CodeGraph-dependent worktree under `/tmp`, `/var/tmp`, or `/tmp/opencode`; generic temporary-work guidance does not override this rule.
 - Every worktree needs its own `.codegraph/` index. Never copy, symlink, or reuse another checkout's index because its root and checked-out bytes may differ.
 
 CodeGraph intelligence surface:
